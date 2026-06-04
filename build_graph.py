@@ -586,7 +586,11 @@ def build(html_path: Path, db_path: Path, show_diff: bool = False):
 
     print("\n[3/5] Recriando banco de dados...")
     if db_path.exists():
-        shutil.rmtree(str(db_path), ignore_errors=True)
+        # Kuzu may store the DB as a directory (newer) or a file (older builds)
+        if db_path.is_dir():
+            shutil.rmtree(str(db_path), ignore_errors=True)
+        else:
+            db_path.unlink(missing_ok=True)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     db   = kuzu.Database(str(db_path))
     conn = kuzu.Connection(db)

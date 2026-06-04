@@ -28,6 +28,12 @@ from pathlib import Path
 from _paths import resolve_graph_dir, data_dir
 
 try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("design-graph")
+except Exception:
+    __version__ = "dev"
+
+try:
     import kuzu
 except ImportError:
     import subprocess
@@ -37,6 +43,10 @@ except ImportError:
 # Resolved at startup via layered discovery (env → config file → XDG default)
 GRAPH_DIR = str(resolve_graph_dir())
 GRAPH_DB  = os.environ.get("GRAPH_DB", str(data_dir() / "design-graph.db"))
+
+# Session state — active prototype for calls that omit doc=
+# Seeded from DESIGN_GRAPH_DOC env var; changeable at runtime via set_prototype tool
+ACTIVE_PROTOTYPE: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Aliases PT/EN para busca
@@ -756,6 +766,25 @@ TOOLS = [
             "required": ["name"],
         },
     },
+    {
+        "name": "set_prototype",
+        "description": (
+            "Set the active prototype for this session. "
+            "After calling this, all tools will use this prototype by default when doc= is not specified. "
+            "Call with no arguments to check which prototype is currently active. "
+            "The selection persists for the lifetime of the MCP server process."
+        ),
+        "inputSchema": {
+            "type":"object",
+            "properties": {
+                "name": {
+                    "type":"string",
+                    "description":"Prototype name to activate (e.g. 'myapp'). Omit to check current selection.",
+                },
+            },
+            "required": [],
+        },
+    },
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -766,40 +795,95 @@ def send(obj: dict):
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
 
+def _find_conn(conns: list, target: str):
+    """Return conn whose name matches target (exact first, then substring)."""
+    for name, conn in conns:
+        if name.lower() == target.lower():
+            return conn
+    for name, conn in conns:
+        if target.lower() in name.lower():
+            return conn
+    return None
+
+
 def pick_conn(conns: list, doc: str = None):
     """
     Returns (conn, error_text).
-    error_text is None on success, a human-readable string when the doc is not found.
+    Resolution order: explicit doc= → ACTIVE_PROTOTYPE → auto-select if single.
+    error_text is None on success.
     """
     if not conns:
         return None, (
             f"No graphs loaded. Build one first:\n\n"
-            f"  design-graph build <prototype.html>\n\n"
+            f"  design-graph <prototype.html>\n\n"
             f"Looking in: {GRAPH_DIR}"
         )
+
+    # 1. Explicit doc= argument takes priority
     if doc:
-        # 1. exact match
-        for name, conn in conns:
-            if name.lower() == doc.lower():
-                return conn, None
-        # 2. substring match
-        for name, conn in conns:
-            if doc.lower() in name.lower():
-                return conn, None
+        conn = _find_conn(conns, doc)
+        if conn:
+            return conn, None
         available = ", ".join(f"'{n}'" for n, _ in conns)
         return None, (
             f"Prototype '{doc}' not found.\n"
             f"Available: {available}\n"
             f"Use list_screens to see all loaded prototypes."
         )
-    # No doc given — use first, but warn if multiple are loaded
-    if len(conns) > 1:
-        names = ", ".join(f"'{n}'" for n, _ in conns)
-        sys.stderr.write(
-            f"[MCP] Warning: 'doc' not specified with {len(conns)} prototypes loaded "
-            f"({names}). Defaulting to '{conns[0][0]}'.\n"
+
+    # 2. Session active prototype (set_prototype tool or DESIGN_GRAPH_DOC env)
+    if ACTIVE_PROTOTYPE:
+        conn = _find_conn(conns, ACTIVE_PROTOTYPE)
+        if conn:
+            return conn, None
+        available = ", ".join(f"'{n}'" for n, _ in conns)
+        return None, (
+            f"Active prototype '{ACTIVE_PROTOTYPE}' not found in loaded graphs.\n"
+            f"Available: {available}\n"
+            f"Call set_prototype(name='...') to update the selection."
         )
-    return conns[0][1], None
+
+    # 3. Single prototype — auto-select silently
+    if len(conns) == 1:
+        return conns[0][1], None
+
+    # 4. Multiple loaded, none selected — ask for clarification
+    names = ", ".join(f"'{n}'" for n, _ in conns)
+    return None, (
+        f"Multiple prototypes loaded: {names}\n"
+        f"Call set_prototype(name='...') once to set the active prototype for this session,\n"
+        f"or pass doc= to this specific call."
+    )
+
+
+def tool_set_prototype(conns: list, name: str) -> str:
+    global ACTIVE_PROTOTYPE
+
+    # No name → report current state
+    if not name:
+        if ACTIVE_PROTOTYPE:
+            return f"Active prototype: '{ACTIVE_PROTOTYPE}'"
+        if len(conns) == 1:
+            return f"Auto-selected: '{conns[0][0]}' (only one prototype loaded — no need to set)"
+        names = ", ".join(f"'{n}'" for n, _ in conns)
+        return (
+            f"No active prototype set.\n"
+            f"Available: {names}\n"
+            f"Call set_prototype(name='...') to select one."
+        )
+
+    conn = _find_conn(conns, name)
+    if conn:
+        matched = next(n for n, c in conns if c is conn)
+        ACTIVE_PROTOTYPE = matched
+        sys.stderr.write(f"[MCP] Active prototype → '{matched}'\n")
+        return (
+            f"Active prototype set to '{matched}'.\n"
+            f"All subsequent calls without doc= will use this prototype."
+        )
+
+    available = ", ".join(f"'{n}'" for n, _ in conns)
+    return f"Prototype '{name}' not found.\nAvailable: {available}"
 
 
 def handle(conns: list, msg: dict):
@@ -812,21 +896,29 @@ def handle(conns: list, msg: dict):
         if not doc_names:
             description = (
                 f"No graphs loaded (looking in: {GRAPH_DIR}). "
-                "Run 'design-graph build <prototype.html>' to build a graph, "
+                "Run 'design-graph <prototype.html>' to build a graph, "
                 "then restart the MCP server."
             )
         else:
-            docs_str = ", ".join(f"'{n}'" for n in doc_names)
+            if ACTIVE_PROTOTYPE:
+                active_line = f"Active prototype: '{ACTIVE_PROTOTYPE}' (set via DESIGN_GRAPH_DOC). "
+            elif len(doc_names) == 1:
+                active_line = f"Active prototype: '{doc_names[0]}' (auto-selected — only one loaded). "
+            else:
+                names_str = ", ".join(f"'{n}'" for n in doc_names)
+                active_line = (
+                    f"No active prototype set. Loaded: {names_str}. "
+                    f"Call set_prototype(name='...') to select one. "
+                )
             description = (
-                f"Loaded prototypes ({len(doc_names)}): {docs_str}. "
-                "Always pass 'doc' with one of these names when calling detail tools "
-                "(get_screen, get_component, etc.) to ensure data comes from the correct prototype. "
-                "Use list_screens to see all available screens per prototype."
+                active_line +
+                "Use list_screens to explore screens, get_component for components. "
+                "Pass doc= to override the active prototype for a single call."
             )
         return {"jsonrpc":"2.0","id":mid,"result":{
             "protocolVersion":"2024-11-05",
             "capabilities":{"tools":{}},
-            "serverInfo":{"name":"design-graph","version":"2.0","description":description},
+            "serverInfo":{"name":"design-graph","version":__version__,"description":description},
         }}
 
     if method in ("notifications/initialized","initialized"):
@@ -838,9 +930,16 @@ def handle(conns: list, msg: dict):
     if method == "tools/call":
         tool_name = params.get("name","")
         args      = params.get("arguments",{})
+
+        # set_prototype is stateful and doesn't need a DB connection
+        if tool_name == "set_prototype":
+            text = tool_set_prototype(conns, args.get("name", ""))
+            sys.stderr.write(f"[MCP] ✓ set_prototype → {len(text)} chars\n")
+            return {"jsonrpc":"2.0","id":mid,
+                    "result":{"content":[{"type":"text","text":text}]}}
+
         doc  = args.get("doc")
         conn, conn_err = pick_conn(conns, doc)
-        doc_name = doc or (conns[0][0] if conns else "?")
 
         # Return early with a clear message if no connection could be resolved
         if conn_err:
@@ -848,9 +947,10 @@ def handle(conns: list, msg: dict):
             return {"jsonrpc":"2.0","id":mid,
                     "result":{"content":[{"type":"text","text":conn_err}]}}
 
-        # Log da chamada
+        # Identify which prototype is actually being used for the log
+        resolved = next((n for n, c in conns if c is conn), "?")
         args_repr = ", ".join(f"{k}={repr(v)[:40]}" for k,v in args.items() if k != "doc")
-        sys.stderr.write(f"[MCP] {tool_name}({args_repr}) doc={doc_name}\n")
+        sys.stderr.write(f"[MCP] {tool_name}({args_repr}) → '{resolved}'\n")
 
         try:
             dispatch = {
@@ -867,7 +967,7 @@ def handle(conns: list, msg: dict):
             }
             fn = dispatch.get(tool_name)
             if not fn:
-                text = f"Ferramenta desconhecida: {tool_name}. Disponíveis: {', '.join(dispatch)}"
+                text = f"Unknown tool: {tool_name}. Available: {', '.join(dispatch)}"
             else:
                 text = fn()
             sys.stderr.write(f"[MCP] ✓ {tool_name} → {len(text)} chars\n")
@@ -897,8 +997,17 @@ def main():
         # initialize handshake and receive a human-readable error from tool calls
         # instead of a broken-pipe / connection-refused error.
     else:
-        doc_names = ", ".join(n for n, _ in conns)
-        sys.stderr.write(f"[design-graph] Started — {len(conns)} prototype(s): {doc_names}\n")
+        if len(conns) == 1:
+            sys.stderr.write(f"[design-graph] Started — active prototype: '{conns[0][0]}' (auto-selected)\n")
+        elif ACTIVE_PROTOTYPE:
+            names = ", ".join(n for n, _ in conns)
+            sys.stderr.write(f"[design-graph] Started — {len(conns)} prototypes: {names} | active: '{ACTIVE_PROTOTYPE}'\n")
+        else:
+            names = ", ".join(n for n, _ in conns)
+            sys.stderr.write(
+                f"[design-graph] Started — {len(conns)} prototypes: {names}\n"
+                f"  No active prototype set. Call set_prototype(name='...') to select one.\n"
+            )
 
     for line in sys.stdin:
         line = line.strip()

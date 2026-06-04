@@ -12,6 +12,7 @@ claude_mcp_config.json
 *.local.json
 
 # Python
+_version.py
 __pycache__/
 *.pyc
 *.pyo
