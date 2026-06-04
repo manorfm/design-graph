@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
 """
-mcp_server.py — MCP server para o grafo de design system.
-JSON-RPC 2.0 over stdio. Python 3.9 compatível.
-Suporta múltiplos documentos via GRAPH_DIR.
+design-mcp — MCP server for design-graph (JSON-RPC 2.0 over stdio).
 
-Configuração Cursor (~/.cursor/mcp.json):
+Started automatically by Cursor / Claude Code when registered as an MCP server.
+Graphs are discovered automatically — no paths needed after pip install.
+
+Minimal config (~/.cursor/mcp.json):
 {
   "mcpServers": {
-    "design-system": {
-      "command": "python3",
-      "args": ["/Users/manoelmedeiros/Workspace/context/mcp_server.py"],
-      "env": {
-        "GRAPH_DIR": "/Users/manoelmedeiros/Workspace/context/graphs"
-      }
+    "design-graph": {
+      "command": "design-mcp"
     }
   }
 }
 
-Múltiplos documentos:
-  build-graph ipede-v7.html  --db ~/graphs/ipede-v7.db
-  build-graph outro.html     --db ~/graphs/outro.db
-  → MCP busca em todos os .db dentro de GRAPH_DIR automaticamente
+Custom graph directory (optional):
+{
+  "mcpServers": {
+    "design-graph": {
+      "command": "design-mcp",
+      "env": { "GRAPH_DIR": "/path/to/graphs" }
+    }
+  }
+}
+
+Build a graph first:
+  design-graph myapp.html
+  → saved to ~/.local/share/design-graph/myapp.db
 """
 
 import sys, json, os, traceback
