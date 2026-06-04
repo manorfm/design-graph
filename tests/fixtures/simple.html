@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+function BtnPrimary({ label }) {
+  return (
+    <button
+      style={{backgroundColor: '#ffb81c', color: '#ffffff', padding: '8px', transition: 'all 0.2s ease'}}
+      onMouseEnter={e => e.target.style.backgroundColor = '#f59e0b'}
+      onMouseLeave={e => e.target.style.backgroundColor = '#ffb81c'}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SectionCard({ title }) {
+  return (
+    <div style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px'}}>
+      <h2 style={{color: '#ffffff'}}>{title}</h2>
+    </div>
+  );
+}
+
+function RestaurantsPage() {
+  return (
+    <div style={{backgroundColor: '#1a1a1a'}}>
+      {/* ── Header ── */}
+      <div style={{padding: '16px'}}>
+        <h1>Restaurants</h1>
+        <BtnPrimary label="Order Now" />
+      </div>
+      {/* ── Content ── */}
+      <div>
+        <SectionCard title="Featured" />
+      </div>
+    </div>
+  );
+}
+</script>
+</body>
+</html>

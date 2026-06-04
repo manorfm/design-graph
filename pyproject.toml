@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=65"]
+requires = ["setuptools>=65", "setuptools-scm"]
 build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "design-graph"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Parse prototype HTML into a knowledge graph — surgical MCP context for LLM agents at a fraction of the token cost"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -20,5 +20,22 @@ design-graph = "build_graph:main"
 design-mcp   = "mcp_server:main"
 design-query = "query:main"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+]
+
 [tool.setuptools]
 py-modules = ["build_graph", "mcp_server", "query", "extract_design_system", "_paths"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["tests/*", "extract_design_system.py"]
+
+[tool.setuptools_scm]
+# version is read from git tags at install time
+# tag format: v1.2.3 or 1.2.3
+# between tags: 1.2.3.dev4+gabcdef (commits since tag + short hash)
