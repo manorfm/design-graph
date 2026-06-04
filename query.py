@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-query.py — Interface de linha de comando para o grafo de design system.
-Usado pelo Makefile para consultas diretas sem o Cursor.
+design-query — Query the design-graph knowledge base from the terminal.
 
-Uso:
-  python3 query.py screens
-  python3 query.py tokens [color|spacing]
-  python3 query.py search <termo>
-  python3 query.py inspect <ComponentName>
-  python3 query.py impact <ComponentName>
-  python3 query.py screen <ScreenName>
+Usage:
+  design-query screens
+  design-query tokens [color|spacing]
+  design-query search <term>
+  design-query inspect <ComponentName>
+  design-query impact <ComponentName>
+  design-query screen <ScreenName>
 """
 
 import sys, os

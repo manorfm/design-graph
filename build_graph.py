@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
-build_graph.py — Constrói/atualiza o grafo de design system no Kuzu.
+design-graph — Parse a standalone HTML prototype into a Kuzu knowledge graph.
 
-Uso:
-  design-graph <prototype.html> [--db <path>] [--diff] [--force]
+Usage:
+  design-graph <prototype.html> [options]
 
-  Sem --db: o grafo é salvo em ~/.local/share/design-graph/<nome>.db
+Options:
+  --db <path>   Save graph to a custom path instead of the default directory
+  --diff        Show what changed since the last build
+  --force       Force a full rebuild even if the HTML is unchanged
+
+Default output: ~/.local/share/design-graph/<name>.db
 """
 
 import sys, re, json, base64, gzip, hashlib, shutil

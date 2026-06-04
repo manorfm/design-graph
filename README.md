@@ -156,7 +156,7 @@ design-query screen RestaurantsPage     # full screen composition
 
 ### The `doc` parameter
 
-When more than one prototype is loaded, pass `doc` to every tool call. Its value is the `.db` filename without extension — the same name printed at startup.
+When more than one prototype is loaded, use `set_prototype` once at the start of a session, or pass `doc=` per call. The value is the `.db` filename without extension — the same name printed at startup.
 
 The server resolves which prototype to use in this order:
 
