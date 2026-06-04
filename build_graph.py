@@ -3,11 +3,14 @@
 build_graph.py — Constrói/atualiza o grafo de design system no Kuzu.
 
 Uso:
-  python3 build_graph.py <prototype.html> [--db design-graph.db] [--diff]
+  design-graph <prototype.html> [--db <path>] [--diff] [--force]
+
+  Sem --db: o grafo é salvo em ~/.local/share/design-graph/<nome>.db
 """
 
 import sys, re, json, base64, gzip, hashlib, shutil
 from pathlib import Path
+from _paths import default_db_for
 from collections import Counter, defaultdict
 from datetime import datetime
 
@@ -771,16 +774,18 @@ def main():
         sys.exit(0)
 
     html_path  = Path(args[0])
-    db_path    = Path("design-graph.db")
     show_diff  = "--diff" in args
     force      = "--force" in args
+
+    # Default: central XDG directory, named after the prototype
+    db_path = default_db_for(html_path.stem)
 
     for a in args[1:]:
         if not a.startswith("--"):
             db_path = Path(a)
             break
     if "--db" in args:
-        db_path = Path(args[args.index("--db") + 1])
+        db_path = Path(args[args.index("--db") + 1]).expanduser()
 
     if not html_path.exists():
         print(f"Erro: arquivo não encontrado: {html_path}")

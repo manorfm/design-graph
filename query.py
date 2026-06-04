@@ -16,8 +16,10 @@ import sys, os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-os.environ.setdefault("GRAPH_DIR", str(Path.home() / "graphs"))
-os.environ.setdefault("GRAPH_DB",  str(Path(__file__).parent / "design-graph.db"))
+
+from _paths import resolve_graph_dir, data_dir
+os.environ.setdefault("GRAPH_DIR", str(resolve_graph_dir()))
+os.environ.setdefault("GRAPH_DB",  str(data_dir() / "design-graph.db"))
 
 from mcp_server import open_dbs, tool_list_screens, tool_get_tokens, tool_search, \
     tool_get_component, tool_impact, tool_get_screen, tool_get_interactions

@@ -25,6 +25,7 @@ Múltiplos documentos:
 
 import sys, json, os, traceback
 from pathlib import Path
+from _paths import resolve_graph_dir, data_dir
 
 try:
     import kuzu
@@ -33,8 +34,9 @@ except ImportError:
     subprocess.run([sys.executable, "-m", "pip", "install", "kuzu", "-q"])
     import kuzu
 
-GRAPH_DIR = os.environ.get("GRAPH_DIR", "")
-GRAPH_DB  = os.environ.get("GRAPH_DB",  str(Path(__file__).parent / "design-graph.db"))
+# Resolved at startup via layered discovery (env → config file → XDG default)
+GRAPH_DIR = str(resolve_graph_dir())
+GRAPH_DB  = os.environ.get("GRAPH_DB", str(data_dir() / "design-graph.db"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Aliases PT/EN para busca
@@ -116,27 +118,28 @@ def _open_db_with_retry(db_path: str, retries: int = 5, delay: float = 0.8):
 
 def open_dbs() -> list:
     """
-    Retorna lista de (doc_name, conn).
-    Usa GRAPH_DIR (todos os .db dentro) ou GRAPH_DB (arquivo único).
-    Nota: Kuzu permite apenas uma conexão ativa por arquivo.
-    Se o Cursor já está usando o MCP, make start vai falhar no lock.
+    Returns list of (doc_name, conn).
+    GRAPH_DIR is always resolved (env → config → XDG default).
+    Falls back to GRAPH_DB single-file only if the directory has no .db files.
+    Note: Kuzu allows only one active connection per file.
     """
     conns = []
-    if GRAPH_DIR and Path(GRAPH_DIR).exists():
-        for db_path in sorted(Path(GRAPH_DIR).glob("*.db")):
+    graph_dir = Path(GRAPH_DIR)
+    if graph_dir.exists():
+        for db_path in sorted(graph_dir.glob("*.db")):
             try:
                 conn = _open_db_with_retry(str(db_path))
                 conns.append((db_path.stem, conn))
-                sys.stderr.write(f"[MCP] Aberto: {db_path.name}\n")
+                sys.stderr.write(f"[MCP] Loaded: {db_path.name}\n")
             except Exception as e:
-                sys.stderr.write(f"[MCP] Lock em {db_path.name} — outro processo ativo? ({e})\n")
+                sys.stderr.write(f"[MCP] Locked: {db_path.name} — another process active? ({e})\n")
     if not conns and Path(GRAPH_DB).exists():
         try:
             conn = _open_db_with_retry(GRAPH_DB)
             conns.append((Path(GRAPH_DB).stem, conn))
-            sys.stderr.write(f"[MCP] Aberto (fallback): {Path(GRAPH_DB).name}\n")
+            sys.stderr.write(f"[MCP] Loaded (fallback): {Path(GRAPH_DB).name}\n")
         except Exception as e:
-            sys.stderr.write(f"[MCP] Falha ao abrir DB: {e}\n")
+            sys.stderr.write(f"[MCP] Failed to open DB: {e}\n")
     return conns
 
 def q(conn, cypher: str, params: dict = None) -> list:
@@ -764,12 +767,39 @@ def send(obj: dict):
     sys.stdout.flush()
 
 def pick_conn(conns: list, doc: str = None):
-    """Retorna conn de um doc específico ou o primeiro disponível."""
+    """
+    Returns (conn, error_text).
+    error_text is None on success, a human-readable string when the doc is not found.
+    """
+    if not conns:
+        return None, (
+            f"No graphs loaded. Build one first:\n\n"
+            f"  design-graph build <prototype.html>\n\n"
+            f"Looking in: {GRAPH_DIR}"
+        )
     if doc:
+        # 1. exact match
+        for name, conn in conns:
+            if name.lower() == doc.lower():
+                return conn, None
+        # 2. substring match
         for name, conn in conns:
             if doc.lower() in name.lower():
-                return conn
-    return conns[0][1] if conns else None
+                return conn, None
+        available = ", ".join(f"'{n}'" for n, _ in conns)
+        return None, (
+            f"Prototype '{doc}' not found.\n"
+            f"Available: {available}\n"
+            f"Use list_screens to see all loaded prototypes."
+        )
+    # No doc given — use first, but warn if multiple are loaded
+    if len(conns) > 1:
+        names = ", ".join(f"'{n}'" for n, _ in conns)
+        sys.stderr.write(
+            f"[MCP] Warning: 'doc' not specified with {len(conns)} prototypes loaded "
+            f"({names}). Defaulting to '{conns[0][0]}'.\n"
+        )
+    return conns[0][1], None
 
 
 def handle(conns: list, msg: dict):
@@ -779,21 +809,24 @@ def handle(conns: list, msg: dict):
 
     if method == "initialize":
         doc_names = [n for n, _ in conns]
-        docs_str  = ", ".join(f"'{n}'" for n in doc_names)
+        if not doc_names:
+            description = (
+                f"No graphs loaded (looking in: {GRAPH_DIR}). "
+                "Run 'design-graph build <prototype.html>' to build a graph, "
+                "then restart the MCP server."
+            )
+        else:
+            docs_str = ", ".join(f"'{n}'" for n in doc_names)
+            description = (
+                f"Loaded prototypes ({len(doc_names)}): {docs_str}. "
+                "Always pass 'doc' with one of these names when calling detail tools "
+                "(get_screen, get_component, etc.) to ensure data comes from the correct prototype. "
+                "Use list_screens to see all available screens per prototype."
+            )
         return {"jsonrpc":"2.0","id":mid,"result":{
             "protocolVersion":"2024-11-05",
             "capabilities":{"tools":{}},
-            "serverInfo":{
-                "name":"design-system-graph",
-                "version":"2.0",
-                "description":(
-                    f"Protótipos carregados ({len(doc_names)}): {docs_str}. "
-                    "IMPORTANTE: sempre passe o parâmetro 'doc' com um desses nomes "
-                    "nas ferramentas de detalhe (get_screen, get_component, etc.) para "
-                    "garantir que os dados vêm do protótipo correto. "
-                    "Use list_screens para ver telas disponíveis por protótipo."
-                ),
-            },
+            "serverInfo":{"name":"design-graph","version":"2.0","description":description},
         }}
 
     if method in ("notifications/initialized","initialized"):
@@ -806,8 +839,14 @@ def handle(conns: list, msg: dict):
         tool_name = params.get("name","")
         args      = params.get("arguments",{})
         doc  = args.get("doc")
-        conn = pick_conn(conns, doc)
+        conn, conn_err = pick_conn(conns, doc)
         doc_name = doc or (conns[0][0] if conns else "?")
+
+        # Return early with a clear message if no connection could be resolved
+        if conn_err:
+            sys.stderr.write(f"[MCP] ✗ {tool_name}: {conn_err[:80]}\n")
+            return {"jsonrpc":"2.0","id":mid,
+                    "result":{"content":[{"type":"text","text":conn_err}]}}
 
         # Log da chamada
         args_repr = ", ".join(f"{k}={repr(v)[:40]}" for k,v in args.items() if k != "doc")
@@ -848,15 +887,18 @@ def main():
     conns = open_dbs()
     if not conns:
         sys.stderr.write(
-            "Nenhum grafo encontrado.\n"
-            f"  GRAPH_DIR={GRAPH_DIR or '(não definido)'}\n"
-            f"  GRAPH_DB={GRAPH_DB}\n"
-            "Rode: build-graph <prototype.html> --db <caminho.db>\n"
+            "[design-graph] No graphs found — starting in degraded mode.\n"
+            f"  Looking in: {GRAPH_DIR}\n"
+            "  Run: design-graph build <prototype.html>\n"
+            "  Then restart the MCP server (or Cursor).\n"
+            "  Tool calls will return setup instructions until a graph is built.\n"
         )
-        sys.exit(1)
-
-    doc_names = ", ".join(n for n, _ in conns)
-    sys.stderr.write(f"[design-system MCP] Iniciado — {len(conns)} doc(s): {doc_names}\n")
+        # Do NOT exit — keep the server alive so the MCP client can do the
+        # initialize handshake and receive a human-readable error from tool calls
+        # instead of a broken-pipe / connection-refused error.
+    else:
+        doc_names = ", ".join(n for n, _ in conns)
+        sys.stderr.write(f"[design-graph] Started — {len(conns)} prototype(s): {doc_names}\n")
 
     for line in sys.stdin:
         line = line.strip()

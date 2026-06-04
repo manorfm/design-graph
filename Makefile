@@ -1,5 +1,5 @@
 PROTO     ?= $(shell ls *.html 2>/dev/null | head -1)
-DB_DIR    ?= $(HOME)/graphs
+DB_DIR    ?= $(shell python3 -c "from _paths import resolve_graph_dir; print(resolve_graph_dir())" 2>/dev/null || echo "$(HOME)/.local/share/design-graph")
 GRAPH_DB  ?= $(DB_DIR)/$(basename $(PROTO)).db
 MCP_PID   := /tmp/design-mcp.pid
 MCP_LOG   := /tmp/design-mcp.log

@@ -21,4 +21,4 @@ design-mcp   = "mcp_server:main"
 design-query = "query:main"
 
 [tool.setuptools]
-py-modules = ["build_graph", "mcp_server", "query", "extract_design_system"]
+py-modules = ["build_graph", "mcp_server", "query", "extract_design_system", "_paths"]
