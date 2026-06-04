@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "design-graph": {
+      "command": "design-mcp",
+      "env": {
+        "GRAPH_DIR": "/path/to/your/graphs"
+      }
+    }
+  }
+}

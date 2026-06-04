@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "design-graph"
+version = "0.1.0"
+description = "Parse prototype HTML into a knowledge graph — surgical MCP context for LLM agents at a fraction of the token cost"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["mcp", "llm", "design-system", "agent", "context", "kuzu"]
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "kuzu>=0.6",
+]
+
+[project.scripts]
+design-graph = "build_graph:main"
+design-mcp   = "mcp_server:main"
+design-query = "query:main"
+
+[tool.setuptools]
+py-modules = ["build_graph", "mcp_server", "query", "extract_design_system"]

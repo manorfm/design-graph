@@ -1,0 +1,34 @@
+# Graph databases (generated, can be large)
+*.db
+*.db/
+.graph-state.json
+graph-diff.md
+
+# Generated context directories
+agent-context/
+
+# Personal MCP configs (contain local paths)
+claude_mcp_config.json
+*.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+.eggs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
