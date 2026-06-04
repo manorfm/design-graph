@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=65", "setuptools-scm"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "design-graph"
@@ -39,3 +39,4 @@ omit = ["tests/*", "extract_design_system.py"]
 # version is read from git tags at install time
 # tag format: v1.2.3 or 1.2.3
 # between tags: 1.2.3.dev4+gabcdef (commits since tag + short hash)
+fallback_version = "0.0.0"
