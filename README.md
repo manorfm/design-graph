@@ -17,7 +17,7 @@ Parse a standalone HTML prototype into a knowledge graph and expose it through M
 ## Install
 
 ```bash
-pip install git+https://github.com/YOUR_USERNAME/design-graph.git
+pip install git+https://github.com/manorfm/design-graph.git
 ```
 
 This installs three commands globally: `design-graph`, `design-mcp`, and `design-query`.  
