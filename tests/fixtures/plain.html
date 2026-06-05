@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>iPede — Plain HTML Fixture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #1a1a1a; color: #ffffff; }
+    .navbar { background: #2a2a2a; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    .card { background: #2e2e2e; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .card img { width: 100%; height: 160px; object-fit: cover; border-radius: 4px; }
+    .card h3 { margin-top: 12px; font-size: 16px; font-weight: 600; color: #ffffff; }
+    .card p  { margin-top: 4px; font-size: 14px; color: #9ca3af; }
+    .btn-primary { background: #ffb81c; color: #1a1a1a; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-weight: 600; margin-top: 12px; }
+    .btn-primary:hover { background: #f59e0b; }
+    footer { background: #1f1f1f; padding: 24px; text-align: center; color: #9ca3af; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="/" style="color:#ffb81c; font-weight:700; font-size:18px;">iPede</a>
+    <a href="/restaurants" style="color:#ffffff;">Restaurantes</a>
+    <a href="/orders" style="color:#ffffff;">Pedidos</a>
+    <a href="/profile" style="color:#ffffff;">Perfil</a>
+  </nav>
+
+  <main style="padding: 24px; max-width: 1200px; margin: 0 auto;">
+
+    <section id="featured">
+      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Restaurantes em Destaque</h2>
+
+      <div class="card">
+        <img src="r1.jpg" alt="Restaurante Alfa">
+        <h3>Restaurante Alfa</h3>
+        <p>Culinária italiana autêntica, centro histórico</p>
+        <button class="btn-primary">Ver Menu</button>
+      </div>
+
+      <div class="card">
+        <img src="r2.jpg" alt="Restaurante Beta">
+        <h3>Restaurante Beta</h3>
+        <p>Culinária japonesa contemporânea, zona sul</p>
+        <button class="btn-primary">Ver Menu</button>
+      </div>
+
+      <div class="card">
+        <img src="r3.jpg" alt="Restaurante Gama">
+        <h3>Restaurante Gama</h3>
+        <p>Culinária brasileira tradicional, zona norte</p>
+        <button class="btn-primary">Ver Menu</button>
+      </div>
+
+      <div class="card">
+        <img src="r4.jpg" alt="Restaurante Delta">
+        <h3>Restaurante Delta</h3>
+        <p>Culinária mexicana e tex-mex, zona oeste</p>
+        <button class="btn-primary">Ver Menu</button>
+      </div>
+
+    </section>
+
+    <section id="categories" style="margin-top: 32px;">
+      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Categorias</h2>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <span class="badge">Italiana</span>
+        <span class="badge">Japonesa</span>
+        <span class="badge">Brasileira</span>
+        <span class="badge">Mexicana</span>
+        <span class="badge">Árabe</span>
+        <span class="badge">Vegana</span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>&copy; 2024 iPede. Todos os direitos reservados.</p>
+  </footer>
+
+</body>
+</html>
