@@ -29,8 +29,12 @@ dev = [
 [tool.setuptools]
 py-modules = ["build_graph", "mcp_server", "query", "extract_design_system", "_paths"]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.coverage.run]
 omit = ["tests/*", "extract_design_system.py"]
