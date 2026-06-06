@@ -6,7 +6,12 @@ from collections import Counter
 import pytest
 
 from design_graph.core.models import DesignToken
-from design_graph.extraction.component_extractor import extract_all_components, extract_component
+from design_graph.extraction.component_extractor import (
+    extract_all_components,
+    extract_component,
+    infer_component_type,
+    sanitize_jsx,
+)
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.token_extractor import build_token_map
 
@@ -169,3 +174,80 @@ class TestExtractAllComponents:
     def test_empty_boundaries_returns_empty(self):
         comps = asyncio.run(extract_all_components("", [], Counter(), {}))
         assert comps == []
+
+
+# ── infer_component_type ──────────────────────────────────────────────────────
+
+class TestInferComponentType:
+    @pytest.mark.parametrize("name,expected", [
+        ("BtnPrimary",       "button"),
+        ("SaveButton",       "button"),
+        ("ConfirmModal",     "modal"),
+        ("AlertDialog",      "modal"),
+        ("SectionCard",      "card"),
+        ("RestCard",         "card"),
+        ("KpiWidget",        "card"),
+        ("LoginForm",        "form"),
+        ("SearchInput",      "form"),
+        ("TabBar",           "tab"),
+        ("DonutChart",       "chart"),
+        ("ProfileDrawer",    "navigation"),
+        ("SidebarNav",       "navigation"),
+        ("DarkToggle",       "toggle"),
+        ("MenuItemRow",      "list-item"),
+        ("StatusBadge",      "badge"),
+        ("TagPill",          "badge"),
+        ("HomePageScreen",   "screen"),
+        ("GenericHelper",    "component"),
+    ])
+    def test_name_maps_to_expected_type(self, name, expected):
+        assert infer_component_type(name) == expected
+
+    def test_unknown_name_returns_component(self):
+        assert infer_component_type("XyzAbc") == "component"
+
+    def test_case_insensitive_matching(self):
+        # "BtnPrimary" lowercases to "btnprimary" which contains "btn"
+        assert infer_component_type("BtnPrimary") == "button"
+
+    def test_returns_string(self):
+        assert isinstance(infer_component_type("AnyName"), str)
+
+
+# ── sanitize_jsx ──────────────────────────────────────────────────────────────
+
+class TestSanitizeJsx:
+    def test_replaces_long_event_handlers(self):
+        long_handler = "onClick={" + "doSomethingComplex(); " * 10 + "}"
+        result = sanitize_jsx(long_handler)
+        assert "on[handler]" in result
+
+    def test_preserves_short_jsx_unchanged(self):
+        jsx = '<Button style={{color: "red"}}>Click</Button>'
+        result = sanitize_jsx(jsx)
+        assert "Button" in result
+        assert "Click" in result
+
+    def test_collapses_very_long_style_blocks(self):
+        many_props = ", ".join(f"prop{i}: 'val{i}'" for i in range(50))
+        long_style = f"style={{{{ {many_props} }}}}"
+        result = sanitize_jsx(long_style)
+        assert len(result) < len(long_style)
+        assert "..." in result
+
+    def test_collapses_consecutive_blank_lines(self):
+        jsx = "line1\n\n\n\n\nline2"
+        result = sanitize_jsx(jsx)
+        assert "\n\n\n" not in result
+
+    def test_short_style_kept_intact(self):
+        jsx = 'style={{color: "#fff", padding: "8px"}}'
+        result = sanitize_jsx(jsx)
+        assert "color" in result
+
+    def test_returns_stripped_string(self):
+        result = sanitize_jsx("   <div>x</div>   ")
+        assert result == result.strip()
+
+    def test_empty_input_returns_empty(self):
+        assert sanitize_jsx("") == ""

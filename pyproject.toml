@@ -34,7 +34,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.coverage.run]
-omit = ["tests/*", "extract_design_system.py"]
+omit = ["tests/*"]
 
 [tool.setuptools_scm]
 # version is read from git tags at install time
