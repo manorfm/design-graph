@@ -38,7 +38,7 @@ RE_FONT_WEIGHT = re.compile(r"font-?[Ww]eight\s*[=:]\s*[\"']?(\d{3,4}|bold|semib
 
 # ── Visual properties ─────────────────────────────────────────────────────────
 
-RE_BOX_SHADOW  = re.compile(r'(?:box|text)-?shadow\s*[=:]\s*["\']?([^;}{"\'\n]{10,})')
+RE_BOX_SHADOW  = re.compile(r'(?:box-shadow|boxShadow|text-shadow|textShadow)\s*[=:]\s*["\']?([^;}{"\'\n]{10,})')
 RE_BORDER_RADIUS = re.compile(r'border-?[Rr]adius\s*[=:]\s*["\']?([^;}{"\'\n]{2,30})')
 RE_CSS_VAR     = re.compile(r'--[\w-]+\s*:\s*[^;}{]+')
 RE_TRANSITION  = re.compile(r'transition["\']?\s*:\s*["\']?([^,"\'}\n]{5,60})')

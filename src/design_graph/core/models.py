@@ -51,9 +51,9 @@ class DesignToken:
     """A reusable visual value extracted from CSS/JS (color, spacing, etc.)."""
 
     id: str        # deterministic MD5 hash prefix, e.g. "col_a3f2b1"
-    category: str  # "color" | "spacing"
-    label: str     # semantic name, e.g. "primary", "space_16"
-    value: str     # raw value, e.g. "#ffb81c", "16px"
+    category: str  # "color" | "spacing" | "typography" | "shadow" | "radius" | "css_var"
+    label: str     # semantic name, e.g. "primary", "space_16", "text_base", "weight_bold"
+    value: str     # raw value, e.g. "#ffb81c", "16px", "700"
     usage: int     # occurrence count across css+js
 
 
