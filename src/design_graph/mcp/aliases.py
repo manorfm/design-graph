@@ -45,6 +45,15 @@ _ALIASES: dict[str, list[str]] = {
     "hover":       ["hover", "mouseenter"],
     "primario":    ["primary", "#ffb81c"],
     "primário":    ["primary", "#ffb81c"],
+    # Screens / layout
+    "tela":        ["Screen", "Page", "screen", "page"],
+    # Typography
+    "tipografia":  ["typography", "Typography", "font", "Font", "text"],
+    # Shadow tokens
+    "sombra":      ["shadow", "Shadow"],
+    # Radius tokens
+    "raio":        ["radius", "Radius"],
+    "arredondado": ["radius", "rounded"],
     # Status colors
     "sucesso":     ["success", "#22c55e"],
     "erro":        ["danger", "error", "#ef4444"],

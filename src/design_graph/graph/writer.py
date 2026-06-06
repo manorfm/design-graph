@@ -38,6 +38,8 @@ class GraphWriter:
         self._inserted_text_ids:   set[str] = set()
         self._token_rel_keys:      set[str] = set()
         self._contains_keys:       set[str] = set()
+        # Pairs (parent, child) deferred because child wasn't inserted yet
+        self._pending_contains:    set[tuple[str, str]] = set()
 
     @property
     def inserted_names(self) -> frozenset[str]:
@@ -138,19 +140,53 @@ class GraphWriter:
                 {"cn": comp.name, "tid": text.id},
             )
 
-        # CONTAINS relationships (only when child already exists in graph)
+        # CONTAINS relationships: create immediately for already-inserted children;
+        # defer the rest so flush_pending_contains() can retry after all nodes exist.
         for child_name in comp.child_refs:
-            if child_name not in self._inserted_comp_names:
-                continue
-            contains_key = f"{comp.name}→{child_name}"
-            if contains_key in self._contains_keys:
-                continue
-            self._contains_keys.add(contains_key)
-            self._safe_execute(
-                "MATCH (p:Component {name:$p}),(c:Component {name:$c}) "
-                "CREATE (p)-[:CONTAINS {weight:1}]->(c)",
-                {"p": comp.name, "c": child_name},
+            if child_name in self._inserted_comp_names:
+                self._write_contains_edge(comp.name, child_name)
+            else:
+                # Child not yet in graph — queue for deferred write
+                self._pending_contains.add((comp.name, child_name))
+
+    def flush_pending_contains(self) -> int:
+        """
+        Retry all deferred CONTAINS edges now that more components may exist.
+
+        Should be called once after all write_component() calls complete.
+        Safe to call multiple times — already-created edges are skipped via
+        the _contains_keys guard. Returns the number of new edges created.
+        """
+        created = 0
+        still_pending: set[tuple[str, str]] = set()
+        for parent, child in self._pending_contains:
+            if child in self._inserted_comp_names:
+                if self._write_contains_edge(parent, child):
+                    created += 1
+            else:
+                still_pending.add((parent, child))
+
+        self._pending_contains = still_pending
+        if still_pending:
+            logger.debug(
+                "writer: %d CONTAINS edges still pending (child components not in graph): %s",
+                len(still_pending),
+                [f"{p}→{c}" for p, c in still_pending],
             )
+        return created
+
+    def _write_contains_edge(self, parent: str, child: str) -> bool:
+        """Create a single CONTAINS edge if not already present. Returns True if created."""
+        key = f"{parent}→{child}"
+        if key in self._contains_keys:
+            return False
+        self._contains_keys.add(key)
+        self._safe_execute(
+            "MATCH (p:Component {name:$p}),(c:Component {name:$c}) "
+            "CREATE (p)-[:CONTAINS {weight:1}]->(c)",
+            {"p": parent, "c": child},
+        )
+        return True
 
     def write_screen(
         self,

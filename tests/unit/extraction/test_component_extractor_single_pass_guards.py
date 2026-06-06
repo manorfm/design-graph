@@ -178,3 +178,42 @@ class TestTextFiltering:
         comp = extract_component(js, b, 1, {})
         texts = [t.content for t in comp.texts]
         assert "#ffb81c" not in texts
+
+
+# ── Truncation logging ────────────────────────────────────────────────────────
+
+import logging
+
+from design_graph.core.constants import (
+    MAX_CLASSES_PER_COMPONENT,
+    MAX_STYLES_PER_COMPONENT,
+    MAX_TEXTS_PER_COMPONENT,
+)
+
+
+def _make_js_with_many_styles(name: str, count: int) -> str:
+    style_blocks = " ".join(
+        f'style={{{{prop{i}: "val{i}px"}}}}'
+        for i in range(count)
+    )
+    return f"function {name}() {{ return <div {style_blocks} />; }}"
+
+
+class TestTruncationLogging:
+    def test_styles_cap_logged_at_debug_when_exceeded(self, caplog):
+        limit = MAX_STYLES_PER_COMPONENT
+        js = _make_js_with_many_styles("BigComp", limit + 5)
+        b  = _boundary(js, "BigComp")
+        with caplog.at_level(logging.DEBUG, logger="design_graph.extraction.component_extractor"):
+            extract_component(js, b, 1, {})
+        assert any("capped" in r.message.lower() or "cap" in r.message.lower()
+                   for r in caplog.records), \
+            "Expected a debug log mentioning cap/capped when styles exceed limit"
+
+    def test_no_cap_log_when_styles_within_limit(self, caplog):
+        js = _make_js_with_many_styles("SmallComp", 2)
+        b  = _boundary(js, "SmallComp")
+        with caplog.at_level(logging.DEBUG, logger="design_graph.extraction.component_extractor"):
+            extract_component(js, b, 1, {})
+        cap_records = [r for r in caplog.records if "capped" in r.message.lower()]
+        assert not cap_records

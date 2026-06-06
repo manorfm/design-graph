@@ -183,6 +183,31 @@ class TestFindTokenUsage:
             assert "t.value" in u
             assert "t.category" in u
 
+    def test_each_result_has_components_and_screens_lists(self, rich_graph):
+        result = rich_graph.reader.find_token_usage("#ffb81c")
+        for u in result:
+            assert "components" in u
+            assert "screens" in u
+            assert isinstance(u["components"], list)
+            assert isinstance(u["screens"], list)
+
+    def test_screens_list_is_list_of_strings(self, rich_graph):
+        result = rich_graph.reader.find_token_usage("#ffb81c")
+        for u in result:
+            # screens may be empty if the component using the token
+            # is not directly linked to a screen via USES_COMPONENT
+            assert isinstance(u["screens"], list)
+            assert all(isinstance(s, str) for s in u["screens"])
+
+    def test_multiple_matching_tokens_all_returned(self, rich_graph):
+        # "primary" matches both the token label and maybe the value
+        result = rich_graph.reader.find_token_usage("primary")
+        assert len(result) >= 1
+        # All results must have the required structure
+        for u in result:
+            assert "t.id" in u
+            assert "components" in u
+
 
 # ── get_interactions ──────────────────────────────────────────────────────────
 

@@ -30,9 +30,16 @@ class TestInitializeSchema:
         initialize_schema(fresh_conn)
         for rel in [
             "USES_COMPONENT", "HAS_SECTION", "SECTION_USES", "HAS_STYLE",
-            "USES_TOKEN", "COMP_HAS_TEXT", "SCREEN_HAS_TEXT", "HAS_INTERACTION", "CONTAINS"
+            "USES_TOKEN", "COMP_HAS_TEXT", "HAS_INTERACTION", "CONTAINS"
         ]:
             fresh_conn.execute(f"MATCH ()-[r:{rel}]->() RETURN count(r)")
+
+    def test_screen_has_text_removed_from_schema_ddl(self):
+        from design_graph.graph.schema import SCHEMA
+        assert not any("SCREEN_HAS_TEXT" in stmt for stmt in SCHEMA), (
+            "SCREEN_HAS_TEXT is dead code (never written by GraphWriter). "
+            "Remove it from schema DDL."
+        )
 
     def test_contains_table_stores_weight_property(self, fresh_conn):
         initialize_schema(fresh_conn)

@@ -104,7 +104,6 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE HAS_STYLE(FROM Component TO Style)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
-    "CREATE REL TABLE SCREEN_HAS_TEXT(FROM Screen TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",
     # v2: compositional hierarchy with occurrence weight
     "CREATE REL TABLE CONTAINS(FROM Component TO Component, weight INT64)",
