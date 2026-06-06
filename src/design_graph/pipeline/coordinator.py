@@ -34,8 +34,7 @@ from design_graph.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.graph.writer import GraphWriteSession, GraphWriter
 from design_graph.parsing.css_class_resolver import extract_css_rules
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
@@ -122,7 +121,11 @@ async def run_pipeline(
         extracted_comps, screens, sections_map, tokens = await _extract_react(
             sources, concurrency=concurrency
         )
-    _reporter.phase_completed("Parsing boundaries and tokens", elapsed_seconds=phase.split())
+    _reporter.phase_completed(
+        "Parsing boundaries and tokens",
+        elapsed_seconds=phase.split(),
+        total=len(extracted_comps) + len(tokens),
+    )
 
     token_map = build_token_map(tokens)
 
@@ -134,34 +137,38 @@ async def run_pipeline(
         len(screens), len(extracted_comps), len(tokens), sources.format,
     )
 
-    # ── Phase 5: Sequential graph writes ────────────────────────────────────
-    _reporter.phase_started(
-        "Writing graph",
-        total=len(extracted_comps) + len(screens) + len(tokens),
-    )
+    # ── Phase 5: Sequential graph writes (atomic via GraphWriteSession) ──────
+    write_total = len(extracted_comps) + len(screens) + len(tokens)
+    _reporter.phase_started("Writing graph", total=write_total)
     phase.start()
-    _rebuild_db(db_path)
-    db   = kuzu.Database(str(db_path))
-    conn = kuzu.Connection(db)
-    initialize_schema(conn)
-    writer = GraphWriter(conn)
 
-    writer.write_tokens(tokens)
-    for comp in extracted_comps:
-        writer.write_component(comp, token_map)
-    # Flush deferred CONTAINS edges — all component nodes now exist in the graph
-    flushed = writer.flush_pending_contains()
-    if flushed:
-        logger.debug("pipeline: flushed %d deferred CONTAINS edges", flushed)
-    for screen in screens:
-        writer.write_screen(screen, sections_map.get(screen.name, []), token_map)
+    raw_stats: dict[str, int] = {}
+    with GraphWriteSession(db_path) as writer:
+        writer.write_tokens(tokens)
+        item_index = len(tokens)
+
+        for comp in extracted_comps:
+            writer.write_component(comp, token_map)
+            item_index += 1
+            _reporter.item_written(comp.name, index=item_index, total=write_total)
+
+        flushed = writer.flush_pending_contains()
+        if flushed:
+            logger.debug("pipeline: flushed %d deferred CONTAINS edges", flushed)
+
+        for screen in screens:
+            writer.write_screen(screen, sections_map.get(screen.name, []), token_map)
+            item_index += 1
+            _reporter.item_written(screen.name, index=item_index, total=write_total)
+
+        # Collect stats while the write connection is still open
+        raw_stats = writer.get_stats()
+
     _reporter.phase_completed("Writing graph", elapsed_seconds=phase.split())
 
-    # ── Phase 6: State + stats ───────────────────────────────────────────────
+    # ── Phase 6: State persistence ───────────────────────────────────────────
     comp_counter = Counter({c.name: c.occurrence for c in extracted_comps})
     save_build_state(state_path, build_new_state(sources.html_hash, screens, comp_counter))
-
-    raw_stats = writer.get_stats()
     elapsed = time.monotonic() - t_start
 
     stats = BuildStats(
