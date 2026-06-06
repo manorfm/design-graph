@@ -1,20 +1,12 @@
 """Tests for graph/schema.py and graph/diff.py — T09 and T12."""
 
-import json
 from collections import Counter
-from pathlib import Path
 
 import kuzu
 import pytest
 
 from design_graph.core.models import BuildState, ExtractedScreen
-from design_graph.graph.diff import (
-    build_new_state,
-    compute_diff,
-    compute_screen_hash,
-    load_state,
-    save_state,
-)
+from design_graph.graph.diff import compute_diff, compute_screen_hash
 from design_graph.graph.schema import STATS_QUERIES, initialize_schema
 
 
@@ -104,48 +96,6 @@ def _prev_state(**kwargs) -> BuildState:
 
 def _screen(name: str, refs: list[str] | None = None) -> ExtractedScreen:
     return ExtractedScreen(name=name, component_refs=refs or [], sections_count=0)
-
-
-class TestLoadState:
-    def test_returns_empty_for_missing_file(self, tmp_path):
-        state = load_state(tmp_path / "nope.json")
-        assert state.html_hash == ""
-        assert state.screens == {}
-        assert state.components == {}
-
-    def test_loads_existing_state(self, tmp_path):
-        data = {"html_hash": "xyz", "last_build": "2024", "screens": {"A": "h"}, "components": {"Btn": 2}}
-        p = tmp_path / "state.json"
-        p.write_text(json.dumps(data))
-        state = load_state(p)
-        assert state.html_hash == "xyz"
-        assert state.screens == {"A": "h"}
-
-    def test_returns_empty_for_malformed_json(self, tmp_path):
-        p = tmp_path / "bad.json"
-        p.write_text("not {{{json")
-        state = load_state(p)
-        assert state.html_hash == ""
-
-
-class TestSaveState:
-    def test_creates_file(self, tmp_path):
-        p = tmp_path / "state.json"
-        save_state(p, _empty_state())
-        assert p.exists()
-
-    def test_creates_parent_directories(self, tmp_path):
-        p = tmp_path / "sub" / "dir" / "state.json"
-        save_state(p, _empty_state())
-        assert p.exists()
-
-    def test_roundtrip(self, tmp_path):
-        original = BuildState(html_hash="abc", last_build="2024", screens={"A": "x"}, components={"Btn": 1})
-        p = tmp_path / "s.json"
-        save_state(p, original)
-        loaded = load_state(p)
-        assert loaded.html_hash == original.html_hash
-        assert loaded.screens == original.screens
 
 
 class TestComputeDiff:

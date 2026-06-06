@@ -6,7 +6,7 @@ from pathlib import Path
 import kuzu
 import pytest
 
-from design_graph.graph.diff import load_state
+from design_graph.pipeline.state import load_build_state
 from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
@@ -44,7 +44,7 @@ class TestRunPipeline:
     def test_state_file_saved_after_build(self, tmp_path):
         state_path = tmp_path / ".state.json"
         asyncio.run(run_pipeline(SIMPLE_HTML, tmp_path / "out.db", state_path))
-        state = load_state(state_path)
+        state = load_build_state(state_path)
         assert state.html_hash != ""
 
     def test_db_has_at_least_one_screen(self, tmp_path):
