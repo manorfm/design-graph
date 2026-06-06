@@ -32,12 +32,20 @@ from design_graph.paths import default_db_for
 
 @dataclass
 class BuildCliArgs:
-    html_path: Path
-    db_path:   Path | None
-    show_diff: bool
-    force:     bool
-    verbose:   bool
-    quiet:     bool
+    html_path:   Path
+    db_path:     Path | None
+    show_diff:   bool
+    force:       bool
+    verbose:     bool
+    quiet:       bool
+    json_output: bool = False
+
+
+@dataclass
+class ValidateCliArgs:
+    db_path:     Path | None
+    verbose:     bool
+    json_output: bool
 
 
 @dataclass
@@ -95,6 +103,8 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
                    help="Show debug-level pipeline logs")
     p.add_argument("--quiet",   action="store_true",
                    help="Suppress all output except errors")
+    p.add_argument("--json",    dest="json_output", action="store_true",
+                   help="Emit machine-readable JSON to stdout (for CI pipelines)")
     ns = p.parse_args(argv)
     return BuildCliArgs(
         html_path=ns.html_path,
@@ -103,7 +113,24 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
         force=ns.force,
         verbose=ns.verbose,
         quiet=ns.quiet,
+        json_output=ns.json_output,
     )
+
+
+def parse_validate_args(argv: list[str]) -> ValidateCliArgs:
+    """Parse argv for the 'validate' subcommand."""
+    p = argparse.ArgumentParser(
+        prog="design-graph validate",
+        description="Validate design-graph database integrity.",
+        add_help=True,
+    )
+    p.add_argument("--db",      dest="db_path", type=Path, default=None,
+                   metavar="PATH", help="Graph database to validate (default: auto-discover)")
+    p.add_argument("--verbose", action="store_true", help="Show debug-level logs")
+    p.add_argument("--json",    dest="json_output", action="store_true",
+                   help="Output validation report as JSON")
+    ns = p.parse_args(argv)
+    return ValidateCliArgs(db_path=ns.db_path, verbose=ns.verbose, json_output=ns.json_output)
 
 
 def parse_chunk_args(argv: list[str]) -> ChunkCliArgs:
@@ -138,6 +165,8 @@ def main() -> None:
         _run_chunk(args[1:])
     elif args and args[0] == "status":
         _run_status(args[1:])
+    elif args and args[0] == "validate":
+        _run_validate(args[1:])
     else:
         _run_build(args)
 
@@ -171,11 +200,28 @@ def _run_build(argv: list[str]) -> None:
     ))
 
     if stats is None:
-        if not parsed.quiet:
+        if parsed.json_output:
+            import json as _json
+            print(_json.dumps({"status": "skipped", "reason": "unchanged"}))
+        elif not parsed.quiet:
             print("Prototype unchanged — skipped. Use --force to rebuild.")
         return
 
-    if not parsed.quiet:
+    if parsed.json_output:
+        import json as _json
+        print(_json.dumps({
+            "status":         "built",
+            "screens":        stats.screens,
+            "components":     stats.components,
+            "tokens":         stats.tokens,
+            "sections":       stats.sections,
+            "interactions":   stats.interactions,
+            "styles":         stats.styles,
+            "texts":          stats.texts,
+            "contains_rels":  stats.contains_rels,
+            "duration_seconds": round(stats.duration_seconds, 3),
+        }))
+    elif not parsed.quiet:
         _print_build_summary(parsed.html_path, db_path, stats)
 
 
@@ -271,6 +317,29 @@ async def _extract_chunks_plain_html(sources) -> tuple[dict, list, dict]:
     sections     = await asyncio.to_thread(extract_sections_for_plain_html, soup, screen_name)
     sections_map = {screen_name: sections}
     return comps_d, [screen], sections_map
+
+
+def _run_validate(argv: list[str]) -> None:
+    import json as _json
+    from design_graph.cli.validate import render_validation_report, validate_graph
+
+    try:
+        parsed = parse_validate_args(argv)
+    except SystemExit:
+        raise
+
+    configure_cli_logging(verbose=parsed.verbose)
+
+    db_path = parsed.db_path or _auto_detect_db()
+    report  = validate_graph(db_path)
+
+    if parsed.json_output:
+        print(_json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_validation_report(report))
+
+    if report.status == "errors":
+        sys.exit(1)
 
 
 def _run_status(argv: list[str]) -> None:
