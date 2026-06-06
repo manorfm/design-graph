@@ -211,7 +211,7 @@ class TestGetStats:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `write_component` nunca cria relação `CONTAINS` para filho que não existe
-- [ ] `inserted_names` é read-only (frozenset)
-- [ ] `get_stats()` inclui chave `"contains"`
+- [x] Todos os testes passam
+- [x] `write_component` nunca cria relação `CONTAINS` para filho que não existe
+- [x] `inserted_names` é read-only (frozenset)
+- [x] `get_stats()` inclui chave `"contains"`

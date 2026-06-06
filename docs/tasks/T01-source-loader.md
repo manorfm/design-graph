@@ -110,7 +110,7 @@ def _extract_plain(html: str, soup: BeautifulSoup) -> tuple[str, str, str]:
 
 ## Done when
 
-- [ ] Todos os testes desta task passam
-- [ ] `sources.js` para `tests/fixtures/simple.html` produz o mesmo conteúdo
+- [x] Todos os testes desta task passam
+- [x] `sources.js` para `tests/fixtures/simple.html` produz o mesmo conteúdo
       que `load_sources()` do legado `build_graph.py`
-- [ ] Nenhum import de `extraction/`, `graph/`, ou `mcp/` neste arquivo
+- [x] Nenhum import de `extraction/`, `graph/`, ou `mcp/` neste arquivo

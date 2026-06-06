@@ -162,6 +162,6 @@ class TestComputeScreenHash:
 
 ## Done when
 
-- [ ] Todos os testes passam (incluindo os migrados do legado)
-- [ ] `compute_diff` não toca em arquivo nem em Kuzu — pura
-- [ ] `save_state` cria o diretório pai se necessário
+- [x] Todos os testes passam (incluindo os migrados do legado)
+- [x] `compute_diff` não toca em arquivo nem em Kuzu — pura
+- [x] `save_state` cria o diretório pai se necessário

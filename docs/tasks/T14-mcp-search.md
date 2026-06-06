@@ -166,8 +166,8 @@ class MockReader:
 
 ## Done when
 
-- [ ] `_score("SectionCard", "SectionCard") == 100`
-- [ ] `_score("SectionCard", "Section") == 80`
-- [ ] `_score("SectionCard", "Modal") == 0`
-- [ ] `search(readers, "botão")` retorna BtnPrimary via alias PT
-- [ ] Resultados ordenados por score desc
+- [x] `_score("SectionCard", "SectionCard") == 100`
+- [x] `_score("SectionCard", "Section") == 80`
+- [x] `_score("SectionCard", "Modal") == 0`
+- [x] `search(readers, "botão")` retorna BtnPrimary via alias PT
+- [x] Resultados ordenados por score desc

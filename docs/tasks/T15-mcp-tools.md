@@ -207,7 +207,7 @@ class TestMCPServer:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `TOOL_DEFINITIONS` inclui `get_component_children`
-- [ ] `server.py` não contém lógica de formatação de Markdown — delega para `tools.py`
-- [ ] Teste de integração E2E passa: `design-mcp` pode responder `list_screens` com grafo real
+- [x] Todos os testes passam
+- [x] `TOOL_DEFINITIONS` inclui `get_component_children`
+- [x] `server.py` não contém lógica de formatação de Markdown — delega para `tools.py`
+- [x] Teste de integração E2E passa: `design-mcp` pode responder `list_screens` com grafo real

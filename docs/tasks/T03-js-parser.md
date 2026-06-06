@@ -175,6 +175,6 @@ def find_function_end(js: str, fn_start: int) -> int:
 
 ## Done when
 
-- [ ] Todos os testes passam, incluindo `test_boundaries_cover_disjoint_regions_for_sibling_functions`
-- [ ] `find_function_end` não usa regex — só iteração de chars
-- [ ] Nenhum import de `extraction/`, `graph/`, ou `mcp/`
+- [x] Todos os testes passam, incluindo `test_boundaries_cover_disjoint_regions_for_sibling_functions`
+- [x] `find_function_end` não usa regex — só iteração de chars
+- [x] Nenhum import de `extraction/`, `graph/`, ou `mcp/`

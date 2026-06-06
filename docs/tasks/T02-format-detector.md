@@ -86,6 +86,6 @@ def detect(html: str, soup: BeautifulSoup) -> str:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] Nenhum `try/except` suprime exceções reais (só exceções de parsing de HTML)
-- [ ] As constantes de threshold ficam no topo do arquivo, não inline
+- [x] Todos os testes passam
+- [x] Nenhum `try/except` suprime exceções reais (só exceções de parsing de HTML)
+- [x] As constantes de threshold ficam no topo do arquivo, não inline

@@ -262,6 +262,6 @@ async def run_pipeline(html_path, db_path, state_path,
 
 ## Done when
 
-- [ ] `test_results_equivalent_to_legacy` passa — novo não perde screens/comps do legado
-- [ ] `test_creates_db` passa com a fixture `simple.html` existente
-- [ ] Build de `simple.html` completa em < 10s (perf check)
+- [x] `test_results_equivalent_to_legacy` passa — novo não perde screens/comps do legado
+- [x] `test_creates_db` passa com a fixture `simple.html` existente
+- [x] Build de `simple.html` completa em < 10s (perf check)

@@ -215,8 +215,8 @@ design-graph chunk prototype.html --output chunks.jsonl --max-chars 8000
 
 ## Done when
 
-- [ ] Todos os testes de T16 passam
-- [ ] `design-graph chunk tests/fixtures/simple.html` gera arquivo JSONL válido
-- [ ] `design-graph chunk tests/fixtures/plain.html` detecta seções semânticas
-- [ ] Nenhum chunk tem `content` vazio
-- [ ] `_to_chunk_id` satisfaz `re.match(r'^[a-z0-9_]+$', id)` para qualquer input
+- [x] Todos os testes de T16 passam
+- [x] `design-graph chunk tests/fixtures/simple.html` gera arquivo JSONL válido
+- [x] `design-graph chunk tests/fixtures/plain.html` detecta seções semânticas
+- [x] Nenhum chunk tem `content` vazio
+- [x] `_to_chunk_id` satisfaz `re.match(r'^[a-z0-9_]+$', id)` para qualquer input

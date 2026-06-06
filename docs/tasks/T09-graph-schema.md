@@ -99,7 +99,7 @@ class TestStatsQueries:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `CONTAINS` inclui campo `weight INT64`
-- [ ] `Section` inclui campo `detection_method STRING`
-- [ ] `initialize_schema` é idempotente (2× sem erro)
+- [x] Todos os testes passam
+- [x] `CONTAINS` inclui campo `weight INT64`
+- [x] `Section` inclui campo `detection_method STRING`
+- [x] `initialize_schema` é idempotente (2× sem erro)
