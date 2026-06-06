@@ -22,6 +22,7 @@ from auto_version import (
     format_version,
     parse_commit_prefix,
     parse_version,
+    update_readme_version,
 )
 
 
@@ -133,3 +134,64 @@ class TestComputeNextVersion:
     def test_output_has_no_v_prefix(self):
         result = compute_next_version("0.0.0", "feat")
         assert not result.startswith("v")
+
+
+# ── update_readme_version ─────────────────────────────────────────────────────
+
+_BADGE_LINE = (
+    "[![Version](https://img.shields.io/badge/version-{tag}-green.svg)]"
+    "(https://github.com/manorfm/design-graph/tags)"
+)
+
+
+class TestUpdateReadmeVersion:
+    def _make_readme(self, tmp_path, tag: str) -> "Path":
+        from pathlib import Path
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            f"# design-graph\n\n{_BADGE_LINE.format(tag=tag)}\n\n## Section\n",
+            encoding="utf-8",
+        )
+        return readme
+
+    def test_replaces_version_tag_in_badge(self, tmp_path):
+        readme = self._make_readme(tmp_path, "v0.0.0")
+        changed = update_readme_version("v1.2.3", readme)
+        assert changed is True
+        text = readme.read_text(encoding="utf-8")
+        assert "v1.2.3" in text
+        assert "v0.0.0" not in text
+
+    def test_returns_false_when_badge_absent(self, tmp_path):
+        from pathlib import Path
+        readme = tmp_path / "README.md"
+        readme.write_text("# No badge here\n", encoding="utf-8")
+        assert update_readme_version("v1.2.3", readme) is False
+
+    def test_preserves_rest_of_file(self, tmp_path):
+        readme = self._make_readme(tmp_path, "v0.1.0")
+        update_readme_version("v0.2.0", readme)
+        text = readme.read_text(encoding="utf-8")
+        assert "# design-graph" in text
+        assert "## Section" in text
+
+    def test_updates_any_existing_version(self, tmp_path):
+        readme = self._make_readme(tmp_path, "v3.14.9")
+        update_readme_version("v4.0.0", readme)
+        assert "v4.0.0" in readme.read_text(encoding="utf-8")
+
+    def test_returns_false_when_file_does_not_exist(self, tmp_path):
+        from pathlib import Path
+        missing = tmp_path / "NONEXISTENT.md"
+        assert update_readme_version("v1.0.0", missing) is False
+
+    def test_badge_url_color_is_preserved(self, tmp_path):
+        readme = self._make_readme(tmp_path, "v0.0.0")
+        update_readme_version("v1.0.0", readme)
+        text = readme.read_text(encoding="utf-8")
+        assert "-green.svg" in text
+
+    def test_idempotent_on_same_version(self, tmp_path):
+        readme = self._make_readme(tmp_path, "v1.0.0")
+        update_readme_version("v1.0.0", readme)
+        assert readme.read_text(encoding="utf-8").count("v1.0.0") == 1
