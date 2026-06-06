@@ -35,6 +35,7 @@ from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
+from design_graph.parsing.css_class_resolver import extract_css_rules
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.source_loader import load
@@ -185,12 +186,16 @@ async def _extract_react(
     tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
 
     token_map     = build_token_map(tokens)
+    rule_map      = extract_css_rules(sources.css) if sources.css else {}
     screen_bounds = [b for b in all_boundaries if is_screen(b.name)]
     comp_bounds   = [b for b in all_boundaries if not is_screen(b.name)]
     occurrences   = Counter(b.name for b in all_boundaries)
 
+    logger.info("pipeline: resolved %d CSS class rules from stylesheet", len(rule_map))
+
     extracted_comps = await extract_all_components(
-        sources.js, comp_bounds, occurrences, token_map, concurrency=concurrency
+        sources.js, comp_bounds, occurrences, token_map,
+        concurrency=concurrency, rule_map=rule_map,
     )
 
     screens          = extract_screens(sources.js, all_boundaries)

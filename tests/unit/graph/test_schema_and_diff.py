@@ -1,5 +1,7 @@
 """Tests for graph/schema.py and graph/diff.py — T09 and T12."""
 
+from __future__ import annotations
+
 from collections import Counter
 
 import kuzu

@@ -121,6 +121,35 @@ RE_LONG_ARROW_FN = re.compile(
 )
 RE_LONG_TERNARY = re.compile(r'\{[^{}]{300,}\}')
 
+# JSX typed marker patterns — used by sanitize_jsx to replace dynamic expressions
+# with structured markers instead of erasing them.
+
+# {items.map(item => <Component ... />)}  or  {items.map((item) => <Component/>)}
+RE_JSX_MAP_RENDER = re.compile(
+    r'\{[^{}<>]{0,80}\.map\([^)]{0,120}\s*=>\s*(?:\([^)]*\)|\s*)?'
+    r'<([A-Z][A-Za-z0-9]+)[^}]{0,400}\}',
+    re.DOTALL,
+)
+
+# {condition && <Component ... />}
+# Note: avoid && inside [] to prevent FutureWarning (set intersection) in Python 3.12+
+RE_JSX_SHORT_CIRCUIT = re.compile(
+    r'\{[^{}<>&]{1,120}&{2}\s*<([A-Z][A-Za-z0-9]+)[^}]{0,400}\}',
+    re.DOTALL,
+)
+
+# {condition ? <ComponentA ... /> : <ComponentB ... />}
+RE_JSX_TERNARY_COMPONENTS = re.compile(
+    r'\{[^{}<>?]{1,120}\?\s*<([A-Z][A-Za-z0-9]+)[^:]{0,300}'
+    r':\s*<([A-Z][A-Za-z0-9]+)[^}]{0,300}\}',
+    re.DOTALL,
+)
+
+# Extracts PascalCase component names from typed markers  {[conditional:X]} etc.
+RE_JSX_MARKER_COMP = re.compile(
+    r'\[\s*(?:conditional|list|either)\s*:\s*([A-Z][A-Za-z0-9]*(?:\|[A-Z][A-Za-z0-9]*)*)\s*\]'
+)
+
 
 # ── Format detection ──────────────────────────────────────────────────────────
 

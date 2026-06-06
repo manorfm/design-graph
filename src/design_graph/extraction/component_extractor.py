@@ -40,7 +40,11 @@ from design_graph.core.patterns import (
     RE_COMP_REF,
     RE_HEADING,
     RE_INLINE_STYLE,
+    RE_JSX_MAP_RENDER,
+    RE_JSX_MARKER_COMP,
+    RE_JSX_SHORT_CIRCUIT,
     RE_JSX_TAG,
+    RE_JSX_TERNARY_COMPONENTS,
     RE_LABEL_TEXT,
     RE_LONG_ARROW_FN,
     RE_LONG_EVENT_HANDLER,
@@ -53,6 +57,7 @@ from design_graph.core.patterns import (
     RE_TRANSITION,
     RE_UI_STRING,
 )
+from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
 from design_graph.parsing.js_parser import extract_return_block
 
 logger = logging.getLogger(__name__)
@@ -83,12 +88,43 @@ def infer_component_type(name: str) -> str:
 
 def sanitize_jsx(jsx: str) -> str:
     """
-    Strip JavaScript logic from JSX, keeping only visual structure:
-    tags, hierarchy, inline styles, text, and child component names.
+    Strip JavaScript logic from JSX, replacing dynamic expressions with
+    typed markers that preserve structural information for AI agents:
+
+      {[list:ComponentName]}           — .map() list rendering
+      {[conditional:ComponentName]}    — short-circuit && rendering
+      {[either:ComponentA|ComponentB]} — ternary between components
+
+    Static content, tags, inline styles, and component names are preserved.
     """
+    # 1. Collapse long event handlers: onClick={() => doSomethingLong()} → on[handler]
     jsx = RE_LONG_EVENT_HANDLER.sub("on[handler]", jsx)
+
+    # 2. Collapse long arrow functions in method chains
     jsx = RE_LONG_ARROW_FN.sub(".[fn]", jsx)
 
+    # 3. List rendering: {arr.map(item => <Comp />)} → {[list:Comp]}
+    n_list = [0]
+    def _list_marker(m: re.Match) -> str:
+        n_list[0] += 1
+        return f"{{[list:{m.group(1)}]}}"
+    jsx = RE_JSX_MAP_RENDER.sub(_list_marker, jsx)
+
+    # 4. Short-circuit conditional: {flag && <Comp />} → {[conditional:Comp]}
+    n_conditional = [0]
+    def _conditional_marker(m: re.Match) -> str:
+        n_conditional[0] += 1
+        return f"{{[conditional:{m.group(1)}]}}"
+    jsx = RE_JSX_SHORT_CIRCUIT.sub(_conditional_marker, jsx)
+
+    # 5. Ternary between components: {cond ? <A /> : <B />} → {[either:A|B]}
+    n_ternary = [0]
+    def _ternary_marker(m: re.Match) -> str:
+        n_ternary[0] += 1
+        return f"{{[either:{m.group(1)}|{m.group(2)}]}}"
+    jsx = RE_JSX_TERNARY_COMPONENTS.sub(_ternary_marker, jsx)
+
+    # 6. Collapse remaining long style objects: style={{ ... (>400 chars) }}
     def _collapse_long_style(m: re.Match) -> str:
         inner = m.group(0)
         if len(inner) <= 400:
@@ -96,11 +132,35 @@ def sanitize_jsx(jsx: str) -> str:
         props = RE_STYLE_PROP.findall(inner)[:6]
         preview = ", ".join(f"{k}: {v.strip()}" for k, v in props)
         return f"style={{{{ {preview}, ... }}}}"
-
     jsx = re.sub(r"style=\{\{[^}]{200,}\}\}", _collapse_long_style, jsx)
+
+    # 7. Collapse remaining very long expressions (fallback — anything > 300 chars)
     jsx = RE_LONG_TERNARY.sub("{...}", jsx)
+
+    # 8. Normalize whitespace
     jsx = re.sub(r"\n{3,}", "\n\n", jsx)
+
+    if n_list[0] or n_conditional[0] or n_ternary[0]:
+        logger.debug(
+            "sanitize_jsx: inserted %d list, %d conditional, %d ternary markers",
+            n_list[0], n_conditional[0], n_ternary[0],
+        )
+
     return jsx.strip()
+
+
+def _extract_marker_refs(sanitized_jsx: str) -> set[str]:
+    """
+    Extract PascalCase component names referenced inside typed JSX markers.
+    Handles {[list:Comp]}, {[conditional:Comp]}, {[either:CompA|CompB]}.
+    """
+    refs: set[str] = set()
+    for m in RE_JSX_MARKER_COMP.finditer(sanitized_jsx):
+        for name in m.group(1).split("|"):
+            name = name.strip()
+            if name and len(name) >= 3:
+                refs.add(name)
+    return refs
 
 
 def extract_component(
@@ -108,18 +168,23 @@ def extract_component(
     boundary: FunctionBoundary,
     occurrence: int,
     token_map: dict[str, list[DesignToken]],
+    rule_map: dict[str, list[CssRule]] | None = None,
 ) -> ExtractedComponent:
     """
     Extract all data for one component in a single pass over its function body.
 
     The window is js[boundary.start:boundary.end] — exactly the function,
     no overlap with siblings.
+
+    rule_map: optional CSS class resolver map from css_class_resolver.extract_css_rules().
+    When provided, className strings are resolved into additional StyleEntry objects.
     """
     window = js[boundary.start : boundary.end]
 
     # ── JSX snippet (extracted from return block) ──
     jsx_raw = extract_return_block(js, boundary.start, boundary.end)
     jsx_snippet = sanitize_jsx(jsx_raw) if jsx_raw else ""
+    marker_refs = _extract_marker_refs(jsx_snippet)
 
     # ── Single pass: collect everything ──
     styles:       list[StyleEntry]       = []
@@ -217,12 +282,27 @@ def extract_component(
                 seen_class_strs.add(cls)
                 classes.append(cls)
 
-    # Child component references
+    # Resolve CSS class names → additional StyleEntry objects
+    if rule_map is not None and classes:
+        class_string = " ".join(classes)
+        class_styles = resolve_classes(class_string, rule_map)
+        remaining_capacity = MAX_STYLES_PER_COMPONENT - len(styles)
+        if remaining_capacity > 0:
+            for cs in class_styles[:remaining_capacity]:
+                if cs.id not in seen_style_ids:
+                    seen_style_ids.add(cs.id)
+                    styles.append(cs)
+
+    # Child component references — from JSX tags and from typed markers in jsx_snippet
     for pattern in (RE_JSX_TAG, RE_COMP_REF):
         for m in pattern.finditer(window):
             ref = m.group(1)
             if ref not in REACT_INTERNALS and ref != boundary.name and len(ref) >= 3:
                 child_refs.add(ref)
+    # Add components referenced inside conditional/list/ternary markers
+    for ref in marker_refs:
+        if ref not in REACT_INTERNALS and ref != boundary.name:
+            child_refs.add(ref)
 
     _cap = lambda count, limit: f"{count}{'[capped]' if count >= limit else ''}"
     logger.debug(
@@ -253,12 +333,14 @@ async def extract_all_components(
     occurrences: Counter,
     token_map: dict[str, list[DesignToken]],
     concurrency: int = 8,
+    rule_map: dict[str, list[CssRule]] | None = None,
 ) -> list[ExtractedComponent]:
     """
     Extract all components concurrently using asyncio.to_thread.
 
     The JS string is immutable — concurrent reads are safe.
     Each task produces an independent ExtractedComponent — no shared writes.
+    rule_map: optional CSS class resolver map forwarded to each extract_component call.
     """
     if not boundaries:
         return []
@@ -269,7 +351,7 @@ async def extract_all_components(
         async with semaphore:
             return await asyncio.to_thread(
                 extract_component,
-                js, boundary, occurrences.get(boundary.name, 1), token_map,
+                js, boundary, occurrences.get(boundary.name, 1), token_map, rule_map,
             )
 
     results = await asyncio.gather(*[_extract_with_guard(b) for b in boundaries])
