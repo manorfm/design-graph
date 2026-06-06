@@ -107,6 +107,63 @@ JS_FUNCTION_SCAN_LIMIT = 120_000
 # Fallback window size when brace-counting fails
 JS_FUNCTION_FALLBACK_WINDOW = 20_000
 
+# ── Typography tokens ─────────────────────────────────────────────────────────
+
+MIN_TYPOGRAPHY_OCCURRENCES = 2
+MAX_FONT_SIZE_TOKENS        = 15
+MAX_FONT_WEIGHT_TOKENS      = 8
+
+# Maps pixel font-size (int) to a Tailwind-style semantic label
+FONT_SIZE_SEMANTIC_LABELS: dict[int, str] = {
+    10: "text_xs",   11: "text_xs",   12: "text_xs",
+    13: "text_sm",   14: "text_sm",
+    15: "text_base", 16: "text_base",
+    17: "text_lg",   18: "text_lg",
+    20: "text_xl",   21: "text_xl",
+    24: "text_2xl",
+    28: "text_3xl",  30: "text_3xl",
+    32: "text_4xl",
+    36: "text_5xl",
+    40: "text_6xl",
+    48: "text_7xl",
+    60: "text_8xl",  64: "text_8xl",
+    72: "text_9xl",
+}
+
+# Maps raw font-weight string (numeric or keyword) to a semantic label
+FONT_WEIGHT_SEMANTIC_LABELS: dict[str, str] = {
+    "100": "weight_thin",
+    "200": "weight_extralight",
+    "300": "weight_light",
+    "400": "weight_normal",
+    "500": "weight_medium",
+    "600": "weight_semibold",
+    "700": "weight_bold",
+    "800": "weight_extrabold",
+    "900": "weight_black",
+    "bold":     "weight_bold",
+    "semibold": "weight_semibold",
+}
+
+# Font size range accepted as a design token (avoids icon-size noise)
+FONT_SIZE_MIN_PX = 8
+FONT_SIZE_MAX_PX = 72
+
+# ── Shadow tokens ─────────────────────────────────────────────────────────────
+
+MIN_SHADOW_OCCURRENCES = 2
+MAX_SHADOW_TOKENS      = 8
+
+# ── Radius tokens ─────────────────────────────────────────────────────────────
+
+MIN_RADIUS_OCCURRENCES = 2
+MAX_RADIUS_TOKENS      = 10
+
+# ── CSS custom-property tokens ────────────────────────────────────────────────
+
+MIN_CSS_VAR_OCCURRENCES = 1   # definitions typically appear once in the source
+MAX_CSS_VAR_TOKENS      = 30
+
 # ── Chunking ──────────────────────────────────────────────────────────────────
 
 DEFAULT_CHUNK_MAX_CHARS = 12_000
