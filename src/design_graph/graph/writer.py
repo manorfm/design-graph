@@ -96,7 +96,7 @@ class GraphWriter:
                 "MATCH (c:Component {name:$cn}),(s:Style {id:$sid}) CREATE (c)-[:HAS_STYLE]->(s)",
                 {"cn": comp.name, "sid": style.id},
             )
-            # Link style value to a design token if one matches
+            # Component-level token link (USES_TOKEN) + style-level link (STYLE_USES_TOKEN)
             for token in token_map.get(style.value.lower(), []):
                 rel_key = f"{comp.name}_{token.id}"
                 if rel_key not in self._token_rel_keys:
@@ -106,6 +106,7 @@ class GraphWriter:
                         "CREATE (c)-[:USES_TOKEN]->(t)",
                         {"cn": comp.name, "tid": token.id},
                     )
+            self._link_style_to_token(style, token_map)
 
         # Interactions
         for inter in comp.interactions:
@@ -264,6 +265,38 @@ class GraphWriter:
                 {"n": name, "t": "component"},
             )
             self._inserted_comp_names.add(name)
+
+    def _link_style_to_token(
+        self,
+        style: "StyleEntry",
+        token_map: dict[str, list[DesignToken]],
+    ) -> None:
+        """
+        Create a STYLE_USES_TOKEN edge (Style → Token) when the style value matches
+        a token value. Exact case-insensitive match takes priority over substring.
+        At most one edge is created per Style node (first match wins).
+        """
+        normalized = style.value.strip().lower()
+
+        # Fast path: exact match via token_map index (already lowercased)
+        exact_tokens = token_map.get(normalized, [])
+        if exact_tokens:
+            self._safe_execute(
+                "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
+                "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
+                {"sid": style.id, "tid": exact_tokens[0].id},
+            )
+            return
+
+        # Substring match: token value appears inside style value (e.g. rgba with hex)
+        for token_value_lower, tokens in token_map.items():
+            if token_value_lower and len(token_value_lower) >= 4 and token_value_lower in normalized:
+                self._safe_execute(
+                    "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
+                    "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
+                    {"sid": style.id, "tid": tokens[0].id},
+                )
+                return
 
     def _safe_execute(self, cypher: str, params: dict | None = None) -> bool:
         """Execute a Cypher statement. Returns False on error (never raises)."""

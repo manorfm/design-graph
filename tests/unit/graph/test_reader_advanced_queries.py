@@ -314,3 +314,134 @@ class TestQueryErrorHandling:
         """_q must catch Kuzu exceptions and return [] rather than raising."""
         result = rich_graph.reader._q("NOT VALID CYPHER SYNTAX !!!!")
         assert result == []
+
+
+# ── list_components (C08) ─────────────────────────────────────────────────────
+#
+# rich_graph components: BtnPrimary (button, 5), CartItem (card, 2), PriceTag (badge, 3)
+
+# ── get_styles_with_tokens (C09) ─────────────────────────────────────────────
+
+class TestGetStylesWithTokens:
+    def test_returns_list(self, rich_graph):
+        result = rich_graph.reader.get_styles_with_tokens("PriceTag")
+        assert isinstance(result, list)
+
+    def test_each_row_has_state_property_value(self, rich_graph):
+        for row in rich_graph.reader.get_styles_with_tokens("PriceTag"):
+            assert "s.state" in row
+            assert "s.property" in row
+            assert "s.value" in row
+
+    def test_token_fields_present_in_each_row(self, rich_graph):
+        for row in rich_graph.reader.get_styles_with_tokens("PriceTag"):
+            assert "token_label" in row
+            assert "token_value" in row
+            assert "token_category" in row
+
+    def test_unknown_component_returns_empty(self, rich_graph):
+        assert rich_graph.reader.get_styles_with_tokens("GhostComp999") == []
+
+    def test_fuzzy_name_resolution_works(self, rich_graph):
+        # "price" should fuzzy-match to PriceTag
+        result = rich_graph.reader.get_styles_with_tokens("price")
+        assert isinstance(result, list)
+
+
+# ── list_components (C08) ─────────────────────────────────────────────────────
+    def test_returns_all_components_without_filter(self, rich_graph):
+        comps = rich_graph.reader.list_components()
+        names = {c["c.name"] for c in comps}
+        assert {"BtnPrimary", "CartItem", "PriceTag"}.issubset(names)
+
+    def test_filter_by_button_type(self, rich_graph):
+        comps = rich_graph.reader.list_components(comp_type="button")
+        assert all(c["c.comp_type"] == "button" for c in comps)
+        assert any(c["c.name"] == "BtnPrimary" for c in comps)
+
+    def test_filter_by_badge_type(self, rich_graph):
+        comps = rich_graph.reader.list_components(comp_type="badge")
+        names = {c["c.name"] for c in comps}
+        assert "PriceTag" in names
+        assert "BtnPrimary" not in names
+
+    def test_unknown_type_returns_empty(self, rich_graph):
+        assert rich_graph.reader.list_components(comp_type="xyz_invalid") == []
+
+    def test_sorted_by_occurrence_desc(self, rich_graph):
+        comps = rich_graph.reader.list_components()
+        occs = [c["c.occurrence"] for c in comps]
+        assert occs == sorted(occs, reverse=True)
+
+    def test_each_entry_has_required_fields(self, rich_graph):
+        for c in rich_graph.reader.list_components():
+            assert "c.name" in c
+            assert "c.comp_type" in c
+            assert "c.occurrence" in c
+
+
+# ── get_component_spec (C08) ──────────────────────────────────────────────────
+
+class TestGetComponentSpec:
+    def test_returns_none_for_unknown(self, rich_graph):
+        assert rich_graph.reader.get_component_spec("GhostComp999") is None
+
+    def test_returns_component_metadata(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("BtnPrimary")
+        assert spec is not None
+        assert spec["c.name"] == "BtnPrimary"
+        assert spec["c.comp_type"] == "button"
+
+    def test_styles_grouped_by_state(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("CartItem")
+        assert "styles_by_state" in spec
+        assert isinstance(spec["styles_by_state"], dict)
+        if spec["styles_by_state"]:
+            for styles in spec["styles_by_state"].values():
+                assert isinstance(styles, list)
+                for s in styles:
+                    assert "property" in s
+                    assert "value" in s
+
+    def test_tokens_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("BtnPrimary")
+        assert "tokens" in spec
+        assert isinstance(spec["tokens"], list)
+
+    def test_children_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("CartItem")
+        assert "children" in spec
+        assert "PriceTag" in spec["children"]
+
+    def test_parents_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("PriceTag")
+        assert "parents" in spec
+        assert "CartItem" in spec["parents"]
+
+    def test_screens_using_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("BtnPrimary")
+        assert "screens_using" in spec
+        assert isinstance(spec["screens_using"], list)
+        assert "RestaurantsPage" in spec["screens_using"]
+
+    def test_interactions_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("CartItem")
+        assert "interactions" in spec
+        assert isinstance(spec["interactions"], list)
+
+    def test_texts_list_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("PriceTag")
+        assert "texts" in spec
+
+    def test_jsx_snippet_present(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("BtnPrimary")
+        assert "c.jsx_snippet" in spec
+
+    def test_fuzzy_name_resolution(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("btn")  # prefix match
+        assert spec is not None
+        assert spec["c.name"] == "BtnPrimary"
+
+    def test_leaf_component_has_no_children(self, rich_graph):
+        spec = rich_graph.reader.get_component_spec("PriceTag")
+        assert spec["children"] == []

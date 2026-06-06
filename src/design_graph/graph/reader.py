@@ -150,6 +150,93 @@ class GraphReader:
             "children":      children,
         }
 
+    def list_components(self, comp_type: str | None = None) -> list[dict]:
+        """
+        Return all components sorted by occurrence descending.
+        If comp_type is provided, return only components of that semantic type.
+        """
+        if comp_type:
+            rows = self._q(
+                "MATCH (c:Component {comp_type:$t}) "
+                "RETURN c.name, c.comp_type, c.occurrence "
+                "ORDER BY c.occurrence DESC",
+                {"t": comp_type},
+            )
+        else:
+            rows = self._q(
+                "MATCH (c:Component) "
+                "RETURN c.name, c.comp_type, c.occurrence "
+                "ORDER BY c.occurrence DESC"
+            )
+        logger.debug("reader: list_components(comp_type=%s) → %d results", comp_type, len(rows))
+        return rows
+
+    def get_component_spec(self, name: str) -> dict | None:
+        """
+        Return structured component spec for AI agent consumption.
+        Aggregates metadata, styles grouped by state, tokens, texts,
+        interactions, parent/child hierarchy, and screens using this component.
+        Uses fuzzy name resolution. Returns None if not found.
+        """
+        resolved = self._fuzzy_find_component(name)
+        if not resolved:
+            return None
+
+        rows = self._q(
+            "MATCH (c:Component {name:$n}) "
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes",
+            {"n": resolved},
+        )
+        if not rows:
+            return None
+        comp = rows[0]
+
+        raw_styles = self._q(
+            "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
+            "RETURN s.state, s.property, s.value ORDER BY s.state, s.property",
+            {"n": resolved},
+        )
+        styles_by_state: dict[str, list[dict]] = {}
+        for s in raw_styles:
+            bucket = styles_by_state.setdefault(s["s.state"], [])
+            bucket.append({"property": s["s.property"], "value": s["s.value"]})
+
+        tokens = self._q(
+            "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
+            "RETURN t.label, t.value, t.category ORDER BY t.category",
+            {"n": resolved},
+        )
+        texts = self._q(
+            "MATCH (c:Component {name:$n})-[:COMP_HAS_TEXT]->(t:UIText) "
+            "RETURN t.content, t.text_type, t.element ORDER BY t.text_type",
+            {"n": resolved},
+        )
+        interactions = self._q(
+            "MATCH (c:Component {name:$n})-[:HAS_INTERACTION]->(i:Interaction) "
+            "RETURN i.trigger, i.css_prop, i.from_val, i.to_val, i.transition",
+            {"n": resolved},
+        )
+        screens_rows = self._q(
+            "MATCH (s:Screen)-[:USES_COMPONENT]->(p:Component)"
+            "-[:CONTAINS*0..1]->(c:Component {name:$n}) "
+            "RETURN DISTINCT s.name ORDER BY s.name",
+            {"n": resolved},
+        )
+
+        logger.debug("reader: get_component_spec(%s) — %d styles, %d tokens, %d interactions",
+                     resolved, len(raw_styles), len(tokens), len(interactions))
+
+        return {
+            **comp,
+            "styles_by_state": styles_by_state,
+            "tokens":          tokens,
+            "texts":           texts[:15],
+            "interactions":    interactions,
+            "children":        self.get_component_children(resolved),
+            "parents":         self.get_component_parents(resolved),
+            "screens_using":   [r["s.name"] for r in screens_rows],
+        }
+
     def get_component_children(self, name: str) -> list[str]:
         """Return names of components directly contained by this component (via CONTAINS)."""
         rows = self._q(
@@ -170,13 +257,22 @@ class GraphReader:
 
     def find_screens_using_comp_transitively(self, comp_name: str) -> list[str]:
         """
-        Return screen names that use comp_name at any nesting depth (up to 3 levels).
-        Uses the CONTAINS relationship chain to traverse composition.
+        Return screen names that use comp_name directly or via CONTAINS composition
+        (up to 3 levels deep).
+
+        Traversal: Screen -[USES_COMPONENT]-> AnyComponent -[CONTAINS*0..3]-> Target.
+        CONTAINS*0 covers direct usage (component used by screen itself).
         """
         rows = self._q(
-            "MATCH (s:Screen)-[:USES_COMPONENT*1..3]->(c:Component {name:$n}) "
+            "MATCH (s:Screen)-[:USES_COMPONENT]->(p:Component)"
+            "-[:CONTAINS*0..3]->(c:Component {name:$n}) "
             "RETURN DISTINCT s.name ORDER BY s.name",
             {"n": comp_name},
+        )
+        logger.debug(
+            "reader: find_screens_transitively(%s) → %d screens",
+            comp_name,
+            len(rows),
         )
         return [r["s.name"] for r in rows]
 
@@ -204,6 +300,27 @@ class GraphReader:
         }
 
     # ── Tokens ────────────────────────────────────────────────────────────────
+
+    def get_styles_with_tokens(self, comp_name: str) -> list[dict]:
+        """
+        Return styles for a component with their linked token (if any).
+        Uses OPTIONAL MATCH so styles without STYLE_USES_TOKEN still appear,
+        with token_* fields as None.
+
+        Each dict: s.state, s.property, s.value, token_label, token_value, token_category.
+        """
+        resolved = self._fuzzy_find_component(comp_name)
+        if not resolved:
+            return []
+        return self._q(
+            "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
+            "OPTIONAL MATCH (s)-[:STYLE_USES_TOKEN]->(t:Token) "
+            "RETURN s.state, s.property, s.value, "
+            "       t.label AS token_label, t.value AS token_value, "
+            "       t.category AS token_category "
+            "ORDER BY s.state, s.property",
+            {"n": resolved},
+        )
 
     def get_tokens(self, category: str | None = None) -> list[dict]:
         if category:

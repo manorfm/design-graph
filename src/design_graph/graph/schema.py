@@ -107,6 +107,8 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",
     # v2: compositional hierarchy with occurrence weight
     "CREATE REL TABLE CONTAINS(FROM Component TO Component, weight INT64)",
+    # v3: style-level token linkage — which CSS property resolves to which token
+    "CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)",
 ]
 
 SCHEMA: list[str] = _NODE_TABLES + _REL_TABLES

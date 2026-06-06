@@ -24,6 +24,7 @@ from design_graph.core.models import (
 )
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
+from design_graph.parsing.token_extractor import build_token_map
 
 
 @pytest.fixture
@@ -174,6 +175,75 @@ class TestDuplicateContainsGuard:
             "RETURN count(r)"
         )
         assert result.get_next()[0] == 1
+
+
+# ── STYLE_USES_TOKEN linkage (C09) ────────────────────────────────────────────
+
+class TestStyleTokenLinkage:
+    """Verify that write_component creates STYLE_USES_TOKEN edges when a style
+    value matches a token value (case-insensitive)."""
+
+    def _token(self, label: str, value: str) -> DesignToken:
+        return DesignToken(id=f"tok_{label}", category="color",
+                           label=label, value=value, usage=3)
+
+    def _style_comp(self, name: str, style_value: str) -> ExtractedComponent:
+        return _comp(name, styles=[
+            StyleEntry(id=f"st_{name}", element=name, state="default",
+                       property="backgroundColor", value=style_value)
+        ])
+
+    def test_creates_style_uses_token_when_value_matches(self, writer):
+        gw, conn = writer
+        tok = self._token("primary", "#ffb81c")
+        gw.write_tokens([tok])
+        tm = build_token_map([tok])  # {"#ffb81c": [tok]}
+        gw.write_component(self._style_comp("Btn", "#ffb81c"), tm)
+        result = conn.execute(
+            "MATCH (s:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
+            "RETURN s.property, t.label"
+        )
+        assert result.has_next()
+        row = result.get_next()
+        assert row[0] == "backgroundColor"
+        assert row[1] == "primary"
+
+    def test_no_link_when_value_does_not_match(self, writer):
+        gw, conn = writer
+        tok = self._token("secondary", "#123456")
+        gw.write_tokens([tok])
+        tm = build_token_map([tok])
+        gw.write_component(self._style_comp("Card", "14px"), tm)
+        result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
+        assert result.get_next()[0] == 0
+
+    def test_matching_is_case_insensitive(self, writer):
+        gw, conn = writer
+        # Token stored as uppercase; style value is lowercase — should still match
+        tok = self._token("primary_upper", "#FFB81C")
+        gw.write_tokens([tok])
+        tm = build_token_map([tok])  # key = "#ffb81c" (lowercased)
+        gw.write_component(self._style_comp("BtnLower", "#ffb81c"), tm)
+        result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
+        assert result.get_next()[0] == 1
+
+    def test_at_most_one_link_per_style(self, writer):
+        gw, conn = writer
+        # Three tokens all with same value — only one STYLE_USES_TOKEN edge
+        toks = [self._token(f"tok{i}", "#ffb81c") for i in range(3)]
+        gw.write_tokens(toks)
+        tm = build_token_map(toks)  # all 3 under key "#ffb81c"
+        gw.write_component(self._style_comp("BtnMulti", "#ffb81c"), tm)
+        result = conn.execute(
+            "MATCH (s:Style {id:'st_BtnMulti'})-[:STYLE_USES_TOKEN]->(t) RETURN count(t)"
+        )
+        assert result.get_next()[0] <= 1
+
+    def test_empty_token_map_creates_no_links(self, writer):
+        gw, conn = writer
+        gw.write_component(self._style_comp("BtnNoMap", "#ffb81c"), {})
+        result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
+        assert result.get_next()[0] == 0
 
 
 # ── _safe_execute error handling ──────────────────────────────────────────────
