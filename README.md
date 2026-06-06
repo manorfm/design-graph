@@ -145,7 +145,9 @@ design-query screen RestaurantsPage     # full screen composition
 | `list_screens` | All screens grouped by prototype | — |
 | `get_screen` | Sections, components, texts and styles of a screen | `name`, `doc` |
 | `get_section` | Details of a named visual section inside a screen | `screen`, `section`, `doc` |
+| `list_components` | All components sorted by occurrence, optionally filtered by type | `comp_type?`, `doc` |
 | `get_component` | JSX snippet, styles, tokens, interactions, texts | `name`, `doc` |
+| `get_component_spec` | Full component spec: styles by state, tokens, texts, parents, children, screens | `name`, `doc` |
 | `get_tokens` | Color and spacing design tokens | `category?`, `doc` |
 | `find_token_usage` | Where a given token value is used | `value`, `doc` |
 | `search` | Cross-entity search (supports PT/EN aliases) | `query` |
@@ -252,7 +254,9 @@ impact('SectionCard')
 
 `get_tokens(category='color')` returns `primary = #ffb81c (47 uses)`. The agent doesn't infer the primary color from scattered CSS — it reads a fact.
 
-Every CSS property is stored in `Style` with an explicit state (`default | hover | transition`), not buried in JSX.
+Every CSS property is stored in `Style` with an explicit state (`default | hover | transition`), not buried in JSX. Token linkage works at two levels: component-level (`USES_TOKEN`) and property-level (`STYLE_USES_TOKEN`) — so the agent can see exactly which CSS property uses a given token value.
+
+Tailwind utility classes (`flex`, `gap-4`, `rounded-lg`, …) and custom CSS rules are resolved into `Style` nodes during the build, so `className` information is not lost.
 
 ### Fuzzy match + PT/EN aliases
 
@@ -263,9 +267,15 @@ Every CSS property is stored in `Style` with an explicit state (`default | hover
 
 The builder hashes the HTML before processing. Unchanged files are skipped. A full rebuild of a large prototype takes ~5 seconds.
 
-### Sanitized JSX
+### Sanitized JSX with typed markers
 
-Event handlers, arrow functions with bodies, and large ternary expressions are stripped. The agent receives visual structure in ~20 lines instead of 400.
+Event handlers and large expressions are collapsed. Dynamic rendering patterns are replaced with typed markers that preserve structural information:
+
+- `{items.map(i => <CartItem />)}` → `{[list:CartItem]}`
+- `{isOpen && <Modal />}` → `{[conditional:Modal]}`
+- `{ok ? <SuccessCard /> : <ErrorBanner />}` → `{[either:SuccessCard|ErrorBanner]}`
+
+The agent receives visual structure in ~20 lines instead of 400, and marker-referenced components are still captured in the CONTAINS graph.
 
 ---
 
@@ -292,12 +302,13 @@ Event handlers, arrow functions with bodies, and large ternary expressions are s
 ```
 Screen    ──USES_COMPONENT──►  Component
 Screen    ──HAS_SECTION──────►  Section
-Screen    ──SCREEN_HAS_TEXT──►  UIText
 Section   ──SECTION_USES─────►  Component
+Component ──CONTAINS─────────►  Component   (weight = co-occurrence count)
 Component ──HAS_STYLE────────►  Style
-Component ──USES_TOKEN───────►  Token
+Component ──USES_TOKEN───────►  Token        (component-level)
 Component ──COMP_HAS_TEXT────►  UIText
 Component ──HAS_INTERACTION──►  Interaction
+Style     ──STYLE_USES_TOKEN──►  Token        (property-level, exact + substring match)
 ```
 
 ---
