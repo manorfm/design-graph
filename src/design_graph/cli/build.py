@@ -8,9 +8,12 @@ Commands:
   design-graph <proto.html> --db <path>         save graph to a custom path
   design-graph <proto.html> --verbose           show debug-level pipeline logs
   design-graph <proto.html> --quiet             suppress all output except errors
+  design-graph --version                        print version and exit
   design-graph chunk <proto.html>               export AI-ready chunks as JSONL
   design-graph chunk <proto.html> --output <f>  write JSONL to custom file
   design-graph chunk <proto.html> --max-chars N set max chars per chunk (default 12000)
+  design-graph status                           show graph health and last build info
+  design-graph status --db <path>               status for a specific database
 """
 
 from __future__ import annotations
@@ -45,15 +48,42 @@ class ChunkCliArgs:
     verbose:     bool
 
 
+@dataclass
+class StatusCliArgs:
+    db_path: Path | None
+    verbose: bool
+
+
 # ── Argument parsers (pure, testable, no I/O) ─────────────────────────────────
+
+def parse_status_args(argv: list[str]) -> StatusCliArgs:
+    """Parse argv for the 'status' subcommand. Raises SystemExit on bad input."""
+    p = argparse.ArgumentParser(
+        prog="design-graph status",
+        description="Show design-graph database health and last build info.",
+        add_help=True,
+    )
+    p.add_argument("--db",      dest="db_path", type=Path, default=None,
+                   metavar="PATH", help="Graph database to inspect (default: auto-discover)")
+    p.add_argument("--verbose", action="store_true", help="Show debug-level logs")
+    ns = p.parse_args(argv)
+    return StatusCliArgs(db_path=ns.db_path, verbose=ns.verbose)
+
 
 def parse_build_args(argv: list[str]) -> BuildCliArgs:
     """Parse argv for the 'build' command. Raises SystemExit on bad input."""
+    try:
+        from importlib.metadata import version as _pkg_version
+        _version = _pkg_version("design-graph")
+    except Exception:
+        _version = "dev"
+
     p = argparse.ArgumentParser(
         prog="design-graph",
         description="Parse a prototype HTML into a Kuzu design-graph.",
         add_help=True,
     )
+    p.add_argument("--version", action="version", version=f"design-graph {_version}")
     p.add_argument("html_path", type=Path, help="Path to the prototype HTML file")
     p.add_argument("--db",    dest="db_path", type=Path, default=None,
                    metavar="PATH", help="Custom graph database path")
@@ -106,6 +136,8 @@ def main() -> None:
     args = sys.argv[1:]
     if args and args[0] == "chunk":
         _run_chunk(args[1:])
+    elif args and args[0] == "status":
+        _run_status(args[1:])
     else:
         _run_build(args)
 
@@ -197,6 +229,32 @@ async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
     chunks = chunk_extracted_data(screens, sections_map, comps_d, parsed.max_chars)
     export_chunks_jsonl(chunks, parsed.output_path)
     return len(chunks)
+
+
+def _run_status(argv: list[str]) -> None:
+    from design_graph.cli.status import collect_graph_status, render_status_report
+
+    try:
+        parsed = parse_status_args(argv)
+    except SystemExit:
+        raise
+
+    configure_cli_logging(verbose=parsed.verbose)
+
+    db_path    = parsed.db_path or _auto_detect_db()
+    state_path = db_path.parent / ".graph-state.json"
+
+    report = collect_graph_status(db_path=db_path, state_path=state_path)
+    print(render_status_report(report))
+
+
+def _auto_detect_db() -> Path:
+    """Return the most recently modified .db in the graph directory, or a default path."""
+    from design_graph.paths import resolve_graph_dir
+    graph_dir = resolve_graph_dir()
+    dbs = sorted(graph_dir.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True) \
+          if graph_dir.exists() else []
+    return dbs[0] if dbs else graph_dir / "design-graph.db"
 
 
 # ── Output formatting ─────────────────────────────────────────────────────────
