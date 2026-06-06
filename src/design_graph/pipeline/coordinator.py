@@ -34,7 +34,7 @@ from design_graph.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
-from design_graph.graph.writer import GraphWriteSession, GraphWriter
+from design_graph.graph.writer import GraphWriteSession
 from design_graph.parsing.css_class_resolver import extract_css_rules
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
