@@ -40,6 +40,10 @@ help:
 	@echo "    make impact  C='SectionCard'     Impact analysis"
 	@echo "    make screen  S='RestaurantsPage' Screen details"
 	@echo ""
+	@echo "  Developer setup"
+	@echo "    make install-hooks               Install git hooks (auto-versioning)"
+	@echo "    make version                     Show current and projected next version"
+	@echo ""
 	@echo "  Maintenance"
 	@echo "    make list-graphs                 List available graphs"
 	@echo "    make clean-graph DB=~/graphs/x.db  Remove a graph"
@@ -139,6 +143,19 @@ screen:
 	@GRAPH_DIR=$(DB_DIR) $(DESIGN_QUERY) screen $(S)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Developer setup
+# ─────────────────────────────────────────────────────────────────────────────
+
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed — post-commit will auto-tag versions."
+	@echo "Run 'git config --unset core.hooksPath' to remove."
+
+version:
+	@python scripts/auto_version.py --dry-run 2>/dev/null || \
+	 python3 -c "import subprocess; print(subprocess.run(['git','describe','--tags','--abbrev=0'],capture_output=True,text=True).stdout.strip() or '(no tags yet)')"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Maintenance
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -157,4 +174,5 @@ clean-all:
 
 .PHONY: help build diff rebuild start stop restart status logs \
         screens tokens search inspect impact screen \
+        install-hooks version \
         list-graphs clean-graph clean-all
