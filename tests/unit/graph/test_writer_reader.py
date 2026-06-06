@@ -251,6 +251,28 @@ class TestListScreens:
         pg = next(s for s in screens if s["name"] == "RestaurantsPage")
         assert "component_count" in pg
 
+    def test_returns_sections_count(self, populated_db):
+        screens = populated_db.reader.list_screens()
+        pg = next(s for s in screens if s["name"] == "RestaurantsPage")
+        assert "sections_count" in pg
+
+    def test_top_components_field_present(self, populated_db):
+        screens = populated_db.reader.list_screens()
+        pg = next(s for s in screens if s["name"] == "RestaurantsPage")
+        assert "top_components" in pg
+
+    def test_top_components_contains_screen_members(self, populated_db):
+        screens = populated_db.reader.list_screens()
+        pg = next(s for s in screens if s["name"] == "RestaurantsPage")
+        # RestaurantsPage uses SectionCard and BtnWithBadge
+        all_comps = set(pg["top_components"])
+        assert all_comps & {"SectionCard", "BtnWithBadge"}
+
+    def test_top_components_capped_at_five(self, populated_db):
+        screens = populated_db.reader.list_screens()
+        for s in screens:
+            assert len(s["top_components"]) <= 5
+
 
 class TestGetScreen:
     def test_exact_name_match(self, populated_db):

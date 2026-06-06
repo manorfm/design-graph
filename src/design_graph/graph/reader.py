@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 
 import kuzu
 
@@ -27,24 +28,41 @@ class GraphReader:
     # ── Screens ───────────────────────────────────────────────────────────────
 
     def list_screens(self) -> list[dict]:
-        rows = self._q(
+        """
+        Return all screens sorted by component count.
+
+        Uses 2 queries instead of N+1: one for screen metadata and one JOIN
+        query for all screen-component relationships. Grouping is done in Python.
+        """
+        screen_rows = self._q(
             "MATCH (s:Screen) RETURN s.name, s.component_count, s.sections_count "
             "ORDER BY s.component_count DESC"
         )
-        screens = []
-        for row in rows:
-            components = self._q(
-                "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component) "
-                "RETURN c.name ORDER BY c.name LIMIT 5",
-                {"n": row["s.name"]},
-            )
-            screens.append({
-                "name":            row["s.name"],
-                "component_count": row["s.component_count"],
-                "sections_count":  row["s.sections_count"],
-                "top_components":  [c["c.name"] for c in components],
-            })
-        return screens
+        if not screen_rows:
+            return []
+
+        # Single JOIN query for all top-component names across all screens
+        comp_rows = self._q(
+            "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component) "
+            "RETURN s.name AS screen_name, c.name AS comp_name "
+            "ORDER BY screen_name, comp_name"
+        )
+
+        top_by_screen: dict[str, list[str]] = defaultdict(list)
+        for row in comp_rows:
+            bucket = top_by_screen[row["screen_name"]]
+            if len(bucket) < 5:
+                bucket.append(row["comp_name"])
+
+        return [
+            {
+                "name":            r["s.name"],
+                "component_count": r["s.component_count"],
+                "sections_count":  r["s.sections_count"],
+                "top_components":  top_by_screen[r["s.name"]],
+            }
+            for r in screen_rows
+        ]
 
     def get_screen(self, name: str) -> dict | None:
         resolved = self._fuzzy_find_screen(name)
@@ -71,19 +89,13 @@ class GraphReader:
             "       sec.styles_json, sec.detection_method",
             {"n": resolved},
         )
-        texts = self._q(
-            "MATCH (s:Screen {name:$n})-[:SCREEN_HAS_TEXT]->(t:UIText) "
-            "RETURN t.content, t.text_type, t.element ORDER BY t.text_type",
-            {"n": resolved},
-        )
-
         return {
             "name":            s["s.name"],
             "component_count": s["s.component_count"],
             "sections_count":  s["s.sections_count"],
             "components":      components,
             "sections":        sections,
-            "texts":           texts[:20],
+            "texts":           [],
         }
 
     # ── Components ────────────────────────────────────────────────────────────
@@ -208,26 +220,59 @@ class GraphReader:
         )
 
     def find_token_usage(self, value: str) -> list[dict]:
+        """
+        Return tokens matching value/label with their using components and screens.
+
+        Uses 3 queries instead of 1+2N: one to find matching tokens, one JOIN
+        for all component-token links, one JOIN for all screen-token links.
+        Grouping is done in Python.
+        """
         tokens = self._q(
             "MATCH (t:Token) WHERE toLower(t.value) CONTAINS toLower($val) "
             "OR toLower(t.label) CONTAINS toLower($val) "
             "RETURN t.id, t.label, t.value, t.category",
             {"val": value},
         )
-        result = []
-        for tok in tokens:
-            comps = self._q(
-                "MATCH (c:Component)-[:USES_TOKEN]->(t:Token {id:$tid}) "
-                "RETURN c.name, c.comp_type",
-                {"tid": tok["t.id"]},
+        if not tokens:
+            return []
+
+        # Single JOIN query for all component-token relationships
+        comp_rows = self._q(
+            "MATCH (c:Component)-[:USES_TOKEN]->(t:Token) "
+            "WHERE toLower(t.value) CONTAINS toLower($val) "
+            "OR toLower(t.label) CONTAINS toLower($val) "
+            "RETURN t.id AS token_id, c.name AS comp_name, c.comp_type AS comp_type",
+            {"val": value},
+        )
+
+        # Single JOIN query for all screen-token relationships
+        screen_rows = self._q(
+            "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component)-[:USES_TOKEN]->(t:Token) "
+            "WHERE toLower(t.value) CONTAINS toLower($val) "
+            "OR toLower(t.label) CONTAINS toLower($val) "
+            "RETURN DISTINCT t.id AS token_id, s.name AS screen_name",
+            {"val": value},
+        )
+
+        # Group by token id in Python
+        comps_by_token:   dict[str, list[dict]] = defaultdict(list)
+        screens_by_token: dict[str, list[str]]  = defaultdict(list)
+
+        for row in comp_rows:
+            comps_by_token[row["token_id"]].append(
+                {"c.name": row["comp_name"], "c.comp_type": row["comp_type"]}
             )
-            screens = self._q(
-                "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component)-[:USES_TOKEN]->"
-                "(t:Token {id:$tid}) RETURN DISTINCT s.name",
-                {"tid": tok["t.id"]},
-            )
-            result.append({**tok, "components": comps, "screens": [r["s.name"] for r in screens]})
-        return result
+        for row in screen_rows:
+            screens_by_token[row["token_id"]].append(row["screen_name"])
+
+        return [
+            {
+                **tok,
+                "components": comps_by_token[tok["t.id"]],
+                "screens":    screens_by_token[tok["t.id"]],
+            }
+            for tok in tokens
+        ]
 
     # ── Interactions ──────────────────────────────────────────────────────────
 

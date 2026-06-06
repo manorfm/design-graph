@@ -67,3 +67,44 @@ class TestGetAliases:
         b = get_aliases()
         a["injected"] = []
         assert "injected" not in b
+
+
+class TestPtAliasesCoverage:
+    """Verify all required PT design-system terms are mapped."""
+
+    def _aliases(self):
+        return get_aliases()
+
+    def test_tela_maps_to_screen_or_page(self):
+        aliases = self._aliases()
+        assert "tela" in aliases
+        targets = aliases["tela"]
+        assert any(t in targets for t in ("Screen", "Page", "screen", "page"))
+
+    def test_tipografia_maps_to_font_or_typography(self):
+        aliases = self._aliases()
+        assert "tipografia" in aliases
+        targets = aliases["tipografia"]
+        assert any(t in targets for t in ("typography", "font", "text", "Font", "Typography"))
+
+    def test_sombra_maps_to_shadow(self):
+        aliases = self._aliases()
+        assert "sombra" in aliases
+        targets = aliases["sombra"]
+        assert any(t in targets for t in ("shadow", "Shadow"))
+
+    def test_raio_maps_to_radius(self):
+        aliases = self._aliases()
+        assert "raio" in aliases
+        targets = aliases["raio"]
+        assert any(t in targets for t in ("radius", "Radius"))
+
+    def test_expand_query_resolves_tela(self):
+        aliases = self._aliases()
+        terms = expand_query("tela", aliases)
+        assert any(t.lower() in ("screen", "page") for t in terms)
+
+    def test_expand_query_resolves_sombra(self):
+        aliases = self._aliases()
+        terms = expand_query("sombra", aliases)
+        assert any("shadow" in t.lower() for t in terms)

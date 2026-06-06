@@ -131,6 +131,10 @@ async def run_pipeline(
     writer.write_tokens(tokens)
     for comp in extracted_comps:
         writer.write_component(comp, token_map)
+    # Flush deferred CONTAINS edges — all component nodes now exist in the graph
+    flushed = writer.flush_pending_contains()
+    if flushed:
+        logger.debug("pipeline: flushed %d deferred CONTAINS edges", flushed)
     for screen in screens:
         writer.write_screen(screen, sections_map.get(screen.name, []), token_map)
 

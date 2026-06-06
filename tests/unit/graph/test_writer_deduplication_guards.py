@@ -134,6 +134,47 @@ class TestDuplicateContainsGuard:
         )
         assert result.get_next()[0] == 1
 
+    def test_contains_edge_created_even_when_parent_written_before_child(self, writer):
+        """
+        Regression: when parent is inserted before child (occurrence-order),
+        the CONTAINS edge must still be created after a flush pass.
+        Before the fix, parent-first write silently dropped the edge.
+        """
+        gw, conn = writer
+
+        # Write PARENT first — child doesn't exist yet
+        parent = _comp("Container", child_refs=["InnerWidget"])
+        gw.write_component(parent, {})
+
+        # Write CHILD after parent
+        child = _comp("InnerWidget")
+        gw.write_component(child, {})
+
+        # Flush pending CONTAINS edges (child now exists)
+        gw.flush_pending_contains()
+
+        result = conn.execute(
+            "MATCH (:Component {name:'Container'})-[r:CONTAINS]->(:Component {name:'InnerWidget'}) "
+            "RETURN count(r)"
+        )
+        assert result.get_next()[0] == 1
+
+    def test_flush_pending_contains_is_idempotent(self, writer):
+        gw, conn = writer
+        parent = _comp("Wrapper", child_refs=["Leaf"])
+        child  = _comp("Leaf")
+        gw.write_component(child, {})
+        gw.write_component(parent, {})
+
+        gw.flush_pending_contains()
+        gw.flush_pending_contains()  # second call must not duplicate edges
+
+        result = conn.execute(
+            "MATCH (:Component {name:'Wrapper'})-[r:CONTAINS]->(:Component {name:'Leaf'}) "
+            "RETURN count(r)"
+        )
+        assert result.get_next()[0] == 1
+
 
 # ── _safe_execute error handling ──────────────────────────────────────────────
 

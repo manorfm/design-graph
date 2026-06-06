@@ -224,9 +224,14 @@ def extract_component(
             if ref not in REACT_INTERNALS and ref != boundary.name and len(ref) >= 3:
                 child_refs.add(ref)
 
+    _cap = lambda count, limit: f"{count}{'[capped]' if count >= limit else ''}"
     logger.debug(
-        "extract_component: %s → %d styles, %d interactions, %d texts, %d children",
-        boundary.name, len(styles), len(interactions), len(texts), len(child_refs),
+        "extract_component: %s → %s styles, %s interactions, %s texts, %d children",
+        boundary.name,
+        _cap(len(styles),        MAX_STYLES_PER_COMPONENT),
+        _cap(len(interactions),  MAX_INTERACTIONS_PER_COMPONENT),
+        _cap(len(texts),         MAX_TEXTS_PER_COMPONENT),
+        len(child_refs),
     )
 
     return ExtractedComponent(
