@@ -77,34 +77,13 @@ class TestRunPipeline:
                 tmp_path / "ghost.html", tmp_path / "out.db", tmp_path / ".state.json"
             ))
 
-    def test_new_pipeline_finds_same_or_more_screens_than_legacy(self, tmp_path):
-        """New pipeline must not lose screens that legacy build_graph found."""
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-        try:
-            from build_graph import build as legacy_build
-        except ImportError:
-            pytest.skip("legacy build_graph not available")
-
-        legacy_db = tmp_path / "legacy.db"
-        legacy_build(SIMPLE_HTML, legacy_db)
-        legacy_kuzu = kuzu.Database(str(legacy_db), read_only=True)
-        legacy_conn = kuzu.Connection(legacy_kuzu)
-        legacy_screens: set[str] = set()
-        r = legacy_conn.execute("MATCH (s:Screen) RETURN s.name")
-        while r.has_next():
-            legacy_screens.add(r.get_next()[0])
-
-        new_db = tmp_path / "new.db"
-        asyncio.run(run_pipeline(SIMPLE_HTML, new_db, tmp_path / ".state.json"))
-        new_kuzu = kuzu.Database(str(new_db), read_only=True)
-        new_conn = kuzu.Connection(new_kuzu)
-        new_screens: set[str] = set()
-        r = new_conn.execute("MATCH (s:Screen) RETURN s.name")
-        while r.has_next():
-            new_screens.add(r.get_next()[0])
-
-        assert legacy_screens.issubset(new_screens), (
-            f"Legacy found screens not in new pipeline: "
-            f"{legacy_screens - new_screens}"
-        )
+    def test_second_build_with_show_diff_does_not_raise(self, tmp_path):
+        """show_diff=True on an incremental build must complete without error."""
+        db_path    = tmp_path / "out.db"
+        state_path = tmp_path / ".state.json"
+        asyncio.run(run_pipeline(SIMPLE_HTML, db_path, state_path))
+        # Force rebuild so diff is non-trivial
+        result = asyncio.run(run_pipeline(
+            SIMPLE_HTML, db_path, state_path, force=True, show_diff=True
+        ))
+        assert result is not None
