@@ -198,37 +198,79 @@ def _run_chunk(argv: list[str]) -> None:
 
 
 async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
+    from design_graph.extraction.chunker import chunk_extracted_data, export_chunks_jsonl
+    from design_graph.parsing.format_detector import PLAIN_HTML
+    from design_graph.parsing.source_loader import load
+
+    sources = await load(parsed.html_path)
+
+    from design_graph.pipeline.coordinator import _has_react_functions
+
+    if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
+        comps_d, screens, sections_map = await _extract_chunks_plain_html(sources)
+    else:
+        comps_d, screens, sections_map = await _extract_chunks_react(sources)
+
+    chunks = chunk_extracted_data(screens, sections_map, comps_d, parsed.max_chars)
+    export_chunks_jsonl(chunks, parsed.output_path)
+    return len(chunks)
+
+
+async def _extract_chunks_react(sources) -> tuple[dict, list, dict]:
+    """Extract chunk data from a React/bundled prototype."""
     from collections import Counter
 
-    from design_graph.extraction.chunker import chunk_extracted_data, export_chunks_jsonl
     from design_graph.extraction.component_extractor import extract_all_components
     from design_graph.extraction.screen_extractor import extract_screens
     from design_graph.extraction.section_extractor import extract_sections
     from design_graph.parsing.js_parser import find_all_boundaries, find_function_boundaries
-    from design_graph.parsing.source_loader import load
     from design_graph.parsing.token_extractor import build_token_map, extract_tokens
     from design_graph.core.patterns import RE_SCREEN_FN
 
-    sources     = await load(parsed.html_path)
     all_bounds  = find_all_boundaries(sources.js)
     tokens      = extract_tokens(sources)
     token_map   = build_token_map(tokens)
     occurrences = Counter(b.name for b in all_bounds)
 
-    comps   = await extract_all_components(sources.js, all_bounds, occurrences, token_map)
-    comps_d = {c.name: c for c in comps}
-    screens = extract_screens(sources.js, all_bounds)
-
+    comps        = await extract_all_components(sources.js, all_bounds, occurrences, token_map)
+    comps_d      = {c.name: c for c in comps}
+    screens      = extract_screens(sources.js, all_bounds)
     screen_bounds = {b.name: b for b in find_function_boundaries(sources.js, RE_SCREEN_FN)}
-    sections_map  = {
+    sections_map = {
         screen.name: extract_sections(sources.js, screen, screen_bounds[screen.name])
         for screen in screens
         if screen.name in screen_bounds
     }
+    return comps_d, screens, sections_map
 
-    chunks = chunk_extracted_data(screens, sections_map, comps_d, parsed.max_chars)
-    export_chunks_jsonl(chunks, parsed.output_path)
-    return len(chunks)
+
+async def _extract_chunks_plain_html(sources) -> tuple[dict, list, dict]:
+    """Extract chunk data from a plain HTML prototype."""
+    import asyncio
+    from bs4 import BeautifulSoup
+
+    from design_graph.core.models import ExtractedScreen
+    from design_graph.extraction.plain_html_component_extractor import (
+        dom_patterns_to_extracted_components,
+    )
+    from design_graph.extraction.section_extractor import extract_sections_for_plain_html
+    from design_graph.parsing.html_parser import extract_dom_patterns
+    from design_graph.pipeline.coordinator import _html_stem_to_screen_name
+
+    soup     = await asyncio.to_thread(BeautifulSoup, sources.inner_html, "html.parser")
+    patterns = await asyncio.to_thread(extract_dom_patterns, soup)
+    comps    = dom_patterns_to_extracted_components(patterns)
+    comps_d  = {c.name: c for c in comps}
+
+    screen_name = _html_stem_to_screen_name(sources)
+    screen      = ExtractedScreen(
+        name=screen_name,
+        component_refs=[c.name for c in comps],
+        sections_count=0,
+    )
+    sections     = await asyncio.to_thread(extract_sections_for_plain_html, soup, screen_name)
+    sections_map = {screen_name: sections}
+    return comps_d, [screen], sections_map
 
 
 def _run_status(argv: list[str]) -> None:

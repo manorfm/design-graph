@@ -28,12 +28,14 @@ import kuzu
 
 from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBoundary
 from design_graph.extraction.component_extractor import extract_all_components
+from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
-from design_graph.extraction.section_extractor import extract_sections
+from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
+from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.source_loader import load
 from design_graph.parsing.token_extractor import build_token_map, extract_tokens
@@ -96,44 +98,28 @@ async def run_pipeline(
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         return None
 
-    # ── Phase 2: Parallel reads on RawSources ────────────────────────────────
-    tokens_task    = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
-    boundaries_task = asyncio.create_task(asyncio.to_thread(find_all_boundaries, sources.js))
-    tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
+    # ── Phase 2–4: Format-specific extraction ────────────────────────────────
+    # Use the plain HTML DOM-pattern path only when the file has NO React/JSX
+    # function definitions. A plain_html file with PascalCase functions (like
+    # simple.html with inline React) still uses the JS boundary extraction path.
+    if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
+        extracted_comps, screens, sections_map, tokens = await _extract_plain_html(
+            sources, concurrency=concurrency
+        )
+    else:
+        extracted_comps, screens, sections_map, tokens = await _extract_react(
+            sources, concurrency=concurrency
+        )
 
-    token_map     = build_token_map(tokens)
-    screen_bounds = [b for b in all_boundaries if is_screen(b.name)]
-    comp_bounds   = [b for b in all_boundaries if not is_screen(b.name)]
-    occurrences   = Counter(b.name for b in all_boundaries)
-
-    logger.info(
-        "pipeline: %d screens, %d components, %d tokens detected",
-        len(screen_bounds), len(comp_bounds), len(tokens),
-    )
-
-    # ── Phase 3: Parallel component extraction ───────────────────────────────
-    extracted_comps = await extract_all_components(
-        sources.js, comp_bounds, occurrences, token_map, concurrency=concurrency
-    )
-
-    # ── Phase 4: Parallel section extraction ─────────────────────────────────
-    screens = extract_screens(sources.js, all_boundaries)
-    screen_bound_map: dict[str, FunctionBoundary] = {b.name: b for b in screen_bounds}
-    sem = asyncio.Semaphore(concurrency)
-
-    async def _extract_sections_for(screen: ExtractedScreen):
-        boundary = screen_bound_map.get(screen.name)
-        if not boundary:
-            return screen.name, []
-        async with sem:
-            secs = await asyncio.to_thread(extract_sections, sources.js, screen, boundary)
-            return screen.name, secs
-
-    section_pairs = await asyncio.gather(*[_extract_sections_for(s) for s in screens])
-    sections_map: dict[str, list] = dict(section_pairs)
+    token_map = build_token_map(tokens)
 
     for screen in screens:
         screen.sections_count = len(sections_map.get(screen.name, []))
+
+    logger.info(
+        "pipeline: %d screens, %d components, %d tokens (format=%s)",
+        len(screens), len(extracted_comps), len(tokens), sources.format,
+    )
 
     # ── Phase 5: Sequential graph writes ────────────────────────────────────
     _rebuild_db(db_path)
@@ -181,6 +167,112 @@ async def run_pipeline(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+async def _extract_react(
+    sources,
+    concurrency: int,
+) -> tuple[list, list, dict, list]:
+    """
+    Phases 2–4 for bundled_react and tailwind formats.
+    Returns (extracted_comps, screens, sections_map, tokens).
+    """
+    tokens_task    = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
+    boundaries_task = asyncio.create_task(asyncio.to_thread(find_all_boundaries, sources.js))
+    tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
+
+    token_map     = build_token_map(tokens)
+    screen_bounds = [b for b in all_boundaries if is_screen(b.name)]
+    comp_bounds   = [b for b in all_boundaries if not is_screen(b.name)]
+    occurrences   = Counter(b.name for b in all_boundaries)
+
+    extracted_comps = await extract_all_components(
+        sources.js, comp_bounds, occurrences, token_map, concurrency=concurrency
+    )
+
+    screens          = extract_screens(sources.js, all_boundaries)
+    screen_bound_map = {b.name: b for b in screen_bounds}
+    sem              = asyncio.Semaphore(concurrency)
+
+    async def _extract_sections_for(screen: ExtractedScreen):
+        boundary = screen_bound_map.get(screen.name)
+        if not boundary:
+            return screen.name, []
+        async with sem:
+            secs = await asyncio.to_thread(extract_sections, sources.js, screen, boundary)
+            return screen.name, secs
+
+    section_pairs = await asyncio.gather(*[_extract_sections_for(s) for s in screens])
+    sections_map  = dict(section_pairs)
+
+    return extracted_comps, screens, sections_map, tokens
+
+
+async def _extract_plain_html(
+    sources,
+    concurrency: int,
+) -> tuple[list, list, dict, list]:
+    """
+    Phases 2–4 for plain_html format.
+
+    Uses html_parser to detect repeating DOM patterns (components) and
+    HTML5 semantic elements (sections). No JavaScript boundary detection.
+    Returns (extracted_comps, screens, sections_map, tokens).
+    """
+    from bs4 import BeautifulSoup
+
+    from design_graph.parsing.html_parser import extract_dom_patterns
+
+    tokens = await asyncio.to_thread(extract_tokens, sources)
+    soup   = await asyncio.to_thread(BeautifulSoup, sources.inner_html, "html.parser")
+
+    # Components: repeating DOM patterns treated as component definitions
+    patterns        = await asyncio.to_thread(extract_dom_patterns, soup)
+    extracted_comps = dom_patterns_to_extracted_components(patterns)
+
+    # Synthetic screen: the whole HTML document is one "page"
+    screen_name = _html_stem_to_screen_name(sources)
+    screen      = ExtractedScreen(
+        name=screen_name,
+        component_refs=[c.name for c in extracted_comps],
+        sections_count=0,
+    )
+
+    # Sections: HTML5 semantic elements
+    sections     = await asyncio.to_thread(extract_sections_for_plain_html, soup, screen_name)
+    sections_map = {screen_name: sections}
+
+    logger.info(
+        "plain_html: %d DOM patterns → %d components, %d semantic sections",
+        len(patterns), len(extracted_comps), len(sections),
+    )
+    return extracted_comps, [screen], sections_map, tokens
+
+
+def _has_react_functions(js: str) -> bool:
+    """Return True if the JS string contains PascalCase function definitions."""
+    from design_graph.core.patterns import RE_COMP_FN
+    return bool(RE_COMP_FN.search(js))
+
+
+def _html_stem_to_screen_name(sources) -> str:
+    """Derive a PascalCase screen name from the HTML content's title or fallback."""
+    try:
+        from bs4 import BeautifulSoup
+        soup  = BeautifulSoup(sources.inner_html, "html.parser")
+        title = soup.find("title")
+        if title:
+            text = title.get_text(strip=True)
+            # Convert "My App Title" → "MyAppTitle"
+            words = [w.capitalize() for w in text.split() if w.isalnum()]
+            if words:
+                name = "".join(words[:3])
+                if not name.endswith(("Page", "Screen")):
+                    name += "Page"
+                return name
+    except Exception:
+        pass
+    return "MainPage"
+
 
 def _rebuild_db(db_path: Path) -> None:
     """Remove any existing database at db_path before creating a fresh one."""

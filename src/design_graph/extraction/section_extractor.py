@@ -1,10 +1,13 @@
 """
-Detect named visual sections within a React screen function.
+Detect named visual sections within a screen.
 
-Detection strategy (cascade — first that yields quality sections wins):
-  1. JSX comment markers: {/* ── Name ── */}
+Detection strategy cascade — first that yields quality sections wins:
+  1. JSX comment markers: {/* ── Name ── */}       (React / bundled_react)
   2. Structural fallback: <div> blocks with substantial padding/margin
-  3. Empty list if neither produces quality sections
+  3. Semantic fallback: HTML5 elements (nav/header/main/section/footer) (plain_html)
+
+Strategy 3 is triggered via extract_sections_for_plain_html() which accepts
+a BeautifulSoup object instead of a raw JS string.
 
 Quality threshold: a section must have >= 1 component ref, OR >= 2 texts,
 OR >= 3 style properties. This prevents empty sections from polluting the graph.
@@ -17,8 +20,11 @@ import json
 import logging
 import re
 
+from bs4 import BeautifulSoup
+
 from design_graph.core.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
 from design_graph.core.models import ExtractedSection, ExtractedScreen, FunctionBoundary
+from design_graph.parsing.html_parser import extract_semantic_sections
 from design_graph.core.patterns import (
     RE_CLASS_NAME,
     RE_COMP_REF,
@@ -220,6 +226,78 @@ def _qualifies(section: ExtractedSection) -> bool:
 
 def _apply_quality_filter(sections: list[ExtractedSection]) -> list[ExtractedSection]:
     return [s for s in sections if _qualifies(s)]
+
+
+# ── Strategy 3: Semantic detection (plain HTML) ───────────────────────────────
+
+def extract_sections_for_plain_html(
+    soup: BeautifulSoup,
+    screen_name: str,
+) -> list[ExtractedSection]:
+    """
+    Detect sections from HTML5 semantic elements for the plain_html format.
+
+    Used instead of extract_sections() when no JavaScript/JSX is available.
+    Delegates to html_parser.extract_semantic_sections() for DOM traversal,
+    then converts each raw dict into a typed ExtractedSection.
+    """
+    raw_sections = extract_semantic_sections(soup)
+    if not raw_sections:
+        logger.debug("section_extractor: %s → no semantic sections detected", screen_name)
+        return []
+
+    sections: list[ExtractedSection] = []
+    for idx, raw in enumerate(raw_sections):
+        name = raw.get("name", raw.get("tag", "Section").capitalize())
+        html = raw.get("html", "")
+
+        # Include index in the ID to guarantee uniqueness across same-named sections
+        sec_id = _hid(f"{screen_name}_{name}_{idx}", "sec_")
+
+        # Extract texts: headings and visible text nodes from the HTML snippet
+        texts = _extract_texts_from_html(html)
+
+        sections.append(ExtractedSection(
+            id=sec_id,
+            screen=screen_name,
+            name=name,
+            styles={},
+            component_refs=[],      # plain HTML has no component references
+            texts=texts[:10],
+            jsx_snippet=html[:2_000],
+            detection_method="semantic",
+        ))
+
+    logger.debug(
+        "section_extractor: %s → %d sections via semantic detection",
+        screen_name, len(sections),
+    )
+    # Semantic sections use a relaxed quality check: presence of HTML content is sufficient
+    return [s for s in sections if s.jsx_snippet.strip() or s.texts]
+
+
+def _detect_by_semantic(
+    soup: BeautifulSoup,
+    screen_name: str,
+) -> list[ExtractedSection]:
+    """Internal alias used by tests and the coordinator for semantic strategy."""
+    return extract_sections_for_plain_html(soup, screen_name)
+
+
+def _extract_texts_from_html(html: str) -> list[str]:
+    """Extract visible text strings from an HTML snippet (no JS required)."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        texts: list[str] = []
+        seen: set[str] = set()
+        for tag in soup.find_all(["h1", "h2", "h3", "h4", "p", "a", "button", "span"]):
+            text = tag.get_text(strip=True)
+            if text and len(text) > 2 and text not in seen:
+                seen.add(text)
+                texts.append(text)
+        return texts[:10]
+    except Exception:
+        return []
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
