@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+
+function BtnPrimary(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{backgroundColor:'#ffb81c',color:'#fff',padding:'8px 16px',borderRadius:'6px',border:'none'}}}}>Confirmar</button>
+    </div>
+  );
+}
+
+function BtnSecondary(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{border:'1px solid #ffb81c',color:'#ffb81c',padding:'8px 16px',borderRadius:'6px',backgroundColor:'transparent'}}}}>Cancelar</button>
+    </div>
+  );
+}
+
+function BtnDanger(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{backgroundColor:'#e53e3e',color:'#fff',padding:'8px 16px',borderRadius:'6px',border:'none'}}}}>Excluir</button>
+    </div>
+  );
+}
+
+function BtnGhost(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{background:'transparent',color:'#a0aec0',padding:'8px 16px',border:'none'}}}}>Ignorar</button>
+    </div>
+  );
+}
+
+function BtnIcon(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{width:'40px',height:'40px',borderRadius:'50%',backgroundColor:'#2d3748',border:'none',color:'#fff'}}}}>+</button>
+    </div>
+  );
+}
+
+function InputText(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <input type='text' style={{{{backgroundColor:'#2d3748',color:'#fff',padding:'8px',border:'1px solid #4a5568',borderRadius:'4px',width:'100%'}}}} />
+    </div>
+  );
+}
+
+function InputSearch(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <input type='search' style={{{{backgroundColor:'#2d3748',color:'#fff',padding:'8px 12px',border:'none',borderRadius:'20px',width:'100%'}}}} placeholder='Buscar...' />
+    </div>
+  );
+}
+
+function InputPassword(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <input type='password' style={{{{backgroundColor:'#2d3748',color:'#fff',padding:'8px',border:'1px solid #4a5568',borderRadius:'4px',width:'100%'}}}} />
+    </div>
+  );
+}
+
+function InputSelect(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <select style={{{{backgroundColor:'#2d3748',color:'#fff',padding:'8px',border:'1px solid #4a5568',borderRadius:'4px',width:'100%'}}}}}><option>Opção 1</option><option>Opção 2</option></select>
+    </div>
+  );
+}
+
+function StarRating(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',gap:'4px',color:'#ffb81c'}}}}>★★★★☆</div>
+    </div>
+  );
+}
+
+function PriceTag(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <span style={{{{color:'#38a169',fontWeight:'bold',fontSize:'18px'}}}}>R$ 29,90</span>
+    </div>
+  );
+}
+
+function Badge(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <span style={{{{backgroundColor:'#e53e3e',color:'#fff',borderRadius:'10px',padding:'2px 8px',fontSize:'12px',fontWeight:'bold'}}}}>Novo</span>
+    </div>
+  );
+}
+
+function Tag(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <span style={{{{backgroundColor:'#2d3748',color:'#a0aec0',borderRadius:'4px',padding:'4px 8px',fontSize:'12px'}}}}>Pizza</span>
+    </div>
+  );
+}
+
+function Avatar(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{width:'40px',height:'40px',borderRadius:'50%',backgroundColor:'#ffb81c',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:'bold'}}}}>AB</div>
+    </div>
+  );
+}
+
+function Divider(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <hr style={{{{borderColor:'#2d3748',borderStyle:'solid',margin:'16px 0'}}}} />
+    </div>
+  );
+}
+
+function Spinner(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{width:'24px',height:'24px',border:'3px solid #2d3748',borderTop:'3px solid #ffb81c',borderRadius:'50%'}}}} />
+    </div>
+  );
+}
+
+function CardProduct(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#111',borderRadius:'8px',overflow:'hidden'}}}}><img src='placeholder.jpg' style={{{{width:'100%',height:'180px',objectFit:'cover'}}}} /><div style={{{{padding:'12px'}}}}><h3 style={{{{color:'#fff',margin:'8px 0'}}}}>Produto</h3><PriceTag /><Badge /></div></div>
+    </div>
+  );
+}
+
+function CardRestaurant(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#111',borderRadius:'8px',overflow:'hidden'}}}}><img src='restaurant.jpg' style={{{{width:'100%',height:'160px',objectFit:'cover'}}}} /><div style={{{{padding:'12px'}}}}><h3 style={{{{color:'#fff'}}}}>Restaurante</h3><StarRating /><Tag /></div></div>
+    </div>
+  );
+}
+
+function CardOrder(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#1f1f1f',borderRadius:'8px',padding:'16px'}}}}><p style={{{{color:'#fff',fontWeight:'bold'}}}}>Pedido #001</p><Tag /><BtnPrimary /></div>
+    </div>
+  );
+}
+
+function CardAddress(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#1f1f1f',borderRadius:'8px',padding:'16px'}}}}><p style={{{{color:'#fff'}}}}>Rua das Flores, 123</p><p style={{{{color:'#a0aec0'}}}}>São Paulo</p><BtnIcon /></div>
+    </div>
+  );
+}
+
+function CardPromo(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{background:'linear-gradient(135deg,#ffb81c,#dd6b20)',borderRadius:'8px',padding:'20px'}}}}><h3 style={{{{color:'#fff'}}}}>20% OFF</h3><p style={{{{color:'#fff',opacity:0.9}}}}>Na primeira compra</p></div>
+    </div>
+  );
+}
+
+function NavLink(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <a href='#' style={{{{color:'#a0aec0',textDecoration:'none',padding:'8px',display:'block'}}}}>Início</a>
+    </div>
+  );
+}
+
+function NavBar(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <nav style={{{{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',backgroundColor:'#1a1a1a',height:'56px'}}}}><span style={{{{color:'#ffb81c',fontWeight:'bold'}}}}>Logo</span><div style={{{{display:'flex',gap:'8px'}}}}><NavLink /></div></nav>
+    </div>
+  );
+}
+
+function NavTabs(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',borderBottom:'1px solid #2d3748'}}}}><NavLink /><NavLink /><NavLink /></div>
+    </div>
+  );
+}
+
+function BottomNav(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',justifyContent:'space-around',padding:'8px 0',backgroundColor:'#1a1a1a',borderTop:'1px solid #2d3748'}}}}><NavLink /><NavLink /><NavLink /><NavLink /></div>
+    </div>
+  );
+}
+
+function FilterChip(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <button style={{{{padding:'6px 12px',borderRadius:'16px',border:'1px solid #4a5568',color:'#a0aec0',backgroundColor:'transparent'}}}}>Categoria</button>
+    </div>
+  );
+}
+
+function FilterBar(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',gap:'8px',padding:'8px 0',overflowX:'auto'}}}}><FilterChip /><FilterChip /><FilterChip /></div>
+    </div>
+  );
+}
+
+function SearchBar(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'8px',backgroundColor:'#2d3748',borderRadius:'24px',padding:'8px 16px'}}}}><span style={{{{color:'#a0aec0'}}}}>🔍</span><InputSearch /></div>
+    </div>
+  );
+}
+
+function ModalDialog(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#1f1f1f',borderRadius:'12px',padding:'24px',maxWidth:'400px',width:'90%'}}}}><h3 style={{{{color:'#fff',marginBottom:'16px'}}}}>Confirmar ação</h3><p style={{{{color:'#a0aec0',marginBottom:'24px'}}}}>Tem certeza?</p><div style={{{{display:'flex',gap:'8px'}}}}><BtnGhost /><BtnPrimary /></div></div>
+    </div>
+  );
+}
+
+function ModalOverlay(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{position:'fixed',top:0,left:0,right:0,bottom:0,backgroundColor:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center'}}}}><ModalDialog /></div>
+    </div>
+  );
+}
+
+function DrawerPanel(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{position:'fixed',bottom:0,left:0,right:0,backgroundColor:'#1a1a1a',borderRadius:'16px 16px 0 0',padding:'24px'}}}}><div style={{{{width:'40px',height:'4px',backgroundColor:'#4a5568',borderRadius:'2px',margin:'0 auto 16px'}}}} /><BtnPrimary /><BtnSecondary /></div>
+    </div>
+  );
+}
+
+function DeliveryTime(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'4px',color:'#a0aec0',fontSize:'14px'}}}}>🕐 30-45 min</div>
+    </div>
+  );
+}
+
+function DeliveryFee(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'4px',color:'#38a169',fontSize:'14px'}}}}>🛵 Grátis</div>
+    </div>
+  );
+}
+
+function EmptyState(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{textAlign:'center',padding:'48px 16px'}}}}><p style={{{{color:'#a0aec0',fontSize:'16px'}}}}>Nenhum resultado</p><BtnPrimary /></div>
+    </div>
+  );
+}
+
+function ErrorMessage(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{backgroundColor:'#fed7d7',borderRadius:'8px',padding:'12px',color:'#c53030'}}}}>Erro ao carregar</div>
+    </div>
+  );
+}
+
+function SuccessMessage(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{backgroundColor:'#c6f6d5',borderRadius:'8px',padding:'12px',color:'#276749'}}}}>Operação realizada!</div>
+    </div>
+  );
+}
+
+function QuantitySelector(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'8px'}}}}><BtnIcon /><span style={{{{color:'#fff',minWidth:'24px',textAlign:'center'}}}}>1</span><BtnIcon /></div>
+    </div>
+  );
+}
+
+function CartItem(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{display:'flex',gap:'12px',padding:'12px 0',borderBottom:'1px solid #2d3748'}}}}><img src='item.jpg' style={{{{width:'60px',height:'60px',objectFit:'cover',borderRadius:'8px'}}}} /><div style={{{{flex:1}}}}><p style={{{{color:'#fff'}}}}>Nome do item</p><PriceTag /></div><QuantitySelector /></div>
+    </div>
+  );
+}
+
+function OrderSummary(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{backgroundColor:'#1f1f1f',borderRadius:'12px',padding:'16px'}}}}><h3 style={{{{color:'#fff'}}}}>Resumo do pedido</h3><Divider /><div style={{{{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}}}><span style={{{{color:'#a0aec0'}}}}>Subtotal</span><PriceTag /></div><Divider /><BtnPrimary /></div>
+    </div>
+  );
+}
+
+function ProfileHeader(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'16px',padding:'16px'}}}}><Avatar /><div><p style={{{{color:'#fff',fontWeight:'bold'}}}}>João Silva</p><p style={{{{color:'#a0aec0'}}}}>joao@example.com</p></div></div>
+    </div>
+  );
+}
+
+function SettingItem(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #2d3748'}}}}><span style={{{{color:'#fff'}}}}>Configuração</span><span style={{{{color:'#a0aec0'}}}}>Valor</span></div>
+    </div>
+  );
+}
+
+function NotificationItem(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{display:'flex',gap:'12px',padding:'12px 0',borderBottom:'1px solid #2d3748'}}}}><Badge /><div><p style={{{{color:'#fff'}}}}>Nova mensagem</p><p style={{{{color:'#a0aec0',fontSize:'12px'}}}}>5 min atrás</p></div></div>
+    </div>
+  );
+}
+
+function PaymentMethod(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+      onMouseEnter={e => e.currentTarget.style.opacity='0.8'}
+      onMouseLeave={e => e.currentTarget.style.opacity='1'}
+    >
+      <div style={{{{display:'flex',alignItems:'center',gap:'12px',padding:'12px',borderRadius:'8px',border:'1px solid #2d3748'}}}}><span style={{{{fontSize:'24px'}}}}>💳</span><div><p style={{{{color:'#fff'}}}}>Cartão de crédito</p><p style={{{{color:'#a0aec0',fontSize:'12px'}}}}>•••• 1234</p></div></div>
+    </div>
+  );
+}
+
+function MapPreview(props) {
+  return (
+    <div
+      style={{backgroundColor: '#1f1f1f', padding: '16px', borderRadius: '8px', cursor: 'pointer'}}
+    >
+      <div style={{{{width:'100%',height:'200px',backgroundColor:'#2d3748',borderRadius:'8px',display:'flex',alignItems:'center',justifyContent:'center',color:'#4a5568'}}}}>Mapa</div>
+    </div>
+  );
+}
+
+function HomeScreen() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Promoções ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Promoções</h2>
+        <CardPromo />
+        <CardPromo />
+      </div>
+      {/* ── Categorias ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Categorias</h2>
+        <FilterBar />
+        <FilterChip />
+      </div>
+      {/* ── Restaurantes ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Restaurantes</h2>
+        <CardRestaurant />
+        <CardRestaurant />
+        <DeliveryTime />
+      </div>
+    </div>
+  );
+}
+
+function RestaurantsPage() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Busca ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Busca</h2>
+        <SearchBar />
+      </div>
+      {/* ── Filtros ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Filtros</h2>
+        <FilterBar />
+      </div>
+      {/* ── Lista ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Lista</h2>
+        <CardRestaurant />
+        <CardRestaurant />
+        <CardRestaurant />
+      </div>
+    </div>
+  );
+}
+
+function RestaurantDetail() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Cabeçalho ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Cabeçalho</h2>
+        <NavBar />
+        <StarRating />
+        <DeliveryTime />
+        <DeliveryFee />
+      </div>
+      {/* ── Cardápio ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Cardápio</h2>
+        <CardProduct />
+        <CardProduct />
+        <Tag />
+      </div>
+      {/* ── Pedido ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Pedido</h2>
+        <QuantitySelector />
+        <BtnPrimary />
+      </div>
+    </div>
+  );
+}
+
+function CartScreen() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Itens ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Itens</h2>
+        <CartItem />
+        <CartItem />
+        <Divider />
+      </div>
+      {/* ── Resumo ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Resumo</h2>
+        <OrderSummary />
+      </div>
+      {/* ── Pagamento ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Pagamento</h2>
+        <PaymentMethod />
+      </div>
+    </div>
+  );
+}
+
+function OrdersPage() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Ativos ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Ativos</h2>
+        <CardOrder />
+        <Badge />
+        <DeliveryTime />
+      </div>
+      {/* ── Histórico ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Histórico</h2>
+        <CardOrder />
+        <Tag />
+      </div>
+    </div>
+  );
+}
+
+function ProfilePage() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Dados ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Dados</h2>
+        <ProfileHeader />
+        <Avatar />
+      </div>
+      {/* ── Configurações ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Configurações</h2>
+        <SettingItem />
+        <SettingItem />
+        <Divider />
+      </div>
+      {/* ── Notificações ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Notificações</h2>
+        <NotificationItem />
+        <Badge />
+      </div>
+    </div>
+  );
+}
+
+function CheckoutScreen() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Endereço ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Endereço</h2>
+        <CardAddress />
+        <MapPreview />
+      </div>
+      {/* ── Pagamento ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Pagamento</h2>
+        <PaymentMethod />
+        <BtnPrimary />
+      </div>
+      {/* ── Revisão ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Revisão</h2>
+        <OrderSummary />
+      </div>
+    </div>
+  );
+}
+
+function LoginForm() {
+  return (
+    <div style={{backgroundColor: '#0a0a0a', minHeight: '100vh'}}>
+      
+      {/* ── Credenciais ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Credenciais</h2>
+        <InputText />
+        <InputPassword />
+        <BtnPrimary />
+      </div>
+      {/* ── Social ── */}
+      <div style={{padding: '24px', margin: '8px 0', backgroundColor: '#111'}}>
+        <h2 style={{color: '#ffffff', marginBottom: '16px'}}>Social</h2>
+        <BtnSecondary />
+        <Divider />
+      </div>
+    </div>
+  );
+}
+</script>
+</body>
+</html>

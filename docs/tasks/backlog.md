@@ -4,22 +4,22 @@
 
 | ID | Título | Fase | Depende de | Status |
 |---|---|---|---|---|
-| T01 | SourceLoader | 1 | — | `[ ] todo` |
-| T02 | FormatDetector | 1 | — | `[ ] todo` |
-| T03 | JSParser | 1 | — | `[ ] todo` |
-| T04 | TokenExtractor | 1 | — | `[ ] todo` |
-| T05 | HTMLParser | 1 | — | `[ ] todo` |
-| T06 | ComponentExtractor (single-pass) | 2 | T01 T03 T04 | `[ ] todo` |
-| T07 | ScreenExtractor | 2 | T03 | `[ ] todo` |
-| T08 | SectionExtractor | 2 | T03 T07 | `[ ] todo` |
-| T09 | GraphSchema | 3 | — | `[ ] todo` |
-| T10 | GraphWriter | 3 | T06 T07 T08 T09 | `[ ] todo` |
-| T11 | GraphReader | 3 | T09 T10 | `[ ] todo` |
-| T12 | GraphDiff | 3 | — | `[ ] todo` |
-| T13 | PipelineCoordinator | 4 | T01-T12 | `[ ] todo` |
-| T14 | MCPSearch + Aliases | 5 | T11 | `[ ] todo` |
-| T15 | MCPTools + MCPServer | 5 | T11 T14 | `[ ] todo` |
-| T16 | Chunker + CLI chunk | 6 | T06 T07 T08 T05 | `[ ] todo` |
+| T01 | SourceLoader | 1 | — | `[x] done` |
+| T02 | FormatDetector | 1 | — | `[x] done` |
+| T03 | JSParser | 1 | — | `[x] done` |
+| T04 | TokenExtractor | 1 | — | `[x] done` |
+| T05 | HTMLParser | 1 | — | `[x] done` |
+| T06 | ComponentExtractor (single-pass) | 2 | T01 T03 T04 | `[x] done` |
+| T07 | ScreenExtractor | 2 | T03 | `[x] done` |
+| T08 | SectionExtractor | 2 | T03 T07 | `[x] done` |
+| T09 | GraphSchema | 3 | — | `[x] done` |
+| T10 | GraphWriter | 3 | T06 T07 T08 T09 | `[x] done` |
+| T11 | GraphReader | 3 | T09 T10 | `[x] done` |
+| T12 | GraphDiff | 3 | — | `[x] done` |
+| T13 | PipelineCoordinator | 4 | T01-T12 | `[x] done` |
+| T14 | MCPSearch + Aliases | 5 | T11 | `[x] done` |
+| T15 | MCPTools + MCPServer | 5 | T11 T14 | `[x] done` |
+| T16 | Chunker + CLI chunk | 6 | T06 T07 T08 T05 | `[x] done` |
 
 ---
 

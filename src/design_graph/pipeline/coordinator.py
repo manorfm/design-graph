@@ -19,6 +19,7 @@ import asyncio
 import logging
 import os
 import shutil
+import sys
 import time
 from collections import Counter
 from pathlib import Path
@@ -29,7 +30,8 @@ from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBounda
 from design_graph.extraction.component_extractor import extract_all_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.extraction.section_extractor import extract_sections
-from design_graph.graph.diff import build_new_state, compute_diff, load_state, save_state
+from design_graph.graph.diff import compute_diff
+from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
 from design_graph.parsing.js_parser import find_all_boundaries
@@ -39,6 +41,33 @@ from design_graph.parsing.token_extractor import build_token_map, extract_tokens
 logger = logging.getLogger(__name__)
 
 EXTRACTION_CONCURRENCY = int(os.environ.get("DESIGN_GRAPH_CONCURRENCY", "8"))
+
+# Minimum Kuzu version known to support CONTAINS with properties and
+# the connection API used by this pipeline. Older versions may silently
+# produce incorrect DDL or fail on edge property writes.
+KUZU_MIN_VERSION: tuple[int, ...] = (0, 6)
+
+
+def check_kuzu_version(version_str: str) -> None:
+    """
+    Emit a warning to stderr when the installed Kuzu is below KUZU_MIN_VERSION.
+
+    Intentionally non-fatal: a warning is better than refusing to run on
+    slightly older installs. The caller (run_pipeline) invokes this once at
+    startup so the message appears before any database work begins.
+    """
+    try:
+        parts = tuple(int(x) for x in version_str.split(".")[:2])
+    except (ValueError, AttributeError):
+        return  # unparseable version string — skip silently
+
+    if parts < KUZU_MIN_VERSION:
+        min_str = ".".join(str(x) for x in KUZU_MIN_VERSION)
+        sys.stderr.write(
+            f"[design-graph] WARNING: Kuzu {version_str} detected; "
+            f">= {min_str} recommended for CONTAINS edge property support. "
+            "Run: pip install --upgrade kuzu\n"
+        )
 
 
 async def run_pipeline(
@@ -56,12 +85,13 @@ async def run_pipeline(
     Raises FileNotFoundError if html_path does not exist.
     """
     t_start = time.monotonic()
+    check_kuzu_version(kuzu.__version__)
 
     # ── Phase 1: File I/O ─────────────────────────────────────────────────────
     sources = await load(html_path)
     logger.info("pipeline: loaded %s (hash=%s)", html_path.name, sources.html_hash[:8])
 
-    prev_state = load_state(state_path)
+    prev_state = load_build_state(state_path)
     if not force and prev_state.html_hash == sources.html_hash:
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         return None
@@ -120,7 +150,7 @@ async def run_pipeline(
 
     # ── Phase 6: State + stats ───────────────────────────────────────────────
     comp_counter = Counter({c.name: c.occurrence for c in extracted_comps})
-    save_state(state_path, build_new_state(sources.html_hash, screens, comp_counter))
+    save_build_state(state_path, build_new_state(sources.html_hash, screens, comp_counter))
 
     raw_stats = writer.get_stats()
     elapsed = time.monotonic() - t_start
