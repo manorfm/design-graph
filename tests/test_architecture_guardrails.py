@@ -1,5 +1,5 @@
 """
-Architecture guardrail tests (G1–G8).
+Architecture guardrail tests (G1–G9).
 
 These tests enforce the layered dependency rules defined in the project's
 backlog.md and docs/spec/00-overview.md. They run as part of the normal
@@ -13,6 +13,8 @@ G5  GraphReader connection must open with read_only=True
 G6  FunctionBoundary list must have non-overlapping intervals (covered by T03)
 G7  chunk_id values must match [a-z0-9_]+ (covered by T16)
 G8  GraphWriter methods must not be awaited in coordinator.py
+G9  cli/ modules must not import directly from parsing/, extraction/, or graph/
+    (CLI talks only to coordinator, paths, and mcp/tools — not to internals)
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ PARSING_DIR    = SRC / "parsing"
 EXTRACTION_DIR = SRC / "extraction"
 GRAPH_DIR      = SRC / "graph"
 PIPELINE_DIR   = SRC / "pipeline"
+CLI_DIR        = SRC / "cli"
 
 
 def _py_files(directory: Path) -> list[Path]:
@@ -253,5 +256,59 @@ class TestG8WriterIsNeverAwaited:
                 violations.append(f"writer.py:{node.lineno} async def {node.name}")
         assert not violations, (
             "G8 violation — GraphWriter has async methods:\n  "
+            + "\n  ".join(violations)
+        )
+
+
+# ── G9: cli/ does not import internal layers directly ────────────────────────
+
+class TestG9CliDoesNotBypassLayers:
+    """
+    The CLI layer must remain thin: it may import from coordinator, paths,
+    mcp/tools, and its own _logging helper — never from parsing/, extraction/,
+    or graph/ directly.
+
+    The only exception: cli/build.py's _build_and_export_chunks coroutine
+    drives the chunk pipeline directly (there is no coordinator path for chunk-only
+    runs), so lazy local imports inside that coroutine are allowed.
+    This guardrail therefore checks top-level (module-level) imports only via AST.
+    """
+    FORBIDDEN_FROM_CLI = (
+        "design_graph.parsing",
+        "design_graph.extraction",
+        "design_graph.graph",
+    )
+
+    def _top_level_imports(self, path: Path) -> list[str]:
+        """Return module names from top-level (non-function) import statements."""
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules: list[str] = []
+        for node in ast.iter_child_nodes(tree):  # only top-level
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    modules.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    modules.append(node.module)
+        return modules
+
+    def test_build_py_no_direct_layer_imports_at_top_level(self):
+        violations = []
+        for mod in self._top_level_imports(CLI_DIR / "build.py"):
+            if any(mod.startswith(p) for p in self.FORBIDDEN_FROM_CLI):
+                violations.append(f"build.py top-level import: {mod!r}")
+        assert not violations, (
+            "G9 violation — cli/build.py imports internal layers at module level:\n  "
+            + "\n  ".join(violations)
+            + "\nUse local imports inside functions or go through coordinator/tools."
+        )
+
+    def test_query_py_no_direct_layer_imports_at_top_level(self):
+        violations = []
+        for mod in self._top_level_imports(CLI_DIR / "query.py"):
+            if any(mod.startswith(p) for p in self.FORBIDDEN_FROM_CLI):
+                violations.append(f"query.py top-level import: {mod!r}")
+        assert not violations, (
+            "G9 violation — cli/query.py imports internal layers at module level:\n  "
             + "\n  ".join(violations)
         )
