@@ -5,6 +5,8 @@ Responsibility under test: load/save/construct BuildState objects from disk.
 Pure diff logic (compute_diff, compute_screen_hash) is tested in test_schema_and_diff.py.
 """
 
+from __future__ import annotations
+
 import json
 from collections import Counter
 from pathlib import Path

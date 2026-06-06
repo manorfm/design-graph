@@ -199,6 +199,195 @@ def _make_js_with_many_styles(name: str, count: int) -> str:
     return f"function {name}() {{ return <div {style_blocks} />; }}"
 
 
+# ── CSS class rule_map integration (C10) ─────────────────────────────────────
+
+from design_graph.core.models import FunctionBoundary
+from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
+
+
+# ── JSX typed markers (C11) ──────────────────────────────────────────────────
+
+class TestSanitizeJsxTypedMarkers:
+    """Verify sanitize_jsx replaces dynamic JSX with typed markers."""
+
+    def test_map_render_gets_list_marker(self):
+        jsx = "<ul>{items.map(item => <CartItem key={item.id} />)}</ul>"
+        result = sanitize_jsx(jsx)
+        assert "[list:CartItem]" in result
+
+    def test_short_circuit_gets_conditional_marker(self):
+        jsx = "<div>{isOpen && <Modal />}</div>"
+        result = sanitize_jsx(jsx)
+        assert "[conditional:Modal]" in result
+
+    def test_ternary_two_components_gets_either_marker(self):
+        jsx = "<div>{error ? <ErrorBanner /> : <SuccessCard />}</div>"
+        result = sanitize_jsx(jsx)
+        assert "[either:ErrorBanner|SuccessCard]" in result
+
+    def test_marker_uses_bracket_notation(self):
+        jsx = "<div>{flag && <Sidebar />}</div>"
+        result = sanitize_jsx(jsx)
+        assert "{[conditional:Sidebar]}" in result
+
+    def test_no_js_logic_exposed_after_substitution(self):
+        jsx = "<div>{isLoggedIn && <UserMenu />}</div>"
+        result = sanitize_jsx(jsx)
+        assert "isLoggedIn" not in result
+        assert "&&" not in result
+
+    def test_map_logic_not_exposed(self):
+        jsx = "<ul>{items.map(i => <ListItem />)}</ul>"
+        result = sanitize_jsx(jsx)
+        assert "items.map" not in result
+        assert ".map(" not in result
+
+    def test_static_text_unchanged(self):
+        jsx = "<h1>Título fixo</h1>"
+        assert "Título fixo" in sanitize_jsx(jsx)
+
+    def test_handler_still_collapsed(self):
+        # RE_LONG_EVENT_HANDLER requires >= 60 non-brace chars inside the handler
+        flat_body = "() => handleMouseEnterEventWithLongNameAndManyParameters(event, index, itemId, extraData)"
+        jsx = f'<div onMouseEnter={{{flat_body}}} />'
+        result = sanitize_jsx(jsx)
+        assert "on[handler]" in result
+        assert "handleMouseEnter" not in result
+
+    def test_multiple_markers_in_same_jsx(self):
+        jsx = (
+            "<div>"
+            "{items.map(i => <Item />)}"
+            "{isAdmin && <AdminPanel />}"
+            "</div>"
+        )
+        result = sanitize_jsx(jsx)
+        assert "[list:Item]" in result
+        assert "[conditional:AdminPanel]" in result
+
+    def test_component_name_preserved_in_marker(self):
+        jsx = "<div>{flag && <MyComplexComponent />}</div>"
+        result = sanitize_jsx(jsx)
+        assert "MyComplexComponent" in result
+
+    def test_ternary_marker_order_is_then_else(self):
+        jsx = "<div>{ok ? <ThenComp /> : <ElseComp />}</div>"
+        result = sanitize_jsx(jsx)
+        # ThenComp must come before ElseComp in the marker
+        idx_then = result.find("ThenComp")
+        idx_else = result.find("ElseComp")
+        assert idx_then < idx_else
+
+
+class TestChildRefsFromMarkers:
+    """Verify extract_component adds marker-referenced components to child_refs."""
+
+    def _boundary(self, name: str, js: str) -> FunctionBoundary:
+        bounds = find_all_boundaries(js)
+        return next(b for b in bounds if b.name == name)
+
+    def test_conditional_comp_in_child_refs(self):
+        js = """
+function NavBar() {
+    return (
+        <div>{flag && <UserMenu />}</div>
+    );
+}
+"""
+        comp = extract_component(js, self._boundary("NavBar", js), 1, {})
+        assert "UserMenu" in comp.child_refs
+
+    def test_list_comp_in_child_refs(self):
+        js = """
+function ItemList() {
+    return (
+        <ul>{items.map(i => <CartItem />)}</ul>
+    );
+}
+"""
+        comp = extract_component(js, self._boundary("ItemList", js), 1, {})
+        assert "CartItem" in comp.child_refs
+
+    def test_ternary_both_comps_in_child_refs(self):
+        js = """
+function StatusView() {
+    return (
+        <div>{ok ? <SuccessCard /> : <ErrorBanner />}</div>
+    );
+}
+"""
+        comp = extract_component(js, self._boundary("StatusView", js), 1, {})
+        assert "SuccessCard" in comp.child_refs
+        assert "ErrorBanner" in comp.child_refs
+
+    def test_no_duplicates_when_marker_and_direct_tag(self):
+        js = """
+function CartView() {
+    return (
+        <div><CartItem />{items.map(i => <CartItem />)}</div>
+    );
+}
+"""
+        comp = extract_component(js, self._boundary("CartView", js), 1, {})
+        assert comp.child_refs.count("CartItem") == 1
+
+
+class TestCssClassResolutionInExtractor:
+    """Verify extract_component uses rule_map to add StyleEntry objects."""
+
+    def _simple_boundary(self, name: str, js: str) -> FunctionBoundary:
+        bounds = find_all_boundaries(js)
+        return next(b for b in bounds if b.name == name)
+
+    def test_class_styles_added_when_rule_map_provided(self):
+        js = 'function Btn() { return <button className="flex gap-4" />; }'
+        b = self._simple_boundary("Btn", js)
+        rule_map = {"flex": [CssRule(".flex", "display", "flex")]}
+        comp = extract_component(js, b, 1, {}, rule_map=rule_map)
+        props = {s.property: s.value for s in comp.styles}
+        assert props.get("display") == "flex"
+
+    def test_tailwind_builtin_resolved_when_no_custom_map(self):
+        js = 'function Card() { return <div className="flex items-center" />; }'
+        b = self._simple_boundary("Card", js)
+        comp = extract_component(js, b, 1, {}, rule_map={})
+        props = {s.property: s.value for s in comp.styles}
+        assert props.get("display") == "flex"
+        assert props.get("align-items") == "center"
+
+    def test_no_class_styles_when_rule_map_is_none(self):
+        js = 'function Card() { return <div className="flex gap-4" />; }'
+        b = self._simple_boundary("Card", js)
+        comp_no_map = extract_component(js, b, 1, {}, rule_map=None)
+        comp_with_map = extract_component(js, b, 1, {}, rule_map={})
+        # With no rule_map: no class styles added
+        # With rule_map={}: Tailwind built-ins are resolved
+        class_style_count_no_map = sum(1 for s in comp_no_map.styles if "class:" in s.element)
+        class_style_count_with_map = sum(1 for s in comp_with_map.styles if "class:" in s.element)
+        assert class_style_count_no_map == 0
+        assert class_style_count_with_map > 0
+
+    def test_class_styles_have_class_prefix_in_element(self):
+        js = 'function Btn() { return <button className="flex" />; }'
+        b = self._simple_boundary("Btn", js)
+        comp = extract_component(js, b, 1, {}, rule_map={})
+        class_styles = [s for s in comp.styles if s.element.startswith("class:")]
+        assert len(class_styles) > 0
+        for s in class_styles:
+            assert s.element.startswith("class:")
+
+    def test_inline_styles_take_precedence_over_class_capacity(self):
+        from design_graph.core.constants import MAX_STYLES_PER_COMPONENT
+        # Fill up styles with inline, then class styles should be capped
+        inline_parts = " ".join(
+            f'style={{{{prop{i}: "val{i}px"}}}}' for i in range(MAX_STYLES_PER_COMPONENT)
+        )
+        js = f'function BigBtn() {{ return <button {inline_parts} className="flex" />; }}'
+        b = self._simple_boundary("BigBtn", js)
+        comp = extract_component(js, b, 1, {}, rule_map={})
+        assert len(comp.styles) <= MAX_STYLES_PER_COMPONENT
+
+
 class TestTruncationLogging:
     def test_styles_cap_logged_at_debug_when_exceeded(self, caplog):
         limit = MAX_STYLES_PER_COMPONENT
