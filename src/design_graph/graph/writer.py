@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import sys
+from pathlib import Path
 
 import kuzu
 
@@ -23,9 +25,80 @@ from design_graph.core.models import (
     ExtractedScreen,
     ExtractedSection,
 )
-from design_graph.graph.schema import STATS_QUERIES
+from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 
 logger = logging.getLogger(__name__)
+
+
+class GraphWriteSession:
+    """
+    Atomic write context for the design graph.
+
+    Writes all nodes to a hidden temporary database, then atomically renames
+    it to the final path on success.  On any failure the temp is discarded and
+    the pre-existing final database is left intact — the caller never sees a
+    partially-written graph.
+
+    Usage::
+
+        with GraphWriteSession(db_path) as writer:
+            writer.write_tokens(tokens)
+            for comp in components:
+                writer.write_component(comp, token_map)
+        # final path now holds the complete fresh graph
+    """
+
+    def __init__(self, final_path: Path) -> None:
+        self._final = final_path
+        self._temp  = final_path.parent / f".{final_path.name}.building"
+        self._db:   kuzu.Database   | None = None
+        self._conn: kuzu.Connection | None = None
+
+    def __enter__(self) -> "GraphWriter":
+        self._cleanup_temp()
+        self._final.parent.mkdir(parents=True, exist_ok=True)
+        self._db   = kuzu.Database(str(self._temp))
+        self._conn = kuzu.Connection(self._db)
+        initialize_schema(self._conn)
+        return GraphWriter(self._conn)
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self._release_db()
+        if exc_type is None:
+            self._swap_temp_to_final()
+        else:
+            self._cleanup_temp()
+        return False  # never suppress exceptions
+
+    # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _release_db(self) -> None:
+        """Close Kuzu handles so the OS releases any file locks before rename."""
+        for handle_attr in ("_conn", "_db"):
+            handle = getattr(self, handle_attr, None)
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+                setattr(self, handle_attr, None)
+
+    def _cleanup_temp(self) -> None:
+        if self._temp.exists():
+            if self._temp.is_dir():
+                shutil.rmtree(str(self._temp), ignore_errors=True)
+            else:
+                self._temp.unlink(missing_ok=True)
+
+    def _swap_temp_to_final(self) -> None:
+        """Replace final path with temp (delete old first, then rename)."""
+        if self._final.exists():
+            if self._final.is_dir():
+                shutil.rmtree(str(self._final), ignore_errors=True)
+            else:
+                self._final.unlink(missing_ok=True)
+        self._temp.rename(self._final)
+        logger.debug("write_session: committed %s", self._final)
 
 
 class GraphWriter:
