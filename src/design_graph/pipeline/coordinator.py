@@ -27,6 +27,7 @@ from pathlib import Path
 import kuzu
 
 from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBoundary
+from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
 from design_graph.extraction.component_extractor import extract_all_components
 from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
@@ -80,29 +81,39 @@ async def run_pipeline(
     show_diff: bool = False,
     force: bool = False,
     concurrency: int = EXTRACTION_CONCURRENCY,
+    reporter: BuildPhaseReporter | None = None,
 ) -> BuildStats | None:
     """
     Full build pipeline. Returns None when the build is skipped
     (HTML unchanged and force=False).
 
     Raises FileNotFoundError if html_path does not exist.
+    reporter receives phase lifecycle events — defaults to SilentBuildReporter.
     """
+    _reporter: BuildPhaseReporter = reporter if reporter is not None else SilentBuildReporter()
+    phase = PhaseTimer()
     t_start = time.monotonic()
     check_kuzu_version(kuzu.__version__)
 
-    # ── Phase 1: File I/O ─────────────────────────────────────────────────────
+    # ── Phase 1: Load ─────────────────────────────────────────────────────────
+    _reporter.phase_started(f"Loading {html_path.name}", total=0)
+    phase.start()
     sources = await load(html_path)
     logger.info("pipeline: loaded %s (hash=%s)", html_path.name, sources.html_hash[:8])
+    _reporter.phase_completed(f"Loading {html_path.name}", elapsed_seconds=phase.split())
 
     prev_state = load_build_state(state_path)
     if not force and prev_state.html_hash == sources.html_hash:
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
+        _reporter.build_skipped("HTML unchanged — use --force to rebuild")
         return None
 
     # ── Phase 2–4: Format-specific extraction ────────────────────────────────
     # Use the plain HTML DOM-pattern path only when the file has NO React/JSX
     # function definitions. A plain_html file with PascalCase functions (like
     # simple.html with inline React) still uses the JS boundary extraction path.
+    _reporter.phase_started("Parsing boundaries and tokens", total=0)
+    phase.start()
     if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
         extracted_comps, screens, sections_map, tokens = await _extract_plain_html(
             sources, concurrency=concurrency
@@ -111,6 +122,7 @@ async def run_pipeline(
         extracted_comps, screens, sections_map, tokens = await _extract_react(
             sources, concurrency=concurrency
         )
+    _reporter.phase_completed("Parsing boundaries and tokens", elapsed_seconds=phase.split())
 
     token_map = build_token_map(tokens)
 
@@ -123,6 +135,11 @@ async def run_pipeline(
     )
 
     # ── Phase 5: Sequential graph writes ────────────────────────────────────
+    _reporter.phase_started(
+        "Writing graph",
+        total=len(extracted_comps) + len(screens) + len(tokens),
+    )
+    phase.start()
     _rebuild_db(db_path)
     db   = kuzu.Database(str(db_path))
     conn = kuzu.Connection(db)
@@ -138,6 +155,7 @@ async def run_pipeline(
         logger.debug("pipeline: flushed %d deferred CONTAINS edges", flushed)
     for screen in screens:
         writer.write_screen(screen, sections_map.get(screen.name, []), token_map)
+    _reporter.phase_completed("Writing graph", elapsed_seconds=phase.split())
 
     # ── Phase 6: State + stats ───────────────────────────────────────────────
     comp_counter = Counter({c.name: c.occurrence for c in extracted_comps})
@@ -162,6 +180,7 @@ async def run_pipeline(
         diff = compute_diff(prev_state, screens, comp_counter)
         _log_diff(diff)
 
+    _reporter.build_completed(total_seconds=elapsed)
     logger.info(
         "pipeline: build complete in %.2fs — "
         "screens=%d comps=%d tokens=%d sections=%d contains=%d",

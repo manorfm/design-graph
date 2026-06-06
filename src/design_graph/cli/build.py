@@ -240,10 +240,18 @@ def _run_build(argv: list[str]) -> None:
     if parsed.force:
         state_path.unlink(missing_ok=True)
 
+    from design_graph.pipeline.build_progress import SilentBuildReporter, TerminalBuildReporter
+    reporter = (
+        SilentBuildReporter()
+        if parsed.quiet or parsed.json_output
+        else TerminalBuildReporter()
+    )
+
     stats = asyncio.run(run_pipeline(
         parsed.html_path, db_path, state_path,
         show_diff=parsed.show_diff,
         force=parsed.force,
+        reporter=reporter,
     ))
 
     if stats is None:

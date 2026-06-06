@@ -160,3 +160,82 @@ class TestExtractSectionsForMissingBoundary:
         # Pipeline should complete without error even with an unusual boundary situation
         stats = asyncio.run(run_pipeline(FIXTURE, db_path, state_path))
         assert stats is not None
+
+
+# ── BuildPhaseReporter integration ────────────────────────────────────────────
+
+class TestCoordinatorCallsReporter:
+    """
+    run_pipeline() must call phase_started / phase_completed for each phase
+    and call build_completed at the end of a successful build.
+    A SilentBuildReporter is passed in; we verify it via a spy subclass.
+    """
+
+    _JS = """
+    function HomePage() { return <div><BtnPrimary /></div>; }
+    function BtnPrimary() { return <button style={{color:'#ffb81c'}}>OK</button>; }
+    """
+
+    @pytest.fixture()
+    def proto_html(self, tmp_path):
+        f = tmp_path / "test.html"
+        f.write_text(f"<html><body><script>{self._JS}</script></body></html>")
+        return f
+
+    def test_reporter_receives_phase_started_events(self, proto_html, tmp_path):
+        from design_graph.pipeline.build_progress import SilentBuildReporter
+        from design_graph.pipeline.coordinator import run_pipeline
+
+        started: list[str] = []
+
+        class SpyReporter(SilentBuildReporter):
+            def phase_started(self, name, *, total):
+                started.append(name)
+
+        asyncio.run(run_pipeline(
+            proto_html, tmp_path / "t.db", tmp_path / ".state.json",
+            reporter=SpyReporter(),
+        ))
+        assert len(started) >= 3, f"Expected ≥3 phase_started calls, got: {started}"
+
+    def test_reporter_receives_build_completed(self, proto_html, tmp_path):
+        from design_graph.pipeline.build_progress import SilentBuildReporter
+        from design_graph.pipeline.coordinator import run_pipeline
+
+        completed: list[float] = []
+
+        class SpyReporter(SilentBuildReporter):
+            def build_completed(self, *, total_seconds):
+                completed.append(total_seconds)
+
+        asyncio.run(run_pipeline(
+            proto_html, tmp_path / "t.db", tmp_path / ".state.json",
+            reporter=SpyReporter(),
+        ))
+        assert len(completed) == 1
+        assert completed[0] > 0
+
+    def test_skipped_build_calls_build_skipped(self, proto_html, tmp_path):
+        from design_graph.pipeline.build_progress import SilentBuildReporter
+        from design_graph.pipeline.coordinator import run_pipeline
+
+        skipped: list[str] = []
+
+        class SpyReporter(SilentBuildReporter):
+            def build_skipped(self, reason):
+                skipped.append(reason)
+
+        db_path    = tmp_path / "t.db"
+        state_path = tmp_path / ".state.json"
+        # First build
+        asyncio.run(run_pipeline(proto_html, db_path, state_path, reporter=SilentBuildReporter()))
+        # Second build (unchanged HTML) should skip
+        asyncio.run(run_pipeline(proto_html, db_path, state_path, reporter=SpyReporter()))
+        assert len(skipped) == 1
+
+    def test_default_reporter_is_silent(self, proto_html, tmp_path):
+        """Without explicit reporter, pipeline must complete without raising."""
+        from design_graph.pipeline.coordinator import run_pipeline
+        # The absence of a reporter argument must not raise — SilentBuildReporter is used.
+        stats = asyncio.run(run_pipeline(proto_html, tmp_path / "t.db", tmp_path / ".state.json"))
+        assert stats is not None
