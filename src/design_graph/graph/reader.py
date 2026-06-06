@@ -349,9 +349,11 @@ def _fuzzy_match(hint: str, names: list[str]) -> str | None:
     2. Prefix
     3. Suffix
     4. Contains
-    Returns None if no match.
+    Returns None if no match or hint is empty.
     """
-    lower = hint.lower()
+    lower = hint.lower().strip()
+    if not lower:
+        return None
     for name in names:
         if name.lower() == lower:
             return name
