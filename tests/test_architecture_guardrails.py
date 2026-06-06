@@ -1,5 +1,5 @@
 """
-Architecture guardrail tests (G1–G9).
+Architecture guardrail tests (G1–G10).
 
 These tests enforce the layered dependency rules defined in the project's
 backlog.md and docs/spec/00-overview.md. They run as part of the normal
@@ -15,6 +15,8 @@ G7  chunk_id values must match [a-z0-9_]+ (covered by T16)
 G8  GraphWriter methods must not be awaited in coordinator.py
 G9  cli/ modules must not import directly from parsing/, extraction/, or graph/
     (CLI talks only to coordinator, paths, and mcp/tools — not to internals)
+G10 plain_html_component_extractor must not import from graph/ or mcp/
+    (it is an extraction-layer module — same rules as G2)
 """
 
 from __future__ import annotations
@@ -257,6 +259,32 @@ class TestG8WriterIsNeverAwaited:
         assert not violations, (
             "G8 violation — GraphWriter has async methods:\n  "
             + "\n  ".join(violations)
+        )
+
+
+# ── G10: plain_html_component_extractor respects extraction layer rules ───────
+
+class TestG10PlainHtmlExtractorLayerIsolation:
+    """
+    plain_html_component_extractor.py is an extraction-layer module.
+    Same isolation rules as G2: must not import from graph/ or mcp/.
+    """
+    EXTRACTOR_PATH = EXTRACTION_DIR / "plain_html_component_extractor.py"
+    FORBIDDEN = ("design_graph.graph", "design_graph.mcp")
+
+    def test_no_graph_imports_at_module_level(self):
+        violations = []
+        for mod in _imports_in_file(self.EXTRACTOR_PATH):
+            if any(mod.startswith(p) for p in self.FORBIDDEN):
+                violations.append(f"plain_html_component_extractor.py: imports {mod!r}")
+        assert not violations, (
+            "G10 violation — plain_html_component_extractor imports from forbidden layer:\n  "
+            + "\n  ".join(violations)
+        )
+
+    def test_file_exists(self):
+        assert self.EXTRACTOR_PATH.exists(), (
+            "G10 expectation: plain_html_component_extractor.py must exist in extraction/"
         )
 
 
