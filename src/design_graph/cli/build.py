@@ -14,6 +14,12 @@ Commands:
   design-graph chunk <proto.html> --max-chars N set max chars per chunk (default 12000)
   design-graph status                           show graph health and last build info
   design-graph status --db <path>               status for a specific database
+  design-graph report                           generate Markdown prototype report
+  design-graph report --db <path>               report from a specific database
+  design-graph report --output <file>           write report to a Markdown file
+  design-graph report --name <name>             override prototype name in report
+  design-graph report --no-tokens               exclude design token table
+  design-graph report --jsx                     include JSX snippets in report
 """
 
 from __future__ import annotations
@@ -60,6 +66,16 @@ class ChunkCliArgs:
 class StatusCliArgs:
     db_path: Path | None
     verbose: bool
+
+
+@dataclass
+class ReportCliArgs:
+    db_path:        Path | None
+    output_path:    Path | None   # None → write to stdout
+    prototype_name: str | None    # None → infer from db_path stem
+    include_tokens: bool
+    include_jsx:    bool
+    verbose:        bool
 
 
 # ── Argument parsers (pure, testable, no I/O) ─────────────────────────────────
@@ -157,6 +173,35 @@ def parse_chunk_args(argv: list[str]) -> ChunkCliArgs:
     )
 
 
+def parse_report_args(argv: list[str]) -> ReportCliArgs:
+    """Parse argv for the 'report' subcommand. Raises SystemExit on bad input."""
+    p = argparse.ArgumentParser(
+        prog="design-graph report",
+        description="Generate a Markdown prototype report from the design graph.",
+        add_help=True,
+    )
+    p.add_argument("--db",       dest="db_path",        type=Path, default=None,
+                   metavar="PATH", help="Graph database to read (default: auto-discover)")
+    p.add_argument("--output",   dest="output_path",    type=Path, default=None,
+                   metavar="FILE", help="Write report to this Markdown file (default: stdout)")
+    p.add_argument("--name",     dest="prototype_name", default=None,
+                   metavar="NAME", help="Prototype name shown in the report title")
+    p.add_argument("--no-tokens", dest="include_tokens", action="store_false", default=True,
+                   help="Exclude the design-token table from the report")
+    p.add_argument("--jsx",      dest="include_jsx",    action="store_true",
+                   help="Include JSX snippets in component sections")
+    p.add_argument("--verbose",  action="store_true",   help="Show debug-level logs")
+    ns = p.parse_args(argv)
+    return ReportCliArgs(
+        db_path=ns.db_path,
+        output_path=ns.output_path,
+        prototype_name=ns.prototype_name,
+        include_tokens=ns.include_tokens,
+        include_jsx=ns.include_jsx,
+        verbose=ns.verbose,
+    )
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -167,6 +212,8 @@ def main() -> None:
         _run_status(args[1:])
     elif args and args[0] == "validate":
         _run_validate(args[1:])
+    elif args and args[0] == "report":
+        _run_report(args[1:])
     else:
         _run_build(args)
 
@@ -357,6 +404,56 @@ def _run_status(argv: list[str]) -> None:
 
     report = collect_graph_status(db_path=db_path, state_path=state_path)
     print(render_status_report(report))
+
+
+def _run_report(argv: list[str]) -> None:
+    try:
+        parsed = parse_report_args(argv)
+    except SystemExit:
+        raise
+
+    configure_cli_logging(verbose=parsed.verbose)
+
+    db_path        = parsed.db_path or _auto_detect_db()
+    prototype_name = parsed.prototype_name or db_path.stem
+
+    report = _build_report_from_graph(db_path, prototype_name, parsed)
+    _emit_report(report, parsed.output_path)
+
+
+def _build_report_from_graph(
+    db_path: Path,
+    prototype_name: str,
+    parsed: ReportCliArgs,
+):
+    """Open db_path read-only and build a PrototypeReport. All graph imports are local (G9)."""
+    import kuzu
+
+    from design_graph.cli.report import ReportConfig, build_prototype_report
+    from design_graph.graph.reader import GraphReader
+
+    config = ReportConfig(
+        prototype_name=prototype_name,
+        include_tokens=parsed.include_tokens,
+        include_jsx=parsed.include_jsx,
+    )
+    db     = kuzu.Database(str(db_path), read_only=True)
+    conn   = kuzu.Connection(db)
+    reader = GraphReader(conn)
+    return build_prototype_report(reader, config)
+
+
+def _emit_report(report, output_path: Path | None) -> None:
+    """Render report to Markdown and write to output_path or print to stdout."""
+    from design_graph.cli.report import render_markdown_report
+
+    md = render_markdown_report(report)
+
+    if output_path:
+        output_path.write_text(md, encoding="utf-8")
+        print(f"Report written to {output_path}")
+    else:
+        print(md)
 
 
 def _auto_detect_db() -> Path:
