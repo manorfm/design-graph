@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 # ── Bump rules ────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,29 @@ def compute_next_version(current: str, prefix: str | None) -> str:
     if prefix in _PATCH_PREFIXES:
         return f"{major}.{minor}.{patch + 1}"
     return f"{major}.{minor}.{patch}"
+
+
+# ── README badge updater ──────────────────────────────────────────────────────
+
+_RE_README_BADGE = re.compile(
+    r'(!\[Version\]\(https://img\.shields\.io/badge/version-)(v\d+\.\d+\.\d+)(-\w+\.svg\))'
+)
+
+
+def update_readme_version(new_tag: str, readme_path: Path) -> bool:
+    """Replace the version badge in readme_path with new_tag.
+
+    Returns True when the badge was found and updated, False otherwise.
+    The caller is responsible for committing the file.
+    """
+    if not readme_path.exists():
+        return False
+    text = readme_path.read_text(encoding="utf-8")
+    new_text, count = _RE_README_BADGE.subn(rf"\g<1>{new_tag}\g<3>", text)
+    if count == 0:
+        return False
+    readme_path.write_text(new_text, encoding="utf-8")
+    return True
 
 
 # ── Git integration ───────────────────────────────────────────────────────────
@@ -134,6 +158,13 @@ def main() -> int:
 
     _create_annotated_tag(next_tag, subject)
     print(f"auto_version: {current_tag} → {next_tag}  ({prefix})", file=sys.stderr)
+
+    readme = Path("README.md")
+    if update_readme_version(next_tag, readme):
+        _git("add", str(readme))
+        _git("commit", "-m", f"chore: bump version to {next_tag}")
+        print(f"auto_version: README updated to {next_tag}", file=sys.stderr)
+
     return 0
 
 

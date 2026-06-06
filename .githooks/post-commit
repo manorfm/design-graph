@@ -1,4 +1,13 @@
 #!/usr/bin/env sh
-# post-commit hook — auto-tags the repo after every commit.
+# post-commit hook — auto-tags the repo and updates README version badge.
 # Install via: make install-hooks  (sets core.hooksPath = .githooks)
+#
+# Lock file prevents recursion: the version-bump commit re-triggers this hook,
+# but exits immediately when the lock is present.
+LOCK=/tmp/.design_graph_version_lock
+if [ -f "$LOCK" ]; then exit 0; fi
+touch "$LOCK"
 python scripts/auto_version.py
+STATUS=$?
+rm -f "$LOCK"
+exit $STATUS
