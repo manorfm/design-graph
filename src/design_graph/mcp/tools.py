@@ -18,6 +18,15 @@ from design_graph.mcp.search import search
 
 logger = logging.getLogger(__name__)
 
+# ── Output helpers ────────────────────────────────────────────────────────────
+
+def _truncation_notice(total: int, shown: int) -> str | None:
+    """Return a Markdown blockquote notice when a list was cut, else None."""
+    if total > shown:
+        return f"> ... +{total - shown} mais"
+    return None
+
+
 # ── Tool schema definitions (MCP protocol) ────────────────────────────────────
 
 def _doc_param() -> dict:
@@ -364,9 +373,13 @@ class ToolDispatcher:
             return f"Seção '{section}' não encontrada em '{screen}'."
         lines = [f"# Seção: {sec['name']}  (em {screen})", ""]
         if sec["styles"]:
+            styles_items = list(sec["styles"].items())
             lines.append("## Estilos")
-            for prop, val in list(sec["styles"].items())[:6]:
+            for prop, val in styles_items[:6]:
                 lines.append(f"- `{prop}`: `{val}`")
+            notice = _truncation_notice(len(styles_items), 6)
+            if notice:
+                lines.append(notice)
         if sec["component_refs"]:
             lines.append("\n## Componentes")
             for comp in sec["component_refs"]:
@@ -375,6 +388,9 @@ class ToolDispatcher:
             lines.append("\n## Textos")
             for t in sec["texts"][:8]:
                 lines.append(f'- "{t}"')
+            notice = _truncation_notice(len(sec["texts"]), 8)
+            if notice:
+                lines.append(notice)
         if sec["jsx_snippet"]:
             lines.append("\n## JSX\n```jsx")
             lines.append(sec["jsx_snippet"][:3000])
@@ -548,6 +564,9 @@ class ToolDispatcher:
                 lines.append("|---|---|")
                 for s in styles[:12]:
                     lines.append(f"| {s['property']} | {s['value']} |")
+                notice = _truncation_notice(len(styles), 12)
+                if notice:
+                    lines.append(notice)
         if spec.get("tokens"):
             lines.append("\n## Tokens")
             lines.append("| Label | Valor | Categoria |")
@@ -558,6 +577,9 @@ class ToolDispatcher:
             lines.append("\n## Textos")
             for t in spec["texts"][:8]:
                 lines.append(f'- "{t.get("t.content")}" ({t.get("t.text_type")})')
+            notice = _truncation_notice(len(spec["texts"]), 8)
+            if notice:
+                lines.append(notice)
         if spec.get("interactions"):
             lines.append("\n## Interações")
             for i in spec["interactions"]:

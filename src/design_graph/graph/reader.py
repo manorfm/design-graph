@@ -218,7 +218,7 @@ class GraphReader:
         )
         screens_rows = self._q(
             "MATCH (s:Screen)-[:USES_COMPONENT]->(p:Component)"
-            "-[:CONTAINS*0..1]->(c:Component {name:$n}) "
+            "-[:CONTAINS*0..3]->(c:Component {name:$n}) "
             "RETURN DISTINCT s.name ORDER BY s.name",
             {"n": resolved},
         )

@@ -126,21 +126,17 @@ def _search_reader(
                 type="Screen", name=name, detail="", id=name, doc=doc_name, score=s
             ))
 
-    all_screens = {s["name"] for s in reader.list_screens()}
-    # Component search via get_component (fuzzy) is expensive; query directly
-    # We approximate by listing from screens' component lists
-    seen_comps: set[str] = set()
-    for screen_dict in reader.list_screens():
-        for comp_name in screen_dict.get("top_components", []):
-            if comp_name in seen_comps:
-                continue
-            seen_comps.add(comp_name)
-            s = score_match(comp_name, term)
-            if s > 0:
-                results.append(SearchResult(
-                    type="Component", name=comp_name, detail="",
-                    id=comp_name, doc=doc_name, score=s,
-                ))
+    for comp_row in reader.list_components():
+        comp_name = comp_row.get("c.name", "")
+        if not comp_name:
+            continue
+        s = score_match(comp_name, term)
+        if s > 0:
+            results.append(SearchResult(
+                type="Component", name=comp_name,
+                detail=comp_row.get("c.comp_type", ""),
+                id=comp_name, doc=doc_name, score=s,
+            ))
 
     for token in reader.get_tokens():
         label = token.get("t.label", "")

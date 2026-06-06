@@ -358,3 +358,98 @@ class TestFindReaderSubstringMatch:
         d = ToolDispatcher([("app", RichMockReader()), ("myapp", RichMockReader())])
         reader, err = d.pick_reader(doc="app", active_doc="")
         assert reader is not None
+
+
+# ── Truncation warnings: agent must know when data was cut ────────────────────
+
+class _OverflowReader:
+    """Returns more items than the display limits in every collection."""
+
+    _TEXTS_9  = [f"Text item {i}" for i in range(9)]
+    _STYLES_9 = {f"prop{i}": f"val{i}" for i in range(9)}
+    _TEXTS_16 = [{"t.content": f"Word {i}", "t.text_type": "label", "t.element": "span"}
+                 for i in range(16)]
+    _STYLES_15_BY_STATE = {
+        "default": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)]
+    }
+
+    def list_screens(self): return []
+    def get_tokens(self, category=None): return []
+    def list_components(self, comp_type=None): return []
+    def count_nodes(self): return {}
+    def get_impact(self, n): return {"found": False}
+
+    def get_section(self, screen, section_hint):
+        return {
+            "id": "sec_x", "name": "BigSection", "detection_method": "comment",
+            "styles": self._STYLES_9,
+            "component_refs": ["BtnPrimary"],
+            "texts": self._TEXTS_9,
+            "jsx_snippet": "",
+        }
+
+    def get_component_spec(self, name):
+        return {
+            "c.name": "OverflowComp", "c.comp_type": "card",
+            "c.occurrence": 3, "c.jsx_snippet": "",
+            "c.classes": "",
+            "styles_by_state": self._STYLES_15_BY_STATE,
+            "tokens": [],
+            "texts":  self._TEXTS_16,
+            "interactions": [],
+            "children": [],
+            "parents":  [],
+            "screens_using": [],
+        }
+
+
+class TestTruncationWarnings:
+    """When output is capped, the agent must receive a visible '+N more' notice."""
+
+    def _dispatcher(self):
+        return ToolDispatcher([("proto", _OverflowReader())])
+
+    def test_section_styles_truncation_warning(self):
+        d = self._dispatcher()
+        result = d.dispatch("get_section", {"screen": "X", "section": "BigSection"}, "")
+        # 9 styles, limit 6 → must mention remaining count
+        assert "+" in result and "mais" in result.lower(), (
+            "Expected truncation notice '+N mais' in section styles output"
+        )
+
+    def test_section_texts_truncation_warning(self):
+        d = self._dispatcher()
+        result = d.dispatch("get_section", {"screen": "X", "section": "BigSection"}, "")
+        # 9 texts, limit 8 → must mention remaining count
+        assert "+" in result and "mais" in result.lower(), (
+            "Expected truncation notice '+N mais' in section texts output"
+        )
+
+    def test_spec_styles_truncation_warning(self):
+        d = self._dispatcher()
+        result = d.dispatch("get_component_spec", {"name": "OverflowComp"}, "")
+        # 15 styles in 'default' state, limit 12 → must mention remaining count
+        assert "+" in result and "mais" in result.lower(), (
+            "Expected truncation notice '+N mais' in component spec styles output"
+        )
+
+    def test_spec_texts_truncation_warning(self):
+        d = self._dispatcher()
+        result = d.dispatch("get_component_spec", {"name": "OverflowComp"}, "")
+        # 16 texts, limit 8 → must mention remaining count
+        assert "+" in result and "mais" in result.lower(), (
+            "Expected truncation notice '+N mais' in component spec texts output"
+        )
+
+    def test_no_warning_when_within_limit(self):
+        """No spurious warning when data fits within the cap."""
+        class SmallReader(_OverflowReader):
+            def get_section(self, screen, section_hint):
+                return {
+                    "id": "s", "name": "Small", "detection_method": "comment",
+                    "styles": {"padding": "4px"},
+                    "component_refs": [], "texts": ["Hello"], "jsx_snippet": "",
+                }
+        d = ToolDispatcher([("proto", SmallReader())])
+        result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
+        assert "mais" not in result.lower()
