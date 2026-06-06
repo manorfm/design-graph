@@ -76,13 +76,30 @@ _COMPONENT_TYPE_MAP: list[tuple[list[str], str]] = [
     (["toggle", "switch"],                             "toggle"),
 ]
 
+_RE_PASCAL_SPLIT = re.compile(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
+
+
+def _pascal_words_reversed(name: str) -> list[str]:
+    """Split PascalCase name into lowercase words, last word first.
+
+    Example: "ConfirmButton" → ["button", "confirm"]
+    The last word carries the primary semantic type ("Button" beats "Confirm").
+    """
+    words = _RE_PASCAL_SPLIT.split(name)
+    return [w.lower() for w in reversed(words) if w]
+
 
 def infer_component_type(name: str) -> str:
-    """Map a PascalCase component name to a semantic type string."""
-    lowered = name.lower()
-    for keywords, comp_type in _COMPONENT_TYPE_MAP:
-        if any(kw in lowered for kw in keywords):
-            return comp_type
+    """Map a PascalCase component name to a semantic type string.
+
+    Checks each PascalCase word individually (last word first) so that the
+    type-suffix wins over incidental prefix keywords.
+    E.g. "ConfirmButton" → "button", not "modal" from "confirm".
+    """
+    for word in _pascal_words_reversed(name):
+        for keywords, comp_type in _COMPONENT_TYPE_MAP:
+            if word in keywords:
+                return comp_type
     return "component"
 
 

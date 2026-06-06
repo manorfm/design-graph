@@ -164,6 +164,10 @@ MAX_RADIUS_TOKENS      = 10
 MIN_CSS_VAR_OCCURRENCES = 1   # definitions typically appear once in the source
 MAX_CSS_VAR_TOKENS      = 30
 
+# Maximum characters stored for a JSX snippet in the graph.
+# Prevents oversized components from bloating the database and MCP responses.
+MAX_JSX_SNIPPET_CHARS = 8_000
+
 # ── Chunking ──────────────────────────────────────────────────────────────────
 
 DEFAULT_CHUNK_MAX_CHARS = 12_000

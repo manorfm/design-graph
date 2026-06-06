@@ -207,11 +207,26 @@ class TestInferComponentType:
         assert infer_component_type("XyzAbc") == "component"
 
     def test_case_insensitive_matching(self):
-        # "BtnPrimary" lowercases to "btnprimary" which contains "btn"
         assert infer_component_type("BtnPrimary") == "button"
 
     def test_returns_string(self):
         assert isinstance(infer_component_type("AnyName"), str)
+
+    # ── word-boundary bug fixes ───────────────────────────────────────────────
+    @pytest.mark.parametrize("name,expected", [
+        # Suffix determines type, not any substring hit in the full lowercased string
+        ("ConfirmButton",    "button"),    # "confirm" substring must NOT win over "button" suffix
+        ("PanelChart",       "chart"),     # "panel" substring must NOT win over "chart" suffix
+        ("AlertButton",      "button"),    # "alert" substring must NOT win over "button" suffix
+        ("DialogCard",       "card"),      # "dialog" substring must NOT win over "card" suffix
+        ("SelectSection",    "card"),      # "select" (form) must NOT beat "section" (card) suffix
+        ("ModalDrawer",      "navigation"), # modal prefix, drawer suffix → navigation wins
+    ])
+    def test_suffix_word_takes_precedence_over_prefix_substring(self, name, expected):
+        assert infer_component_type(name) == expected, (
+            f"infer_component_type({name!r}) returned {infer_component_type(name)!r}, "
+            f"expected {expected!r}. Last word of PascalCase must determine type."
+        )
 
 
 # ── sanitize_jsx ──────────────────────────────────────────────────────────────

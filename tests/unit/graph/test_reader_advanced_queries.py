@@ -445,3 +445,77 @@ class TestGetComponentSpec:
     def test_leaf_component_has_no_children(self, rich_graph):
         spec = rich_graph.reader.get_component_spec("PriceTag")
         assert spec["children"] == []
+
+
+# ── get_component_spec: screens_using traversal depth (C07 consistency) ───────
+
+class TestGetComponentSpecScreensUsingDepth:
+    """
+    screens_using must use the same CONTAINS*0..3 depth as
+    find_screens_using_comp_transitively — not a shallower *0..1.
+
+    Topology: Screen -[USES_COMPONENT]-> Mid -[CONTAINS]-> Deep -[CONTAINS]-> Leaf
+    Leaf is at CONTAINS depth 2 from Mid (total path length 3 from Screen).
+    With *0..1 it would not be found; with *0..3 it must be found.
+    """
+
+    @pytest.fixture()
+    def deep_graph(self, tmp_path_factory):
+        from types import SimpleNamespace
+        tmp  = tmp_path_factory.mktemp("deep_spec")
+        db   = kuzu.Database(str(tmp / "deep.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+
+        leaf = ExtractedComponent(
+            name="DeepLeaf", comp_type="badge", jsx_snippet="<span />",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
+        )
+        deep = ExtractedComponent(
+            name="DeepMid", comp_type="card", jsx_snippet="<div><DeepLeaf /></div>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=["DeepLeaf"],
+        )
+        mid = ExtractedComponent(
+            name="TopMid", comp_type="card", jsx_snippet="<div><DeepMid /></div>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=["DeepMid"],
+        )
+        for comp in (leaf, deep, mid):
+            gw.write_component(comp, {})
+
+        screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
+        gw.write_screen(screen, [], {})
+
+        ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
+        ro_conn = kuzu.Connection(ro_db)
+        return SimpleNamespace(reader=GraphReader(ro_conn))
+
+    def test_depth2_leaf_found_in_screens_using(self, deep_graph):
+        """DeepLeaf is 2 CONTAINS hops away — must appear in screens_using."""
+        spec = deep_graph.reader.get_component_spec("DeepLeaf")
+        assert spec is not None
+        assert "DeepPage" in spec["screens_using"], (
+            "screens_using must traverse CONTAINS*0..3, not *0..1. "
+            "DeepLeaf is at depth 2 of CONTAINS but was not found."
+        )
+
+    def test_depth1_mid_also_found(self, deep_graph):
+        """DeepMid is 1 CONTAINS hop away — must also appear."""
+        spec = deep_graph.reader.get_component_spec("DeepMid")
+        assert "DeepPage" in spec["screens_using"]
+
+    def test_depth0_direct_comp_found(self, deep_graph):
+        """TopMid is directly used — baseline check."""
+        spec = deep_graph.reader.get_component_spec("TopMid")
+        assert "DeepPage" in spec["screens_using"]
+
+    def test_consistent_with_find_screens_transitively(self, deep_graph):
+        """screens_using result must equal find_screens_using_comp_transitively."""
+        spec_screens = set(deep_graph.reader.get_component_spec("DeepLeaf")["screens_using"])
+        transitive   = set(deep_graph.reader.find_screens_using_comp_transitively("DeepLeaf"))
+        assert spec_screens == transitive, (
+            f"get_component_spec.screens_using={spec_screens} differs from "
+            f"find_screens_using_comp_transitively={transitive}"
+        )

@@ -360,3 +360,72 @@ class TestGetImpact:
     def test_unknown_name_returns_not_found(self, populated_db):
         impact = populated_db.reader.get_impact("DoesNotExist")
         assert impact.get("found") is False
+
+
+# ── JSX snippet size cap ───────────────────────────────────────────────────────
+
+class TestJsxSnippetSizeCap:
+    """
+    GraphWriter must cap jsx_snippet before persisting so that oversized JSX
+    cannot cause performance issues or exceed Kuzu string limits.
+    The cap must be enforced in write_component AND write_screen (sections).
+    """
+
+    @pytest.fixture()
+    def fresh_writer(self, tmp_path):
+        from types import SimpleNamespace
+        import kuzu
+        from design_graph.graph.schema import initialize_schema
+        from design_graph.graph.writer import GraphWriter
+        from design_graph.graph.reader import GraphReader
+        db   = kuzu.Database(str(tmp_path / "cap.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        # Use same connection for writer and reader — avoids two-instance locking
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+
+    def _oversized_jsx(self) -> str:
+        return "<div>" + ("x" * 30_000) + "</div>"
+
+    def test_oversized_component_jsx_is_capped(self, fresh_writer):
+        from design_graph.core.models import ExtractedComponent
+        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        comp = ExtractedComponent(
+            name="BigComp", comp_type="card", jsx_snippet=self._oversized_jsx(),
+            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
+        )
+        fresh_writer.writer.write_component(comp, {})
+        result = fresh_writer.reader.get_component("BigComp")
+        assert result is not None
+        stored = result.get("c.jsx_snippet", "")
+        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
+            f"Stored jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        )
+
+    def test_oversized_section_jsx_is_capped(self, fresh_writer):
+        from design_graph.core.models import ExtractedScreen, ExtractedSection
+        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        section = ExtractedSection(
+            id="sec_big", screen="BigPage", name="BigSection",
+            styles={}, component_refs=[], texts=[],
+            jsx_snippet=self._oversized_jsx(), detection_method="comment",
+        )
+        screen = ExtractedScreen(name="BigPage", component_refs=[], sections_count=1)
+        fresh_writer.writer.write_screen(screen, [section], {})
+        sec = fresh_writer.reader.get_section("BigPage", "BigSection")
+        assert sec is not None
+        stored = sec.get("jsx_snippet", "")
+        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
+            f"Stored section jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        )
+
+    def test_normal_jsx_is_stored_intact(self, fresh_writer):
+        from design_graph.core.models import ExtractedComponent
+        jsx = "<div><button>OK</button></div>"
+        comp = ExtractedComponent(
+            name="SmallComp", comp_type="button", jsx_snippet=jsx,
+            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
+        )
+        fresh_writer.writer.write_component(comp, {})
+        result = fresh_writer.reader.get_component("SmallComp")
+        assert result["c.jsx_snippet"] == jsx

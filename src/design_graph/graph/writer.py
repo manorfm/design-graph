@@ -16,6 +16,7 @@ import sys
 
 import kuzu
 
+from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
 from design_graph.core.models import (
     DesignToken,
     ExtractedComponent,
@@ -75,9 +76,15 @@ class GraphWriter:
             logger.debug("writer: skipping duplicate component %s", comp.name)
             return
 
+        jsx = comp.jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
+        if len(comp.jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
+            logger.debug(
+                "writer: jsx_snippet for %s capped at %d chars (was %d)",
+                comp.name, MAX_JSX_SNIPPET_CHARS, len(comp.jsx_snippet),
+            )
         self._safe_execute(
             "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, classes:$c})",
-            {"n": comp.name, "t": comp.comp_type, "s": comp.jsx_snippet,
+            {"n": comp.name, "t": comp.comp_type, "s": jsx,
              "o": comp.occurrence, "c": comp.classes},
         )
         self._inserted_comp_names.add(comp.name)
@@ -214,6 +221,12 @@ class GraphWriter:
             )
 
         for section in sections:
+            sec_jsx = section.jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
+            if len(section.jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
+                logger.debug(
+                    "writer: jsx_snippet for section %s capped at %d chars (was %d)",
+                    section.id, MAX_JSX_SNIPPET_CHARS, len(section.jsx_snippet),
+                )
             self._safe_execute(
                 "CREATE (:Section {id:$id, screen:$sc, name:$nm, "
                 "styles_json:$sj, components_json:$cj, texts_json:$tj, "
@@ -223,7 +236,7 @@ class GraphWriter:
                     "sj": json.dumps(section.styles),
                     "cj": json.dumps(section.component_refs),
                     "tj": json.dumps(section.texts),
-                    "jsx": section.jsx_snippet,
+                    "jsx": sec_jsx,
                     "dm": section.detection_method,
                 },
             )

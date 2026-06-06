@@ -108,3 +108,63 @@ class TestPtAliasesCoverage:
         aliases = self._aliases()
         terms = expand_query("sombra", aliases)
         assert any("shadow" in t.lower() for t in terms)
+
+
+# ── Search component coverage: all components, not just top-5 ────────────────
+
+class _StubReader:
+    """
+    Minimal reader stub for component search coverage tests.
+    list_screens() returns exactly 5 top_components per screen.
+    list_components() returns ALL 8 components.
+    The 3 components beyond the top-5 must still be found by search.
+    """
+
+    _ALL_COMPS = [
+        "SectionCard", "BtnPrimary", "InputText", "HeaderBar", "NavItem",  # top-5
+        "FooterLink", "AvatarCircle", "BadgeCount",                          # hidden from top_components
+    ]
+
+    def list_screens(self):
+        return [
+            {"name": "HomePage", "component_count": 8, "sections_count": 1,
+             "top_components": self._ALL_COMPS[:5]},  # only first 5
+        ]
+
+    def list_components(self, comp_type=None):
+        return [{"c.name": n, "c.comp_type": "component", "c.occurrence": 1}
+                for n in self._ALL_COMPS]
+
+    def get_tokens(self, category=None):
+        return []
+
+
+class TestSearchCoversAllComponents:
+    """search() must find every component, not only the 5 in top_components."""
+
+    def _run(self, query: str) -> list[str]:
+        return [r.name for r in search([("home", _StubReader())], query)]
+
+    def test_top5_component_found(self):
+        assert "BtnPrimary" in self._run("BtnPrimary")
+
+    def test_6th_component_found(self):
+        assert "FooterLink" in self._run("FooterLink")
+
+    def test_7th_component_found(self):
+        assert "AvatarCircle" in self._run("AvatarCircle")
+
+    def test_8th_component_found(self):
+        assert "BadgeCount" in self._run("BadgeCount")
+
+    def test_prefix_match_on_hidden_component(self):
+        results = self._run("Footer")
+        assert "FooterLink" in results
+
+    def test_all_comps_discoverable_by_name(self):
+        reader  = _StubReader()
+        missing = []
+        for comp in reader._ALL_COMPS:
+            if comp not in self._run(comp):
+                missing.append(comp)
+        assert missing == [], f"Components not found by search: {missing}"
