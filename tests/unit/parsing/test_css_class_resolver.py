@@ -164,6 +164,150 @@ class TestResolveClasses:
 
 # ── Guardrail G1: parsing layer isolation ────────────────────────────────────
 
+# ── Tailwind numeric sizing classes ──────────────────────────────────────────
+
+class TestTailwindNumericWidthHeight:
+    """w-{n} and h-{n} must resolve to rem values using the Tailwind spacing scale."""
+
+    def _styles(self, cls: str) -> dict[str, str]:
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes(cls, {})
+        return {e.property: e.value for e in entries}
+
+    @pytest.mark.parametrize("cls,expected_value", [
+        ("w-4",  "1rem"),
+        ("w-8",  "2rem"),
+        ("w-16", "4rem"),
+        ("w-64", "16rem"),
+        ("h-4",  "1rem"),
+        ("h-8",  "2rem"),
+        ("h-48", "12rem"),
+        ("w-0",  "0px"),
+        ("h-0",  "0px"),
+    ])
+    def test_width_height_resolves_to_rem(self, cls, expected_value):
+        styles = self._styles(cls)
+        prop = "width" if cls.startswith("w-") else "height"
+        assert prop in styles, f"{cls!r} did not resolve any '{prop}' property"
+        assert styles[prop] == expected_value, (
+            f"{cls!r}: expected {prop}={expected_value!r}, got {styles[prop]!r}"
+        )
+
+    def test_half_step_w_2_resolves(self):
+        styles = self._styles("w-2")
+        assert styles.get("width") == "0.5rem"
+
+    def test_fractional_key_w_05_resolves(self):
+        styles = self._styles("w-0.5")
+        assert styles.get("width") == "0.125rem"
+
+
+class TestTailwindNumericSpacing:
+    """p-{n}, m-{n}, gap-{n} and directional variants must resolve correctly."""
+
+    def _styles(self, cls: str) -> dict[str, str]:
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes(cls, {})
+        return {e.property: e.value for e in entries}
+
+    @pytest.mark.parametrize("cls,prop,expected", [
+        ("p-4",    "padding",        "1rem"),
+        ("px-4",   "padding-left",   "1rem"),
+        ("py-2",   "padding-top",    "0.5rem"),
+        ("pt-6",   "padding-top",    "1.5rem"),
+        ("pb-8",   "padding-bottom", "2rem"),
+        ("m-4",    "margin",         "1rem"),
+        ("mx-auto","margin-left",    "auto"),
+        ("gap-4",  "gap",            "1rem"),
+        ("gap-x-2","column-gap",     "0.5rem"),
+        ("gap-y-6","row-gap",        "1.5rem"),
+    ])
+    def test_spacing_resolves(self, cls, prop, expected):
+        styles = self._styles(cls)
+        assert prop in styles, f"{cls!r} did not produce property {prop!r}"
+        assert styles[prop] == expected
+
+
+class TestTailwindGridClasses:
+    """grid-cols-{n}, col-span-{n}, row-span-{n} must resolve to CSS grid properties."""
+
+    def _styles(self, cls: str) -> dict[str, str]:
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes(cls, {})
+        return {e.property: e.value for e in entries}
+
+    @pytest.mark.parametrize("n", [1, 2, 3, 4, 6, 12])
+    def test_grid_cols_resolves(self, n):
+        styles = self._styles(f"grid-cols-{n}")
+        assert "grid-template-columns" in styles
+        assert f"repeat({n}" in styles["grid-template-columns"]
+
+    @pytest.mark.parametrize("n", [1, 2, 3, 4, 6, 12])
+    def test_col_span_resolves(self, n):
+        styles = self._styles(f"col-span-{n}")
+        assert "grid-column" in styles
+        assert str(n) in styles["grid-column"]
+
+    @pytest.mark.parametrize("n", [1, 2, 3, 6])
+    def test_row_span_resolves(self, n):
+        styles = self._styles(f"row-span-{n}")
+        assert "grid-row" in styles
+        assert str(n) in styles["grid-row"]
+
+
+class TestTailwindMaxWidth:
+    """max-w-{size} semantic classes must resolve to max-width values."""
+
+    def _styles(self, cls: str) -> dict[str, str]:
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes(cls, {})
+        return {e.property: e.value for e in entries}
+
+    @pytest.mark.parametrize("cls,expected", [
+        ("max-w-sm",   "24rem"),
+        ("max-w-md",   "28rem"),
+        ("max-w-lg",   "32rem"),
+        ("max-w-xl",   "36rem"),
+        ("max-w-2xl",  "42rem"),
+        ("max-w-full", "100%"),
+        ("max-w-none", "none"),
+    ])
+    def test_max_width_resolves(self, cls, expected):
+        styles = self._styles(cls)
+        assert "max-width" in styles, f"{cls!r} did not produce max-width"
+        assert styles["max-width"] == expected
+
+
+class TestTailwindNumericCoversCommonPrototypePatterns:
+    """Verify realistic class strings from prototypes resolve without gaps."""
+
+    def test_card_layout_classes_resolve(self):
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes("flex flex-col gap-4 p-6 rounded-lg w-full", {})
+        props = {e.property for e in entries}
+        assert "display" in props
+        assert "gap" in props
+        assert "padding" in props
+        assert "width" in props
+
+    def test_grid_layout_classes_resolve(self):
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes("grid grid-cols-3 gap-6 col-span-2", {})
+        props = {e.property for e in entries}
+        assert "grid-template-columns" in props
+        assert "column-gap" in props or "gap" in props
+        assert "grid-column" in props
+
+    def test_button_sizing_classes_resolve(self):
+        from design_graph.parsing.css_class_resolver import resolve_classes
+        entries = resolve_classes("px-4 py-2 h-10 max-w-xs", {})
+        props = {e.property for e in entries}
+        assert "padding-left" in props
+        assert "padding-top" in props
+        assert "height" in props
+        assert "max-width" in props
+
+
 class TestCssClassResolverLayerIsolation:
     # Exact layer paths that parsing/ must not depend on
     FORBIDDEN_LAYERS = (
