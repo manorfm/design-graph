@@ -174,6 +174,42 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "list_components",
+        "description": (
+            "Lists all components in the prototype, optionally filtered by semantic type. "
+            "Types: button, card, modal, form, badge, toggle, chart, navigation, list-item, screen, tab, component. "
+            "Returns name, type and occurrence count sorted by frequency."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "comp_type": {
+                    "type": "string",
+                    "description": "Filter by type: button|card|modal|form|badge|toggle|chart|navigation|list-item|screen|tab|component",
+                },
+                "doc": _doc_param(),
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_component_spec",
+        "description": (
+            "Returns the complete spec of a component structured for screen reconstruction: "
+            "styles grouped by state (default/hover/focus), design tokens, texts, interactions, "
+            "parent/child hierarchy, and which screens use it. "
+            "Use instead of get_component when building or reproducing UI."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Component name (partial name accepted)"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "set_prototype",
         "description": (
             "Set the active prototype for this session. "
@@ -269,6 +305,8 @@ class ToolDispatcher:
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
             "get_component_interactions": lambda: self.get_component_interactions(reader, name),
             "get_component_children":    lambda: self.get_component_children(reader, name),
+            "list_components":           lambda: self.list_components(reader, args.get("comp_type")),
+            "get_component_spec":        lambda: self.get_component_spec(reader, name),
         }
 
         fn = dispatch_map.get(tool_name)
@@ -467,6 +505,71 @@ class ToolDispatcher:
         lines = [f"# Filhos de: {name}\n"]
         for child in children:
             lines.append(f"- `{child}`")
+        return "\n".join(lines)
+
+    def list_components(self, reader: GraphReader, comp_type: str | None) -> str:
+        comps = reader.list_components(comp_type)
+        if not comps:
+            if comp_type:
+                return f"Nenhum componente encontrado para o tipo '{comp_type}'."
+            return "Nenhum componente encontrado."
+
+        header = f"## Componentes — tipo: {comp_type}" if comp_type else "## Componentes"
+        lines = [header, f"({len(comps)} encontrados)\n",
+                 "| Nome | Tipo | Ocorrências |",
+                 "|------|------|-------------|"]
+        for c in comps:
+            lines.append(f"| {c['c.name']} | {c['c.comp_type']} | {c['c.occurrence']} |")
+        logger.debug("tools: list_components(type=%s) → %d rows", comp_type, len(comps))
+        return "\n".join(lines)
+
+    def get_component_spec(self, reader: GraphReader, name: str) -> str:
+        spec = reader.get_component_spec(name)
+        if not spec:
+            return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+
+        cname = spec["c.name"]
+        lines = [
+            f"# Spec: {cname}",
+            f"**Tipo**: {spec['c.comp_type']} | **Ocorrências**: {spec['c.occurrence']}",
+        ]
+        if spec.get("screens_using"):
+            lines.append(f"**Telas**: {', '.join(spec['screens_using'])}")
+        if spec.get("parents") or spec.get("children"):
+            lines.append("\n## Hierarquia")
+            if spec["parents"]:
+                lines.append(f"- Pais: {', '.join(spec['parents'])}")
+            if spec["children"]:
+                lines.append(f"- Filhos: {', '.join(spec['children'])}")
+        if spec.get("styles_by_state"):
+            for state, styles in sorted(spec["styles_by_state"].items()):
+                lines.append(f"\n## Estilos — {state}")
+                lines.append("| Propriedade | Valor |")
+                lines.append("|---|---|")
+                for s in styles[:12]:
+                    lines.append(f"| {s['property']} | {s['value']} |")
+        if spec.get("tokens"):
+            lines.append("\n## Tokens")
+            lines.append("| Label | Valor | Categoria |")
+            lines.append("|---|---|---|")
+            for t in spec["tokens"]:
+                lines.append(f"| {t.get('t.label')} | {t.get('t.value')} | {t.get('t.category')} |")
+        if spec.get("texts"):
+            lines.append("\n## Textos")
+            for t in spec["texts"][:8]:
+                lines.append(f'- "{t.get("t.content")}" ({t.get("t.text_type")})')
+        if spec.get("interactions"):
+            lines.append("\n## Interações")
+            for i in spec["interactions"]:
+                lines.append(
+                    f"- {i.get('i.trigger')}: {i.get('i.css_prop')} "
+                    f"`{i.get('i.from_val')}` → `{i.get('i.to_val')}` ({i.get('i.transition')})"
+                )
+        if spec.get("c.jsx_snippet"):
+            lines.append("\n## JSX\n```jsx")
+            lines.append(spec["c.jsx_snippet"][:3000])
+            lines.append("```")
+        logger.debug("tools: get_component_spec(%s) — rendered", cname)
         return "\n".join(lines)
 
     # ── Private helpers ───────────────────────────────────────────────────────

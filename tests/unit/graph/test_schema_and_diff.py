@@ -30,9 +30,17 @@ class TestInitializeSchema:
         initialize_schema(fresh_conn)
         for rel in [
             "USES_COMPONENT", "HAS_SECTION", "SECTION_USES", "HAS_STYLE",
-            "USES_TOKEN", "COMP_HAS_TEXT", "HAS_INTERACTION", "CONTAINS"
+            "USES_TOKEN", "COMP_HAS_TEXT", "HAS_INTERACTION", "CONTAINS",
+            "STYLE_USES_TOKEN",
         ]:
             fresh_conn.execute(f"MATCH ()-[r:{rel}]->() RETURN count(r)")
+
+    def test_style_uses_token_in_schema_ddl(self):
+        from design_graph.graph.schema import SCHEMA
+        assert any("STYLE_USES_TOKEN" in stmt for stmt in SCHEMA), (
+            "STYLE_USES_TOKEN rel table missing from schema DDL. "
+            "Add: CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)"
+        )
 
     def test_screen_has_text_removed_from_schema_ddl(self):
         from design_graph.graph.schema import SCHEMA

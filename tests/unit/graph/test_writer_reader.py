@@ -317,6 +317,40 @@ class TestGetComponentParents:
         assert parents == []
 
 
+class TestFindScreensTransitively:
+    """C07 — Fix: USES_COMPONENT + CONTAINS*0..3 traversal.
+
+    populated_db graph:
+      RestaurantsPage -[USES_COMPONENT]-> BtnWithBadge -[CONTAINS]-> Badge
+      RestaurantsPage -[USES_COMPONENT]-> SectionCard
+    """
+
+    def test_direct_component_found(self, populated_db):
+        screens = populated_db.reader.find_screens_using_comp_transitively("SectionCard")
+        assert "RestaurantsPage" in screens
+
+    def test_child_component_found_via_contains(self, populated_db):
+        # BtnWithBadge is in RestaurantsPage; Badge is inside BtnWithBadge
+        screens = populated_db.reader.find_screens_using_comp_transitively("Badge")
+        assert "RestaurantsPage" in screens
+
+    def test_unknown_component_returns_empty(self, populated_db):
+        assert populated_db.reader.find_screens_using_comp_transitively("GhostComp") == []
+
+    def test_result_is_list_of_strings(self, populated_db):
+        result = populated_db.reader.find_screens_using_comp_transitively("Badge")
+        assert isinstance(result, list)
+        assert all(isinstance(s, str) for s in result)
+
+    def test_result_is_sorted(self, populated_db):
+        result = populated_db.reader.find_screens_using_comp_transitively("SectionCard")
+        assert result == sorted(result)
+
+    def test_no_duplicate_screens(self, populated_db):
+        result = populated_db.reader.find_screens_using_comp_transitively("Badge")
+        assert len(result) == len(set(result))
+
+
 class TestGetImpact:
     def test_component_impact_has_screens(self, populated_db):
         impact = populated_db.reader.get_impact("SectionCard")

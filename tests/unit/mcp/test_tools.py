@@ -47,6 +47,26 @@ class MockReader:
     def find_screens_using_comp_transitively(self, name): return []
     def get_component_parents(self, name): return []
 
+    def list_components(self, comp_type=None):
+        comps = [
+            {"c.name": "BtnPrimary", "c.comp_type": "button", "c.occurrence": 5},
+            {"c.name": "CartItem",   "c.comp_type": "card",   "c.occurrence": 2},
+        ]
+        if comp_type:
+            return [c for c in comps if c["c.comp_type"] == comp_type]
+        return comps
+
+    def get_component_spec(self, name):
+        if "Ghost" in name or "Nonexistent" in name:
+            return None
+        return {
+            "c.name": name, "c.comp_type": "button",
+            "c.jsx_snippet": "<button/>", "c.occurrence": 5, "c.classes": "",
+            "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
+            "tokens": [], "texts": [], "interactions": [],
+            "children": [], "parents": [], "screens_using": ["RestaurantsPage"],
+        }
+
 
 def _dispatcher(n=2):
     readers = [(f"doc{i}", MockReader()) for i in range(1, n + 1)]
@@ -117,6 +137,53 @@ class TestDispatch:
         assert isinstance(result, str)
 
 
+class TestListComponentsTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "list_components" in names
+
+    def test_tool_has_meaningful_description(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "list_components")
+        assert len(tool["description"]) > 20
+
+    def test_dispatch_no_filter_returns_markdown_table(self):
+        result = _dispatcher(1).dispatch("list_components", {}, "doc1")
+        assert isinstance(result, str)
+        assert "|" in result
+
+    def test_dispatch_with_type_filter_returns_filtered(self):
+        result = _dispatcher(1).dispatch("list_components", {"comp_type": "button"}, "doc1")
+        assert isinstance(result, str)
+        assert "button" in result.lower()
+
+    def test_dispatch_unknown_type_returns_no_results_message(self):
+        result = _dispatcher(1).dispatch("list_components", {"comp_type": "xyz_unknown"}, "doc1")
+        assert isinstance(result, str)
+
+
+class TestGetComponentSpecTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_component_spec" in names
+
+    def test_tool_requires_name_in_schema(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component_spec")
+        assert "name" in tool["inputSchema"].get("required", [])
+
+    def test_dispatch_known_component_returns_markdown(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        assert isinstance(result, str)
+        assert "BtnPrimary" in result
+
+    def test_dispatch_unknown_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "GhostComp"}, "doc1")
+        assert "not found" in result.lower() or "ghostcomp" in result.lower()
+
+    def test_output_contains_style_section(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        assert "default" in result.lower() or "estilo" in result.lower() or "style" in result.lower()
+
+
 class TestToolDefinitions:
     def test_all_standard_tools_defined(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
@@ -124,7 +191,7 @@ class TestToolDefinitions:
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
             "get_full_jsx", "get_component_interactions",
-            "get_component_children",
+            "get_component_children", "list_components", "get_component_spec",
             "set_prototype",
         }
         assert expected.issubset(names)
