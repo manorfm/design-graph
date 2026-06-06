@@ -17,6 +17,8 @@ G9  cli/ modules must not import directly from parsing/, extraction/, or graph/
     (CLI talks only to coordinator, paths, and mcp/tools — not to internals)
 G10 plain_html_component_extractor must not import from graph/ or mcp/
     (it is an extraction-layer module — same rules as G2)
+G11 cli/validate.py must not import from parsing/ or extraction/ at module level
+    (CLI only talks to graph/reader through validate_graph — not to internals)
 """
 
 from __future__ import annotations
@@ -340,3 +342,36 @@ class TestG9CliDoesNotBypassLayers:
             "G9 violation — cli/query.py imports internal layers at module level:\n  "
             + "\n  ".join(violations)
         )
+
+
+# ── G11: cli/validate.py does not bypass layers ──────────────────────────────
+
+class TestG11ValidateLayerIsolation:
+    """
+    cli/validate.py reads from the graph through GraphReader (which is in graph/).
+    It must not import from parsing/ or extraction/ at module level.
+    """
+    VALIDATE_PATH = CLI_DIR / "validate.py"
+    FORBIDDEN = ("design_graph.parsing", "design_graph.extraction")
+
+    def _top_level_imports(self, path: Path) -> list[str]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules: list[str] = []
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    modules.append(alias.name)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules.append(node.module)
+        return modules
+
+    def test_validate_py_does_not_import_parsing_at_top_level(self):
+        violations = [mod for mod in self._top_level_imports(self.VALIDATE_PATH)
+                      if any(mod.startswith(p) for p in self.FORBIDDEN)]
+        assert not violations, (
+            "G11 violation — cli/validate.py imports from parsing/ or extraction/:\n  "
+            + "\n  ".join(violations)
+        )
+
+    def test_validate_py_exists(self):
+        assert self.VALIDATE_PATH.exists(), "cli/validate.py must exist"
