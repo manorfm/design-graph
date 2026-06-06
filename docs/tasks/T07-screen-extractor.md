@@ -157,7 +157,7 @@ class TestExtractScreens:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `is_screen("RestaurantsPage")` → True; `is_screen("BtnPrimary")` → False
-- [ ] Mesmo resultado que `extract_screen_map()` do legado para `simple.html`
+- [x] Todos os testes passam
+- [x] `is_screen("RestaurantsPage")` → True; `is_screen("BtnPrimary")` → False
+- [x] Mesmo resultado que `extract_screen_map()` do legado para `simple.html`
       (verificado no test de paridade T06)

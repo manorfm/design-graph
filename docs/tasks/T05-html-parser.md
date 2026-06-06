@@ -183,7 +183,7 @@ def _infer_name_from_signature(sig: str) -> str:
 
 ## Done when
 
-- [ ] Todos os testes passam com `plain.html` fixture
-- [ ] `extract_dom_patterns` retorna pelo menos 1 padrão para `plain.html`
-- [ ] `extract_semantic_sections` retorna pelo menos 3 seções para `plain.html`
-- [ ] Nenhuma exceção ao processar HTML vazio ou malformado
+- [x] Todos os testes passam com `plain.html` fixture
+- [x] `extract_dom_patterns` retorna pelo menos 1 padrão para `plain.html`
+- [x] `extract_semantic_sections` retorna pelo menos 3 seções para `plain.html`
+- [x] Nenhuma exceção ao processar HTML vazio ou malformado

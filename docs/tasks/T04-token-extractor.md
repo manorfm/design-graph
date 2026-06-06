@@ -146,7 +146,7 @@ def _color_label(color: str) -> str:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `extract_tokens(sources_from_simple_html)` produz resultado com pelo menos
+- [x] Todos os testes passam
+- [x] `extract_tokens(sources_from_simple_html)` produz resultado com pelo menos
       1 token de cor e 1 de espaçamento
-- [ ] `build_token_map` usa `value.lower()` como chave — sem variação de case
+- [x] `build_token_map` usa `value.lower()` como chave — sem variação de case

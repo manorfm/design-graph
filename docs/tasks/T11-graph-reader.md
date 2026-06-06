@@ -185,7 +185,7 @@ RETURN DISTINCT s.name ORDER BY s.name
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `get_component_children` usa a relação `CONTAINS`
-- [ ] `find_screens_using_comp_transitively` usa `USES_COMPONENT*1..3`
-- [ ] Nenhum método de `reader.py` contém `CREATE`, `DELETE`, ou `MERGE`
+- [x] Todos os testes passam
+- [x] `get_component_children` usa a relação `CONTAINS`
+- [x] `find_screens_using_comp_transitively` usa `USES_COMPONENT*1..3`
+- [x] Nenhum método de `reader.py` contém `CREATE`, `DELETE`, ou `MERGE`

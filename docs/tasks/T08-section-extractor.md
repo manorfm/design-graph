@@ -203,7 +203,7 @@ class TestQualityFilter:
 
 ## Done when
 
-- [ ] Todos os testes passam
-- [ ] `WITH_COMMENTS_JS` → `detection_method == "comment"` para todas as seções
-- [ ] `WITHOUT_COMMENTS_JS` → pelo menos 1 seção com `detection_method == "structural"`
-- [ ] Seção sem componentes nem textos não é criada
+- [x] Todos os testes passam
+- [x] `WITH_COMMENTS_JS` → `detection_method == "comment"` para todas as seções
+- [x] `WITHOUT_COMMENTS_JS` → pelo menos 1 seção com `detection_method == "structural"`
+- [x] Seção sem componentes nem textos não é criada

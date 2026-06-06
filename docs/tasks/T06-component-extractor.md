@@ -236,8 +236,8 @@ class TestExtractAllComponents:
 
 ## Done when
 
-- [ ] Todos os testes acima passam
-- [ ] `extract_component(BTN_JS, boundary, 1, {})` produz os mesmos `styles` e
+- [x] Todos os testes acima passam
+- [x] `extract_component(BTN_JS, boundary, 1, {})` produz os mesmos `styles` e
       `interactions` que o legado `extract_styles(BTN_JS, "BtnPrimary")` e
       `extract_interactions(BTN_JS, "BtnPrimary")` — verificado no test de paridade
-- [ ] `extract_all_components` com 50 componentes conclui em < 3s (performance check)
+- [x] `extract_all_components` com 50 componentes conclui em < 3s (performance check)
