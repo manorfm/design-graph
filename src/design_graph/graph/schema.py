@@ -93,6 +93,15 @@ _NODE_TABLES: list[str] = [
         "  PRIMARY KEY(id)"
         ")"
     ),
+    (
+        "CREATE NODE TABLE ComponentProp("
+        "  id STRING,"
+        "  component_name STRING,"
+        "  prop_name STRING,"
+        "  default_value STRING,"
+        "  PRIMARY KEY(id)"
+        ")"
+    ),
 ]
 
 # ── Relationship table definitions ─────────────────────────────────────────────
@@ -111,6 +120,10 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)",
     # v4: section container styles as proper graph nodes (replaces styles_json blob)
     "CREATE REL TABLE SECTION_HAS_STYLE(FROM Section TO Style)",
+    # v5: section texts as UIText nodes (replaces texts_json blob)
+    "CREATE REL TABLE SECTION_HAS_TEXT(FROM Section TO UIText)",
+    # v6: component prop declarations extracted from function signatures
+    "CREATE REL TABLE HAS_PROP(FROM Component TO ComponentProp)",
 ]
 
 SCHEMA: list[str] = _NODE_TABLES + _REL_TABLES
@@ -127,6 +140,7 @@ STATS_QUERIES: dict[str, str] = {
     "interactions":     "MATCH (n:Interaction) RETURN count(n)",
     "contains":         "MATCH ()-[r:CONTAINS]->() RETURN count(r)",
     "section_styles":   "MATCH ()-[r:SECTION_HAS_STYLE]->() RETURN count(r)",
+    "component_props":  "MATCH (n:ComponentProp) RETURN count(n)",
 }
 
 

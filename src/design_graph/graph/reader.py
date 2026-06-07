@@ -91,13 +91,20 @@ class GraphReader:
             "       sec.styles_json, sec.detection_method",
             {"n": resolved},
         )
+        texts = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:COMP_HAS_TEXT]->(t:UIText) "
+            "RETURN DISTINCT t.content, t.text_type, t.element "
+            "ORDER BY t.text_type",
+            {"n": resolved},
+        )
         return {
             "name":            s["s.name"],
             "component_count": s["s.component_count"],
             "sections_count":  s["s.sections_count"],
             "components":      components,
             "sections":        sections,
-            "texts":           [],
+            "texts":           texts,
         }
 
     # ── Components ────────────────────────────────────────────────────────────
@@ -225,8 +232,12 @@ class GraphReader:
             {"n": resolved},
         )
 
-        logger.debug("reader: get_component_spec(%s) — %d styles, %d tokens, %d interactions",
-                     resolved, len(raw_styles), len(tokens), len(interactions))
+        props = self.get_component_props(resolved)
+
+        logger.debug(
+            "reader: get_component_spec(%s) — %d styles, %d tokens, %d interactions, %d props",
+            resolved, len(raw_styles), len(tokens), len(interactions), len(props),
+        )
 
         return {
             **comp,
@@ -237,7 +248,29 @@ class GraphReader:
             "children":        self.get_component_children(resolved),
             "parents":         self.get_component_parents(resolved),
             "screens_using":   [r["s.name"] for r in screens_rows],
+            "props":           props,
         }
+
+    def get_component_props(self, name: str) -> list[dict]:
+        """
+        Return declared props for a component via HAS_PROP.
+
+        Each dict has keys: prop_name, default_value, component_name.
+        An empty default_value means the prop is required (no default declared).
+        Returns an empty list when the component has no declared props or doesn't exist.
+        """
+        resolved = self._fuzzy_find_component(name)
+        if resolved is None:
+            return []
+        rows = self._q(
+            "MATCH (c:Component {name:$n})-[:HAS_PROP]->(p:ComponentProp) "
+            "RETURN p.prop_name AS prop_name, p.default_value AS default_value, "
+            "       p.component_name AS component_name "
+            "ORDER BY p.prop_name",
+            {"n": resolved},
+        )
+        logger.debug("reader: get_component_props(%s) — %d props", resolved, len(rows))
+        return rows
 
     def get_component_children(self, name: str) -> list[str]:
         """Return names of components directly contained by this component (via CONTAINS)."""
@@ -301,15 +334,36 @@ class GraphReader:
         else:
             styles = json.loads(sec["sec.styles_json"] or "{}")
 
+        # Canonical texts come from UIText nodes (SECTION_HAS_TEXT);
+        # fall back to texts_json blob for backward compatibility.
+        graph_texts = self.get_section_texts(section_id)
+        if graph_texts:
+            texts = [t["content"] for t in graph_texts]
+        else:
+            texts = json.loads(sec["sec.texts_json"] or "[]")
+
         return {
             "id":               section_id,
             "name":             sec["sec.name"],
             "detection_method": sec["sec.detection_method"],
             "styles":           styles,
             "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
-            "texts":            json.loads(sec["sec.texts_json"] or "[]"),
+            "texts":            texts,
             "jsx_snippet":      sec["sec.jsx_snippet"],
         }
+
+    def get_section_texts(self, section_id: str) -> list[dict]:
+        """
+        Return text content entries for a section container via SECTION_HAS_TEXT.
+
+        Each dict has key: content.
+        Returns an empty list when the section has no texts or doesn't exist.
+        """
+        return self._q(
+            "MATCH (sec:Section {id:$sid})-[:SECTION_HAS_TEXT]->(t:UIText) "
+            "RETURN t.content AS content ORDER BY t.content",
+            {"sid": section_id},
+        )
 
     def get_section_styles(self, section_id: str) -> list[dict]:
         """

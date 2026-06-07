@@ -58,6 +58,7 @@ from design_graph.core.patterns import (
     RE_TRANSITION,
     RE_UI_STRING,
 )
+from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
 from design_graph.parsing.js_parser import extract_return_block
 
@@ -332,6 +333,8 @@ def extract_component(
         len(child_refs),
     )
 
+    props = extract_props_from_function_signature(js, boundary)
+
     return ExtractedComponent(
         name=boundary.name,
         comp_type=infer_component_type(boundary.name),
@@ -342,6 +345,7 @@ def extract_component(
         interactions=interactions,
         texts=texts,
         child_refs=sorted(child_refs),
+        props=props,
     )
 
 
