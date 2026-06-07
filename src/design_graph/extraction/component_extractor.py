@@ -379,7 +379,13 @@ async def extract_all_components(
             )
         completed[0] += 1
         if on_component_extracted is not None:
-            on_component_extracted(boundary.name, completed[0], total)
+            try:
+                on_component_extracted(boundary.name, completed[0], total)
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "extract_all_components: on_component_extracted raised for %s — ignored",
+                    boundary.name,
+                )
         return result
 
     results = await asyncio.gather(*[_extract_with_guard(b) for b in boundaries])

@@ -10,6 +10,7 @@ Design rules:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import shutil
@@ -351,7 +352,6 @@ class GraphWriter:
         and element=section_id. This replaces the opaque styles_json blob as the
         canonical query target for section layout and visual properties.
         """
-        import hashlib
         for prop, value in styles.items():
             style_id = "sec_" + hashlib.md5(
                 f"{section_id}_{prop}".encode(), usedforsecurity=False
@@ -417,5 +417,5 @@ class GraphWriter:
             self._conn.execute(cypher, params or {})
             return True
         except Exception as exc:  # noqa: BLE001
-            sys.stderr.write(f"[writer] SKIP ({type(exc).__name__}): {exc!r}\n")
+            logger.warning("writer: skipped statement (%s): %r", type(exc).__name__, exc)
             return False
