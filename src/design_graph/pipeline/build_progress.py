@@ -58,6 +58,10 @@ class BuildPhaseReporter(Protocol):
         """Called after each item is written during the write phase."""
         ...
 
+    def component_extracted(self, name: str, *, index: int, total: int) -> None:
+        """Called after each component is extracted during the parse phase."""
+        ...
+
     def build_skipped(self, reason: str) -> None:
         """Called when the build is skipped (e.g. HTML unchanged)."""
         ...
@@ -161,15 +165,25 @@ class TerminalBuildReporter:
         On a TTY: overwrites the current line in-place via \\r.
         On non-TTY (CI, piped): skips individual item lines to keep logs clean.
         """
+        self._write_inline_progress(item_name, index, total)
+
+    def component_extracted(self, name: str, *, index: int, total: int) -> None:
+        """
+        Show per-component extraction progress.
+
+        Mirrors item_written behaviour: overwrites on TTY, suppressed on non-TTY.
+        """
+        self._write_inline_progress(name, index, total)
+
+    def _write_inline_progress(self, label: str, index: int, total: int) -> None:
         try:
             is_tty = self._out.isatty()
         except AttributeError:
             is_tty = False
 
         if is_tty:
-            label = f"    [{index}/{total}] {item_name}"
-            # Pad to _ITEM_WIDTH so shorter names fully overwrite longer previous ones
-            padded = label.ljust(self._ITEM_WIDTH)
+            line = f"    [{index}/{total}] {label}"
+            padded = line.ljust(self._ITEM_WIDTH)
             self._out.write(f"\r{padded}")
             self._out.flush()
             self._item_line_active = True
@@ -197,6 +211,9 @@ class SilentBuildReporter:
         pass
 
     def item_written(self, item_name: str, *, index: int, total: int) -> None:
+        pass
+
+    def component_extracted(self, name: str, *, index: int, total: int) -> None:
         pass
 
     def build_skipped(self, reason: str) -> None:

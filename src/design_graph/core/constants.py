@@ -164,6 +164,32 @@ MAX_RADIUS_TOKENS      = 10
 MIN_CSS_VAR_OCCURRENCES = 1   # definitions typically appear once in the source
 MAX_CSS_VAR_TOKENS      = 30
 
+# ── Layout CSS properties ─────────────────────────────────────────────────────
+
+# CSS properties that describe spatial structure rather than visual appearance.
+# Used by GraphReader.get_component_layout_profile() to filter Style nodes.
+LAYOUT_CSS_PROPERTIES: frozenset[str] = frozenset({
+    "display", "position", "top", "right", "bottom", "left", "zIndex",
+    "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
+    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+    "flex", "flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis",
+    "alignItems", "alignContent", "justifyContent", "justifyItems",
+    "gap", "rowGap", "columnGap",
+    "overflow", "overflowX", "overflowY",
+    "gridTemplateColumns", "gridTemplateRows", "gridColumn", "gridRow",
+    "boxSizing",
+})
+
+# Layout properties with first-class profile keys (camelCase → snake_case).
+# Properties not in this set land in the LayoutProfile.extra_layout dict.
+_LAYOUT_FAST_PATH_PROPERTIES: frozenset[str] = frozenset({
+    "display", "position", "width", "height",
+    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+    "flexDirection", "alignItems", "justifyContent", "gap", "overflow", "zIndex",
+})
+
 # Maximum characters stored for a JSX snippet in the graph.
 # Prevents oversized components from bloating the database and MCP responses.
 MAX_JSX_SNIPPET_CHARS = 8_000

@@ -318,6 +318,7 @@ class GraphWriter:
                 "CREATE (s)-[:HAS_SECTION]->(sec)",
                 {"sn": screen.name, "sid": section.id},
             )
+            self._write_section_styles(section.id, section.styles)
             for comp_name in section.component_refs:
                 self._ensure_component_exists(comp_name)
                 self._safe_execute(
@@ -341,6 +342,32 @@ class GraphWriter:
         return stats
 
     # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _write_section_styles(self, section_id: str, styles: dict) -> None:
+        """
+        Write section container CSS properties as Style nodes linked via SECTION_HAS_STYLE.
+
+        Each property in the styles dict becomes one Style node with state='default'
+        and element=section_id. This replaces the opaque styles_json blob as the
+        canonical query target for section layout and visual properties.
+        """
+        import hashlib
+        for prop, value in styles.items():
+            style_id = "sec_" + hashlib.md5(
+                f"{section_id}_{prop}".encode(), usedforsecurity=False
+            ).hexdigest()[:8]
+            if style_id in self._inserted_style_ids:
+                continue
+            self._inserted_style_ids.add(style_id)
+            self._safe_execute(
+                "CREATE (:Style {id:$id, element:$el, state:'default', property:$pr, value:$vl})",
+                {"id": style_id, "el": section_id, "pr": prop, "vl": str(value)},
+            )
+            self._safe_execute(
+                "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "
+                "CREATE (sec)-[:SECTION_HAS_STYLE]->(s)",
+                {"sid": section_id, "sid2": style_id},
+            )
 
     def _ensure_component_exists(self, name: str) -> None:
         """Create a minimal 'shell' component if it hasn't been inserted yet."""

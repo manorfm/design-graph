@@ -219,6 +219,22 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_screen_layout",
+        "description": (
+            "Returns the layout profile (display, width, height, flex/grid properties) "
+            "for every component on a screen. "
+            "Use this before reconstructing a screen to understand spatial structure."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Screen name (e.g. RestaurantsPage)"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "set_prototype",
         "description": (
             "Set the active prototype for this session. "
@@ -305,6 +321,7 @@ class ToolDispatcher:
             return err
 
         dispatch_map = {
+            "get_screen_layout":         lambda: self.get_screen_layout(reader, name),
             "get_screen":                lambda: self.get_screen(reader, name),
             "get_section":               lambda: self.get_section(reader, args.get("screen", ""), args.get("section", "")),
             "get_component":             lambda: self.get_component(reader, name),
@@ -326,6 +343,46 @@ class ToolDispatcher:
         return fn()
 
     # ── Tool methods ──────────────────────────────────────────────────────────
+
+    def get_screen_layout(self, reader: GraphReader, name: str) -> str:
+        """Return layout profiles for all components on a screen as Markdown."""
+        profiles = reader.get_screen_layout(name)
+        if not profiles:
+            return f"Screen '{name}' not found or has no components with layout data."
+
+        lines = [f"# Layout: {name}\n"]
+        for p in profiles:
+            lines.append(f"## {p['component_name']}")
+            layout_pairs = [
+                ("display",          p.get("display")),
+                ("position",         p.get("position")),
+                ("width",            p.get("width")),
+                ("height",           p.get("height")),
+                ("padding",          p.get("padding")),
+                ("padding-top",      p.get("padding_top")),
+                ("padding-right",    p.get("padding_right")),
+                ("padding-bottom",   p.get("padding_bottom")),
+                ("padding-left",     p.get("padding_left")),
+                ("margin",           p.get("margin")),
+                ("margin-top",       p.get("margin_top")),
+                ("margin-right",     p.get("margin_right")),
+                ("margin-bottom",    p.get("margin_bottom")),
+                ("margin-left",      p.get("margin_left")),
+                ("flex-direction",   p.get("flex_direction")),
+                ("align-items",      p.get("align_items")),
+                ("justify-content",  p.get("justify_content")),
+                ("gap",              p.get("gap")),
+                ("overflow",         p.get("overflow")),
+                ("z-index",          p.get("z_index")),
+            ]
+            for css_prop, val in layout_pairs:
+                if val is not None:
+                    lines.append(f"- `{css_prop}`: `{val}`")
+            for extra_prop, extra_val in p.get("extra_layout", {}).items():
+                lines.append(f"- `{extra_prop}`: `{extra_val}`")
+            lines.append("")
+        logger.debug("tools: get_screen_layout(%s) — %d components", name, len(profiles))
+        return "\n".join(lines)
 
     def list_screens(self) -> str:
         lines = ["# Telas disponíveis\n"]

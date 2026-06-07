@@ -16,6 +16,8 @@ from collections import defaultdict
 
 import kuzu
 
+from design_graph.core.constants import LAYOUT_CSS_PROPERTIES, _LAYOUT_FAST_PATH_PROPERTIES
+
 logger = logging.getLogger(__name__)
 
 
@@ -289,15 +291,40 @@ class GraphReader:
         if not rows:
             return None
         sec = rows[0]
+        section_id = sec["sec.id"]
+
+        # Canonical styles come from graph nodes (SECTION_HAS_STYLE);
+        # fall back to styles_json blob for older graphs that lack the relationship.
+        graph_styles = self.get_section_styles(section_id)
+        if graph_styles:
+            styles = {s["property"]: s["value"] for s in graph_styles}
+        else:
+            styles = json.loads(sec["sec.styles_json"] or "{}")
+
         return {
-            "id":               sec["sec.id"],
+            "id":               section_id,
             "name":             sec["sec.name"],
             "detection_method": sec["sec.detection_method"],
-            "styles":           json.loads(sec["sec.styles_json"] or "{}"),
+            "styles":           styles,
             "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
             "texts":            json.loads(sec["sec.texts_json"] or "[]"),
             "jsx_snippet":      sec["sec.jsx_snippet"],
         }
+
+    def get_section_styles(self, section_id: str) -> list[dict]:
+        """
+        Return style property/value pairs for a section container via SECTION_HAS_STYLE.
+
+        Each dict has keys: property, value.
+        Returns an empty list when the section has no container styles or doesn't exist.
+        """
+        rows = self._q(
+            "MATCH (sec:Section {id:$sid})-[:SECTION_HAS_STYLE]->(s:Style) "
+            "RETURN s.property AS property, s.value AS value "
+            "ORDER BY s.property",
+            {"sid": section_id},
+        )
+        return rows
 
     # ── Tokens ────────────────────────────────────────────────────────────────
 
@@ -476,6 +503,80 @@ class GraphReader:
             result[key] = rows[0][list(rows[0].keys())[0]] if rows else 0
         return result
 
+    # ── Layout profiles ───────────────────────────────────────────────────────
+
+    def get_component_layout_profile(self, name: str) -> dict | None:
+        """
+        Return a LayoutProfile dict for a component filtered to default-state
+        layout CSS properties only (no visual properties like color or border).
+
+        Returns None when the component cannot be found.
+        Visual properties (backgroundColor, borderColor, etc.) are excluded;
+        they live in the component's style nodes and are available via get_component().
+        """
+        resolved = self._fuzzy_find_component(name)
+        if resolved is None:
+            return None
+
+        style_rows = self._q(
+            "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
+            "WHERE s.state = 'default' "
+            "RETURN s.property, s.value",
+            {"n": resolved},
+        )
+        layout_props = {
+            row["s.property"]: row["s.value"]
+            for row in style_rows
+            if row["s.property"] in LAYOUT_CSS_PROPERTIES
+        }
+        logger.debug(
+            "reader: get_component_layout_profile(%s) — %d layout props",
+            resolved, len(layout_props),
+        )
+        return _build_layout_profile(resolved, layout_props)
+
+    def get_screen_layout(self, screen_name: str) -> list[dict]:
+        """
+        Return a LayoutProfile dict for every component used directly by a screen.
+
+        Uses 2 queries (one for component names, one JOIN for all styles) so the
+        call cost is O(1) database round-trips regardless of how many components
+        the screen has.
+        """
+        resolved = self._fuzzy_find_screen(screen_name)
+        if resolved is None:
+            return []
+
+        comp_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component) "
+            "RETURN c.name ORDER BY c.name",
+            {"n": resolved},
+        )
+        if not comp_rows:
+            return []
+
+        style_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:HAS_STYLE]->(st:Style) "
+            "WHERE st.state = 'default' "
+            "RETURN c.name AS comp_name, st.property AS prop, st.value AS val",
+            {"n": resolved},
+        )
+
+        by_comp: dict[str, dict[str, str]] = defaultdict(dict)
+        for row in style_rows:
+            if row["prop"] in LAYOUT_CSS_PROPERTIES:
+                by_comp[row["comp_name"]][row["prop"]] = row["val"]
+
+        logger.debug(
+            "reader: get_screen_layout(%s) — %d components, %d with layout styles",
+            resolved, len(comp_rows), len(by_comp),
+        )
+        return [
+            _build_layout_profile(row["c.name"], by_comp.get(row["c.name"], {}))
+            for row in comp_rows
+        ]
+
     # ── Fuzzy name resolution ─────────────────────────────────────────────────
 
     def _fuzzy_find_screen(self, hint: str) -> str | None:
@@ -502,6 +603,41 @@ class GraphReader:
         except Exception as exc:  # noqa: BLE001
             logger.warning("reader: query failed: %s\n%s", cypher[:80], exc)
             return []
+
+
+def _build_layout_profile(comp_name: str, layout_props: dict[str, str]) -> dict:
+    """
+    Build a normalised layout profile dict from a raw property→value map.
+
+    First-class fields (display, width, flex_direction, …) are lifted to named
+    keys with snake_case names.  Any remaining layout property that has no
+    first-class key is collected in ``extra_layout``.
+    """
+    extra = {k: v for k, v in layout_props.items() if k not in _LAYOUT_FAST_PATH_PROPERTIES}
+    return {
+        "component_name":  comp_name,
+        "display":         layout_props.get("display"),
+        "position":        layout_props.get("position"),
+        "width":           layout_props.get("width"),
+        "height":          layout_props.get("height"),
+        "padding":         layout_props.get("padding"),
+        "padding_top":     layout_props.get("paddingTop"),
+        "padding_right":   layout_props.get("paddingRight"),
+        "padding_bottom":  layout_props.get("paddingBottom"),
+        "padding_left":    layout_props.get("paddingLeft"),
+        "margin":          layout_props.get("margin"),
+        "margin_top":      layout_props.get("marginTop"),
+        "margin_right":    layout_props.get("marginRight"),
+        "margin_bottom":   layout_props.get("marginBottom"),
+        "margin_left":     layout_props.get("marginLeft"),
+        "flex_direction":  layout_props.get("flexDirection"),
+        "align_items":     layout_props.get("alignItems"),
+        "justify_content": layout_props.get("justifyContent"),
+        "gap":             layout_props.get("gap"),
+        "overflow":        layout_props.get("overflow"),
+        "z_index":         layout_props.get("zIndex"),
+        "extra_layout":    extra,
+    }
 
 
 def _fuzzy_match(hint: str, names: list[str]) -> str | None:

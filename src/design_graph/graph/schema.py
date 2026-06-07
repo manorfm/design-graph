@@ -109,6 +109,8 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE CONTAINS(FROM Component TO Component, weight INT64)",
     # v3: style-level token linkage — which CSS property resolves to which token
     "CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)",
+    # v4: section container styles as proper graph nodes (replaces styles_json blob)
+    "CREATE REL TABLE SECTION_HAS_STYLE(FROM Section TO Style)",
 ]
 
 SCHEMA: list[str] = _NODE_TABLES + _REL_TABLES
@@ -116,14 +118,15 @@ SCHEMA: list[str] = _NODE_TABLES + _REL_TABLES
 # ── Stats queries (count of each node/rel type) ───────────────────────────────
 
 STATS_QUERIES: dict[str, str] = {
-    "screens":      "MATCH (n:Screen) RETURN count(n)",
-    "components":   "MATCH (n:Component) RETURN count(n)",
-    "tokens":       "MATCH (n:Token) RETURN count(n)",
-    "texts":        "MATCH (n:UIText) RETURN count(n)",
-    "styles":       "MATCH (n:Style) RETURN count(n)",
-    "sections":     "MATCH (n:Section) RETURN count(n)",
-    "interactions": "MATCH (n:Interaction) RETURN count(n)",
-    "contains":     "MATCH ()-[r:CONTAINS]->() RETURN count(r)",
+    "screens":          "MATCH (n:Screen) RETURN count(n)",
+    "components":       "MATCH (n:Component) RETURN count(n)",
+    "tokens":           "MATCH (n:Token) RETURN count(n)",
+    "texts":            "MATCH (n:UIText) RETURN count(n)",
+    "styles":           "MATCH (n:Style) RETURN count(n)",
+    "sections":         "MATCH (n:Section) RETURN count(n)",
+    "interactions":     "MATCH (n:Interaction) RETURN count(n)",
+    "contains":         "MATCH ()-[r:CONTAINS]->() RETURN count(r)",
+    "section_styles":   "MATCH ()-[r:SECTION_HAS_STYLE]->() RETURN count(r)",
 }
 
 
