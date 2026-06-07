@@ -23,6 +23,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
+from typing import Callable
 
 import kuzu
 
@@ -119,7 +120,11 @@ async def run_pipeline(
         )
     else:
         extracted_comps, screens, sections_map, tokens = await _extract_react(
-            sources, concurrency=concurrency
+            sources,
+            concurrency=concurrency,
+            on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
+                name, index=idx, total=total
+            ),
         )
     _reporter.phase_completed(
         "Parsing boundaries and tokens",
@@ -202,12 +207,16 @@ async def run_pipeline(
 async def _extract_react(
     sources,
     concurrency: int,
+    on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> tuple[list, list, dict, list]:
     """
     Phases 2–4 for bundled_react and tailwind formats.
     Returns (extracted_comps, screens, sections_map, tokens).
+
+    on_component_extracted: forwarded to extract_all_components so the caller
+        can display per-component extraction progress without importing extraction internals.
     """
-    tokens_task    = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
+    tokens_task     = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
     boundaries_task = asyncio.create_task(asyncio.to_thread(find_all_boundaries, sources.js))
     tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
 
@@ -222,6 +231,7 @@ async def _extract_react(
     extracted_comps = await extract_all_components(
         sources.js, comp_bounds, occurrences, token_map,
         concurrency=concurrency, rule_map=rule_map,
+        on_component_extracted=on_component_extracted,
     )
 
     screens          = extract_screens(sources.js, all_boundaries)

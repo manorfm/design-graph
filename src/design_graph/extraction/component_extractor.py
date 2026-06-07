@@ -18,6 +18,7 @@ import hashlib
 import logging
 import re
 from collections import Counter
+from typing import Callable
 
 from design_graph.core.constants import (
     MAX_CLASSES_PER_COMPONENT,
@@ -351,6 +352,7 @@ async def extract_all_components(
     token_map: dict[str, list[DesignToken]],
     concurrency: int = 8,
     rule_map: dict[str, list[CssRule]] | None = None,
+    on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> list[ExtractedComponent]:
     """
     Extract all components concurrently using asyncio.to_thread.
@@ -358,18 +360,27 @@ async def extract_all_components(
     The JS string is immutable — concurrent reads are safe.
     Each task produces an independent ExtractedComponent — no shared writes.
     rule_map: optional CSS class resolver map forwarded to each extract_component call.
+    on_component_extracted: optional callback(name, index, total) called once per
+        completed extraction in the asyncio event loop — safe for non-thread-safe
+        reporters since asyncio is single-threaded.
     """
     if not boundaries:
         return []
 
     semaphore = asyncio.Semaphore(concurrency)
+    total = len(boundaries)
+    completed = [0]
 
     async def _extract_with_guard(boundary: FunctionBoundary) -> ExtractedComponent:
         async with semaphore:
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 extract_component,
                 js, boundary, occurrences.get(boundary.name, 1), token_map, rule_map,
             )
+        completed[0] += 1
+        if on_component_extracted is not None:
+            on_component_extracted(boundary.name, completed[0], total)
+        return result
 
     results = await asyncio.gather(*[_extract_with_guard(b) for b in boundaries])
 
