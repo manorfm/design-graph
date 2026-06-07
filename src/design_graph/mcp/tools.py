@@ -48,7 +48,9 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "get_screen",
         "description": (
-            "Returns a screen's full composition: sections, components, texts and styles. "
+            "Returns a screen's structural overview: section names, component list (names and types) "
+            "and screen-level texts. Does NOT include component styles, props or JSX. "
+            "Use get_screen_full when you need to implement or replicate the screen. "
             "Always pass 'doc' when multiple prototypes are loaded."
         ),
         "inputSchema": {
@@ -251,6 +253,24 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_screen_full",
+        "description": (
+            "Returns everything needed to implement or reconstruct a screen from the prototype: "
+            "all sections (with styles, texts, component refs and JSX), "
+            "all components (with styles grouped by state, design tokens, texts, "
+            "interactions, props and children), and layout profiles for spatial structure. "
+            "Use this as the first call when asked to implement, replicate or evolve a screen."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Screen name (e.g. RestaurantsPage)"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "set_prototype",
         "description": (
             "Set the active prototype for this session. "
@@ -339,6 +359,7 @@ class ToolDispatcher:
         dispatch_map = {
             "get_component_props":       lambda: self.get_component_props(reader, name),
             "get_screen_layout":         lambda: self.get_screen_layout(reader, name),
+            "get_screen_full":           lambda: self.get_screen_full(reader, name),
             "get_screen":                lambda: self.get_screen(reader, name),
             "get_section":               lambda: self.get_section(reader, args.get("screen", ""), args.get("section", "")),
             "get_component":             lambda: self.get_component(reader, name),
@@ -433,6 +454,144 @@ class ToolDispatcher:
                     lines.append(f"  → {top}")
             lines.append("")
         return "\n".join(lines) if len(lines) > 1 else "Nenhuma tela encontrada."
+
+    def get_screen_full(self, reader: GraphReader, name: str) -> str:
+        """
+        Render the complete screen spec as Markdown for AI agent consumption.
+
+        Output structure:
+          # Screen heading + counts
+          ## Sections — each with styles, component refs, texts and JSX
+          ## Components — each with styles-by-state, tokens, interactions, props, children, JSX
+          ## Layout Profiles — spatial layout for each component
+        """
+        spec = reader.get_screen_full(name)
+        if not spec:
+            all_screens = [s["name"] for s in reader.list_screens()]
+            return (
+                f"Screen '{name}' not found. "
+                f"Available: {', '.join(all_screens) or 'none'}"
+            )
+
+        lines = [
+            f"# Screen: {spec['name']}",
+            f"**Components**: {spec['component_count']}  |  **Sections**: {spec['sections_count']}",
+            "",
+        ]
+
+        # ── Sections ──────────────────────────────────────────────────────────
+        if spec["sections"]:
+            lines.append("## Sections\n")
+            for sec in spec["sections"]:
+                lines.append(f"### {sec['name']}")
+                lines.append(f"*Detection*: {sec['detection_method']}")
+                if sec["component_refs"]:
+                    lines.append(f"**Components**: {', '.join(sec['component_refs'])}")
+                if sec["styles"]:
+                    style_pairs = [f"`{p}`: `{v}`" for p, v in list(sec["styles"].items())[:8]]
+                    lines.append(f"**Styles**: {' | '.join(style_pairs)}")
+                    notice = _truncation_notice(len(sec["styles"]), 8)
+                    if notice:
+                        lines.append(notice)
+                if sec["texts"]:
+                    for t in sec["texts"][:6]:
+                        lines.append(f'- "{t}"')
+                    notice = _truncation_notice(len(sec["texts"]), 6)
+                    if notice:
+                        lines.append(notice)
+                if sec["jsx_snippet"]:
+                    lines.append("\n```jsx")
+                    lines.append(sec["jsx_snippet"][:2000])
+                    lines.append("```")
+                lines.append("")
+
+        # ── Components ────────────────────────────────────────────────────────
+        if spec["components"]:
+            lines.append("---\n## Components\n")
+            for comp in spec["components"]:
+                cname = comp["name"]
+                lines.append(f"### {cname}")
+                lines.append(f"**Type**: {comp['comp_type']} | **Occurrences**: {comp['occurrence']}")
+                if comp["children"]:
+                    lines.append(f"**Children**: {', '.join(comp['children'])}")
+
+                if comp["props"]:
+                    lines.append("\n#### Props")
+                    lines.append("| Prop | Required | Default |")
+                    lines.append("|---|---|---|")
+                    for p in comp["props"]:
+                        required = "✓" if p["default_value"] == "" else ""
+                        default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+                        lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
+
+                for state in ("default", "hover", "focus", "transition"):
+                    state_styles = comp["styles_by_state"].get(state, [])
+                    if state_styles:
+                        lines.append(f"\n#### Styles — {state}")
+                        lines.append("| Property | Value |")
+                        lines.append("|---|---|")
+                        for s in state_styles[:12]:
+                            lines.append(f"| {s['property']} | {s['value']} |")
+                        notice = _truncation_notice(len(state_styles), 12)
+                        if notice:
+                            lines.append(notice)
+
+                if comp["tokens"]:
+                    lines.append("\n#### Tokens")
+                    lines.append("| Label | Value | Category |")
+                    lines.append("|---|---|---|")
+                    for t in comp["tokens"]:
+                        lines.append(f"| {t['label']} | {t['value']} | {t['category']} |")
+
+                if comp["interactions"]:
+                    lines.append("\n#### Interactions")
+                    for i in comp["interactions"]:
+                        lines.append(
+                            f"- **{i['trigger']}**: `{i['css_prop']}` "
+                            f"`{i['from_val']}` → `{i['to_val']}` ({i['transition']})"
+                        )
+
+                if comp["texts"]:
+                    lines.append("\n#### Texts")
+                    for t in comp["texts"][:8]:
+                        lines.append(f'- "{t["content"]}" ({t["text_type"]})')
+                    notice = _truncation_notice(len(comp["texts"]), 8)
+                    if notice:
+                        lines.append(notice)
+
+                if comp["jsx_snippet"]:
+                    lines.append("\n```jsx")
+                    lines.append(comp["jsx_snippet"][:2500])
+                    lines.append("```")
+                lines.append("")
+
+        # ── Layout profiles ───────────────────────────────────────────────────
+        if spec["layout_profiles"]:
+            lines.append("---\n## Layout Profiles\n")
+            for p in spec["layout_profiles"]:
+                lines.append(f"### {p['component_name']}")
+                layout_pairs = [
+                    ("display",         p.get("display")),
+                    ("position",        p.get("position")),
+                    ("width",           p.get("width")),
+                    ("height",          p.get("height")),
+                    ("padding",         p.get("padding")),
+                    ("flex-direction",  p.get("flex_direction")),
+                    ("align-items",     p.get("align_items")),
+                    ("justify-content", p.get("justify_content")),
+                    ("gap",             p.get("gap")),
+                    ("overflow",        p.get("overflow")),
+                    ("z-index",         p.get("z_index")),
+                ]
+                for css_prop, val in layout_pairs:
+                    if val is not None:
+                        lines.append(f"- `{css_prop}`: `{val}`")
+                for extra_prop, extra_val in p.get("extra_layout", {}).items():
+                    lines.append(f"- `{extra_prop}`: `{extra_val}`")
+                lines.append("")
+
+        logger.debug("tools: get_screen_full(%s) — rendered", spec["name"])
+        return "\n".join(lines)
 
     def get_screen(self, reader: GraphReader, name: str) -> str:
         screen = reader.get_screen(name)

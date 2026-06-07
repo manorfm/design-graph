@@ -42,6 +42,7 @@ help:
 	@echo ""
 	@echo "  Developer setup"
 	@echo "    make install-hooks               Install git hooks (auto-versioning)"
+	@echo "    make push                        Push commits + version tags to GitHub"
 	@echo "    make version                     Show current and projected next version"
 	@echo ""
 	@echo "  Maintenance"
@@ -148,8 +149,15 @@ screen:
 
 install-hooks:
 	git config core.hooksPath .githooks
+	git config push.followTags true
 	@echo "Git hooks installed — post-commit will auto-tag versions."
-	@echo "Run 'git config --unset core.hooksPath' to remove."
+	@echo "push.followTags enabled — 'git push' will now include annotated tags."
+	@echo "Run 'git config --unset core.hooksPath' to remove hooks."
+
+push:
+	@echo "Pushing commits and all annotated version tags…"
+	git push --follow-tags
+	@echo "Done. pip install --upgrade git+<url> will now see the latest version."
 
 version:
 	@python scripts/auto_version.py --dry-run 2>/dev/null || \
@@ -174,5 +182,5 @@ clean-all:
 
 .PHONY: help build diff rebuild start stop restart status logs \
         screens tokens search inspect impact screen \
-        install-hooks version \
+        install-hooks push version \
         list-graphs clean-graph clean-all
