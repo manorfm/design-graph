@@ -185,6 +185,8 @@ async def run_pipeline(
         styles=raw_stats.get("styles", 0),
         texts=raw_stats.get("texts", 0),
         contains_rels=raw_stats.get("contains", 0),
+        component_props=raw_stats.get("component_props", 0),
+        section_styles=raw_stats.get("section_styles", 0),
         duration_seconds=elapsed,
     )
 

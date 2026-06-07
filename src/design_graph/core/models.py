@@ -229,4 +229,6 @@ class BuildStats:
     styles: int = 0
     texts: int = 0
     contains_rels: int = 0
+    component_props: int = 0   # ComponentProp nodes from function signature extraction
+    section_styles: int = 0    # SECTION_HAS_STYLE edges for section container styles
     duration_seconds: float = 0.0

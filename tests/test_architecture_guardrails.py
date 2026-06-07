@@ -187,6 +187,9 @@ class TestG4ExtractionFunctionsAreSynchronous:
     def test_no_async_functions_in_chunker(self):
         self._check_file(EXTRACTION_DIR / "chunker.py", allowed=set())
 
+    def test_no_async_functions_in_prop_extractor(self):
+        self._check_file(EXTRACTION_DIR / "prop_extractor.py", allowed=set())
+
     def _check_file(self, path: Path, allowed: set[str] | None = None) -> None:
         if allowed is None:
             allowed = self.ALLOWED_ASYNC
