@@ -100,7 +100,7 @@ class TestJsonRpcProtocol:
         resp = single_server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
         names = {t["name"] for t in resp["result"]["tools"]}
         expected = {
-            "list_screens", "get_screen", "get_section", "get_component",
+            "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
             "get_full_jsx", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",

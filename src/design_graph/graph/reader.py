@@ -557,6 +557,148 @@ class GraphReader:
             result[key] = rows[0][list(rows[0].keys())[0]] if rows else 0
         return result
 
+    # ── Full screen composite query ───────────────────────────────────────────
+
+    def get_screen_full(self, name: str) -> dict | None:
+        """
+        Return everything needed to implement a screen in one call.
+
+        Issues a bounded set of JOIN queries (O(1) round-trips regardless of
+        component count) and assembles the result in Python.  The returned dict
+        contains:
+
+        - Screen metadata (name, component_count, sections_count)
+        - sections: list of dicts with styles, texts, component_refs, jsx_snippet
+        - components: list of dicts with styles_by_state, tokens, texts,
+                      interactions, props, children, jsx_snippet
+        - layout_profiles: list of LayoutProfile dicts (display, flex, spacing…)
+
+        Section styles come from SECTION_HAS_STYLE nodes (canonical) with a
+        fallback to the styles_json blob for older graphs.
+        Section texts come from SECTION_HAS_TEXT nodes with a fallback to texts_json.
+        """
+        resolved = self._fuzzy_find_screen(name)
+        if not resolved:
+            return None
+
+        # Q1: Screen metadata
+        screen_rows = self._q(
+            "MATCH (s:Screen {name:$n}) "
+            "RETURN s.name, s.component_count, s.sections_count",
+            {"n": resolved},
+        )
+        if not screen_rows:
+            return None
+        s = screen_rows[0]
+
+        # Q2: All sections
+        section_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section) "
+            "RETURN sec.id, sec.name, sec.components_json, sec.texts_json, "
+            "       sec.styles_json, sec.jsx_snippet, sec.detection_method",
+            {"n": resolved},
+        )
+
+        # Q3: Section styles — canonical source (SECTION_HAS_STYLE)
+        sec_style_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
+            "-[:SECTION_HAS_STYLE]->(st:Style) "
+            "RETURN sec.id AS section_id, st.property AS property, st.value AS value",
+            {"n": resolved},
+        )
+
+        # Q4: Section texts — canonical source (SECTION_HAS_TEXT)
+        sec_text_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
+            "-[:SECTION_HAS_TEXT]->(t:UIText) "
+            "RETURN sec.id AS section_id, t.content AS content",
+            {"n": resolved},
+        )
+
+        # Q5: All components used by this screen
+        comp_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component) "
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes "
+            "ORDER BY c.name",
+            {"n": resolved},
+        )
+
+        # Q6: Component styles — all states via single JOIN (also used for layout profiles)
+        comp_style_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:HAS_STYLE]->(st:Style) "
+            "RETURN c.name AS comp_name, st.state AS state, "
+            "       st.property AS property, st.value AS value "
+            "ORDER BY c.name, st.state, st.property",
+            {"n": resolved},
+        )
+
+        # Q7: Component tokens
+        comp_token_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:USES_TOKEN]->(t:Token) "
+            "RETURN c.name AS comp_name, t.label AS label, "
+            "       t.value AS value, t.category AS category "
+            "ORDER BY c.name, t.category",
+            {"n": resolved},
+        )
+
+        # Q8: Component texts
+        comp_text_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:COMP_HAS_TEXT]->(t:UIText) "
+            "RETURN c.name AS comp_name, t.content AS content, "
+            "       t.text_type AS text_type, t.element AS element "
+            "ORDER BY c.name, t.text_type",
+            {"n": resolved},
+        )
+
+        # Q9: Component interactions
+        comp_interact_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:HAS_INTERACTION]->(i:Interaction) "
+            "RETURN c.name AS comp_name, i.trigger AS trigger, i.css_prop AS css_prop, "
+            "       i.from_val AS from_val, i.to_val AS to_val, i.transition AS transition",
+            {"n": resolved},
+        )
+
+        # Q10: Component props
+        comp_prop_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
+            "-[:HAS_PROP]->(p:ComponentProp) "
+            "RETURN c.name AS comp_name, p.prop_name AS prop_name, "
+            "       p.default_value AS default_value "
+            "ORDER BY c.name, p.prop_name",
+            {"n": resolved},
+        )
+
+        # Q11: Component children (CONTAINS)
+        comp_children_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(parent:Component)"
+            "-[:CONTAINS]->(child:Component) "
+            "RETURN parent.name AS parent_name, child.name AS child_name "
+            "ORDER BY parent.name, child.name",
+            {"n": resolved},
+        )
+
+        logger.debug(
+            "reader: get_screen_full(%s) — %d sections, %d components",
+            resolved, len(section_rows), len(comp_rows),
+        )
+        return _assemble_screen_full(
+            screen_meta=s,
+            section_rows=section_rows,
+            sec_style_rows=sec_style_rows,
+            sec_text_rows=sec_text_rows,
+            comp_rows=comp_rows,
+            comp_style_rows=comp_style_rows,
+            comp_token_rows=comp_token_rows,
+            comp_text_rows=comp_text_rows,
+            comp_interact_rows=comp_interact_rows,
+            comp_prop_rows=comp_prop_rows,
+            comp_children_rows=comp_children_rows,
+        )
+
     # ── Layout profiles ───────────────────────────────────────────────────────
 
     def get_component_layout_profile(self, name: str) -> dict | None:
@@ -657,6 +799,129 @@ class GraphReader:
         except Exception as exc:  # noqa: BLE001
             logger.warning("reader: query failed: %s\n%s", cypher[:80], exc)
             return []
+
+
+def _assemble_screen_full(
+    *,
+    screen_meta: dict,
+    section_rows: list[dict],
+    sec_style_rows: list[dict],
+    sec_text_rows: list[dict],
+    comp_rows: list[dict],
+    comp_style_rows: list[dict],
+    comp_token_rows: list[dict],
+    comp_text_rows: list[dict],
+    comp_interact_rows: list[dict],
+    comp_prop_rows: list[dict],
+    comp_children_rows: list[dict],
+) -> dict:
+    """
+    Assemble the get_screen_full response dict from pre-fetched query results.
+
+    All grouping is done in Python to avoid N+1 query patterns.
+    Kept as a module-level function (not a method) to keep it unit-testable
+    and to separate data assembly from query concerns.
+    """
+    # ── Section data ──────────────────────────────────────────────────────────
+    sec_styles_by_id: dict[str, dict[str, str]] = defaultdict(dict)
+    for r in sec_style_rows:
+        sec_styles_by_id[r["section_id"]][r["property"]] = r["value"]
+
+    sec_texts_by_id: dict[str, list[str]] = defaultdict(list)
+    for r in sec_text_rows:
+        sec_texts_by_id[r["section_id"]].append(r["content"])
+
+    sections = []
+    for sec in section_rows:
+        sid    = sec["sec.id"]
+        # Canonical source: graph nodes; fallback: JSON blob for older graphs
+        styles = sec_styles_by_id.get(sid) or json.loads(sec["sec.styles_json"] or "{}")
+        texts  = sec_texts_by_id.get(sid)  or json.loads(sec["sec.texts_json"]  or "[]")
+        sections.append({
+            "id":               sid,
+            "name":             sec["sec.name"],
+            "detection_method": sec["sec.detection_method"],
+            "styles":           dict(styles),
+            "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
+            "texts":            list(texts),
+            "jsx_snippet":      sec["sec.jsx_snippet"] or "",
+        })
+
+    # ── Component data ────────────────────────────────────────────────────────
+    styles_by_comp: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    layout_by_comp: dict[str, dict[str, str]]        = defaultdict(dict)
+    for r in comp_style_rows:
+        styles_by_comp[r["comp_name"]][r["state"]].append(
+            {"property": r["property"], "value": r["value"]}
+        )
+        if r["state"] == "default" and r["property"] in LAYOUT_CSS_PROPERTIES:
+            layout_by_comp[r["comp_name"]][r["property"]] = r["value"]
+
+    tokens_by_comp: dict[str, list[dict]] = defaultdict(list)
+    for r in comp_token_rows:
+        tokens_by_comp[r["comp_name"]].append(
+            {"label": r["label"], "value": r["value"], "category": r["category"]}
+        )
+
+    texts_by_comp: dict[str, list[dict]] = defaultdict(list)
+    for r in comp_text_rows:
+        texts_by_comp[r["comp_name"]].append(
+            {"content": r["content"], "text_type": r["text_type"], "element": r["element"]}
+        )
+
+    interactions_by_comp: dict[str, list[dict]] = defaultdict(list)
+    for r in comp_interact_rows:
+        interactions_by_comp[r["comp_name"]].append({
+            "trigger":    r["trigger"],
+            "css_prop":   r["css_prop"],
+            "from_val":   r["from_val"],
+            "to_val":     r["to_val"],
+            "transition": r["transition"],
+        })
+
+    props_by_comp: dict[str, list[dict]] = defaultdict(list)
+    for r in comp_prop_rows:
+        props_by_comp[r["comp_name"]].append(
+            {"prop_name": r["prop_name"], "default_value": r["default_value"]}
+        )
+
+    children_by_comp: dict[str, list[str]] = defaultdict(list)
+    for r in comp_children_rows:
+        children_by_comp[r["parent_name"]].append(r["child_name"])
+
+    components = []
+    for comp in comp_rows:
+        cname = comp["c.name"]
+        components.append({
+            "name":           cname,
+            "comp_type":      comp["c.comp_type"],
+            "jsx_snippet":    comp["c.jsx_snippet"] or "",
+            "occurrence":     comp["c.occurrence"],
+            "classes":        comp["c.classes"] or "",
+            "styles_by_state": {
+                state: entries
+                for state, entries in styles_by_comp.get(cname, {}).items()
+            },
+            "tokens":       tokens_by_comp.get(cname, []),
+            "texts":        texts_by_comp.get(cname, []),
+            "interactions": interactions_by_comp.get(cname, []),
+            "props":        props_by_comp.get(cname, []),
+            "children":     children_by_comp.get(cname, []),
+        })
+
+    layout_profiles = [
+        _build_layout_profile(comp["c.name"], layout_by_comp.get(comp["c.name"], {}))
+        for comp in comp_rows
+    ]
+
+    return {
+        "name":            screen_meta["s.name"],
+        "component_count": screen_meta["s.component_count"],
+        "sections_count":  screen_meta["s.sections_count"],
+        "sections":        sections,
+        "components":      components,
+        "layout_profiles": layout_profiles,
+    }
 
 
 def _build_layout_profile(comp_name: str, layout_props: dict[str, str]) -> dict:
