@@ -97,3 +97,29 @@ class TestExtractPropsFromFunctionSignature:
         props = extract_props_from_function_signature(js, _boundary("Btn", js))
         with pytest.raises(Exception):
             props[0].prop_name = "changed"  # type: ignore[misc]
+
+    def test_typescript_type_annotation_without_default_is_skipped(self):
+        """Props declared as TS annotations (prop: Type) without a default must be ignored."""
+        js = "function Input({ value: string, onChange }) { return <input/>; }"
+        props = extract_props_from_function_signature(js, _boundary("Input", js))
+        names = {p.prop_name for p in props}
+        # "value: string" is a TS annotation — should be skipped
+        assert "value" not in names
+        # "onChange" has no annotation and no default — should be kept
+        assert "onChange" in names
+
+    def test_uppercase_prop_name_is_skipped(self):
+        """Props whose name starts with uppercase are invalid React props and must be ignored."""
+        js = "function Comp({ ValidProp, normalProp }) { return <div/>; }"
+        props = extract_props_from_function_signature(js, _boundary("Comp", js))
+        names = {p.prop_name for p in props}
+        assert "ValidProp" not in names
+        assert "normalProp" in names
+
+    def test_props_capped_at_max_per_component(self):
+        """Extraction must stop at _MAX_PROPS_PER_COMPONENT regardless of how many are declared."""
+        from design_graph.extraction.prop_extractor import _MAX_PROPS_PER_COMPONENT
+        many = ", ".join(f"prop{i}" for i in range(_MAX_PROPS_PER_COMPONENT + 5))
+        js = f"function BigComp({{ {many} }}) {{ return <div/>; }}"
+        props = extract_props_from_function_signature(js, _boundary("BigComp", js))
+        assert len(props) == _MAX_PROPS_PER_COMPONENT

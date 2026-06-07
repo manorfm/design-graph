@@ -103,7 +103,9 @@ class TestJsonRpcProtocol:
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
             "get_full_jsx", "get_component_interactions",
-            "get_component_children", "set_prototype",
+            "get_component_children", "list_components", "get_component_spec",
+            "get_component_props", "get_screen_layout",
+            "set_prototype",
         }
         assert expected.issubset(names), f"Missing tools: {expected - names}"
 

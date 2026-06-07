@@ -265,15 +265,17 @@ def _run_build(argv: list[str]) -> None:
     if parsed.json_output:
         import json as _json
         print(_json.dumps({
-            "status":         "built",
-            "screens":        stats.screens,
-            "components":     stats.components,
-            "tokens":         stats.tokens,
-            "sections":       stats.sections,
-            "interactions":   stats.interactions,
-            "styles":         stats.styles,
-            "texts":          stats.texts,
-            "contains_rels":  stats.contains_rels,
+            "status":           "built",
+            "screens":          stats.screens,
+            "components":       stats.components,
+            "tokens":           stats.tokens,
+            "sections":         stats.sections,
+            "interactions":     stats.interactions,
+            "styles":           stats.styles,
+            "texts":            stats.texts,
+            "contains_rels":    stats.contains_rels,
+            "component_props":  stats.component_props,
+            "section_styles":   stats.section_styles,
             "duration_seconds": round(stats.duration_seconds, 3),
         }))
     elif not parsed.quiet:
