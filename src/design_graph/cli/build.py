@@ -485,5 +485,6 @@ def _print_build_summary(html_path: Path, db_path: Path, stats) -> None:
     print(f"  Components:   {stats.components:>4}    Tokens:     {stats.tokens:>4}")
     print(f"  UITexts:      {stats.texts:>4}    Styles:     {stats.styles:>4}")
     print(f"  Interactions: {stats.interactions:>4}    CONTAINS:   {stats.contains_rels:>4}")
+    print(f"  Props:        {stats.component_props:>4}    SecStyles:  {stats.section_styles:>4}")
     print(f"  Built in {stats.duration_seconds:.2f}s")
     print(f"{'─' * w}")
