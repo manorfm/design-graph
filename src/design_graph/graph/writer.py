@@ -25,6 +25,7 @@ from design_graph.core.models import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    ComponentProp,
 )
 from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 
@@ -113,6 +114,7 @@ class GraphWriter:
         self._inserted_text_ids:   set[str] = set()
         self._token_rel_keys:      set[str] = set()
         self._contains_keys:       set[str] = set()
+        self._inserted_prop_ids:   set[str] = set()
         # Pairs (parent, child) deferred because child wasn't inserted yet
         self._pending_contains:    set[tuple[str, str]] = set()
 
@@ -222,6 +224,9 @@ class GraphWriter:
                 {"cn": comp.name, "tid": text.id},
             )
 
+        # ComponentProps
+        self._write_component_props(comp.name, comp.props)
+
         # CONTAINS relationships: create immediately for already-inserted children;
         # defer the rest so flush_pending_contains() can retry after all nodes exist.
         for child_name in comp.child_refs:
@@ -320,6 +325,7 @@ class GraphWriter:
                 {"sn": screen.name, "sid": section.id},
             )
             self._write_section_styles(section.id, section.styles)
+            self._write_section_texts(section.id, section.texts)
             for comp_name in section.component_refs:
                 self._ensure_component_exists(comp_name)
                 self._safe_execute(
@@ -367,6 +373,56 @@ class GraphWriter:
                 "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "
                 "CREATE (sec)-[:SECTION_HAS_STYLE]->(s)",
                 {"sid": section_id, "sid2": style_id},
+            )
+
+    def _write_component_props(self, comp_name: str, props: list[ComponentProp]) -> None:
+        """
+        Write ComponentProp nodes and HAS_PROP edges for a component.
+
+        Each declared prop becomes one ComponentProp node. Idempotent — duplicate
+        prop ids are tracked and skipped so calling write_component twice is safe.
+        """
+        for prop in props:
+            if prop.id in self._inserted_prop_ids:
+                continue
+            self._inserted_prop_ids.add(prop.id)  # guard before attempt — same as style/text writers
+            node_created = self._safe_execute(
+                "CREATE (:ComponentProp {id:$id, component_name:$cn, "
+                "prop_name:$pn, default_value:$dv})",
+                {"id": prop.id, "cn": prop.component_name,
+                 "pn": prop.prop_name, "dv": prop.default_value},
+            )
+            if node_created:
+                self._safe_execute(
+                    "MATCH (c:Component {name:$cn}),(p:ComponentProp {id:$pid}) "
+                    "CREATE (c)-[:HAS_PROP]->(p)",
+                    {"cn": comp_name, "pid": prop.id},
+                )
+
+    def _write_section_texts(self, section_id: str, texts: list[str]) -> None:
+        """
+        Write section text strings as UIText nodes linked via SECTION_HAS_TEXT.
+
+        Each string becomes one UIText node with text_type='section_text' and
+        source=section_id. This replaces the opaque texts_json blob as the
+        canonical query target for section text content.
+        """
+        for text in texts:
+            text_id = "stxt_" + hashlib.md5(
+                f"{section_id}_{text}".encode(), usedforsecurity=False
+            ).hexdigest()[:8]
+            if text_id in self._inserted_text_ids:
+                continue
+            self._inserted_text_ids.add(text_id)
+            self._safe_execute(
+                "CREATE (:UIText {id:$id, content:$ct, text_type:'section_text', "
+                "source:$src, element:'section'})",
+                {"id": text_id, "ct": text, "src": section_id},
+            )
+            self._safe_execute(
+                "MATCH (sec:Section {id:$sid}),(t:UIText {id:$tid}) "
+                "CREATE (sec)-[:SECTION_HAS_TEXT]->(t)",
+                {"sid": section_id, "tid": text_id},
             )
 
     def _ensure_component_exists(self, name: str) -> None:

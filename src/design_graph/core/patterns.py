@@ -44,6 +44,17 @@ RE_CSS_VAR     = re.compile(r'--[\w-]+\s*:\s*[^;}{]+')
 RE_TRANSITION  = re.compile(r'transition["\']?\s*:\s*["\']?([^,"\'}\n]{5,60})')
 
 
+# ── React component prop declarations ────────────────────────────────────────
+
+# Matches the destructured props block in a function component signature:
+#   function NavBar({ title, items = [], onClose })  →  group(1) = "title, items = [], onClose"
+# Handles both `function Name({...})` and `const Name = ({...}) =>` forms.
+RE_DESTRUCTURED_PROPS = re.compile(
+    r'(?:function\s+[A-Z]\w+|const\s+[A-Z]\w+\s*=)\s*\(\s*\{([^}]{1,600})\}',
+    re.DOTALL,
+)
+
+
 # ── React/JSX component names ────────────────────────────────────────────────
 
 RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z]{2,})\s*\(')

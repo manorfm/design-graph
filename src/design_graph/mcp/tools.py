@@ -219,6 +219,22 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_component_props",
+        "description": (
+            "Returns the declared props (API) of a component: prop names, "
+            "whether each is required or optional, and default values. "
+            "Use before instantiating a component to know what can be configured."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Component name (partial name accepted)"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "get_screen_layout",
         "description": (
             "Returns the layout profile (display, width, height, flex/grid properties) "
@@ -321,6 +337,7 @@ class ToolDispatcher:
             return err
 
         dispatch_map = {
+            "get_component_props":       lambda: self.get_component_props(reader, name),
             "get_screen_layout":         lambda: self.get_screen_layout(reader, name),
             "get_screen":                lambda: self.get_screen(reader, name),
             "get_section":               lambda: self.get_section(reader, args.get("screen", ""), args.get("section", "")),
@@ -343,6 +360,24 @@ class ToolDispatcher:
         return fn()
 
     # ── Tool methods ──────────────────────────────────────────────────────────
+
+    def get_component_props(self, reader: GraphReader, name: str) -> str:
+        """Return declared props for a component as a Markdown table."""
+        props = reader.get_component_props(name)
+        if not props:
+            return (
+                f"No declared props found for '{name}'. "
+                "The component may use positional props, TypeScript interfaces, or have no props."
+            )
+        lines = [f"# Props: {name}\n",
+                 "| Prop | Required | Default |",
+                 "|---|---|---|"]
+        for p in props:
+            required = "✓" if p["default_value"] == "" else ""
+            default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+            lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
+        logger.debug("tools: get_component_props(%s) — %d props", name, len(props))
+        return "\n".join(lines)
 
     def get_screen_layout(self, reader: GraphReader, name: str) -> str:
         """Return layout profiles for all components on a screen as Markdown."""
@@ -644,6 +679,14 @@ class ToolDispatcher:
                     f"- {i.get('i.trigger')}: {i.get('i.css_prop')} "
                     f"`{i.get('i.from_val')}` → `{i.get('i.to_val')}` ({i.get('i.transition')})"
                 )
+        if spec.get("props"):
+            lines.append("\n## Props")
+            lines.append("| Prop | Required | Default |")
+            lines.append("|---|---|---|")
+            for p in spec["props"]:
+                required = "✓" if p["default_value"] == "" else ""
+                default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+                lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
         if spec.get("c.jsx_snippet"):
             lines.append("\n## JSX\n```jsx")
             lines.append(spec["c.jsx_snippet"][:3000])

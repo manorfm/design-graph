@@ -57,6 +57,23 @@ class DesignToken:
     usage: int     # occurrence count across css+js
 
 
+# ── Component prop declarations ───────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ComponentProp:
+    """
+    A declared prop extracted from a React component's destructured function signature.
+
+    default_value is an empty string when the prop is required (no default);
+    a non-empty string carries the literal default (e.g. 'primary', 'false', '1').
+    """
+
+    id: str               # deterministic hash: "prop_{MD5[:8]}"
+    component_name: str
+    prop_name: str        # camelCase prop identifier, e.g. "onClose", "variant"
+    default_value: str    # "" = required; otherwise the default literal
+
+
 # ── Component sub-entities ────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -110,7 +127,8 @@ class ExtractedComponent:
     styles: list[StyleEntry] = field(default_factory=list)
     interactions: list[InteractionEntry] = field(default_factory=list)
     texts: list[TextEntry] = field(default_factory=list)
-    child_refs: list[str] = field(default_factory=list)  # PascalCase component names referenced in JSX
+    child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
+    props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
 
 
 @dataclass
