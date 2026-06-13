@@ -158,17 +158,19 @@ class GraphWriter:
             logger.debug("writer: skipping duplicate component %s", comp.name)
             return
 
+        component_exists = self._node_exists("Component", "name", comp.name)
         jsx = comp.jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
         if len(comp.jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
             logger.debug(
                 "writer: jsx_snippet for %s capped at %d chars (was %d)",
                 comp.name, MAX_JSX_SNIPPET_CHARS, len(comp.jsx_snippet),
             )
-        self._safe_execute(
-            "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, classes:$c})",
-            {"n": comp.name, "t": comp.comp_type, "s": jsx,
-             "o": comp.occurrence, "c": comp.classes},
-        )
+        if not component_exists:
+            self._safe_execute(
+                "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, classes:$c})",
+                {"n": comp.name, "t": comp.comp_type, "s": jsx,
+                 "o": comp.occurrence, "c": comp.classes},
+            )
         self._inserted_comp_names.add(comp.name)
 
         # Styles
@@ -502,5 +504,8 @@ class GraphWriter:
             self._conn.execute(cypher, params or {})
             return True
         except Exception as exc:  # noqa: BLE001
+            if "duplicated primary key" in str(exc).lower():
+                logger.debug("writer: skipped duplicate primary key statement: %r", exc)
+                return False
             logger.warning("writer: skipped statement (%s): %r", type(exc).__name__, exc)
             return False
