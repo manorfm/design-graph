@@ -150,6 +150,18 @@ class TestWriteComponent:
         result = conn.execute("MATCH (c:Component {name:'DupComp'}) RETURN count(c)")
         assert result.get_next()[0] == 1
 
+    def test_existing_shell_component_does_not_warn_on_full_component_write(self, writer, caplog):
+        gw, conn = writer
+        screen = ExtractedScreen(name="ShellFirstPage",
+                                 component_refs=["MenuFormModal"], sections_count=0)
+        gw.write_screen(screen, [], {})
+
+        gw.write_component(self._make_comp("MenuFormModal"), {})
+
+        result = conn.execute("MATCH (c:Component {name:'MenuFormModal'}) RETURN count(c)")
+        assert result.get_next()[0] == 1
+        assert "duplicated primary key value MenuFormModal" not in caplog.text
+
     def test_creates_contains_relation(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("ChildComp"), {})
