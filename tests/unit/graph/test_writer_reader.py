@@ -112,8 +112,20 @@ class TestWriteTokens:
         token = DesignToken(id="col_t2", category="color",
                             label="x", value="#112233", usage=1)
         gw.write_tokens([token])
-        gw.write_tokens([token])
+        count = gw.write_tokens([token])
+        assert count == 0
         result = conn.execute("MATCH (t:Token {id:'col_t2'}) RETURN count(t)")
+        assert result.get_next()[0] == 1
+
+    def test_duplicate_token_ids_in_same_batch_inserted_once(self, writer):
+        gw, conn = writer
+        tokens = [
+            DesignToken(id="rx_dup", category="radius", label="radius_sm", value="8px", usage=7),
+            DesignToken(id="rx_dup", category="radius", label="radius_sm", value="8px", usage=3),
+        ]
+        count = gw.write_tokens(tokens)
+        assert count == 1
+        result = conn.execute("MATCH (t:Token {id:'rx_dup'}) RETURN count(t)")
         assert result.get_next()[0] == 1
 
 

@@ -109,6 +109,7 @@ class GraphWriter:
     def __init__(self, conn: kuzu.Connection) -> None:
         self._conn = conn
         self._inserted_comp_names: set[str] = set()
+        self._inserted_token_ids:  set[str] = set()
         self._inserted_style_ids:  set[str] = set()
         self._inserted_inter_ids:  set[str] = set()
         self._inserted_text_ids:   set[str] = set()
@@ -129,13 +130,18 @@ class GraphWriter:
         """Insert Token nodes. Returns the number of tokens successfully inserted."""
         inserted = 0
         for token in tokens:
+            if token.id in self._inserted_token_ids:
+                continue
             ok = self._safe_execute(
                 "CREATE (:Token {id:$id, category:$cat, label:$lbl, value:$val, usage:$use})",
                 {"id": token.id, "cat": token.category, "lbl": token.label,
                  "val": token.value, "use": token.usage},
             )
             if ok:
+                self._inserted_token_ids.add(token.id)
                 inserted += 1
+            elif self._node_exists("Token", "id", token.id):
+                self._inserted_token_ids.add(token.id)
         logger.debug("writer: wrote %d tokens", inserted)
         return inserted
 
@@ -427,13 +433,36 @@ class GraphWriter:
 
     def _ensure_component_exists(self, name: str) -> None:
         """Create a minimal 'shell' component if it hasn't been inserted yet."""
-        if name not in self._inserted_comp_names:
-            self._safe_execute(
-                "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
-                "occurrence:1, classes:''})",
-                {"n": name, "t": "component"},
-            )
+        if name in self._inserted_comp_names:
+            return
+        if self._node_exists("Component", "name", name):
             self._inserted_comp_names.add(name)
+            return
+        ok = self._safe_execute(
+            "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
+            "occurrence:1, classes:''})",
+            {"n": name, "t": "component"},
+        )
+        if ok or self._node_exists("Component", "name", name):
+            self._inserted_comp_names.add(name)
+
+    def _node_exists(self, label: str, key: str, value: str) -> bool:
+        """
+        Return whether a node already exists.
+
+        label/key are internal schema constants selected by caller code, not
+        user input, so they are safe to interpolate while the value remains a
+        query parameter.
+        """
+        try:
+            result = self._conn.execute(
+                f"MATCH (n:{label} {{{key}:$value}}) RETURN count(n)",
+                {"value": value},
+            )
+            return bool(result.has_next() and result.get_next()[0] > 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("writer: existence check failed for %s.%s=%s: %s", label, key, value, exc)
+            return False
 
     def _link_style_to_token(
         self,
