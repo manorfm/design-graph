@@ -207,21 +207,23 @@ def _check_graph_not_empty(
 def _check_no_orphaned_screens(
     counts: dict[str, int], reader,
 ) -> list[GraphViolation]:
-    """A screen with zero components is suspicious — likely a parse failure."""
+    """Report leaf screens without custom component or nested-screen references."""
+    leaf_condition = (
+        "WHERE NOT EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
+        "AND NOT EXISTS { MATCH (s)-[:USES_SCREEN]->(:Screen) } "
+    )
     evidence = ValidationEvidence.collect(
         reader,
-        "MATCH (s:Screen) WHERE NOT EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
-        "RETURN count(s) AS total",
-        "MATCH (s:Screen) WHERE NOT EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
-        "RETURN s.name ORDER BY s.name LIMIT 20",
+        "MATCH (s:Screen) " + leaf_condition + "RETURN count(s) AS total",
+        "MATCH (s:Screen) " + leaf_condition + "RETURN s.name ORDER BY s.name LIMIT 20",
         "s.name",
     )
     if not evidence.total:
         return []
     return [GraphViolation(
-        severity=ValidationSeverity.WARNING,
+        severity=ValidationSeverity.INFO,
         check_name="no_orphaned_screens",
-        message=f"{evidence.total} screen(s) have no component relationships.",
+        message=f"{evidence.total} leaf screen(s) have no custom component references.",
         details=evidence.details("screens"),
     )]
 

@@ -59,6 +59,28 @@ class TestFindFunctionEnd:
         start_b = js.index("function CompB")
         assert end_a <= start_b
 
+    def test_destructured_parameters_are_not_mistaken_for_function_body(self):
+        js = "function RestaurantsPage({ onSelect, onNew }) { return (<main>Restaurants</main>); }"
+
+        end = find_function_end(js, 0)
+
+        assert js[:end].endswith("}")
+        assert "Restaurants" in js[:end]
+
+    def test_braces_inside_literals_and_comments_do_not_close_function(self):
+        js = '''function Card({ value = { nested: true } }) {
+            const text = "}";
+            const template = `card ${value}`;
+            // } is not the function end
+            /* { neither is this } */
+            return (<div>{text}</div>);
+        } after'''
+
+        end = find_function_end(js, 0)
+
+        assert "return (<div>" in js[:end]
+        assert js[end:].strip() == "after"
+
 
 class TestExtractReturnBlock:
     def test_extracts_simple_jsx(self):
@@ -91,6 +113,24 @@ class TestExtractReturnBlock:
         js = "function Foo() { return(<div/>); }"
         result = extract_return_block(js, 0, len(js))
         assert "<div/>" in result
+
+    def test_extracts_direct_jsx_return_without_parentheses(self):
+        js = "function Input() { return <input value={value} />; }"
+
+        result = extract_return_block(js, 0, len(js))
+
+        assert result == "<input value={value} />"
+
+    def test_selects_visual_return_after_nested_callback_return(self):
+        js = '''function Drawer() {
+            useEffect(() => { return () => cleanup(); }, []);
+            return (<aside>Profile</aside>);
+        }'''
+
+        result = extract_return_block(js, 0, len(js))
+
+        assert "<aside>Profile</aside>" in result
+        assert "cleanup" not in result
 
     def test_never_returns_none(self):
         js = "function Foo() {}"
@@ -169,3 +209,24 @@ class TestFindAllBoundaries:
         bounds = find_all_boundaries(js)
         names = [b.name for b in bounds]
         assert len(names) == len(set(names))
+
+    def test_destructured_component_boundary_contains_visual_return(self):
+        js = "function DashboardPage({ plan, options = {} }) { return (<Dashboard plan={plan} />); }"
+
+        boundary = find_all_boundaries(js)[0]
+
+        assert js[boundary.body_start] == "{"
+        assert "return (<Dashboard" in js[boundary.start:boundary.end]
+
+    def test_ignores_function_declarations_inside_non_executable_text(self):
+        js = '''
+        // function CommentedPage() { return (<div>wrong</div>); }
+        const source = "function StringPage() { return (<div>wrong</div>); }";
+        const template = `function TemplatePage() { return (<div>wrong</div>); }`;
+        /* function BlockCommentPage() { return (<div>wrong</div>); } */
+        function RealPage() { return (<main>right</main>); }
+        '''
+
+        names = [boundary.name for boundary in find_all_boundaries(js)]
+
+        assert names == ["RealPage"]

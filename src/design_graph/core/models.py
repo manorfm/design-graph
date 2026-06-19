@@ -9,6 +9,7 @@ use regular @dataclass with explicit field control.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 from typing import Optional
 
 
@@ -42,6 +43,12 @@ class FunctionBoundary:
     start: int
     body_start: int
     end: int
+
+
+class ComponentDefinitionStatus(IntEnum):
+    """Persistence marker encoded in Component.occurrence without a schema migration."""
+
+    UNRESOLVED = 0
 
 
 # ── Design tokens ─────────────────────────────────────────────────────────────
@@ -129,6 +136,54 @@ class ExtractedComponent:
     texts: list[TextEntry] = field(default_factory=list)
     child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
+
+    @classmethod
+    def consolidate(cls, variants: list["ExtractedComponent"]) -> "ExtractedComponent":
+        """Merge same-named source definitions into one lossless graph entity."""
+        if not variants:
+            raise ValueError("component consolidation requires at least one variant")
+        names = {variant.name for variant in variants}
+        if len(names) != 1:
+            raise ValueError("component variants must share the same name")
+
+        jsx_variants = list(dict.fromkeys(
+            variant.jsx_snippet for variant in variants if variant.jsx_snippet
+        ))
+        classes = sorted({
+            class_name
+            for variant in variants
+            for class_name in variant.classes.split()
+            if class_name
+        })
+        styles = {
+            item.id: item for variant in variants for item in variant.styles
+        }
+        interactions = {
+            item.id: item for variant in variants for item in variant.interactions
+        }
+        texts = {
+            item.id: item for variant in variants for item in variant.texts
+        }
+        props = {
+            item.id: item for variant in variants for item in variant.props
+        }
+        return cls(
+            name=variants[0].name,
+            comp_type=next(
+                (variant.comp_type for variant in variants if variant.comp_type != "component"),
+                variants[0].comp_type,
+            ),
+            jsx_snippet="\n\n{/* Source variant */}\n\n".join(jsx_variants),
+            occurrence=max(variant.occurrence for variant in variants),
+            classes=" ".join(classes),
+            styles=list(styles.values()),
+            interactions=list(interactions.values()),
+            texts=list(texts.values()),
+            child_refs=sorted({
+                child for variant in variants for child in variant.child_refs
+            }),
+            props=list(props.values()),
+        )
 
 
 @dataclass
@@ -226,6 +281,8 @@ class BuildStats:
 
     screens: int = 0
     components: int = 0
+    extracted_components: int = 0
+    unresolved_components: int = 0
     tokens: int = 0
     sections: int = 0
     interactions: int = 0

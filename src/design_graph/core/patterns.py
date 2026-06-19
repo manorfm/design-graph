@@ -62,7 +62,7 @@ RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z]{2,})\s*\(')
 # A function is visual only when its return expression creates JSX/HTML.
 # Supports source JSX and common compiled jsx/jsxs factory calls.
 RE_VISUAL_RETURN = re.compile(
-    r'return\s*(?:\(\s*<[A-Za-z]|<[A-Za-z]|(?:[A-Za-z_$][\w$]*\.)?jsx?s?\s*\()',
+    r'return\s*(?:\(\s*<(?:[A-Za-z]|>)|<(?:[A-Za-z]|>)|(?:[A-Za-z_$][\w$]*\.)?jsx?s?\s*\()',
     re.DOTALL,
 )
 

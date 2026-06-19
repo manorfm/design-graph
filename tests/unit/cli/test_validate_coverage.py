@@ -184,6 +184,7 @@ class TestCheckNoOrphanedScreens:
 
         violations = _check_no_orphaned_screens({}, Reader())
         assert violations[0].details["total"] == 2
+        assert violations[0].severity == ValidationSeverity.INFO
         assert all("USES_COMPONENT" in query for query in queries)
 
 

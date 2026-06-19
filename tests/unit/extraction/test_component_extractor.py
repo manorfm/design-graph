@@ -54,6 +54,13 @@ class TestRenderableComponentSelection:
         selected = select_renderable_boundaries(js, find_all_boundaries(js))
         assert [boundary.name for boundary in selected] == ["SectionCard"]
 
+    def test_includes_component_returning_react_fragment(self):
+        js = "function TweakSection() { return (<> <div>Theme</div> </>); }"
+
+        selected = select_renderable_boundaries(js, find_all_boundaries(js))
+
+        assert [boundary.name for boundary in selected] == ["TweakSection"]
+
 
 def _boundary(js: str, name: str):
     bounds = find_all_boundaries(js)
@@ -175,6 +182,29 @@ class TestExtractAllComponents:
         comps = asyncio.run(extract_all_components(funcs, bounds, occ, {}))
         names = [c.name for c in comps]
         assert len(names) == len(set(names))
+
+    def test_duplicate_definitions_are_consolidated_without_losing_variants(self):
+        js = '''
+        function SharedCard({ first }) {
+            return (<div><AlphaCard /><button>First action</button></div>);
+        }
+        function SharedCard({ second }) {
+            return (<section><BetaCard /><button>Second action</button></section>);
+        }
+        '''
+        bounds = find_all_boundaries(js)
+
+        components = asyncio.run(
+            extract_all_components(js, bounds, Counter(b.name for b in bounds), {})
+        )
+
+        assert len(components) == 1
+        component = components[0]
+        assert component.occurrence == 2
+        assert component.child_refs == ["AlphaCard", "BetaCard"]
+        assert {prop.prop_name for prop in component.props} == {"first", "second"}
+        assert "First action" in component.jsx_snippet
+        assert "Second action" in component.jsx_snippet
 
     def test_works_with_concurrency_one(self):
         bounds = find_all_boundaries(BTN_JS)

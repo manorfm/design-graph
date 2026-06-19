@@ -167,6 +167,10 @@ def render_status_report(report: GraphStatusReport) -> str:
     if nc:
         lines.append(f"  Screens:      {nc.get('screens', 0):>4}    Sections:   {nc.get('sections', 0):>4}")
         lines.append(f"  Components:   {nc.get('components', 0):>4}    Tokens:     {nc.get('tokens', 0):>4}")
+        lines.append(
+            f"  Extracted:    {nc.get('extracted_components', nc.get('components', 0)):>4}    "
+            f"Unresolved: {nc.get('unresolved_components', 0):>4}"
+        )
         lines.append(f"  UITexts:      {nc.get('texts', 0):>4}    Styles:     {nc.get('styles', 0):>4}")
         lines.append(f"  Interactions: {nc.get('interactions', 0):>4}    CONTAINS:   {nc.get('contains', 0):>4}")
         lines.append(

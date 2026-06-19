@@ -405,13 +405,14 @@ async def extract_all_components(
 
     results = await asyncio.gather(*[_extract_with_guard(b) for b in boundaries])
 
-    # De-duplicate by name (nested function definitions can produce duplicates)
-    seen: set[str] = set()
-    unique: list[ExtractedComponent] = []
+    # Same-named definitions are source variants; preserve their combined evidence.
+    variants_by_name: dict[str, list[ExtractedComponent]] = {}
     for comp in results:
-        if comp.name not in seen:
-            seen.add(comp.name)
-            unique.append(comp)
+        variants_by_name.setdefault(comp.name, []).append(comp)
+    unique = [
+        ExtractedComponent.consolidate(variants)
+        for variants in variants_by_name.values()
+    ]
 
     unique.sort(key=lambda c: -c.occurrence)
     logger.info("extract_all_components: extracted %d unique components", len(unique))

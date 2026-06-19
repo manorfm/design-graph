@@ -129,6 +129,16 @@ class TestRenderStatusReport:
         output = render_status_report(self._fresh_report())
         assert "12" in output
 
+    def test_distinguishes_extracted_and_unresolved_components(self):
+        report = self._fresh_report()
+        report.node_counts.update({"extracted_components": 10, "unresolved_components": 2})
+
+        output = render_status_report(report)
+
+        assert "Extracted:" in output
+        assert "Unresolved:" in output
+        assert "10" in output
+
     def test_contains_kuzu_version(self):
         output = render_status_report(self._fresh_report())
         assert "0.6.2" in output

@@ -152,6 +152,9 @@ design-graph status --db /path/to/prototype.db --verbose
 
 With multiple databases, select one using `--doc`, `--db`, `DESIGN_GRAPH_DOC`, or `design-graph db use`.
 
+Status separates fully extracted components from unresolved references. `Components` is the total,
+while `Extracted` and `Unresolved` explain how that total was formed.
+
 ### Validate graph integrity
 
 ```bash
@@ -348,8 +351,11 @@ The `doc` value is the database filename without `.db`.
 
 - Bundled React/JSX and plain HTML routing
 - Visual-function filtering that excludes non-rendering React/Babel runtime internals
+- Lexical function scanning that handles destructured parameters, strings, templates and comments
 - Semantic screen roles that keep forms, tabs, sections and modals as components unless they are true navigation surfaces
 - Screens, semantic sections and reusable components
+- Typed screen-to-screen and section-to-screen references without synthetic component shells
+- Consolidation of same-named source variants without dropping props, JSX, styles or child references
 - Component hierarchy, occurrence counts, declared props and defaults
 - Default, hover, focus and transition styles
 - Component and property-level token linkage

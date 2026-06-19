@@ -16,6 +16,8 @@ import sys
 
 import kuzu
 
+from design_graph.core.models import ComponentDefinitionStatus
+
 logger = logging.getLogger(__name__)
 
 # ── Node table definitions ─────────────────────────────────────────────────────
@@ -108,8 +110,10 @@ _NODE_TABLES: list[str] = [
 
 _REL_TABLES: list[str] = [
     "CREATE REL TABLE USES_COMPONENT(FROM Screen TO Component)",
+    "CREATE REL TABLE USES_SCREEN(FROM Screen TO Screen)",
     "CREATE REL TABLE HAS_SECTION(FROM Screen TO Section)",
     "CREATE REL TABLE SECTION_USES(FROM Section TO Component)",
+    "CREATE REL TABLE SECTION_USES_SCREEN(FROM Section TO Screen)",
     "CREATE REL TABLE HAS_STYLE(FROM Component TO Style)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
@@ -133,6 +137,11 @@ SCHEMA: list[str] = _NODE_TABLES + _REL_TABLES
 STATS_QUERIES: dict[str, str] = {
     "screens":          "MATCH (n:Screen) RETURN count(n)",
     "components":       "MATCH (n:Component) RETURN count(n)",
+    "extracted_components": "MATCH (n:Component) WHERE n.occurrence > 0 RETURN count(n)",
+    "unresolved_components": (
+        "MATCH (n:Component) WHERE n.occurrence = "
+        f"{ComponentDefinitionStatus.UNRESOLVED.value} RETURN count(n)"
+    ),
     "tokens":           "MATCH (n:Token) RETURN count(n)",
     "texts":            "MATCH (n:UIText) RETURN count(n)",
     "styles":           "MATCH (n:Style) RETURN count(n)",

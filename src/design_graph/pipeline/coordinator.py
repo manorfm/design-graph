@@ -150,6 +150,7 @@ async def run_pipeline(
     raw_stats: dict[str, int] = {}
     with GraphWriteSession(db_path) as writer:
         writer.write_tokens(tokens)
+        writer.declare_screens(screens)
         item_index = len(tokens)
 
         for comp in extracted_comps:
@@ -182,6 +183,8 @@ async def run_pipeline(
     stats = BuildStats(
         screens=raw_stats.get("screens", 0),
         components=raw_stats.get("components", 0),
+        extracted_components=raw_stats.get("extracted_components", 0),
+        unresolved_components=raw_stats.get("unresolved_components", 0),
         tokens=raw_stats.get("tokens", 0),
         sections=raw_stats.get("sections", 0),
         interactions=raw_stats.get("interactions", 0),
