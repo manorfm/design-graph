@@ -64,7 +64,8 @@ class TestBuildJsonOutput:
             from design_graph.cli.build import main
             main()
         data = json.loads(capsys.readouterr().out)
-        required = {"status", "screens", "components", "tokens",
+        required = {"status", "screens", "components", "extracted_components",
+                    "unresolved_components", "tokens",
                     "sections", "interactions", "contains_rels", "duration_seconds"}
         assert required.issubset(data.keys()), f"Missing fields: {required - data.keys()}"
 

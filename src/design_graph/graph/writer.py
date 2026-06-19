@@ -21,11 +21,12 @@ import kuzu
 
 from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
 from design_graph.core.models import (
+    ComponentDefinitionStatus,
+    ComponentProp,
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
-    ComponentProp,
 )
 from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 
@@ -108,7 +109,9 @@ class GraphWriter:
 
     def __init__(self, conn: kuzu.Connection) -> None:
         self._conn = conn
-        self._inserted_comp_names: set[str] = set()
+        self._known_comp_names:    set[str] = set()
+        self._resolved_comp_names: set[str] = set()
+        self._declared_screen_names: set[str] = set()
         self._inserted_token_ids:  set[str] = set()
         self._inserted_style_ids:  set[str] = set()
         self._inserted_inter_ids:  set[str] = set()
@@ -122,7 +125,7 @@ class GraphWriter:
     @property
     def inserted_names(self) -> frozenset[str]:
         """Names of components already written — read-only snapshot."""
-        return frozenset(self._inserted_comp_names)
+        return frozenset(self._resolved_comp_names)
 
     # ── Public write API ──────────────────────────────────────────────────────
 
@@ -145,6 +148,17 @@ class GraphWriter:
         logger.debug("writer: wrote %d tokens", inserted)
         return inserted
 
+    def declare_screens(self, screens: list[ExtractedScreen]) -> None:
+        """Materialize screen identities before resolving typed screen references."""
+        for screen in screens:
+            if screen.name in self._declared_screen_names:
+                continue
+            self._safe_execute(
+                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc})",
+                {"n": screen.name, "sc": screen.sections_count},
+            )
+            self._declared_screen_names.add(screen.name)
+
     def write_component(
         self,
         comp: ExtractedComponent,
@@ -154,7 +168,7 @@ class GraphWriter:
         Insert Component node with its Style, Interaction, UIText sub-nodes
         and the CONTAINS relationships to child components.
         """
-        if comp.name in self._inserted_comp_names:
+        if comp.name in self._resolved_comp_names:
             logger.debug("writer: skipping duplicate component %s", comp.name)
             return
 
@@ -171,7 +185,15 @@ class GraphWriter:
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
                  "o": comp.occurrence, "c": comp.classes},
             )
-        self._inserted_comp_names.add(comp.name)
+        else:
+            self._safe_execute(
+                "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.jsx_snippet=$s, "
+                "c.occurrence=$o, c.classes=$c",
+                {"n": comp.name, "t": comp.comp_type, "s": jsx,
+                 "o": comp.occurrence, "c": comp.classes},
+            )
+        self._known_comp_names.add(comp.name)
+        self._resolved_comp_names.add(comp.name)
 
         # Styles
         for style in comp.styles:
@@ -238,7 +260,7 @@ class GraphWriter:
         # CONTAINS relationships: create immediately for already-inserted children;
         # defer the rest so flush_pending_contains() can retry after all nodes exist.
         for child_name in comp.child_refs:
-            if child_name in self._inserted_comp_names:
+            if child_name in self._resolved_comp_names:
                 self._write_contains_edge(comp.name, child_name)
             else:
                 # Child not yet in graph — queue for deferred write
@@ -255,7 +277,7 @@ class GraphWriter:
         created = 0
         still_pending: set[tuple[str, str]] = set()
         for parent, child in self._pending_contains:
-            if child in self._inserted_comp_names:
+            if child in self._resolved_comp_names:
                 if self._write_contains_edge(parent, child):
                     created += 1
             else:
@@ -293,12 +315,29 @@ class GraphWriter:
         Insert Screen node, USES_COMPONENT edges, Section nodes, and SECTION_USES edges.
         Creates "shell" Component nodes for references that were never extracted as functions.
         """
-        self._safe_execute(
-            "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc})",
-            {"n": screen.name, "cc": len(screen.component_refs), "sc": len(sections)},
-        )
+        component_refs = [
+            name for name in screen.component_refs if name not in self._declared_screen_names
+        ]
+        if screen.name in self._declared_screen_names:
+            self._safe_execute(
+                "MATCH (s:Screen {name:$n}) "
+                "SET s.component_count=$cc, s.sections_count=$sc",
+                {"n": screen.name, "cc": len(component_refs), "sc": len(sections)},
+            )
+        else:
+            self._safe_execute(
+                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc})",
+                {"n": screen.name, "cc": len(component_refs), "sc": len(sections)},
+            )
 
         for comp_name in screen.component_refs:
+            if comp_name in self._declared_screen_names:
+                self._safe_execute(
+                    "MATCH (s:Screen {name:$sn}),(target:Screen {name:$tn}) "
+                    "CREATE (s)-[:USES_SCREEN]->(target)",
+                    {"sn": screen.name, "tn": comp_name},
+                )
+                continue
             self._ensure_component_exists(comp_name)
             rel_key = f"{screen.name}→{comp_name}"
             self._safe_execute(
@@ -335,6 +374,13 @@ class GraphWriter:
             self._write_section_styles(section.id, section.styles)
             self._write_section_texts(section.id, section.texts)
             for comp_name in section.component_refs:
+                if comp_name in self._declared_screen_names:
+                    self._safe_execute(
+                        "MATCH (sec:Section {id:$sid}),(target:Screen {name:$tn}) "
+                        "CREATE (sec)-[:SECTION_USES_SCREEN]->(target)",
+                        {"sid": section.id, "tn": comp_name},
+                    )
+                    continue
                 self._ensure_component_exists(comp_name)
                 self._safe_execute(
                     "MATCH (sec:Section {id:$sid}),(c:Component {name:$cn}) "
@@ -435,18 +481,18 @@ class GraphWriter:
 
     def _ensure_component_exists(self, name: str) -> None:
         """Create a minimal 'shell' component if it hasn't been inserted yet."""
-        if name in self._inserted_comp_names:
+        if name in self._known_comp_names:
             return
         if self._node_exists("Component", "name", name):
-            self._inserted_comp_names.add(name)
+            self._known_comp_names.add(name)
             return
         ok = self._safe_execute(
             "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
-            "occurrence:1, classes:''})",
-            {"n": name, "t": "component"},
+            "occurrence:$o, classes:''})",
+            {"n": name, "t": "component", "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )
         if ok or self._node_exists("Component", "name", name):
-            self._inserted_comp_names.add(name)
+            self._known_comp_names.add(name)
 
     def _node_exists(self, label: str, key: str, value: str) -> bool:
         """

@@ -312,6 +312,8 @@ def _run_build(argv: list[str]) -> None:
             "status":           "built",
             "screens":          stats.screens,
             "components":       stats.components,
+            "extracted_components": stats.extracted_components,
+            "unresolved_components": stats.unresolved_components,
             "tokens":           stats.tokens,
             "sections":         stats.sections,
             "interactions":     stats.interactions,
@@ -594,6 +596,10 @@ def _print_build_summary(html_path: Path, db_path: Path, stats) -> None:
     print(f"{'─' * w}")
     print(f"  Screens:      {stats.screens:>4}    Sections:   {stats.sections:>4}")
     print(f"  Components:   {stats.components:>4}    Tokens:     {stats.tokens:>4}")
+    print(
+        f"  Extracted:    {stats.extracted_components:>4}    "
+        f"Unresolved: {stats.unresolved_components:>4}"
+    )
     print(f"  UITexts:      {stats.texts:>4}    Styles:     {stats.styles:>4}")
     print(f"  Interactions: {stats.interactions:>4}    CONTAINS:   {stats.contains_rels:>4}")
     print(f"  Props:        {stats.component_props:>4}    SecStyles:  {stats.section_styles:>4}")

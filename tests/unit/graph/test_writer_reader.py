@@ -162,6 +162,62 @@ class TestWriteComponent:
         assert result.get_next()[0] == 1
         assert "duplicated primary key value MenuFormModal" not in caplog.text
 
+        resolved = conn.execute(
+            "MATCH (c:Component {name:'MenuFormModal'}) "
+            "RETURN c.occurrence, c.jsx_snippet"
+        ).get_next()
+        assert resolved == [1, "<div/>"]
+
+    def test_screen_reference_creates_unresolved_component_shell(self, writer):
+        gw, conn = writer
+        screen = ExtractedScreen(
+            name="ShellPage", component_refs=["MissingCard"], sections_count=0
+        )
+
+        gw.write_screen(screen, [], {})
+
+        occurrence = conn.execute(
+            "MATCH (c:Component {name:'MissingCard'}) RETURN c.occurrence"
+        ).get_next()[0]
+        assert occurrence == 0
+
+    def test_declared_screen_reference_is_not_created_as_component_shell(self, writer):
+        gw, conn = writer
+        dashboard = ExtractedScreen("DashboardPage", ["FreeDashboard"], 0)
+        free = ExtractedScreen("FreeDashboard", [], 0)
+        gw.declare_screens([dashboard, free])
+
+        gw.write_screen(dashboard, [], {})
+
+        component_count = conn.execute(
+            "MATCH (c:Component {name:'FreeDashboard'}) RETURN count(c)"
+        ).get_next()[0]
+        screen_links = conn.execute(
+            "MATCH (:Screen {name:'DashboardPage'})-[:USES_SCREEN]->"
+            "(:Screen {name:'FreeDashboard'}) RETURN count(*)"
+        ).get_next()[0]
+        assert component_count == 0
+        assert screen_links == 1
+
+    def test_section_can_reference_declared_screen(self, writer):
+        gw, conn = writer
+        parent = ExtractedScreen("RestaurantDetail", [], 1)
+        child = ExtractedScreen("RestaurantSectorsView", [], 0)
+        section = ExtractedSection(
+            id="sectors", screen="RestaurantDetail", name="Sectors", styles={},
+            component_refs=["RestaurantSectorsView"], texts=[], jsx_snippet="<div/>",
+            detection_method="semantic",
+        )
+        gw.declare_screens([parent, child])
+
+        gw.write_screen(parent, [section], {})
+
+        links = conn.execute(
+            "MATCH (:Section {id:'sectors'})-[:SECTION_USES_SCREEN]->"
+            "(:Screen {name:'RestaurantSectorsView'}) RETURN count(*)"
+        ).get_next()[0]
+        assert links == 1
+
     def test_creates_contains_relation(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("ChildComp"), {})
@@ -260,6 +316,19 @@ class TestGetStats:
         gw, _ = writer
         stats = gw.get_stats()
         assert all(v == 0 for v in stats.values())
+
+    def test_distinguishes_extracted_and_unresolved_components(self, writer):
+        gw, _ = writer
+        gw.write_component(TestWriteComponent()._make_comp("KnownCard"), {})
+        gw.write_screen(
+            ExtractedScreen("ShellPage", ["KnownCard", "MissingCard"], 0), [], {}
+        )
+
+        stats = gw.get_stats()
+
+        assert stats["components"] == 2
+        assert stats["extracted_components"] == 1
+        assert stats["unresolved_components"] == 1
 
 
 # ── Reader tests ──────────────────────────────────────────────────────────────
