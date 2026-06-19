@@ -106,6 +106,14 @@ class TestAutoDetectDb:
         result = _auto_detect_db()
         assert result.suffix == ".db"
 
+    def test_refuses_to_choose_silently_when_multiple_databases_exist(self, tmp_path, monkeypatch):
+        (tmp_path / "one.db").mkdir()
+        (tmp_path / "two.db").mkdir()
+        monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
+        from design_graph.cli.build import _auto_detect_db
+        with pytest.raises(SystemExit):
+            _auto_detect_db()
+
 
 # ── collect_graph_status with real data ──────────────────────────────────────
 
@@ -121,6 +129,14 @@ class TestCollectGraphStatusRealData:
         _, db_path, state_path = built_graph
         report = collect_graph_status(db_path=db_path, state_path=state_path)
         assert report.node_counts.get("screens", 0) >= 1
+
+    def test_health_metrics_include_token_distribution_and_connectivity(self, built_graph):
+        from design_graph.cli.status import collect_graph_status
+        _, db_path, state_path = built_graph
+        report = collect_graph_status(db_path=db_path, state_path=state_path)
+        assert sum(report.health.token_categories.values()) == report.node_counts["tokens"]
+        assert report.health.screens_with_components <= report.node_counts["screens"]
+        assert report.health.components_with_screens <= report.node_counts["components"]
 
     def test_stale_detection_with_html_path(self, built_graph):
         from design_graph.cli.status import collect_graph_status

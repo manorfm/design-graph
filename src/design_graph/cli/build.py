@@ -32,6 +32,7 @@ from pathlib import Path
 
 from design_graph.cli._logging import configure_cli_logging
 from design_graph.paths import default_db_for
+from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
 
 
 # ── Typed argument containers ─────────────────────────────────────────────────
@@ -52,6 +53,7 @@ class ValidateCliArgs:
     db_path:     Path | None
     verbose:     bool
     json_output: bool
+    document:    str | None = None
 
 
 @dataclass
@@ -66,6 +68,7 @@ class ChunkCliArgs:
 class StatusCliArgs:
     db_path: Path | None
     verbose: bool
+    document: str | None = None
 
 
 @dataclass
@@ -76,6 +79,7 @@ class ReportCliArgs:
     include_tokens: bool
     include_jsx:    bool
     verbose:        bool
+    document:       str | None = None
 
 
 # ── Argument parsers (pure, testable, no I/O) ─────────────────────────────────
@@ -88,10 +92,12 @@ def parse_status_args(argv: list[str]) -> StatusCliArgs:
         add_help=True,
     )
     p.add_argument("--db",      dest="db_path", type=Path, default=None,
-                   metavar="PATH", help="Graph database to inspect (default: auto-discover)")
+                   metavar="PATH", help="Graph database path")
+    p.add_argument("--doc", dest="document", default=None, metavar="NAME",
+                   help="Prototype name to inspect")
     p.add_argument("--verbose", action="store_true", help="Show debug-level logs")
     ns = p.parse_args(argv)
-    return StatusCliArgs(db_path=ns.db_path, verbose=ns.verbose)
+    return StatusCliArgs(db_path=ns.db_path, document=ns.document, verbose=ns.verbose)
 
 
 def parse_build_args(argv: list[str]) -> BuildCliArgs:
@@ -141,12 +147,15 @@ def parse_validate_args(argv: list[str]) -> ValidateCliArgs:
         add_help=True,
     )
     p.add_argument("--db",      dest="db_path", type=Path, default=None,
-                   metavar="PATH", help="Graph database to validate (default: auto-discover)")
+                   metavar="PATH", help="Graph database path")
+    p.add_argument("--doc", dest="document", default=None, metavar="NAME",
+                   help="Prototype name to validate")
     p.add_argument("--verbose", action="store_true", help="Show debug-level logs")
     p.add_argument("--json",    dest="json_output", action="store_true",
                    help="Output validation report as JSON")
     ns = p.parse_args(argv)
-    return ValidateCliArgs(db_path=ns.db_path, verbose=ns.verbose, json_output=ns.json_output)
+    return ValidateCliArgs(db_path=ns.db_path, document=ns.document,
+                           verbose=ns.verbose, json_output=ns.json_output)
 
 
 def parse_chunk_args(argv: list[str]) -> ChunkCliArgs:
@@ -181,7 +190,9 @@ def parse_report_args(argv: list[str]) -> ReportCliArgs:
         add_help=True,
     )
     p.add_argument("--db",       dest="db_path",        type=Path, default=None,
-                   metavar="PATH", help="Graph database to read (default: auto-discover)")
+                   metavar="PATH", help="Graph database path")
+    p.add_argument("--doc", dest="document", default=None, metavar="NAME",
+                   help="Prototype name to report")
     p.add_argument("--output",   dest="output_path",    type=Path, default=None,
                    metavar="FILE", help="Write report to this Markdown file (default: stdout)")
     p.add_argument("--name",     dest="prototype_name", default=None,
@@ -199,6 +210,7 @@ def parse_report_args(argv: list[str]) -> ReportCliArgs:
         include_tokens=ns.include_tokens,
         include_jsx=ns.include_jsx,
         verbose=ns.verbose,
+        document=ns.document,
     )
 
 
@@ -216,6 +228,8 @@ def main() -> None:
         _run_validate(args[1:])
     elif args and args[0] == "report":
         _run_report(args[1:])
+    elif args and args[0] == "db":
+        _run_database(args[1:])
     else:
         _run_build(args)
 
@@ -236,11 +250,32 @@ def _run_build(argv: list[str]) -> None:
         print(f"error: file not found: {parsed.html_path}", file=sys.stderr)
         sys.exit(1)
 
-    db_path    = parsed.db_path or default_db_for(parsed.html_path.stem)
-    state_path = db_path.parent / ".graph-state.json"
+    db_path = parsed.db_path or default_db_for(parsed.html_path.stem)
+    from design_graph.pipeline.state import BuildStateRepository
+    state_repository = BuildStateRepository.for_database(db_path)
+    state_path = state_repository.path
+    from design_graph.core.graph_catalog import GraphCatalog
+    catalog = GraphCatalog.discover(db_path.parent)
+    state_repository.migrate_legacy(
+        db_path.parent / ".graph-state.json",
+        known_databases=tuple(database.path for database in catalog.databases),
+    )
 
-    if parsed.force:
-        state_path.unlink(missing_ok=True)
+    previous_state = state_repository.load()
+    source_changed = bool(
+        previous_state.source_path
+        and Path(previous_state.source_path).resolve() != parsed.html_path.resolve()
+    )
+    if source_changed:
+        print(
+            f"warning: {db_path.name} was previously built from {previous_state.source_path}; "
+            f"it will be replaced with {parsed.html_path}",
+            file=sys.stderr,
+        )
+
+    effective_force = parsed.force or source_changed
+    if effective_force:
+        state_repository.clear()
 
     from design_graph.pipeline.build_progress import SilentBuildReporter, TerminalBuildReporter
     reporter = (
@@ -252,7 +287,7 @@ def _run_build(argv: list[str]) -> None:
     stats = asyncio.run(run_pipeline(
         parsed.html_path, db_path, state_path,
         show_diff=parsed.show_diff,
-        force=parsed.force,
+        force=effective_force,
         reporter=reporter,
     ))
 
@@ -296,7 +331,8 @@ def _print_main_help() -> None:
             "  chunk     Export prototype content as AI-ready JSONL chunks\n"
             "  status    Show database health and last build information\n"
             "  validate  Validate database integrity (supports JSON output)\n"
-            "  report    Generate a Markdown prototype report\n\n"
+            "  report    Generate a Markdown prototype report\n"
+            "  db        List, inspect and select graph databases\n\n"
             "build options:\n"
             "  --db PATH    Write to a custom database path\n"
             "  --diff       Show changes since the previous build\n"
@@ -355,14 +391,14 @@ async def _extract_chunks_react(sources) -> tuple[dict, list, dict]:
     """Extract chunk data from a React/bundled prototype."""
     from collections import Counter
 
-    from design_graph.extraction.component_extractor import extract_all_components
+    from design_graph.extraction.component_extractor import extract_all_components, select_renderable_boundaries
     from design_graph.extraction.screen_extractor import extract_screens
     from design_graph.extraction.section_extractor import extract_sections
     from design_graph.parsing.js_parser import find_all_boundaries, find_function_boundaries
     from design_graph.parsing.token_extractor import build_token_map, extract_tokens
     from design_graph.core.patterns import RE_SCREEN_FN
 
-    all_bounds  = find_all_boundaries(sources.js)
+    all_bounds  = select_renderable_boundaries(sources.js, find_all_boundaries(sources.js))
     tokens      = extract_tokens(sources)
     token_map   = build_token_map(tokens)
     occurrences = Counter(b.name for b in all_bounds)
@@ -419,7 +455,7 @@ def _run_validate(argv: list[str]) -> None:
 
     configure_cli_logging(verbose=parsed.verbose)
 
-    db_path = parsed.db_path or _auto_detect_db()
+    db_path = _select_database(parsed.db_path, parsed.document)
     report  = validate_graph(db_path)
 
     if parsed.json_output:
@@ -441,10 +477,22 @@ def _run_status(argv: list[str]) -> None:
 
     configure_cli_logging(verbose=parsed.verbose)
 
-    db_path    = parsed.db_path or _auto_detect_db()
-    state_path = db_path.parent / ".graph-state.json"
+    from design_graph.workspace import GraphWorkspace
+    workspace = GraphWorkspace.open()
+    if workspace.catalog.databases or parsed.db_path or parsed.document:
+        selected = _select_graph(parsed.db_path, parsed.document)
+        db_path = selected.database.path
+        selection_source = selected.source.value
+    else:
+        db_path = workspace.catalog.directory / "design-graph.db"
+        selection_source = "empty workspace"
+    from design_graph.pipeline.state import BuildStateRepository
+    state_path = BuildStateRepository.for_database(db_path).path
 
-    report = collect_graph_status(db_path=db_path, state_path=state_path)
+    report = collect_graph_status(
+        db_path=db_path, state_path=state_path,
+        selection_source=selection_source,
+    )
     print(render_status_report(report))
 
 
@@ -456,7 +504,7 @@ def _run_report(argv: list[str]) -> None:
 
     configure_cli_logging(verbose=parsed.verbose)
 
-    db_path        = parsed.db_path or _auto_detect_db()
+    db_path        = _select_database(parsed.db_path, parsed.document)
     prototype_name = parsed.prototype_name or db_path.stem
 
     report = _build_report_from_graph(db_path, prototype_name, parsed)
@@ -499,12 +547,33 @@ def _emit_report(report, output_path: Path | None) -> None:
 
 
 def _auto_detect_db() -> Path:
-    """Return the most recently modified .db in the graph directory, or a default path."""
-    from design_graph.paths import resolve_graph_dir
-    graph_dir = resolve_graph_dir()
-    dbs = sorted(graph_dir.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True) \
-          if graph_dir.exists() else []
-    return dbs[0] if dbs else graph_dir / "design-graph.db"
+    """Compatibility entry point with deterministic, ambiguity-safe selection."""
+    from design_graph.workspace import GraphWorkspace
+    workspace = GraphWorkspace.open()
+    if not workspace.catalog.databases:
+        return workspace.catalog.directory / "design-graph.db"
+    return _select_database(None, None)
+
+
+def _select_database(db_path: Path | None, document: str | None) -> Path:
+    return _select_graph(db_path, document).database.path
+
+
+def _select_graph(db_path: Path | None, document: str | None):
+    from design_graph.core.graph_catalog import GraphCatalogError
+    from design_graph.workspace import GraphWorkspace
+    try:
+        return GraphWorkspace.open().select(db_path=db_path, document=document)
+    except GraphCatalogError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
+def _run_database(argv: list[str]) -> None:
+    from design_graph.cli.databases import run_database_command
+    exit_code = run_database_command(parse_database_args(argv))
+    if exit_code:
+        raise SystemExit(exit_code)
 
 
 # ── Output formatting ─────────────────────────────────────────────────────────

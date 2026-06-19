@@ -158,6 +158,34 @@ class TestCheckNoOrphanedComponents:
             details = violations[0].details
             assert "OrphanComp" in details.get("components", [])
 
+    def test_total_is_not_truncated_to_display_sample(self):
+        class Reader:
+            def _q(self, query, params=None):
+                if "count(c)" in query:
+                    return [{"total": 278}]
+                return [{"c.name": f"Comp{i}"} for i in range(20)]
+
+        violation = _check_no_orphaned_components({}, Reader())[0]
+        assert violation.details["total"] == 278
+        assert len(violation.details["components"]) == 20
+        assert "278" in violation.message
+
+
+class TestCheckNoOrphanedScreens:
+    def test_uses_relationships_as_source_of_truth(self):
+        queries = []
+
+        class Reader:
+            def _q(self, query, params=None):
+                queries.append(query)
+                if "count(s)" in query:
+                    return [{"total": 2}]
+                return [{"s.name": "One"}, {"s.name": "Two"}]
+
+        violations = _check_no_orphaned_screens({}, Reader())
+        assert violations[0].details["total"] == 2
+        assert all("USES_COMPONENT" in query for query in queries)
+
 
 # ── _check_tokens_have_usage ──────────────────────────────────────────────────
 

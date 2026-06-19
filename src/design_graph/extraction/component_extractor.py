@@ -59,10 +59,21 @@ from design_graph.core.patterns import (
     RE_UI_STRING,
 )
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
+from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
 from design_graph.parsing.js_parser import extract_return_block
 
 logger = logging.getLogger(__name__)
+
+
+def select_renderable_boundaries(
+    js: str, boundaries: list[FunctionBoundary],
+) -> list[FunctionBoundary]:
+    """Keep only functions proven to produce visual output."""
+    return [
+        boundary for boundary in boundaries
+        if VisualFunctionCandidate.from_source(js, boundary).renders_visual_output
+    ]
 
 _COMPONENT_TYPE_MAP: list[tuple[list[str], str]] = [
     (["modal", "dialog", "confirm", "alert"],          "modal"),

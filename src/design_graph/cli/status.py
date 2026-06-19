@@ -26,6 +26,15 @@ _BYTES_PER_MB = 1024 * 1024
 # ── Domain object ─────────────────────────────────────────────────────────────
 
 @dataclass
+class GraphHealthMetrics:
+    """Relational coverage and token composition for one graph."""
+
+    token_categories: dict[str, int] = field(default_factory=dict)
+    screens_with_components: int = 0
+    components_with_screens: int = 0
+
+
+@dataclass
 class GraphStatusReport:
     """
     Immutable snapshot of a design-graph database's health.
@@ -42,6 +51,10 @@ class GraphStatusReport:
     current_html_hash: str           # hash of HTML file right now (may differ)
     kuzu_version:      str
     node_counts:       dict[str, int] = field(default_factory=dict)
+    state_path:        Path | None = None
+    source_path:       str = ""
+    selection_source:  str = ""
+    health:             GraphHealthMetrics = field(default_factory=GraphHealthMetrics)
 
     @property
     def is_stale(self) -> bool:
@@ -57,6 +70,7 @@ def collect_graph_status(
     db_path: Path,
     state_path: Path,
     html_path: Optional[Path] = None,
+    selection_source: str = "",
 ) -> GraphStatusReport:
     """
     Build a GraphStatusReport by reading:
@@ -77,9 +91,10 @@ def collect_graph_status(
     state        = load_build_state(state_path)
     db_size      = _db_size_bytes(db_path)
     node_counts: dict[str, int] = {}
+    health = GraphHealthMetrics()
 
     if db_path.exists():
-        node_counts = _read_node_counts(db_path)
+        node_counts, health = _read_graph_metrics(db_path)
 
     current_hash = ""
     if html_path and html_path.exists():
@@ -102,6 +117,10 @@ def collect_graph_status(
         current_html_hash=current_hash,
         kuzu_version=kuzu_version,
         node_counts=node_counts,
+        state_path=state_path,
+        source_path=state.source_path,
+        selection_source=selection_source,
+        health=health,
     )
 
 
@@ -117,6 +136,12 @@ def render_status_report(report: GraphStatusReport) -> str:
 
     # DB info
     lines.append(f"  Graph DB  : {report.db_path}")
+    if report.selection_source:
+        lines.append(f"  Selected  : {report.selection_source}")
+    if report.source_path:
+        lines.append(f"  Source    : {report.source_path}")
+    if report.state_path:
+        lines.append(f"  State     : {report.state_path}")
     lines.append(f"  DB size   : {_fmt_bytes(report.db_size_bytes)}")
 
     if not report.last_build:
@@ -144,6 +169,15 @@ def render_status_report(report: GraphStatusReport) -> str:
         lines.append(f"  Components:   {nc.get('components', 0):>4}    Tokens:     {nc.get('tokens', 0):>4}")
         lines.append(f"  UITexts:      {nc.get('texts', 0):>4}    Styles:     {nc.get('styles', 0):>4}")
         lines.append(f"  Interactions: {nc.get('interactions', 0):>4}    CONTAINS:   {nc.get('contains', 0):>4}")
+        lines.append(
+            f"  Connected:    {report.health.screens_with_components:>4}/{nc.get('screens', 0)} screens    "
+            f"{report.health.components_with_screens:>4}/{nc.get('components', 0)} components"
+        )
+        if report.health.token_categories:
+            categories = ", ".join(
+                f"{name}={count}" for name, count in report.health.token_categories.items()
+            )
+            lines.append(f"  Token types: {categories}")
     else:
         lines.append("  No graph data found — run design-graph <proto.html> first")
 
@@ -173,8 +207,8 @@ def _fmt_bytes(n: int) -> str:
     return f"{n} B"
 
 
-def _read_node_counts(db_path: Path) -> dict[str, int]:
-    """Open db_path read-only and return node/rel counts via STATS_QUERIES."""
+def _read_graph_metrics(db_path: Path) -> tuple[dict[str, int], GraphHealthMetrics]:
+    """Open one read-only connection and collect counts plus relational health."""
     try:
         import kuzu
         from design_graph.graph.reader import GraphReader
@@ -182,7 +216,13 @@ def _read_node_counts(db_path: Path) -> dict[str, int]:
 
         db   = kuzu.Database(str(db_path), read_only=True)
         conn = kuzu.Connection(db)
-        return GraphReader(conn).count_nodes()
+        reader = GraphReader(conn)
+        return reader.count_nodes(), GraphHealthMetrics(**reader.get_health_metrics())
     except Exception as exc:
         logger.warning("status: could not read node counts from %s: %s", db_path, exc)
-        return {}
+        return {}, GraphHealthMetrics()
+
+
+def _read_node_counts(db_path: Path) -> dict[str, int]:
+    """Backward-compatible count projection."""
+    return _read_graph_metrics(db_path)[0]

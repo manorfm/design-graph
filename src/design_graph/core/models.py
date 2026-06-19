@@ -204,6 +204,9 @@ class BuildState:
     last_build: str            # ISO datetime string
     screens: dict[str, str]    # name → content hash
     components: dict[str, int] # name → occurrence count
+    source_path: str = ""
+    database_path: str = ""
+    schema_version: int = 2
 
 
 @dataclass(frozen=True)
