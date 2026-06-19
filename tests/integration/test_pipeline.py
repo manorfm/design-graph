@@ -28,6 +28,17 @@ class TestRunPipeline:
         result = asyncio.run(run_pipeline(SIMPLE_HTML, db_path, state_path))
         assert result is None  # skipped
 
+    def test_rebuilds_when_state_exists_but_database_is_missing(self, tmp_path):
+        db_path = tmp_path / "out.db"
+        state_path = tmp_path / ".state.json"
+        asyncio.run(run_pipeline(SIMPLE_HTML, db_path, state_path))
+        db_path.unlink()
+
+        result = asyncio.run(run_pipeline(SIMPLE_HTML, db_path, state_path))
+
+        assert result is not None
+        assert db_path.exists()
+
     def test_force_rebuilds_unchanged(self, tmp_path):
         db_path = tmp_path / "out.db"
         state_path = tmp_path / ".state.json"
