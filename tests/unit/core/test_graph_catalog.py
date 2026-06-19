@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 
 import pytest
 
@@ -9,6 +10,8 @@ from design_graph.core.graph_catalog import (
     GraphSelection,
     GraphSelectionSource,
     UnknownGraphDocument,
+    GraphArtifactKind,
+    BuildArtifactRetention,
 )
 
 
@@ -59,6 +62,50 @@ class TestGraphCatalog:
         _db(tmp_path, "one")
         with pytest.raises(UnknownGraphDocument):
             GraphCatalog.discover(tmp_path).select(
-                GraphSelection(document=GraphDocumentName("missing"))
+            GraphSelection(document=GraphDocumentName("missing"))
             )
 
+
+class TestGraphMaintenancePlans:
+    def test_removal_plan_owns_database_state_and_build_temp(self, tmp_path):
+        database = _db(tmp_path, "old")
+        state = tmp_path / "old.db.state.json"
+        state.write_text("{}")
+        building = tmp_path / ".old.db.building"
+        building.mkdir()
+        plan = GraphCatalog.discover(tmp_path).plan_removal(GraphDocumentName("old"))
+        assert {artifact.kind for artifact in plan.artifacts} == {
+            GraphArtifactKind.DATABASE,
+            GraphArtifactKind.STATE,
+            GraphArtifactKind.BUILD_TEMP,
+        }
+        result = plan.execute()
+        assert result.removed_count == 3
+        assert not database.exists() and not state.exists() and not building.exists()
+
+    def test_prune_plan_contains_only_orphan_states_and_build_temps(self, tmp_path):
+        _db(tmp_path, "active")
+        active_state = tmp_path / "active.db.state.json"
+        active_state.write_text("{}")
+        orphan_state = tmp_path / "missing.db.state.json"
+        orphan_state.write_text("{}")
+        building = tmp_path / ".aborted.db.building"
+        building.mkdir()
+        plan = GraphCatalog.discover(tmp_path).plan_prune(
+            retention=BuildArtifactRetention(timedelta(0))
+        )
+        assert {artifact.path for artifact in plan.artifacts} == {orphan_state, building}
+
+    def test_dry_run_does_not_delete_artifacts(self, tmp_path):
+        orphan_state = tmp_path / "missing.db.state.json"
+        orphan_state.write_text("{}")
+        plan = GraphCatalog.discover(tmp_path).plan_prune()
+        result = plan.preview()
+        assert result.removed_count == 0
+        assert orphan_state.exists()
+
+    def test_prune_preserves_recent_build_temp_by_default(self, tmp_path):
+        building = tmp_path / ".active.db.building"
+        building.mkdir()
+        plan = GraphCatalog.discover(tmp_path).plan_prune()
+        assert building not in {artifact.path for artifact in plan.artifacts}

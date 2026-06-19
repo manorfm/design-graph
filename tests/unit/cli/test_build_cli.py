@@ -199,6 +199,17 @@ class TestDatabaseArgs:
         args = parse_database_args(["info", "prototype"])
         assert args.document == "prototype"
 
+    def test_remove_supports_force(self):
+        args = parse_database_args(["remove", "prototype", "--force"])
+        assert args.action == "remove"
+        assert args.document == "prototype"
+        assert args.force is True
+
+    def test_prune_supports_dry_run(self):
+        args = parse_database_args(["prune", "--dry-run"])
+        assert args.action == "prune"
+        assert args.dry_run is True
+
     def test_list_command_reports_available_databases(self, tmp_path, monkeypatch, capsys):
         (tmp_path / "admin.db").mkdir()
         monkeypatch.setenv("GRAPH_DIR", str(tmp_path))

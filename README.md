@@ -171,9 +171,17 @@ design-graph db list --json
 design-graph db current
 design-graph db use "app-v1"
 design-graph db info "app-v1"
+design-graph db remove "old-prototype"
+design-graph db remove "old-prototype" --force
+design-graph db prune --dry-run
+design-graph db prune
 ```
 
 `db use` persists `default_doc` in the user configuration. Database names are filenames without the `.db` suffix.
+
+`db remove` deletes the selected database, its `<database>.state.json`, and any interrupted build directory owned by it. It asks for confirmation unless `--force` is supplied. If the removed database was the configured default, only `default_doc` is cleared; other settings are preserved.
+
+`db prune` removes per-database state files whose database no longer exists and interrupted build directories older than one hour. Use `--dry-run` to inspect the plan without deleting anything. Stop MCP or other processes holding the database before removal.
 
 Run `design-graph <command> --help` for the complete options of a command.
 
@@ -374,6 +382,8 @@ make impact C='SectionCard'
 make screen S='RestaurantsPage'
 
 make list-graphs
+make remove-db DOC='old-prototype'
+make prune-dbs
 make clean-graph DB=/path/to/prototype.db
 make clean-all
 ```
