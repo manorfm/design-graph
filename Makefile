@@ -26,6 +26,8 @@ help:
 	@echo "    make rebuild PROTO=file.html     Force a full rebuild"
 	@echo "    make databases                   List graph databases"
 	@echo "    make use-db DOC='prototype'      Select the default prototype"
+	@echo "    make remove-db DOC='prototype'   Remove a graph and its state"
+	@echo "    make prune-dbs                   Preview orphan cleanup"
 	@echo ""
 	@echo "  MCP Server"
 	@echo "    make start                       Start MCP server in background"
@@ -77,6 +79,13 @@ databases:
 use-db:
 	@test -n "$(DOC)" || (echo "Usage: make use-db DOC='prototype'" && exit 1)
 	@GRAPH_DIR=$(DB_DIR) $(DESIGN_GRAPH) db use "$(DOC)"
+
+remove-db:
+	@test -n "$(DOC)" || (echo "Usage: make remove-db DOC='prototype'" && exit 1)
+	@GRAPH_DIR=$(DB_DIR) $(DESIGN_GRAPH) db remove "$(DOC)"
+
+prune-dbs:
+	@GRAPH_DIR=$(DB_DIR) $(DESIGN_GRAPH) db prune --dry-run
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MCP Server
@@ -189,7 +198,7 @@ clean-all:
 	@printf "Remove all graphs in $(DB_DIR)? [y/N] " && read c && \
 	[ "$$c" = "y" ] && rm -rf $(DB_DIR)/*.db && echo "Done." || echo "Cancelled."
 
-.PHONY: help build diff rebuild databases use-db start stop restart status logs \
+.PHONY: help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
         screens tokens search inspect impact screen \
         install-hooks push version \
         list-graphs clean-graph clean-all

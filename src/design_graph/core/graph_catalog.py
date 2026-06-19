@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
+import shutil
 
 
 @dataclass(frozen=True)
@@ -41,15 +43,109 @@ class GraphDatabase:
 
     @property
     def size_bytes(self) -> int:
-        if not self.path.exists():
-            return 0
-        if self.path.is_file():
-            return self.path.stat().st_size
-        return sum(item.stat().st_size for item in self.path.rglob("*") if item.is_file())
+        return GraphArtifact(self.path, GraphArtifactKind.DATABASE).size_bytes
 
     @property
     def modified_at(self) -> float:
         return self.path.stat().st_mtime if self.path.exists() else 0.0
+
+    @property
+    def build_temp_path(self) -> Path:
+        return self.path.parent / f".{self.path.name}.building"
+
+
+class GraphArtifactKind(str, Enum):
+    DATABASE = "database"
+    STATE = "state"
+    BUILD_TEMP = "build-temp"
+
+
+@dataclass(frozen=True)
+class BuildArtifactRetention:
+    """Safety policy preventing prune from deleting an active build."""
+
+    minimum_age: timedelta = timedelta(hours=1)
+
+    def considers_stale(self, artifact: "GraphArtifact", now: datetime | None = None) -> bool:
+        if not artifact.exists:
+            return False
+        reference = now or datetime.now(timezone.utc)
+        modified = datetime.fromtimestamp(artifact.path.stat().st_mtime, timezone.utc)
+        return reference - modified >= self.minimum_age
+
+
+@dataclass(frozen=True)
+class GraphArtifact:
+    """One filesystem artifact owned by graph maintenance."""
+
+    path: Path
+    kind: GraphArtifactKind
+
+    @property
+    def exists(self) -> bool:
+        return self.path.exists() or self.path.is_symlink()
+
+    @property
+    def size_bytes(self) -> int:
+        if not self.exists:
+            return 0
+        if self.path.is_symlink() or self.path.is_file():
+            return self.path.lstat().st_size
+        return sum(item.stat().st_size for item in self.path.rglob("*") if item.is_file())
+
+    def remove(self) -> bool:
+        if not self.exists:
+            return False
+        if self.path.is_symlink() or self.path.is_file():
+            self.path.unlink()
+        else:
+            shutil.rmtree(self.path)
+        return True
+
+
+@dataclass(frozen=True)
+class MaintenanceResult:
+    """Immutable outcome distinguishing planned from deleted artifacts."""
+
+    planned: tuple[GraphArtifact, ...]
+    removed: tuple[GraphArtifact, ...] = ()
+    planned_bytes: int = 0
+    reclaimed_bytes: int = 0
+
+    @property
+    def removed_count(self) -> int:
+        return len(self.removed)
+
+@dataclass(frozen=True)
+class GraphMaintenancePlan:
+    """Executable, inspectable plan for one destructive maintenance operation."""
+
+    operation: str
+    artifacts: tuple[GraphArtifact, ...]
+    document: GraphDocumentName | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.artifacts
+
+    def preview(self) -> MaintenanceResult:
+        return MaintenanceResult(
+            planned=self.artifacts,
+            planned_bytes=sum(artifact.size_bytes for artifact in self.artifacts),
+        )
+
+    def execute(self) -> MaintenanceResult:
+        measured = tuple((artifact, artifact.size_bytes) for artifact in self.artifacts)
+        removed_with_sizes = tuple(
+            (artifact, size) for artifact, size in measured if artifact.remove()
+        )
+        removed = tuple(artifact for artifact, _ in removed_with_sizes)
+        return MaintenanceResult(
+            planned=self.artifacts,
+            removed=removed,
+            planned_bytes=sum(size for _, size in measured),
+            reclaimed_bytes=sum(size for _, size in removed_with_sizes),
+        )
 
 
 class GraphSelectionSource(str, Enum):
@@ -145,3 +241,35 @@ class GraphCatalog:
             if requested.matches(database.name):
                 return database
         raise UnknownGraphDocument(requested, self.names)
+
+    def plan_removal(self, document: GraphDocumentName) -> GraphMaintenancePlan:
+        database = self._find(document)
+        candidates = (
+            GraphArtifact(database.state_path, GraphArtifactKind.STATE),
+            GraphArtifact(database.build_temp_path, GraphArtifactKind.BUILD_TEMP),
+            GraphArtifact(database.path, GraphArtifactKind.DATABASE),
+        )
+        return GraphMaintenancePlan(
+            operation="remove",
+            document=database.name,
+            artifacts=tuple(artifact for artifact in candidates if artifact.exists),
+        )
+
+    def plan_prune(
+        self,
+        retention: BuildArtifactRetention | None = None,
+        now: datetime | None = None,
+    ) -> GraphMaintenancePlan:
+        if not self.directory.exists():
+            return GraphMaintenancePlan(operation="prune", artifacts=())
+        artifacts: list[GraphArtifact] = []
+        for state_path in sorted(self.directory.glob("*.db.state.json")):
+            database_path = Path(str(state_path)[:-len(".state.json")])
+            if not database_path.exists():
+                artifacts.append(GraphArtifact(state_path, GraphArtifactKind.STATE))
+        policy = retention or BuildArtifactRetention()
+        for temp_path in sorted(self.directory.glob(".*.db.building")):
+            artifact = GraphArtifact(temp_path, GraphArtifactKind.BUILD_TEMP)
+            if policy.considers_stale(artifact, now):
+                artifacts.append(artifact)
+        return GraphMaintenancePlan(operation="prune", artifacts=tuple(artifacts))
