@@ -36,7 +36,7 @@ class TestJsonFlag:
     def test_build_cli_args_has_json_output_field(self, tmp_path):
         args = BuildCliArgs(
             html_path=tmp_path / "p.html",
-            db_path=None, show_diff=False, force=False,
+            db_path=None, prototype_name=None, show_diff=False, force=False,
             verbose=False, quiet=False, json_output=True,
         )
         assert args.json_output is True

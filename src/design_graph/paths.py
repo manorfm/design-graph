@@ -13,6 +13,8 @@ import json
 import os
 from pathlib import Path
 
+from design_graph.core.graph_catalog import GraphDocumentName
+
 
 def _xdg_data_home() -> Path:
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
@@ -57,8 +59,9 @@ def resolve_graph_dir() -> Path:
     return data_dir()
 
 
-def default_db_for(proto_stem: str) -> Path:
+def default_db_for(proto_stem: str | GraphDocumentName) -> Path:
     """Return the default .db path for a given prototype file stem."""
+    document = proto_stem if isinstance(proto_stem, GraphDocumentName) else GraphDocumentName(proto_stem)
     d = resolve_graph_dir()
     d.mkdir(parents=True, exist_ok=True)
-    return d / f"{proto_stem}.db"
+    return d / f"{document.value}.db"

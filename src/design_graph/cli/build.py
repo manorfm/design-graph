@@ -6,6 +6,7 @@ Commands:
   design-graph <proto.html> --diff              show what changed since last build
   design-graph <proto.html> --force             rebuild even if HTML is unchanged
   design-graph <proto.html> --db <path>         save graph to a custom path
+  design-graph <proto.html> --name <name>       save graph as <name>.db
   design-graph <proto.html> --verbose           show debug-level pipeline logs
   design-graph <proto.html> --quiet             suppress all output except errors
   design-graph --version                        print version and exit
@@ -31,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from design_graph.cli._logging import configure_cli_logging
+from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.paths import default_db_for
 from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
 
@@ -41,6 +43,7 @@ from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
 class BuildCliArgs:
     html_path:   Path
     db_path:     Path | None
+    prototype_name: GraphDocumentName | None
     show_diff:   bool
     force:       bool
     verbose:     bool
@@ -75,7 +78,7 @@ class StatusCliArgs:
 class ReportCliArgs:
     db_path:        Path | None
     output_path:    Path | None   # None → write to stdout
-    prototype_name: str | None    # None → infer from db_path stem
+    prototype_name: str | None    # None → infer from selected db stem
     include_tokens: bool
     include_jsx:    bool
     verbose:        bool
@@ -115,8 +118,11 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
     )
     p.add_argument("--version", action="version", version=f"design-graph {_version}")
     p.add_argument("html_path", type=Path, help="Path to the prototype HTML file")
-    p.add_argument("--db",    dest="db_path", type=Path, default=None,
-                   metavar="PATH", help="Custom graph database path")
+    target = p.add_mutually_exclusive_group()
+    target.add_argument("--db", dest="db_path", type=Path, default=None,
+                        metavar="PATH", help="Custom graph database path")
+    target.add_argument("--name", dest="prototype_name", type=GraphDocumentName, default=None,
+                        metavar="NAME", help="Database name to use as the file stem")
     p.add_argument("--diff",  dest="show_diff", action="store_true",
                    help="Show what changed since the last build")
     p.add_argument("--force", action="store_true",
@@ -131,6 +137,7 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
     return BuildCliArgs(
         html_path=ns.html_path,
         db_path=ns.db_path,
+        prototype_name=ns.prototype_name,
         show_diff=ns.show_diff,
         force=ns.force,
         verbose=ns.verbose,
@@ -250,7 +257,7 @@ def _run_build(argv: list[str]) -> None:
         print(f"error: file not found: {parsed.html_path}", file=sys.stderr)
         sys.exit(1)
 
-    db_path = parsed.db_path or default_db_for(parsed.html_path.stem)
+    db_path = parsed.db_path or default_db_for(parsed.prototype_name or parsed.html_path.stem)
     from design_graph.pipeline.state import BuildStateRepository
     state_repository = BuildStateRepository.for_database(db_path)
     state_path = state_repository.path
@@ -335,6 +342,7 @@ def _print_main_help() -> None:
             "  db        List, inspect and select graph databases\n\n"
             "build options:\n"
             "  --db PATH    Write to a custom database path\n"
+            "  --name NAME  Write to <name>.db under the graph directory\n"
             "  --diff       Show changes since the previous build\n"
             "  --force      Rebuild even when the HTML is unchanged\n"
             "  --verbose    Show debug-level logs\n"

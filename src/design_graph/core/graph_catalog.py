@@ -21,6 +21,10 @@ class GraphDocumentName:
             normalized = normalized[:-3]
         if not normalized:
             raise ValueError("graph document name cannot be empty")
+        if normalized in {".", ".."}:
+            raise ValueError("graph document name cannot be a path segment")
+        if Path(normalized).name != normalized or "/" in normalized or "\\" in normalized:
+            raise ValueError("graph document name must be a single filename stem")
         object.__setattr__(self, "value", normalized)
 
     def matches(self, candidate: "GraphDocumentName") -> bool:
