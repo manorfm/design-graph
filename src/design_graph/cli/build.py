@@ -206,7 +206,9 @@ def parse_report_args(argv: list[str]) -> ReportCliArgs:
 
 def main() -> None:
     args = sys.argv[1:]
-    if args and args[0] == "chunk":
+    if args in (["-h"], ["--help"]):
+        _print_main_help()
+    elif args and args[0] == "chunk":
         _run_chunk(args[1:])
     elif args and args[0] == "status":
         _run_status(args[1:])
@@ -221,12 +223,12 @@ def main() -> None:
 # ── Command implementations ───────────────────────────────────────────────────
 
 def _run_build(argv: list[str]) -> None:
-    from design_graph.pipeline.coordinator import run_pipeline
-
     try:
         parsed = parse_build_args(argv)
     except SystemExit:
         raise
+
+    from design_graph.pipeline.coordinator import run_pipeline
 
     configure_cli_logging(verbose=parsed.verbose, quiet=parsed.quiet)
 
@@ -280,6 +282,36 @@ def _run_build(argv: list[str]) -> None:
         }))
     elif not parsed.quiet:
         _print_build_summary(parsed.html_path, db_path, stats)
+
+
+def _print_main_help() -> None:
+    """Print the complete command overview without importing pipeline dependencies."""
+    parser = argparse.ArgumentParser(
+        prog="design-graph",
+        description="Parse prototype HTML into a Kuzu design graph.",
+        usage="design-graph [--version] <html_path> [build options]\n"
+              "       design-graph COMMAND [options]",
+        epilog=(
+            "commands:\n"
+            "  chunk     Export prototype content as AI-ready JSONL chunks\n"
+            "  status    Show database health and last build information\n"
+            "  validate  Validate database integrity (supports JSON output)\n"
+            "  report    Generate a Markdown prototype report\n\n"
+            "build options:\n"
+            "  --db PATH    Write to a custom database path\n"
+            "  --diff       Show changes since the previous build\n"
+            "  --force      Rebuild even when the HTML is unchanged\n"
+            "  --verbose    Show debug-level logs\n"
+            "  --quiet      Suppress output except errors\n"
+            "  --json       Emit machine-readable build output\n\n"
+            "Run 'design-graph COMMAND --help' for command-specific options."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False,
+    )
+    parser.add_argument("-h", "--help", action="help", help="Show this help message and exit")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.parse_args(["--help"])
 
 
 def _run_chunk(argv: list[str]) -> None:

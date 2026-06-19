@@ -8,15 +8,15 @@ The only mutable state here is _active_doc (changed via set_prototype).
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher
+if TYPE_CHECKING:
+    from design_graph.graph.reader import GraphReader
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -31,6 +31,8 @@ class MCPServer:
     """JSON-RPC 2.0 server. Reads from stdin, writes to stdout."""
 
     def __init__(self, readers: list[tuple[str, GraphReader]]) -> None:
+        from design_graph.mcp.tools import ToolDispatcher
+
         self._readers    = readers
         self._dispatcher = ToolDispatcher(readers)
         self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip()
@@ -62,6 +64,8 @@ class MCPServer:
             return None
 
         if method == "tools/list":
+            from design_graph.mcp.tools import TOOL_DEFINITIONS
+
             return {"jsonrpc": "2.0", "id": mid,
                     "result": {"tools": TOOL_DEFINITIONS}}
 
@@ -151,6 +155,16 @@ class MCPServer:
 
 def main() -> None:
     """Open graph databases and start the MCP server."""
+    parser = argparse.ArgumentParser(
+        prog="design-mcp",
+        description="Serve design-graph databases over MCP using JSON-RPC 2.0 on stdio.",
+    )
+    parser.add_argument("--version", action="version", version=f"design-mcp {_VERSION}")
+    # MCP hosts may append client-specific arguments; only this server's own
+    # help/version flags are relevant and unknown host arguments are ignored.
+    parser.parse_known_args()
+
+    from design_graph.graph.reader import GraphReader
     from design_graph.paths import resolve_graph_dir
 
     graph_dir = resolve_graph_dir()

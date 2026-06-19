@@ -88,6 +88,14 @@ class TestParseQueryArgs:
         args = parse_query_args(["screens"])
         assert isinstance(args, QueryCliArgs)
 
+    def test_help_lists_every_command(self, capsys):
+        with pytest.raises(SystemExit) as exc:
+            parse_query_args(["--help"])
+        assert exc.value.code == 0
+        output = capsys.readouterr().out
+        for command in ("screens", "tokens", "search", "inspect", "impact", "screen", "interactions", "children"):
+            assert command in output
+
 
 # ── dispatch_query_command ────────────────────────────────────────────────────
 
