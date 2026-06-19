@@ -19,6 +19,7 @@ from design_graph.cli.build import (
     parse_build_args,
     parse_chunk_args,
     ChunkCliArgs,
+    main,
 )
 
 
@@ -167,6 +168,19 @@ class TestBuildCliArgsContract:
         assert hasattr(args, "force")
         assert hasattr(args, "verbose")
         assert hasattr(args, "quiet")
+
+
+class TestMainHelp:
+    def test_lists_every_subcommand(self, capsys):
+        with patch("sys.argv", ["design-graph", "--help"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 0
+        output = capsys.readouterr().out
+        for command in ("chunk", "status", "validate", "report"):
+            assert command in output
+        for option in ("--db", "--diff", "--force", "--verbose", "--quiet", "--json"):
+            assert option in output
 
 
 # ── ChunkCliArgs dataclass ────────────────────────────────────────────────────

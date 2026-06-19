@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from design_graph.cli._logging import configure_cli_logging
-from design_graph.mcp.tools import ToolDispatcher
 from design_graph.paths import resolve_graph_dir
+
+if TYPE_CHECKING:
+    from design_graph.mcp.tools import ToolDispatcher
 
 
 # ── Typed argument container ──────────────────────────────────────────────────
@@ -150,6 +152,8 @@ def main() -> None:
         raise
 
     configure_cli_logging(verbose=args.verbose)
+
+    from design_graph.mcp.tools import ToolDispatcher
 
     readers = _open_all_graph_readers()
     if not readers:
