@@ -1,5 +1,5 @@
 PROTO     ?= $(shell ls *.html 2>/dev/null | head -1)
-DB_DIR    ?= $(shell python3 -c "from _paths import resolve_graph_dir; print(resolve_graph_dir())" 2>/dev/null || echo "$(HOME)/.local/share/design-graph")
+DB_DIR    ?= $(shell PYTHONPATH=$(CONTEXT)/src python3 -c "from design_graph.paths import resolve_graph_dir; print(resolve_graph_dir())" 2>/dev/null || echo "$(HOME)/.local/share/design-graph")
 GRAPH_DB  ?= $(DB_DIR)/$(basename $(PROTO)).db
 MCP_PID   := /tmp/design-mcp.pid
 MCP_LOG   := /tmp/design-mcp.log
@@ -8,10 +8,10 @@ PYTHON    := python3
 # Resolve the directory where this Makefile lives (works from any cwd)
 CONTEXT := $(shell dirname "$(abspath $(lastword $(MAKEFILE_LIST)))")
 
-# Prefer installed CLI commands; fall back to direct Python invocation
-DESIGN_GRAPH := $(shell command -v design-graph 2>/dev/null || echo "$(PYTHON) $(CONTEXT)/build_graph.py")
-DESIGN_MCP   := $(shell command -v design-mcp   2>/dev/null || echo "$(PYTHON) $(CONTEXT)/mcp_server.py")
-DESIGN_QUERY := $(shell command -v design-query 2>/dev/null || echo "$(PYTHON) $(CONTEXT)/query.py")
+# Commands are provided by the package installation (pip/pipx/editable install).
+DESIGN_GRAPH := design-graph
+DESIGN_MCP   := design-mcp
+DESIGN_QUERY := design-query
 
 .DEFAULT_GOAL := help
 
@@ -24,6 +24,8 @@ help:
 	@echo "    make build   PROTO=file.html     Build / update the graph"
 	@echo "    make diff    PROTO=file.html     Show what changed since last build"
 	@echo "    make rebuild PROTO=file.html     Force a full rebuild"
+	@echo "    make databases                   List graph databases"
+	@echo "    make use-db DOC='prototype'      Select the default prototype"
 	@echo ""
 	@echo "  MCP Server"
 	@echo "    make start                       Start MCP server in background"
@@ -68,6 +70,13 @@ diff:
 rebuild:
 	@test -n "$(PROTO)" || (echo "Error: PROTO not set." && exit 1)
 	$(DESIGN_GRAPH) "$(PROTO)" --db $(GRAPH_DB) --force
+
+databases:
+	@GRAPH_DIR=$(DB_DIR) $(DESIGN_GRAPH) db list
+
+use-db:
+	@test -n "$(DOC)" || (echo "Usage: make use-db DOC='prototype'" && exit 1)
+	@GRAPH_DIR=$(DB_DIR) $(DESIGN_GRAPH) db use "$(DOC)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MCP Server
@@ -180,7 +189,7 @@ clean-all:
 	@printf "Remove all graphs in $(DB_DIR)? [y/N] " && read c && \
 	[ "$$c" = "y" ] && rm -rf $(DB_DIR)/*.db && echo "Done." || echo "Cancelled."
 
-.PHONY: help build diff rebuild start stop restart status logs \
+.PHONY: help build diff rebuild databases use-db start stop restart status logs \
         screens tokens search inspect impact screen \
         install-hooks push version \
         list-graphs clean-graph clean-all

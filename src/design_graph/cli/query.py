@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from design_graph.cli._logging import configure_cli_logging
@@ -38,6 +39,8 @@ class QueryCliArgs:
     query:    str           = ""
     category: str | None    = None
     verbose:  bool          = False
+    document: str | None    = None
+    db_path:  Path | None   = None
 
 
 # ── Argument parser (pure, testable) ──────────────────────────────────────────
@@ -52,7 +55,12 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
     # Shared flags inherited by all subcommands so --verbose can appear
     # either before or after the subcommand keyword.
     shared = argparse.ArgumentParser(add_help=False)
-    shared.add_argument("--verbose", action="store_true", help="Show debug-level logs")
+    shared.add_argument("--verbose", action="store_true", default=argparse.SUPPRESS,
+                        help="Show debug-level logs")
+    shared.add_argument("--doc", dest="document", metavar="NAME", default=argparse.SUPPRESS,
+                        help="Prototype name")
+    shared.add_argument("--db", dest="db_path", type=Path, metavar="PATH",
+                        default=argparse.SUPPRESS, help="Graph database path")
 
     p = argparse.ArgumentParser(
         prog="design-query",
@@ -94,7 +102,9 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
         name=name,
         query=query,
         category=category,
-        verbose=ns.verbose,
+        verbose=getattr(ns, "verbose", False),
+        document=getattr(ns, "document", None),
+        db_path=getattr(ns, "db_path", None),
     )
 
 
@@ -155,7 +165,14 @@ def main() -> None:
 
     from design_graph.mcp.tools import ToolDispatcher
 
-    readers = _open_all_graph_readers()
+    from design_graph.core.graph_catalog import GraphCatalogError
+    from design_graph.workspace import GraphWorkspace
+    try:
+        selected = GraphWorkspace.open().select(db_path=args.db_path, document=args.document)
+    except GraphCatalogError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    readers = _open_graph_reader(selected.database.path)
     if not readers:
         print(f"No graphs found in {resolve_graph_dir()}", file=sys.stderr)
         print("Run: design-graph <prototype.html>", file=sys.stderr)
@@ -168,31 +185,11 @@ def main() -> None:
     dispatch_query_command(args, dispatcher, reader)
 
 
-# ── Graph reader factory ──────────────────────────────────────────────────────
-
-def _open_all_graph_readers() -> list:
-    """
-    Discover and open every .db file in the configured graph directory.
-    Silently skips databases that fail to open (corrupt, wrong version, etc.)
-    and logs a warning so the user can diagnose the problem.
-    """
-    import logging
+def _open_graph_reader(db_path: Path) -> list:
     import kuzu
     from design_graph.graph.reader import GraphReader
-
-    logger    = logging.getLogger(__name__)
-    graph_dir = resolve_graph_dir()
-    readers: list = []
-
-    if not graph_dir.exists():
-        return readers
-
-    for db_path in sorted(graph_dir.glob("*.db")):
-        try:
-            db   = kuzu.Database(str(db_path), read_only=True)
-            conn = kuzu.Connection(db)
-            readers.append((db_path.stem, GraphReader(conn)))
-        except Exception as exc:
-            logger.warning("query: failed to open %s: %s", db_path.name, exc)
-
-    return readers
+    try:
+        db = kuzu.Database(str(db_path), read_only=True)
+        return [(db_path.stem, GraphReader(kuzu.Connection(db)))]
+    except Exception:
+        return []

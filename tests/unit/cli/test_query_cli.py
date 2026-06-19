@@ -80,6 +80,14 @@ class TestParseQueryArgs:
         args = parse_query_args(["screens", "--verbose"])
         assert args.verbose is True
 
+    def test_document_can_be_selected_explicitly(self):
+        args = parse_query_args(["--doc", "admin", "screens"])
+        assert args.document == "admin"
+
+    def test_database_path_can_be_selected_explicitly(self, tmp_path):
+        args = parse_query_args(["--db", str(tmp_path / "admin.db"), "screens"])
+        assert args.db_path == tmp_path / "admin.db"
+
     def test_no_command_raises_system_exit(self):
         with pytest.raises(SystemExit):
             parse_query_args([])

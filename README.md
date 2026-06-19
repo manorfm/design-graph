@@ -116,6 +116,10 @@ Build options:
 
 Builds are incremental. An unchanged HTML file is skipped unless `--force` is supplied.
 
+Each database owns an independent state file named `<database>.state.json`. Builds, diffs and `--force` therefore affect only their target prototype. When an old shared `.graph-state.json` exists, it is migrated only if the directory contains a single database.
+
+If two HTML files have the same filename stem, they resolve to the same default database. The CLI warns when that database was previously built from a different source; use `--db` to keep both.
+
 ## Additional `design-graph` commands
 
 ### Export AI-ready chunks
@@ -131,15 +135,17 @@ The default output is `<prototype>.jsonl` beside the input file. The default max
 
 ```bash
 design-graph status
+design-graph status --doc "prototype"
 design-graph status --db /path/to/prototype.db --verbose
 ```
 
-Without `--db`, the most recently modified database in the configured graph directory is selected.
+With multiple databases, select one using `--doc`, `--db`, `DESIGN_GRAPH_DOC`, or `design-graph db use`.
 
 ### Validate graph integrity
 
 ```bash
 design-graph validate
+design-graph validate --doc "prototype"
 design-graph validate --db /path/to/prototype.db
 design-graph validate --json
 ```
@@ -150,11 +156,24 @@ Validation checks database readability and graph integrity conditions such as or
 
 ```bash
 design-graph report
+design-graph report --doc "prototype"
 design-graph report --db /path/to/prototype.db --output report.md
 design-graph report --name "Admin" --no-tokens --jsx
 ```
 
-Without `--output`, the report is written to stdout. Without `--db`, the most recently modified database is selected.
+Without `--output`, the report is written to stdout.
+
+### List and select databases
+
+```bash
+design-graph db list
+design-graph db list --json
+design-graph db current
+design-graph db use "app-v1"
+design-graph db info "app-v1"
+```
+
+`db use` persists `default_doc` in the user configuration. Database names are filenames without the `.db` suffix.
 
 Run `design-graph <command> --help` for the complete options of a command.
 
@@ -170,7 +189,8 @@ The user configuration file is `$XDG_CONFIG_HOME/design-graph/config.json`, defa
 
 ```json
 {
-  "graph_dir": "/path/to/graphs"
+  "graph_dir": "/path/to/graphs",
+  "default_doc": "app-v1"
 }
 ```
 
@@ -185,6 +205,8 @@ GRAPH_DIR=/path/to/graphs design-query screens
 
 ```bash
 design-query screens
+design-query --doc "app-v1" screens
+design-query --db /path/to/app-v1.db screens
 design-query tokens
 design-query tokens color
 design-query search "primary button"
@@ -195,11 +217,19 @@ design-query interactions BtnPrimary
 design-query children CardProduct
 ```
 
-`--verbose` is accepted before or after the command.
+`--verbose`, `--doc` and `--db` are accepted before or after the command.
 
 Token filters accepted by `design-query tokens` are `color`, `spacing`, `typography`, `shadow` and `radius`. Without a filter, all categories are returned, including extracted CSS variables.
 
-`screens` and `search` operate across all loaded prototypes. Other query commands currently use the first database in alphabetical filename order. To target a specific database reliably, set `GRAPH_DIR` to a directory containing only that graph. MCP calls provide explicit per-prototype selection through `doc` and `set_prototype`.
+Every terminal query operates on one selected database. Selection follows this order:
+
+1. `--db PATH`
+2. `--doc NAME`
+3. `DESIGN_GRAPH_DOC`
+4. `default_doc` in the user configuration
+5. Automatic selection when exactly one database exists
+
+When multiple databases exist without a selection, the command exits with guidance instead of choosing one silently.
 
 ## Configure the MCP server
 
@@ -284,7 +314,8 @@ When multiple databases are loaded, the server selects a prototype in this order
 1. `doc` passed to the current tool call
 2. Prototype selected by `set_prototype`
 3. `DESIGN_GRAPH_DOC`
-4. Automatic selection when only one prototype is loaded
+4. `default_doc` from the user configuration
+5. Automatic selection when only one prototype is loaded
 
 ```text
 set_prototype(name="app-v1")
@@ -297,6 +328,8 @@ The `doc` value is the database filename without `.db`.
 ## Extracted capabilities
 
 - Bundled React/JSX and plain HTML routing
+- Visual-function filtering that excludes non-rendering React/Babel runtime internals
+- Semantic screen roles that keep forms, tabs, sections and modals as components unless they are true navigation surfaces
 - Screens, semantic sections and reusable components
 - Component hierarchy, occurrence counts, declared props and defaults
 - Default, hover, focus and transition styles

@@ -32,10 +32,12 @@ class MCPServer:
 
     def __init__(self, readers: list[tuple[str, GraphReader]]) -> None:
         from design_graph.mcp.tools import ToolDispatcher
+        from design_graph.paths import load_user_config
 
         self._readers    = readers
         self._dispatcher = ToolDispatcher(readers)
-        self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip()
+        configured = str(load_user_config().get("default_doc", "")).strip()
+        self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip() or configured
 
     def run(self) -> None:
         """Main event loop — blocks until stdin closes."""

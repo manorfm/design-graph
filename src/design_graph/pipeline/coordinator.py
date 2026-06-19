@@ -29,7 +29,7 @@ import kuzu
 
 from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBoundary
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
-from design_graph.extraction.component_extractor import extract_all_components
+from design_graph.extraction.component_extractor import extract_all_components, select_renderable_boundaries
 from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
@@ -173,7 +173,10 @@ async def run_pipeline(
 
     # ── Phase 6: State persistence ───────────────────────────────────────────
     comp_counter = Counter({c.name: c.occurrence for c in extracted_comps})
-    save_build_state(state_path, build_new_state(sources.html_hash, screens, comp_counter))
+    save_build_state(state_path, build_new_state(
+        sources.html_hash, screens, comp_counter,
+        source_path=html_path, database_path=db_path,
+    ))
     elapsed = time.monotonic() - t_start
 
     stats = BuildStats(
@@ -224,8 +227,9 @@ async def _extract_react(
 
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
-    screen_bounds = [b for b in all_boundaries if is_screen(b.name)]
-    comp_bounds   = [b for b in all_boundaries if not is_screen(b.name)]
+    visual_bounds = select_renderable_boundaries(sources.js, all_boundaries)
+    screen_bounds = [b for b in visual_bounds if is_screen(b.name)]
+    comp_bounds   = [b for b in visual_bounds if not is_screen(b.name)]
     occurrences   = Counter(b.name for b in all_boundaries)
 
     logger.info("pipeline: resolved %d CSS class rules from stylesheet", len(rule_map))

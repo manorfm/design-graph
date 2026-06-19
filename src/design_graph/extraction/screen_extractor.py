@@ -10,6 +10,8 @@ Screen extraction is a read-only scan of the JS string — no side effects.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from enum import Enum
 
 from design_graph.core.constants import REACT_INTERNALS
 from design_graph.core.models import ExtractedScreen, FunctionBoundary
@@ -17,15 +19,48 @@ from design_graph.core.patterns import (
     RE_COMP_REF,
     RE_JSX_CALL,
     RE_JSX_TAG,
-    RE_SCREEN_NAME,
 )
+from design_graph.extraction.visual_function import VisualFunctionCandidate
 
 logger = logging.getLogger(__name__)
 
 
+class ScreenRole(str, Enum):
+    PAGE = "page"
+    VIEW = "view"
+    DETAIL = "detail"
+    COMPONENT = "component"
+
+
+@dataclass(frozen=True)
+class ScreenIdentity:
+    """Semantic identity that distinguishes navigation surfaces from UI parts."""
+
+    name: str
+    role: ScreenRole
+
+    @classmethod
+    def classify(cls, name: str) -> "ScreenIdentity":
+        if name.endswith("Form") and name.startswith(("Login", "SignIn", "SignUp", "Register", "Auth")):
+            return cls(name=name, role=ScreenRole.PAGE)
+        suffix_roles = (
+            (("Page", "Screen", "Dashboard"), ScreenRole.PAGE),
+            (("View",), ScreenRole.VIEW),
+            (("Detail",), ScreenRole.DETAIL),
+        )
+        for suffixes, role in suffix_roles:
+            if name.endswith(suffixes) and len(name) > min(len(suffix) for suffix in suffixes):
+                return cls(name=name, role=role)
+        return cls(name=name, role=ScreenRole.COMPONENT)
+
+    @property
+    def is_top_level(self) -> bool:
+        return self.role is not ScreenRole.COMPONENT
+
+
 def is_screen(name: str) -> bool:
-    """Return True if the component name identifies a top-level screen/page."""
-    return bool(RE_SCREEN_NAME.match(name))
+    """Return True only for semantic top-level navigation surfaces."""
+    return ScreenIdentity.classify(name).is_top_level
 
 
 def extract_screens(
@@ -41,7 +76,8 @@ def extract_screens(
     screens: list[ExtractedScreen] = []
 
     for boundary in all_boundaries:
-        if not is_screen(boundary.name):
+        candidate = VisualFunctionCandidate.from_source(js, boundary)
+        if not is_screen(boundary.name) or not candidate.renders_visual_output:
             continue
 
         body = js[boundary.start : boundary.end]

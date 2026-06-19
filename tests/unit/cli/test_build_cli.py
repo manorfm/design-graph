@@ -20,6 +20,7 @@ from design_graph.cli.build import (
     parse_chunk_args,
     ChunkCliArgs,
     main,
+    parse_database_args,
 )
 
 
@@ -177,10 +178,34 @@ class TestMainHelp:
                 main()
         assert exc.value.code == 0
         output = capsys.readouterr().out
-        for command in ("chunk", "status", "validate", "report"):
+        for command in ("chunk", "status", "validate", "report", "db"):
             assert command in output
         for option in ("--db", "--diff", "--force", "--verbose", "--quiet", "--json"):
             assert option in output
+
+
+class TestDatabaseArgs:
+    def test_list_supports_json(self):
+        args = parse_database_args(["list", "--json"])
+        assert args.action == "list"
+        assert args.json_output is True
+
+    def test_use_requires_document(self):
+        args = parse_database_args(["use", "prototype"])
+        assert args.action == "use"
+        assert args.document == "prototype"
+
+    def test_info_accepts_document(self):
+        args = parse_database_args(["info", "prototype"])
+        assert args.document == "prototype"
+
+    def test_list_command_reports_available_databases(self, tmp_path, monkeypatch, capsys):
+        (tmp_path / "admin.db").mkdir()
+        monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
+        monkeypatch.delenv("DESIGN_GRAPH_DOC", raising=False)
+        with patch("sys.argv", ["design-graph", "db", "list"]):
+            main()
+        assert "admin" in capsys.readouterr().out
 
 
 # ── ChunkCliArgs dataclass ────────────────────────────────────────────────────

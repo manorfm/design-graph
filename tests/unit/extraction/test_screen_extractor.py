@@ -10,12 +10,12 @@ class TestIsScreen:
     @pytest.mark.parametrize("name,expected", [
         ("RestaurantsPage",   True),
         ("OrdersDashboard",   True),
-        ("MenuSection",       True),
+        ("MenuSection",       False),
         ("ItemDetail",        True),
         ("LoginForm",         True),
-        ("ProfileModal",      True),
+        ("ProfileModal",      False),
         ("KitchenView",       True),
-        ("BillList",          True),
+        ("BillList",          False),
         ("BtnPrimary",        False),
         ("SectionCard",       False),
         ("useRestaurants",    False),
@@ -104,3 +104,7 @@ class TestExtractScreens:
         js = "function BtnPrimary() { return <div/>; }"
         screens = self._screens(js)
         assert screens == []
+
+    def test_screen_named_function_without_visual_return_is_rejected(self):
+        js = "function SettingsPage() { return calculateSettings(); }"
+        assert self._screens(js) == []

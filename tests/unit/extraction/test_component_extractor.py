@@ -11,6 +11,7 @@ from design_graph.extraction.component_extractor import (
     extract_component,
     infer_component_type,
     sanitize_jsx,
+    select_renderable_boundaries,
 )
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.token_extractor import build_token_map
@@ -42,6 +43,16 @@ function RestCard() {
     )
 }
 """
+
+
+class TestRenderableComponentSelection:
+    def test_excludes_pascal_case_runtime_functions_without_visual_output(self):
+        js = """
+        function FiberNode() { return createNode(); }
+        function SectionCard() { return (<div>Card</div>); }
+        """
+        selected = select_renderable_boundaries(js, find_all_boundaries(js))
+        assert [boundary.name for boundary in selected] == ["SectionCard"]
 
 
 def _boundary(js: str, name: str):

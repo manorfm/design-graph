@@ -52,6 +52,26 @@ class GraphViolation:
         }
 
 
+@dataclass(frozen=True)
+class ValidationEvidence:
+    """Exact finding count plus a bounded human-readable sample."""
+
+    total: int
+    sample: tuple[str, ...]
+
+    @classmethod
+    def collect(
+        cls, reader, count_query: str, sample_query: str, sample_key: str,
+    ) -> "ValidationEvidence":
+        count_rows = reader._q(count_query)
+        total = int(count_rows[0].get("total", 0)) if count_rows else 0
+        sample_rows = reader._q(sample_query) if total else []
+        return cls(total=total, sample=tuple(row.get(sample_key, "?") for row in sample_rows))
+
+    def details(self, key: str) -> dict[str, Any]:
+        return {"total": self.total, key: list(self.sample), "sample_truncated": self.total > len(self.sample)}
+
+
 @dataclass
 class GraphValidationReport:
     """
@@ -188,18 +208,21 @@ def _check_no_orphaned_screens(
     counts: dict[str, int], reader,
 ) -> list[GraphViolation]:
     """A screen with zero components is suspicious — likely a parse failure."""
-    rows = reader._q(
-        "MATCH (s:Screen) WHERE s.component_count = 0 OR s.component_count IS NULL "
-        "RETURN s.name, s.component_count ORDER BY s.name"
+    evidence = ValidationEvidence.collect(
+        reader,
+        "MATCH (s:Screen) WHERE NOT EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
+        "RETURN count(s) AS total",
+        "MATCH (s:Screen) WHERE NOT EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
+        "RETURN s.name ORDER BY s.name LIMIT 20",
+        "s.name",
     )
-    if not rows:
+    if not evidence.total:
         return []
-    names = [r.get("s.name", "?") for r in rows]
     return [GraphViolation(
         severity=ValidationSeverity.WARNING,
         check_name="no_orphaned_screens",
-        message=f"{len(names)} screen(s) have zero components.",
-        details={"screens": names},
+        message=f"{evidence.total} screen(s) have no component relationships.",
+        details=evidence.details("screens"),
     )]
 
 
@@ -207,19 +230,21 @@ def _check_no_orphaned_components(
     counts: dict[str, int], reader,
 ) -> list[GraphViolation]:
     """Components not referenced by any screen may indicate extraction drift."""
-    rows = reader._q(
-        "MATCH (c:Component) "
-        "WHERE NOT EXISTS { MATCH (s:Screen)-[:USES_COMPONENT]->(c) } "
-        "RETURN c.name, c.comp_type ORDER BY c.name LIMIT 20"
+    evidence = ValidationEvidence.collect(
+        reader,
+        "MATCH (c:Component) WHERE NOT EXISTS { MATCH (:Screen)-[:USES_COMPONENT]->(c) } "
+        "RETURN count(c) AS total",
+        "MATCH (c:Component) WHERE NOT EXISTS { MATCH (:Screen)-[:USES_COMPONENT]->(c) } "
+        "RETURN c.name ORDER BY c.name LIMIT 20",
+        "c.name",
     )
-    if not rows:
+    if not evidence.total:
         return []
-    names = [r.get("c.name", "?") for r in rows]
     return [GraphViolation(
         severity=ValidationSeverity.INFO,
         check_name="no_orphaned_components",
-        message=f"{len(names)} component(s) have no screen references (may be shared utilities).",
-        details={"components": names},
+        message=f"{evidence.total} component(s) have no screen references (may be shared utilities).",
+        details=evidence.details("components"),
     )]
 
 
@@ -227,19 +252,21 @@ def _check_sections_have_screens(
     counts: dict[str, int], reader,
 ) -> list[GraphViolation]:
     """Sections not linked to a screen via HAS_SECTION indicate write errors."""
-    rows = reader._q(
-        "MATCH (sec:Section) "
-        "WHERE NOT EXISTS { MATCH (s:Screen)-[:HAS_SECTION]->(sec) } "
-        "RETURN sec.id, sec.name ORDER BY sec.name LIMIT 10"
+    evidence = ValidationEvidence.collect(
+        reader,
+        "MATCH (sec:Section) WHERE NOT EXISTS { MATCH (:Screen)-[:HAS_SECTION]->(sec) } "
+        "RETURN count(sec) AS total",
+        "MATCH (sec:Section) WHERE NOT EXISTS { MATCH (:Screen)-[:HAS_SECTION]->(sec) } "
+        "RETURN sec.name ORDER BY sec.name LIMIT 20",
+        "sec.name",
     )
-    if not rows:
+    if not evidence.total:
         return []
-    names = [r.get("sec.name", "?") for r in rows]
     return [GraphViolation(
         severity=ValidationSeverity.WARNING,
         check_name="sections_have_screens",
-        message=f"{len(names)} section(s) have no parent screen.",
-        details={"sections": names},
+        message=f"{evidence.total} section(s) have no parent screen.",
+        details=evidence.details("sections"),
     )]
 
 
@@ -247,18 +274,19 @@ def _check_tokens_have_usage(
     counts: dict[str, int], reader,
 ) -> list[GraphViolation]:
     """Tokens with usage=0 indicate orphaned tokens that passed the extraction filter."""
-    rows = reader._q(
-        "MATCH (t:Token) WHERE t.usage <= 0 "
-        "RETURN t.label, t.value ORDER BY t.label LIMIT 10"
+    evidence = ValidationEvidence.collect(
+        reader,
+        "MATCH (t:Token) WHERE t.usage <= 0 RETURN count(t) AS total",
+        "MATCH (t:Token) WHERE t.usage <= 0 RETURN t.label ORDER BY t.label LIMIT 20",
+        "t.label",
     )
-    if not rows:
+    if not evidence.total:
         return []
-    labels = [r.get("t.label", "?") for r in rows]
     return [GraphViolation(
         severity=ValidationSeverity.WARNING,
         check_name="tokens_have_usage",
-        message=f"{len(labels)} token(s) have zero usage count.",
-        details={"tokens": labels},
+        message=f"{evidence.total} token(s) have zero usage count.",
+        details=evidence.details("tokens"),
     )]
 
 

@@ -557,6 +557,28 @@ class GraphReader:
             result[key] = rows[0][list(rows[0].keys())[0]] if rows else 0
         return result
 
+    def get_health_metrics(self) -> dict:
+        """Return relational coverage and token-category distribution."""
+        category_rows = self._q(
+            "MATCH (t:Token) RETURN t.category, count(t) AS total ORDER BY t.category"
+        )
+        screen_rows = self._q(
+            "MATCH (s:Screen) WHERE EXISTS { MATCH (s)-[:USES_COMPONENT]->(:Component) } "
+            "RETURN count(s) AS total"
+        )
+        component_rows = self._q(
+            "MATCH (c:Component) WHERE EXISTS { MATCH (:Screen)-[:USES_COMPONENT]->(c) } "
+            "RETURN count(c) AS total"
+        )
+        return {
+            "token_categories": {
+                row.get("t.category", "unknown"): int(row.get("total", 0))
+                for row in category_rows
+            },
+            "screens_with_components": int(screen_rows[0].get("total", 0)) if screen_rows else 0,
+            "components_with_screens": int(component_rows[0].get("total", 0)) if component_rows else 0,
+        }
+
     # ── Full screen composite query ───────────────────────────────────────────
 
     def get_screen_full(self, name: str) -> dict | None:
