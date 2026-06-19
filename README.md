@@ -107,6 +107,7 @@ Build options:
 | Option | Description |
 |---|---|
 | `--db PATH` | Write to a custom database path |
+| `--name NAME` | Write to `<name>.db` under the graph directory |
 | `--diff` | Show changes since the previous build |
 | `--force` | Rebuild even when the HTML hash is unchanged |
 | `--verbose` | Show debug-level pipeline logs |
@@ -114,11 +115,21 @@ Build options:
 | `--json` | Emit machine-readable build output for CI |
 | `--version` | Print the installed version |
 
+Use `--db` when you want to choose the exact file path. Use `--name` when you want the CLI to keep the standard graph directory but change the database filename.
+
 Builds are incremental. An unchanged HTML file is skipped unless `--force` is supplied.
 
 Each database owns an independent state file named `<database>.state.json`. Builds, diffs and `--force` therefore affect only their target prototype. When an old shared `.graph-state.json` exists, it is migrated only if the directory contains a single database.
 
 If two HTML files have the same filename stem, they resolve to the same default database. The CLI warns when that database was previously built from a different source; use `--db` to keep both.
+
+Use `--name` when you want the generated database to be named explicitly, for example:
+
+```bash
+design-graph prototype.html --name "Admin Panel"
+```
+
+This produces `Admin Panel.db` inside the resolved graph directory.
 
 ## Additional `design-graph` commands
 

@@ -29,6 +29,10 @@ class TestGraphDocumentName:
         with pytest.raises(ValueError):
             GraphDocumentName("  ")
 
+    def test_rejects_path_separators(self):
+        with pytest.raises(ValueError):
+            GraphDocumentName("../evil")
+
 
 class TestGraphCatalog:
     def test_discovers_databases_in_stable_name_order(self, tmp_path):

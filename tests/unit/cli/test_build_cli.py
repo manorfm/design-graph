@@ -22,6 +22,7 @@ from design_graph.cli.build import (
     main,
     parse_database_args,
 )
+from design_graph.core.graph_catalog import GraphDocumentName
 
 
 # ── parse_build_args ──────────────────────────────────────────────────────────
@@ -57,6 +58,17 @@ class TestParseBuildArgs:
         db   = tmp_path / "custom.db"
         args = parse_build_args([str(html), "--db", str(db)])
         assert args.db_path == db
+
+    def test_name_flag_sets_database_stem(self, tmp_path):
+        html = tmp_path / "proto.html"
+        args = parse_build_args([str(html), "--name", "Admin Panel"])
+        assert args.prototype_name == GraphDocumentName("Admin Panel")
+
+    def test_name_and_db_are_mutually_exclusive(self, tmp_path):
+        html = tmp_path / "proto.html"
+        db = tmp_path / "custom.db"
+        with pytest.raises(SystemExit):
+            parse_build_args([str(html), "--db", str(db), "--name", "Admin"])
 
     def test_db_path_is_none_when_not_provided(self, tmp_path):
         html = tmp_path / "proto.html"
@@ -105,6 +117,11 @@ class TestParseBuildArgs:
         html = tmp_path / "proto.html"
         with pytest.raises(SystemExit):
             parse_build_args([str(html), "--unknown-flag"])
+
+    def test_invalid_name_raises_system_exit(self, tmp_path):
+        html = tmp_path / "proto.html"
+        with pytest.raises(SystemExit):
+            parse_build_args([str(html), "--name", "../evil"])
 
 
 # ── parse_chunk_args ──────────────────────────────────────────────────────────
@@ -158,6 +175,7 @@ class TestBuildCliArgsContract:
         args = BuildCliArgs(
             html_path=tmp_path / "p.html",
             db_path=None,
+            prototype_name=None,
             show_diff=False,
             force=False,
             verbose=False,
@@ -165,6 +183,7 @@ class TestBuildCliArgsContract:
         )
         assert hasattr(args, "html_path")
         assert hasattr(args, "db_path")
+        assert hasattr(args, "prototype_name")
         assert hasattr(args, "show_diff")
         assert hasattr(args, "force")
         assert hasattr(args, "verbose")
@@ -180,7 +199,7 @@ class TestMainHelp:
         output = capsys.readouterr().out
         for command in ("chunk", "status", "validate", "report", "db"):
             assert command in output
-        for option in ("--db", "--diff", "--force", "--verbose", "--quiet", "--json"):
+        for option in ("--db", "--name", "--diff", "--force", "--verbose", "--quiet", "--json"):
             assert option in output
 
 

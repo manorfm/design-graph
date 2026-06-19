@@ -26,6 +26,7 @@ from design_graph.paths import (
     load_user_config,
     resolve_graph_dir,
 )
+from design_graph.core.graph_catalog import GraphDocumentName
 
 
 # ── resolve_graph_dir ─────────────────────────────────────────────────────────
@@ -84,6 +85,11 @@ class TestDefaultDbFor:
     def test_returns_path_with_db_extension(self, tmp_path):
         with patch("design_graph.paths.resolve_graph_dir", return_value=tmp_path):
             result = default_db_for("myapp")
+            assert result == tmp_path / "myapp.db"
+
+    def test_accepts_graph_document_name_value_object(self, tmp_path):
+        with patch("design_graph.paths.resolve_graph_dir", return_value=tmp_path):
+            result = default_db_for(GraphDocumentName("myapp"))
             assert result == tmp_path / "myapp.db"
 
     def test_creates_parent_directory_when_missing(self, tmp_path):

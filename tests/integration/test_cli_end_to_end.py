@@ -50,6 +50,13 @@ class TestBuildCommand:
             main()
         assert db_path.exists()
 
+    def test_build_accepts_named_database(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
+        with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--name", "My App"]):
+            from design_graph.cli.build import main
+            main()
+        assert (tmp_path / "My App.db").exists()
+
     def test_build_prints_summary_to_stdout(self, tmp_path, capsys):
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
