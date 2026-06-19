@@ -103,7 +103,7 @@ async def run_pipeline(
     _reporter.phase_completed(f"Loading {html_path.name}", elapsed_seconds=phase.split())
 
     prev_state = load_build_state(state_path)
-    if not force and prev_state.html_hash == sources.html_hash:
+    if not force and db_path.exists() and prev_state.html_hash == sources.html_hash:
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         _reporter.build_skipped("HTML unchanged — use --force to rebuild")
         return None

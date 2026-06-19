@@ -57,6 +57,21 @@ class TestBuildCommand:
             main()
         assert (tmp_path / "My App.db").exists()
 
+    def test_named_build_recovers_from_orphan_state(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
+        argv = ["design-graph", str(SIMPLE_HTML), "--name", "My App"]
+        with patch("sys.argv", argv):
+            from design_graph.cli.build import main
+            main()
+        (tmp_path / "My App.db").unlink()
+        capsys.readouterr()
+
+        with patch("sys.argv", argv):
+            main()
+
+        assert (tmp_path / "My App.db").exists()
+        assert "skipped" not in capsys.readouterr().out.lower()
+
     def test_build_prints_summary_to_stdout(self, tmp_path, capsys):
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
