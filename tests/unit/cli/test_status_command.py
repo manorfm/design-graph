@@ -179,6 +179,17 @@ class TestRenderStatusReport:
         output = render_status_report(never_built)
         assert "never" in output.lower() or "no graph" in output.lower() or "build" in output.lower()
 
+    def test_missing_build_state_still_shows_existing_graph_counts(self):
+        missing_state = self._fresh_report()
+        missing_state.last_build = ""
+        missing_state.html_hash = ""
+
+        output = render_status_report(missing_state)
+
+        assert "Screens:" in output
+        assert "Components:" in output
+        assert "Kuzu version:" in output
+
 
 # ── collect_graph_status ──────────────────────────────────────────────────────
 
