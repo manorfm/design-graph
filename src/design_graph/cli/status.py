@@ -146,19 +146,17 @@ def render_status_report(report: GraphStatusReport) -> str:
 
     if not report.last_build:
         lines.append("  Last build: never built  ← run design-graph <proto.html>")
-        lines.append(f"{'─' * w}")
-        return "\n".join(lines)
-
-    # Build info
-    lines.append(f"  Last build: {report.last_build}")
-
-    stale_marker = "  [STALE — HTML changed, run design-graph --force to rebuild]"
-    if report.is_stale and report.current_html_hash:
-        lines.append(stale_marker)
-    elif not report.current_html_hash:
-        lines.append(f"  File hash : {report.html_hash}")
     else:
-        lines.append(f"  File hash : {report.html_hash[:8]} (unchanged)")
+        # Build info
+        lines.append(f"  Last build: {report.last_build}")
+
+        stale_marker = "  [STALE — HTML changed, run design-graph --force to rebuild]"
+        if report.is_stale and report.current_html_hash:
+            lines.append(stale_marker)
+        elif not report.current_html_hash:
+            lines.append(f"  File hash : {report.html_hash}")
+        else:
+            lines.append(f"  File hash : {report.html_hash[:8]} (unchanged)")
 
     lines.append("")
 
