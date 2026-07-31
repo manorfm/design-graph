@@ -41,11 +41,16 @@ levantadas após análise de eficiência para uso por agentes de IA.
 |--------|--------|--------|-------|---------|
 | [C12](C12-stateful-interactions/) | Extraction: interações via estilo imperativo (hover/focus sem literal) | ✅ Done | T23 | Alto — Interactions 10→39 no prototype de referência |
 | [C13](C13-interaction-capture-completeness/) | Extraction: handlers multi-mutação + correlação estado→ternária + nomes com dígito | ✅ Done | T24–T26 | Alto — Interactions 39→64; 8 componentes/telas versionados (`*V6`/`*V7`) antes invisíveis |
+| [C14](C14-domain-model-value-objects/) | Domain model: EntityId, enums, PropDefault, entidades ricas | ✅ Done | T27 | Qualidade — elimina 9 duplicações de geração de id + 4 bugs de drift; refactor puro (stats idênticos ao baseline) |
+| [C15](C15-tooltip-text-classification/) | Extraction: classificação de texto de tooltip (title/aria-label/alt) | ✅ Done | T28 | Médio — 143 valores de `title` antes indistinguíveis de conteúdo visível no prototype de referência |
 
 > C12 cobriu o caso dominante (mutação direta de `style` no handler). C13
 > fecha os dois gaps que C12 deixou fora de escopo: handlers com mais de uma
 > mutação de estilo, e o padrão `onMouseEnter={() => setHover(true)}` com
 > estilo condicional por estado React (`style={{ prop: hover ? A : B }}`).
+> C14 é uma mudança de qualidade arquitetural (não de captura de dados) —
+> refactor puro, sem alteração de comportamento observável. C15 volta ao
+> padrão de C07–C13 (fechar gap real encontrado por análise do prototype).
 
 ---
 

@@ -56,6 +56,7 @@ from design_graph.core.patterns import (
     RE_PLACEHOLDER,
     RE_STYLE_MUTATION,
     RE_STYLE_PROP,
+    RE_TOOLTIP_TEXT,
     RE_TRANSITION,
     RE_UI_STRING,
     RE_USE_STATE_BOOL,
@@ -348,6 +349,11 @@ def extract_component(
     for m in RE_BUTTON_TEXT.finditer(window): _add_text(m.group(1), TextType.BUTTON, "button")
     for m in RE_LABEL_TEXT.finditer(window):  _add_text(m.group(1), TextType.LABEL, "label")
     for m in RE_PLACEHOLDER.finditer(window): _add_text(m.group(1), TextType.PLACEHOLDER, "input")
+    # Runs before the generic UI-string pass below so title/aria-label/alt text
+    # wins the dedup (same content+source → same id) over being misclassified
+    # as a generic "label" — the distinction matters for icon-only buttons,
+    # where the tooltip is the only textual signal of what the element does.
+    for m in RE_TOOLTIP_TEXT.finditer(window): _add_text(m.group(1), TextType.TOOLTIP)
     for m in RE_UI_STRING.finditer(window):
         t = m.group(1).strip()
         _add_text(t, TextType.DESCRIPTION if len(t) > 40 else TextType.LABEL)

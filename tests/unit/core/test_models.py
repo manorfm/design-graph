@@ -111,7 +111,7 @@ class TestInteractionTrigger:
 class TestTextType:
     def test_members(self):
         assert {m.value for m in TextType} == {
-            "heading", "button", "label", "placeholder", "description", "section_text",
+            "heading", "button", "label", "placeholder", "description", "section_text", "tooltip",
         }
 
 
