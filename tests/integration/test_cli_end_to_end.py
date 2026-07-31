@@ -26,6 +26,7 @@ from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
 SIMPLE_HTML = FIXTURE_DIR / "simple.html"
+ARROW_SCREEN_HTML = FIXTURE_DIR / "arrow_screen.html"
 
 
 # ── shared graph for query tests ──────────────────────────────────────────────
@@ -208,6 +209,24 @@ class TestChunkCommand:
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
+
+    def test_chunk_extracts_sections_for_arrow_declared_screen(self, tmp_path):
+        # HomePage is declared `const HomePage = () => (...)`, not `function
+        # HomePage()`. The screen/component split must recognize it as a
+        # screen by name (like the main build pipeline does), not only by
+        # scanning for a literal `function` keyword — otherwise its sections
+        # (marked by JSX comments) are silently dropped from the chunk export.
+        import json
+        out = tmp_path / "chunks.jsonl"
+        with patch("sys.argv", ["design-graph", "chunk", str(ARROW_SCREEN_HTML),
+                                "--output", str(out)]):
+            from design_graph.cli.build import main
+            main()
+        rows = [json.loads(line) for line in out.read_text().splitlines()]
+        section_breadcrumbs = [r["breadcrumb"] for r in rows if r["level"] == "section"]
+        assert any("Header" in b for b in section_breadcrumbs)
+        assert any("Content" in b for b in section_breadcrumbs)
+
 
 
 # ── design-query ──────────────────────────────────────────────────────────────

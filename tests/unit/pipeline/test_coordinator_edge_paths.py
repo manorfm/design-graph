@@ -239,3 +239,27 @@ class TestCoordinatorCallsReporter:
         # The absence of a reporter argument must not raise — SilentBuildReporter is used.
         stats = asyncio.run(run_pipeline(proto_html, tmp_path / "t.db", tmp_path / ".state.json"))
         assert stats is not None
+
+
+# ── extract_react: screen/component split ─────────────────────────────────────
+#
+# extract_react is public (not _extract_react) because cli/build.py's chunk
+# export reuses it directly — a screen boundary must never also be extracted
+# as a component, regardless of who calls this function.
+
+class TestExtractReactScreenComponentSplit:
+    def test_screen_boundary_excluded_from_extracted_components(self):
+        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.pipeline.coordinator import extract_react
+
+        js = """
+        function BtnPrimary() { return <button>Click</button>; }
+        function HomePage() {
+          return (<div><BtnPrimary /></div>);
+        }
+        """
+        sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        comps, screens, sections_map, tokens = asyncio.run(extract_react(sources, concurrency=1))
+        assert "HomePage" not in [c.name for c in comps]
+        assert "BtnPrimary" in [c.name for c in comps]
+        assert "HomePage" in [s.name for s in screens]

@@ -301,10 +301,14 @@ class TestG9CliDoesNotBypassLayers:
     mcp/tools, and its own _logging helper — never from parsing/, extraction/,
     or graph/ directly.
 
-    The only exception: cli/build.py's _build_and_export_chunks coroutine
-    drives the chunk pipeline directly (there is no coordinator path for chunk-only
-    runs), so lazy local imports inside that coroutine are allowed.
-    This guardrail therefore checks top-level (module-level) imports only via AST.
+    The only exception: cli/build.py's _build_and_export_chunks coroutine.
+    Extraction itself goes through coordinator.extract_react/extract_plain_html
+    (shared with the main build pipeline, so both stay in sync) — but loading
+    (parsing.source_loader) and chunking (extraction.chunker) have no
+    coordinator equivalent (run_pipeline always writes to a graph DB, there is
+    no "just extract and chunk" mode), so lazy local imports for those two
+    remain. This guardrail therefore checks top-level (module-level) imports
+    only via AST.
     """
     FORBIDDEN_FROM_CLI = (
         "design_graph.parsing",
