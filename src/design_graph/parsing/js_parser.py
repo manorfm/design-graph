@@ -20,7 +20,7 @@ from design_graph.core.constants import (
     JS_FUNCTION_SCAN_LIMIT,
 )
 from design_graph.core.models import FunctionBoundary
-from design_graph.core.patterns import RE_COMP_FN, RE_VISUAL_RETURN
+from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_VISUAL_RETURN
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,12 @@ class JavaScriptFunctionScanner:
     source: str
 
     def body_start(self, function_start: int) -> int | None:
+        """
+        Locate the start of a function's body — the '{' of a block body, or the
+        '(' of an arrow function's implicit-return parenthesized expression
+        (const Name = (...) => ( <jsx/> )). Skips over an intervening '=>' so
+        arrow-function declarations resolve the same way as `function Name(...)`.
+        """
         parameters_start = self.source.find("(", function_start)
         if parameters_start < 0 or parameters_start > function_start + 500:
             return None
@@ -105,13 +111,19 @@ class JavaScriptFunctionScanner:
         index = parameters_end
         while index < len(self.source) and self.source[index].isspace():
             index += 1
-        return index if index < len(self.source) and self.source[index] == "{" else None
+        if self.source[index:index + 2] == "=>":
+            index += 2
+            while index < len(self.source) and self.source[index].isspace():
+                index += 1
+        return index if index < len(self.source) and self.source[index] in "{(" else None
 
     def function_end(self, function_start: int) -> int | None:
         body_start = self.body_start(function_start)
         if body_start is None:
             return None
-        return self._matching_delimiter(body_start, "{", "}")
+        opening = self.source[body_start]
+        closing = "}" if opening == "{" else ")"
+        return self._matching_delimiter(body_start, opening, closing)
 
     def expression_end(self, expression_start: int) -> int:
         """Return the end of one return expression at its top-level semicolon."""
@@ -261,7 +273,13 @@ def extract_return_block(js: str, fn_start: int, fn_end: int) -> str:
     selected_return = visual_return or re.search(r"\breturn\s*\(", window)
     if selected_return is None:
         return ""
-    expression_start = selected_return.start() + len("return")
+    # RE_VISUAL_RETURN uses a lookahead, so .end() already sits at the
+    # expression start (works for both `return` and arrow `=>` matches).
+    # The plain `return\s*\(` fallback still needs the literal offset.
+    expression_start = (
+        selected_return.end() if visual_return is not None
+        else selected_return.start() + len("return")
+    )
     while expression_start < len(window) and window[expression_start].isspace():
         expression_start += 1
     scanner = JavaScriptFunctionScanner(window)
@@ -273,16 +291,9 @@ def extract_return_block(js: str, fn_start: int, fn_end: int) -> str:
     return window[expression_start:expression_end].strip()
 
 
-def find_function_boundaries(
-    js: str, name_pattern: re.Pattern
-) -> list[FunctionBoundary]:
-    """
-    Find all functions whose names match name_pattern and return their
-    precise character boundaries.
-
-    The returned list is sorted by start position. Boundaries are guaranteed
-    not to overlap: boundary[i].end <= boundary[i+1].start.
-    """
+def _raw_boundaries(js: str, name_pattern: re.Pattern) -> list[FunctionBoundary]:
+    """Match name_pattern against executable source and compute each boundary's
+    start/body_start/end, without resolving overlaps between results."""
     boundaries: list[FunctionBoundary] = []
     scanner = JavaScriptFunctionScanner(js)
 
@@ -303,10 +314,24 @@ def find_function_boundaries(
             end=fn_end,
         ))
 
-    boundaries.sort(key=lambda b: b.start)
+    return boundaries
 
-    # Enforce non-overlap: clip each boundary's end to the start of the next
+
+def _clip_sibling_overlaps(boundaries: list[FunctionBoundary]) -> list[FunctionBoundary]:
+    """
+    Sort by start and resolve overlaps between adjacent boundaries.
+
+    A boundary that is fully *contained* by its predecessor (a component
+    declared inside another component's body, e.g. an arrow-function
+    sub-component) is left intact — both boundaries keep their own text.
+    Only a *partial* overlap (predecessor's end-detection bled into the next
+    sibling) is clipped back to where the next boundary starts.
+    """
+    boundaries = sorted(boundaries, key=lambda b: b.start)
+
     for i in range(len(boundaries) - 1):
+        if boundaries[i].end >= boundaries[i + 1].end:
+            continue  # boundaries[i] fully contains boundaries[i + 1] — nested, keep both
         if boundaries[i].end > boundaries[i + 1].start:
             logger.debug(
                 "js_parser: clipping %s.end from %d to %d (overlapped %s.start)",
@@ -323,9 +348,25 @@ def find_function_boundaries(
     return boundaries
 
 
+def find_function_boundaries(
+    js: str, name_pattern: re.Pattern
+) -> list[FunctionBoundary]:
+    """
+    Find all functions whose names match name_pattern and return their
+    precise character boundaries.
+
+    The returned list is sorted by start position. Sibling boundaries are
+    guaranteed not to overlap: boundary[i].end <= boundary[i+1].start, unless
+    boundary[i] fully contains boundary[i+1] (a nested declaration).
+    """
+    return _clip_sibling_overlaps(_raw_boundaries(js, name_pattern))
+
+
 def find_all_boundaries(js: str) -> list[FunctionBoundary]:
     """
-    Find boundaries for all PascalCase functions in the JS string.
-    Used as the entry point for the extraction pipeline.
+    Find boundaries for all PascalCase component functions in the JS string,
+    covering both `function Name(...)` and `const Name = (...) =>` declaration
+    forms. Used as the entry point for the extraction pipeline.
     """
-    return find_function_boundaries(js, RE_COMP_FN)
+    raw = _raw_boundaries(js, RE_COMP_FN) + _raw_boundaries(js, RE_COMP_ARROW_FN)
+    return _clip_sibling_overlaps(raw)

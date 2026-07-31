@@ -59,10 +59,18 @@ RE_DESTRUCTURED_PROPS = re.compile(
 
 RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z]{2,})\s*\(')
 
+# Arrow-function component declarations: const OptRow = ({ ... }) => ( <div/> )
+# Covers both brace-bodied (=> { return (...) }) and implicit-return (=> (...)) forms —
+# js_parser.body_start()/function_end() pick the right delimiter pair per case.
+RE_COMP_ARROW_FN = re.compile(r'const ([A-Z][a-zA-Z]{2,})\s*=\s*\(')
+
 # A function is visual only when its return expression creates JSX/HTML.
-# Supports source JSX and common compiled jsx/jsxs factory calls.
+# Supports source JSX and common compiled jsx/jsxs factory calls, from either
+# an explicit `return` statement or an arrow function's implicit `=>` return.
+# Uses a lookahead so match.end() lands exactly at the expression start,
+# regardless of which keyword (return / =>) triggered the match.
 RE_VISUAL_RETURN = re.compile(
-    r'return\s*(?:\(\s*<(?:[A-Za-z]|>)|<(?:[A-Za-z]|>)|(?:[A-Za-z_$][\w$]*\.)?jsx?s?\s*\()',
+    r'(?:return|=>)\s*(?=\(\s*<(?:[A-Za-z]|>)|<(?:[A-Za-z]|>)|(?:[A-Za-z_$][\w$]*\.)?jsx?s?\s*\()',
     re.DOTALL,
 )
 
@@ -97,14 +105,18 @@ RE_STYLE_PROP   = re.compile(r'(\w+)\s*:\s*["\']?([^,"\'}\n]{1,60})["\']?')
 
 # ── Interactions ──────────────────────────────────────────────────────────────
 
+# Imperative hover/focus feedback: onMouseEnter={e => e.currentTarget.style.X = Y}
+# Y may be a quoted literal ('#333'), a token/prop reference (C.red, o.color), or
+# a small expression (color + '12') — captured as raw text; extract_component
+# strips a fully-wrapping quote pair, leaving identifiers/expressions intact.
 RE_MOUSE_ENTER = re.compile(
-    r'onMouseEnter[^;]{0,60}style\.(\w+)\s*=\s*["\']([^"\']+)["\']'
+    r'onMouseEnter[^;]{0,60}style\.(\w+)\s*=\s*([^;}]{1,80})'
 )
 RE_MOUSE_LEAVE = re.compile(
-    r'onMouseLeave[^;]{0,60}style\.(\w+)\s*=\s*["\']([^"\']+)["\']'
+    r'onMouseLeave[^;]{0,60}style\.(\w+)\s*=\s*([^;}]{1,80})'
 )
 RE_ON_FOCUS    = re.compile(
-    r'onFocus[^;]{0,40}style\.(\w+)\s*=\s*["\']([^"\']+)["\']'
+    r'onFocus[^;]{0,40}style\.(\w+)\s*=\s*([^;}]{1,80})'
 )
 
 

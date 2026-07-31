@@ -244,9 +244,13 @@ def extract_component(
                     property=prop, value=val,
                 ))
 
-    # Hover interactions
-    enters = RE_MOUSE_ENTER.findall(window)
-    leaves = RE_MOUSE_LEAVE.findall(window)
+    # Hover interactions — value may be a quoted literal, a token/prop reference
+    # (C.red, o.color), or a small expression (color + '12'); _clean_style_value
+    # strips a fully-wrapping quote pair and leaves everything else as-is.
+    enters = [(prop, _clean_style_value(val)) for prop, val in RE_MOUSE_ENTER.findall(window)]
+    leaves = [(prop, _clean_style_value(val)) for prop, val in RE_MOUSE_LEAVE.findall(window)]
+    enters = [(prop, val) for prop, val in enters if val]
+    leaves = [(prop, val) for prop, val in leaves if val]
     trans_match = RE_TRANSITION.search(window)
     transition = trans_match.group(1).strip() if trans_match else "all 0.15s"
 
@@ -274,12 +278,15 @@ def extract_component(
     for m in RE_ON_FOCUS.finditer(window):
         if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
             break
+        focus_val = _clean_style_value(m.group(2))
+        if not focus_val:
+            continue
         iid = _hid(f"{boundary.name}_focus_{m.group(1)}", "int_")
         if iid not in seen_inter_ids:
             seen_inter_ids.add(iid)
             interactions.append(InteractionEntry(
                 id=iid, trigger="focus", css_prop=m.group(1),
-                from_val="", to_val=m.group(2), transition=transition,
+                from_val="", to_val=focus_val, transition=transition,
             ))
 
     # Text extraction
@@ -423,3 +430,18 @@ async def extract_all_components(
 
 def _hid(s: str, prefix: str = "") -> str:
     return f"{prefix}{hashlib.md5(s.encode()).hexdigest()[:8]}"
+
+
+def _clean_style_value(raw: str) -> str:
+    """
+    Normalize a captured `style.prop = <raw>` right-hand side.
+
+    Strips a fully-wrapping quote pair ('#333' -> #333) so literal colors
+    render the same as before this pattern also matched identifiers and
+    expressions (C.red, o.color + '0c') — those are returned unquoted/as-is
+    since there is nothing meaningful to unwrap.
+    """
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1].strip()
+    return value

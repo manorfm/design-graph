@@ -49,8 +49,9 @@ async def load(html_path: Path) -> RawSources:
     soup = BeautifulSoup(html_text, "html.parser")
     fmt  = detect(html_text, soup)
 
+    skipped_entries = 0
     if fmt == BUNDLED_REACT:
-        js, css, inner_html = _extract_bundled_react(soup)
+        js, css, inner_html, skipped_entries = _extract_bundled_react(soup)
     else:
         js, css, inner_html = _extract_plain(html_text, soup)
 
@@ -58,6 +59,12 @@ async def load(html_path: Path) -> RawSources:
         "source_loader: loaded %s | format=%s | js=%d css=%d",
         html_path.name, fmt, len(js), len(css),
     )
+    if skipped_entries:
+        logger.warning(
+            "source_loader: %d bundle entr%s failed to decode and were dropped "
+            "from %s — extraction is incomplete for the affected files",
+            skipped_entries, "y" if skipped_entries == 1 else "ies", html_path.name,
+        )
 
     return RawSources(
         js=js,
@@ -65,12 +72,13 @@ async def load(html_path: Path) -> RawSources:
         inner_html=inner_html,
         html_hash=html_hash,
         format=fmt,
+        skipped_entries=skipped_entries,
     )
 
 
 # ── Extraction strategies ─────────────────────────────────────────────────────
 
-def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str]:
+def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
     """
     Decompress and separate JS, CSS, and inner HTML from a React bundle.
     Bundle format: <script> containing a JSON map of {id: {data, compressed, mime}}.
@@ -78,6 +86,7 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str]:
     js_parts:   list[str] = []
     css_parts:  list[str] = []
     inner_html = ""
+    skipped = 0
 
     for script in soup.find_all("script"):
         text: str = script.get_text().strip()
@@ -86,9 +95,10 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str]:
 
         # Large JSON map — the actual bundle
         if len(text) > 10_000 and text.startswith("{"):
-            js_part, css_part, html_part = _decompress_bundle_map(text)
+            js_part, css_part, html_part, entry_skipped = _decompress_bundle_map(text)
             js_parts.extend(js_part)
             css_parts.extend(css_part)
+            skipped += entry_skipped
             if html_part:
                 inner_html = html_part
             continue
@@ -110,28 +120,29 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str]:
     if not inner_html:
         inner_html = str(soup)
 
-    return "\n".join(js_parts), "\n".join(css_parts), inner_html
+    return "\n".join(js_parts), "\n".join(css_parts), inner_html, skipped
 
 
-def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str]:
+def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str, int]:
     """Parse a bundle JSON map and decompress each entry."""
     js_parts:  list[str] = []
     css_parts: list[str] = []
     html_part = ""
+    skipped = 0
 
     try:
         bundle = json.loads(text)
     except json.JSONDecodeError as exc:
         logger.warning("bundle JSON parse error (skipping script): %s", exc)
-        return js_parts, css_parts, html_part
+        return js_parts, css_parts, html_part, skipped
 
     if isinstance(bundle, str) and "<!DOCTYPE" in bundle:
-        return [], [], bundle
+        return [], [], bundle, skipped
 
     if not isinstance(bundle, dict):
-        return js_parts, css_parts, html_part
+        return js_parts, css_parts, html_part, skipped
 
-    for val in bundle.values():
+    for key, val in bundle.items():
         if not isinstance(val, dict) or not val.get("data"):
             continue
         try:
@@ -140,7 +151,12 @@ def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str]:
                 decoded = gzip.decompress(decoded)
             content = decoded.decode("utf-8", errors="replace")
         except Exception as exc:  # noqa: BLE001
-            logger.debug("bundle entry decompress failed: %s", exc)
+            skipped += 1
+            logger.warning(
+                "source_loader: bundle entry %r (mime=%s) failed to decode — "
+                "dropped, extraction will be incomplete: %s",
+                key, val.get("mime", "?"), exc,
+            )
             continue
 
         mime: str = val.get("mime", "")
@@ -151,7 +167,7 @@ def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str]:
         else:
             js_parts.append(content)
 
-    return js_parts, css_parts, html_part
+    return js_parts, css_parts, html_part, skipped
 
 
 def _extract_plain(html: str, soup: BeautifulSoup) -> tuple[str, str, str]:
