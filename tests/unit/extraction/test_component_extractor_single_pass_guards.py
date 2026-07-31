@@ -129,6 +129,135 @@ class TestFocusInteractions:
                 assert inter.to_val
                 return
 
+    def test_focus_with_empty_value_after_clean_produces_no_interaction(self):
+        # '' cleans to an empty string — must be skipped, not recorded as a
+        # focus interaction with a blank to_val.
+        js = """
+        function EmptyFocusInput() {
+          return (
+            <input onFocus={e => e.target.style.borderColor = ''} />
+          );
+        }
+        """
+        b = _boundary(js, "EmptyFocusInput")
+        comp = extract_component(js, b, 1, {})
+        assert not any(i.trigger == "focus" for i in comp.interactions)
+
+    def test_focus_interactions_capped_at_max(self):
+        focus_count = MAX_INTERACTIONS_PER_COMPONENT + 3
+        handlers = "\n".join(
+            f'<input key={{{i}}} onFocus={{e => e.target.style.prop{i} = "val{i}"}} />'
+            for i in range(focus_count)
+        )
+        js = f"""
+        function FocusHeavy() {{
+          return (
+            <div>
+              {handlers}
+            </div>
+          );
+        }}
+        """
+        b = _boundary(js, "FocusHeavy")
+        comp = extract_component(js, b, 1, {})
+        assert len(comp.interactions) <= MAX_INTERACTIONS_PER_COMPONENT
+
+
+# ── extract_component: state-toggle hover/focus (C13/T25) edge cases ─────────
+
+class TestStateToggleEdgeCases:
+    def test_focus_state_toggle_ternary_captured(self):
+        # setFocused(true) inside onFocus (not onMouseEnter/Leave) — the
+        # elif branch that classifies a state toggle as trigger="focus".
+        js = """
+        function SearchField() {
+            const [focused, setFocused] = useState(false);
+            return (
+                <input
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    style={{ borderColor: focused ? C.accent : C.border }}
+                />
+            );
+        }
+        """
+        b = _boundary(js, "SearchField")
+        comp = extract_component(js, b, 1, {})
+        focus = next((i for i in comp.interactions if i.trigger == "focus"), None)
+        assert focus is not None
+        assert focus.css_prop == "borderColor"
+        assert focus.to_val == "C.accent"
+
+    def test_state_ternary_with_empty_branch_produces_no_interaction(self):
+        js = """
+        function EmptyTernaryBranch() {
+            const [hov, setHov] = useState(false);
+            return (
+                <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+                    style={{ color: hov ? '' : 'red' }}>
+                    content
+                </div>
+            );
+        }
+        """
+        b = _boundary(js, "EmptyTernaryBranch")
+        comp = extract_component(js, b, 1, {})
+        assert not any(i.css_prop == "color" for i in comp.interactions)
+
+    def test_state_toggle_loop_stops_when_cap_already_reached(self):
+        # Interactions already at MAX from imperative hover mutations before
+        # the state-toggle block even runs — its first cap check must break
+        # immediately, adding nothing more.
+        hover_count = MAX_INTERACTIONS_PER_COMPONENT
+        handlers = "\n".join(
+            f'<div key={{{i}}} onMouseEnter={{e => e.target.style.prop{i} = "a{i}"}} '
+            f'onMouseLeave={{e => e.target.style.prop{i} = "b{i}"}} />'
+            for i in range(hover_count)
+        )
+        js = f"""
+        function CapReachedBeforeState() {{
+            const [hov, setHov] = useState(false);
+            return (
+                <div onMouseEnter={{() => setHov(true)}} onMouseLeave={{() => setHov(false)}}>
+                    {handlers}
+                    <span style={{{{ color: hov ? C.red : C.border }}}} />
+                </div>
+            );
+        }}
+        """
+        b = _boundary(js, "CapReachedBeforeState")
+        comp = extract_component(js, b, 1, {})
+        assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
+        assert not any(i.css_prop == "color" for i in comp.interactions)
+
+    def test_ternary_loop_stops_at_cap_mid_component(self):
+        # Cap has room for exactly one more interaction when the ternary
+        # loop starts — its own inner cap check must stop after the first
+        # property, not the outer state/setter loop's check.
+        hover_count = MAX_INTERACTIONS_PER_COMPONENT - 1
+        handlers = "\n".join(
+            f'<div key={{{i}}} onMouseEnter={{e => e.target.style.prop{i} = "a{i}"}} '
+            f'onMouseLeave={{e => e.target.style.prop{i} = "b{i}"}} />'
+            for i in range(hover_count)
+        )
+        js = f"""
+        function TernaryCapMidComponent() {{
+            const [hov, setHov] = useState(false);
+            return (
+                <div onMouseEnter={{() => setHov(true)}} onMouseLeave={{() => setHov(false)}}
+                    style={{{{
+                        border: hov ? C.red : C.border,
+                        background: hov ? C.dark : C.light,
+                    }}}}>
+                    {handlers}
+                </div>
+            );
+        }}
+        """
+        b = _boundary(js, "TernaryCapMidComponent")
+        comp = extract_component(js, b, 1, {})
+        assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
+
 
 # ── extract_component: text filtering ────────────────────────────────────────
 
@@ -330,6 +459,19 @@ function CartView() {
 """
         comp = extract_component(js, self._boundary("CartView", js), 1, {})
         assert comp.child_refs.count("CartItem") == 1
+
+
+class TestVersionedComponentChildRef:
+    def test_jsx_tag_with_trailing_digit_recognized_as_child_ref(self):
+        js = """
+function ItemsPageV6() {
+    return (
+        <div><ItemCardV6 item={x} /></div>
+    );
+}
+"""
+        comp = extract_component(js, _boundary(js, "ItemsPageV6"), 1, {})
+        assert "ItemCardV6" in comp.child_refs
 
 
 class TestCssClassResolutionInExtractor:

@@ -240,6 +240,18 @@ class JavaScriptFunctionScanner:
         return None
 
 
+def find_matching_delimiter(
+    js: str, opening_index: int, opening: str = "{", closing: str = "}"
+) -> int | None:
+    """
+    Return the index just past the delimiter matching js[opening_index],
+    skipping over string/template literals and comments — e.g. locate the
+    end of an event handler's body (onMouseEnter={e => { ... }}) so every
+    statement inside can be scanned, not just the first.
+    """
+    return JavaScriptFunctionScanner(js)._matching_delimiter(opening_index, opening, closing)
+
+
 def find_function_end(js: str, fn_start: int) -> int:
     """
     Scan forward from fn_start, counting '{' and '}', and return the index
