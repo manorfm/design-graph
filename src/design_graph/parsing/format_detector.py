@@ -16,21 +16,22 @@ import logging
 
 from bs4 import BeautifulSoup
 
+from design_graph.core.models import SourceFormat
 from design_graph.core.patterns import RE_COMPRESSED_BUNDLE, RE_TAILWIND_CLASS
 
 logger = logging.getLogger(__name__)
 
 # ── Format name constants ─────────────────────────────────────────────────────
 
-BUNDLED_REACT = "bundled_react"
-TAILWIND      = "tailwind"
-PLAIN_HTML    = "plain_html"
+BUNDLED_REACT = SourceFormat.BUNDLED_REACT
+TAILWIND      = SourceFormat.TAILWIND
+PLAIN_HTML    = SourceFormat.PLAIN_HTML
 
 # A script this large that contains createElement is almost certainly a React bundle
 _REACT_BUNDLE_SCRIPT_MIN_LEN = 100_000
 
 
-def detect(html: str, soup: BeautifulSoup) -> str:
+def detect(html: str, soup: BeautifulSoup) -> SourceFormat:
     """
     Inspect the HTML and return the prototype format.
 

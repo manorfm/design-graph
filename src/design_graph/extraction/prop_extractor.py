@@ -14,7 +14,6 @@ Layer: extraction — must not import from graph/ or mcp/.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 
 from design_graph.core.models import ComponentProp, FunctionBoundary
@@ -100,12 +99,7 @@ def _parse_prop_entry(entry: str, component_name: str) -> ComponentProp | None:
     if not prop_name or not prop_name.isidentifier() or not prop_name[0].islower():
         return None
 
-    prop_id = "prop_" + hashlib.md5(
-        f"{component_name}_{prop_name}".encode(), usedforsecurity=False
-    ).hexdigest()[:8]
-
-    return ComponentProp(
-        id=prop_id,
+    return ComponentProp.create(
         component_name=component_name,
         prop_name=prop_name,
         default_value=default_value,

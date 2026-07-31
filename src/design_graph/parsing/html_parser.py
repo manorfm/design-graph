@@ -23,7 +23,7 @@ from design_graph.core.constants import (
     MIN_DOM_PATTERN_REPETITIONS,
     MIN_DOM_SIGNATURE_LENGTH,
 )
-from design_graph.core.models import DOMPattern
+from design_graph.core.models import DOMPattern, SemanticType
 
 logger = logging.getLogger(__name__)
 
@@ -175,28 +175,28 @@ def _infer_component_name(sig: str, tag: Tag) -> str:
     return tag.name.capitalize() + "Component"
 
 
-def _infer_semantic_type(tag: Tag) -> str:
+def _infer_semantic_type(tag: Tag) -> SemanticType:
     """Infer a broad semantic category from the tag's name and class."""
     name = tag.name.lower()
     classes_str = " ".join(tag.get("class", [])).lower()
 
     if name == "nav" or "nav" in classes_str or "navbar" in classes_str:
-        return "nav"
+        return SemanticType.NAV
     if name in ("header", "footer"):
-        return name
+        return SemanticType(name)
     if "card" in classes_str or "tile" in classes_str:
-        return "card"
+        return SemanticType.CARD
     if "modal" in classes_str or "dialog" in classes_str:
-        return "modal"
+        return SemanticType.MODAL
     if "badge" in classes_str or "tag" in classes_str:
-        return "badge"
+        return SemanticType.BADGE
     if name in ("form",) or "form" in classes_str:
-        return "form"
+        return SemanticType.FORM
     if name in ("table", "thead", "tbody"):
-        return "table"
+        return SemanticType.TABLE
     if name == "li" or "item" in classes_str:
-        return "list-item"
-    return "component"
+        return SemanticType.LIST_ITEM
+    return SemanticType.COMPONENT
 
 
 def _section_name_from_tag(tag: Tag) -> str:

@@ -7,7 +7,6 @@ lists of DesignToken instances. No file I/O or graph access here.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from collections import Counter, defaultdict
@@ -35,7 +34,7 @@ from design_graph.core.constants import (
     SPACING_MAX_PX,
     SPACING_MIN_PX,
 )
-from design_graph.core.models import DesignToken, RawSources
+from design_graph.core.models import DesignToken, EntityId, RawSources, TokenCategory
 from design_graph.core.patterns import (
     RE_BORDER_RADIUS,
     RE_BOX_SHADOW,
@@ -103,11 +102,6 @@ def _color_label(color: str) -> str:
     return COLOR_SEMANTIC_LABELS.get(color, COLOR_SEMANTIC_LABELS.get(color.upper(), color))
 
 
-def _token_id(value: str, prefix: str) -> str:
-    digest = hashlib.md5(value.encode()).hexdigest()[:8]
-    return f"{prefix}{digest}"
-
-
 def _extract_colors(combined: str) -> list[DesignToken]:
     raw_counts: Counter[str] = Counter(
         _normalise_color(m) for m in RE_COLOR.findall(combined)
@@ -122,14 +116,14 @@ def _extract_colors(combined: str) -> list[DesignToken]:
         if count < MIN_COLOR_OCCURRENCES:
             continue
 
-        tid = _token_id(color, "col_")
+        tid = EntityId.derive("col", color)
         if tid in seen_ids:
             continue
         seen_ids.add(tid)
 
         tokens.append(DesignToken(
             id=tid,
-            category="color",
+            category=TokenCategory.COLOR,
             label=_color_label(color),
             value=color,
             usage=count,
@@ -172,10 +166,10 @@ def _extract_spacing(combined: str) -> list[DesignToken]:
     for grid_px, count in grid_counts.most_common():
         if count < MIN_SPACING_OCCURRENCES:
             continue
-        tid = f"sp_{grid_px}"
+        tid = EntityId.literal("sp", str(grid_px))
         tokens.append(DesignToken(
             id=tid,
-            category="spacing",
+            category=TokenCategory.SPACING,
             label=f"space_{grid_px}",
             value=f"{grid_px}px",
             usage=count,
@@ -214,10 +208,10 @@ def _extract_font_sizes(combined: str) -> list[DesignToken]:
     for px, count in raw_px_counts.most_common(MAX_FONT_SIZE_TOKENS):
         if count < MIN_TYPOGRAPHY_OCCURRENCES:
             continue
-        tid = f"fs_{px}"
+        tid = EntityId.literal("fs", str(px))
         tokens.append(DesignToken(
             id=tid,
-            category="typography",
+            category=TokenCategory.TYPOGRAPHY,
             label=_typography_size_label(px),
             value=f"{px}px",
             usage=count,
@@ -237,10 +231,10 @@ def _extract_font_weights(combined: str) -> list[DesignToken]:
         if count < MIN_TYPOGRAPHY_OCCURRENCES:
             continue
         label = FONT_WEIGHT_SEMANTIC_LABELS.get(raw_weight, f"weight_{raw_weight}")
-        tid   = _token_id(raw_weight, "fw_")
+        tid   = EntityId.derive("fw", raw_weight)
         tokens.append(DesignToken(
             id=tid,
-            category="typography",
+            category=TokenCategory.TYPOGRAPHY,
             label=label,
             value=raw_weight,
             usage=count,
@@ -272,10 +266,10 @@ def _extract_shadows(combined: str) -> list[DesignToken]:
     for shadow_value, count in raw_counts.most_common(MAX_SHADOW_TOKENS):
         if count < MIN_SHADOW_OCCURRENCES:
             continue
-        tid = _token_id(shadow_value, "sh_")
+        tid = EntityId.derive("sh", shadow_value)
         tokens.append(DesignToken(
             id=tid,
-            category="shadow",
+            category=TokenCategory.SHADOW,
             label=f"shadow_{rank}",
             value=shadow_value,
             usage=count,
@@ -328,10 +322,10 @@ def _extract_radii(combined: str) -> list[DesignToken]:
         if count < MIN_RADIUS_OCCURRENCES:
             continue
         first_component = radius_value.split()[0]
-        tid = _token_id(first_component, "rx_")
+        tid = EntityId.derive("rx", first_component)
         tokens.append(DesignToken(
             id=tid,
-            category="radius",
+            category=TokenCategory.RADIUS,
             label=_radius_label(first_component),
             value=first_component,
             usage=count,
@@ -372,10 +366,10 @@ def _extract_css_vars(combined: str) -> list[DesignToken]:
         if count < MIN_CSS_VAR_OCCURRENCES:
             continue
         value = var_definitions[var_name]
-        tid   = _token_id(var_name, "cv_")
+        tid   = EntityId.derive("cv", var_name)
         tokens.append(DesignToken(
             id=tid,
-            category="css_var",
+            category=TokenCategory.CSS_VAR,
             label=_css_var_label(var_name),
             value=value,
             usage=count,

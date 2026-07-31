@@ -8,9 +8,34 @@ use regular @dataclass with explicit field control.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Optional
+
+
+# ── Identity ───────────────────────────────────────────────────────────────────
+
+class EntityId(str):
+    """
+    A deterministic, prefixed identifier for a graph entity.
+
+    A plain string subclass — Cypher params, dict keys, and JSON all treat it
+    exactly like `str`. Only construction gets richer behavior: `derive()`
+    replaces the `prefix + hashlib.md5(seed).hexdigest()[:8]` pattern that
+    used to be reimplemented independently across every extractor module.
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def derive(cls, prefix: str, seed: str) -> "EntityId":
+        digest = hashlib.md5(seed.encode(), usedforsecurity=False).hexdigest()[:8]
+        return cls(f"{prefix}_{digest}")
+
+    @classmethod
+    def literal(cls, prefix: str, suffix: str) -> "EntityId":
+        return cls(f"{prefix}_{suffix}")
 
 
 # ── Raw parsing output ────────────────────────────────────────────────────────
@@ -23,7 +48,7 @@ class RawSources:
     css: str
     inner_html: str
     html_hash: str
-    format: str  # "bundled_react" | "tailwind" | "plain_html"
+    format: SourceFormat
     skipped_entries: int = 0  # bundle entries that failed base64/gzip decode (bundled_react only)
 
 
@@ -52,14 +77,126 @@ class ComponentDefinitionStatus(IntEnum):
     UNRESOLVED = 0
 
 
+# ── Closed-set value types ──────────────────────────────────────────────────────
+
+class _StrEnum(str, Enum):
+    """
+    Base for every closed-set value type below.
+
+    `(str, Enum)` members already behave as their plain value for isinstance
+    checks, `+` concatenation, and `json.dumps` — but `Enum.__str__` shadows
+    `str.__str__`, so `str(member)`/f-strings/`%s` produce "ClassName.MEMBER"
+    instead of the value. Overriding `__str__` once here fixes every seed
+    string built via f-string across the codebase, not just the id-derivation
+    ones written for this refactor.
+    """
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+class StyleState(_StrEnum):
+    DEFAULT = "default"
+    HOVER = "hover"
+    FOCUS = "focus"
+
+
+class InteractionTrigger(_StrEnum):
+    HOVER = "hover"
+    FOCUS = "focus"
+
+
+class TextType(_StrEnum):
+    HEADING = "heading"
+    BUTTON = "button"
+    LABEL = "label"
+    PLACEHOLDER = "placeholder"
+    DESCRIPTION = "description"
+    SECTION_TEXT = "section_text"  # section-scoped text (graph/writer.py), not component-scoped
+
+
+class TokenCategory(_StrEnum):
+    COLOR = "color"
+    SPACING = "spacing"
+    TYPOGRAPHY = "typography"
+    SHADOW = "shadow"
+    RADIUS = "radius"
+    CSS_VAR = "css_var"
+
+
+class SourceFormat(_StrEnum):
+    BUNDLED_REACT = "bundled_react"
+    TAILWIND = "tailwind"
+    PLAIN_HTML = "plain_html"
+
+
+class DetectionMethod(_StrEnum):
+    COMMENT = "comment"
+    STRUCTURAL = "structural"
+    SEMANTIC = "semantic"
+
+
+class ChunkLevel(_StrEnum):
+    SCREEN = "screen"
+    SECTION = "section"
+    COMPONENT = "component"
+
+
+class ComponentType(_StrEnum):
+    """Semantic type of an ExtractedComponent — union of every value the
+    React-path inference (component_extractor) and the plain-HTML path
+    (plain_html_component_extractor) can produce."""
+
+    MODAL = "modal"
+    SCREEN = "screen"
+    BUTTON = "button"
+    CARD = "card"
+    TAB = "tab"
+    FORM = "form"
+    LIST_ITEM = "list-item"
+    BADGE = "badge"
+    CHART = "chart"
+    NAVIGATION = "navigation"
+    TOGGLE = "toggle"
+    TABLE = "table"
+    COMPONENT = "component"  # fallback/unknown
+
+
+class SemanticType(_StrEnum):
+    """DOM-level semantic category from html_parser._infer_semantic_type —
+    distinct value space from ComponentType (e.g. "nav" vs "navigation");
+    _SEMANTIC_TYPE_TO_COMP_TYPE maps one to the other."""
+
+    NAV = "nav"
+    HEADER = "header"
+    FOOTER = "footer"
+    CARD = "card"
+    MODAL = "modal"
+    BADGE = "badge"
+    FORM = "form"
+    TABLE = "table"
+    LIST_ITEM = "list-item"
+    COMPONENT = "component"
+
+
+class PropDefault(str):
+    """A React prop's default-value literal. Empty means the prop is required."""
+
+    __slots__ = ()
+
+    @property
+    def is_required(self) -> bool:
+        return len(self) == 0
+
+
 # ── Design tokens ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class DesignToken:
     """A reusable visual value extracted from CSS/JS (color, spacing, etc.)."""
 
-    id: str        # deterministic MD5 hash prefix, e.g. "col_a3f2b1"
-    category: str  # "color" | "spacing" | "typography" | "shadow" | "radius" | "css_var"
+    id: EntityId
+    category: TokenCategory
     label: str     # semantic name, e.g. "primary", "space_16", "text_base", "weight_bold"
     value: str     # raw value, e.g. "#ffb81c", "16px", "700"
     usage: int     # occurrence count across css+js
@@ -69,17 +206,21 @@ class DesignToken:
 
 @dataclass(frozen=True)
 class ComponentProp:
-    """
-    A declared prop extracted from a React component's destructured function signature.
+    """A declared prop extracted from a React component's destructured function signature."""
 
-    default_value is an empty string when the prop is required (no default);
-    a non-empty string carries the literal default (e.g. 'primary', 'false', '1').
-    """
-
-    id: str               # deterministic hash: "prop_{MD5[:8]}"
+    id: EntityId
     component_name: str
-    prop_name: str        # camelCase prop identifier, e.g. "onClose", "variant"
-    default_value: str    # "" = required; otherwise the default literal
+    prop_name: str          # camelCase prop identifier, e.g. "onClose", "variant"
+    default_value: PropDefault
+
+    @classmethod
+    def create(cls, component_name: str, prop_name: str, default_value: str) -> "ComponentProp":
+        return cls(
+            id=EntityId.derive("prop", f"{component_name}_{prop_name}"),
+            component_name=component_name,
+            prop_name=prop_name,
+            default_value=PropDefault(default_value),
+        )
 
 
 # ── Component sub-entities ────────────────────────────────────────────────────
@@ -88,34 +229,91 @@ class ComponentProp:
 class StyleEntry:
     """One CSS property/value pair from a component's inline styles."""
 
-    id: str
-    element: str   # component name that owns this style
-    state: str     # "default" | "hover" | "focus" | "transition"
-    property: str  # camelCase CSS property, e.g. "backgroundColor"
+    id: EntityId
+    element: str        # component name (or section id, or "class:<name>") that owns this style
+    state: StyleState
+    property: str        # camelCase CSS property, e.g. "backgroundColor"
     value: str
+
+    @classmethod
+    def create(
+        cls, element: str, property: str, value: str, state: StyleState = StyleState.DEFAULT,
+    ) -> "StyleEntry":
+        seed = (
+            f"{element}_{property}_{value}" if state == StyleState.DEFAULT
+            else f"{element}_{state}_{property}_{value}"
+        )
+        return cls(id=EntityId.derive("st", seed), element=element, state=state, property=property, value=value)
+
+    @classmethod
+    def from_css_class(cls, class_name: str, property: str, value: str) -> "StyleEntry":
+        return cls(
+            id=EntityId.derive("cls", f"{class_name}:{property}"),
+            element=f"class:{class_name}", state=StyleState.DEFAULT, property=property, value=value,
+        )
+
+    @classmethod
+    def for_section(cls, section_id: str, property: str, value: str) -> "StyleEntry":
+        return cls(
+            id=EntityId.derive("sec", f"{section_id}_{property}"),
+            element=section_id, state=StyleState.DEFAULT, property=property, value=value,
+        )
 
 
 @dataclass(frozen=True)
 class InteractionEntry:
     """A detected mouse/focus interaction on a component."""
 
-    id: str
-    trigger: str     # "hover" | "focus"
+    id: EntityId
+    trigger: InteractionTrigger
     css_prop: str
     from_val: str
     to_val: str
     transition: str  # e.g. "all 0.2s ease"
+
+    @classmethod
+    def create(
+        cls, element: str, trigger: InteractionTrigger, css_prop: str,
+        from_val: str, to_val: str, transition: str,
+    ) -> "InteractionEntry":
+        """Hover (imperative or state-toggle) and state-toggle focus."""
+        return cls(
+            id=EntityId.derive("int", f"{element}_{css_prop}_{to_val}"),
+            trigger=trigger, css_prop=css_prop, from_val=from_val, to_val=to_val, transition=transition,
+        )
+
+    @classmethod
+    def from_focus_mutation(cls, element: str, css_prop: str, to_val: str, transition: str) -> "InteractionEntry":
+        """Imperative onFocus={e => style.prop = value} — no from_val, seed omits to_val."""
+        return cls(
+            id=EntityId.derive("int", f"{element}_focus_{css_prop}"),
+            trigger=InteractionTrigger.FOCUS, css_prop=css_prop, from_val="", to_val=to_val, transition=transition,
+        )
 
 
 @dataclass(frozen=True)
 class TextEntry:
     """A UI string extracted from a component's return block."""
 
-    id: str
+    id: EntityId
     content: str
-    text_type: str  # "heading" | "button" | "label" | "placeholder" | "description"
-    source: str     # component name
-    element: str    # HTML tag context, e.g. "h1", "button"
+    text_type: TextType
+    source: str      # component name (or section id, for section-scoped text)
+    element: str      # HTML tag context, e.g. "h1", "button"
+
+    @classmethod
+    def create(cls, content: str, text_type: TextType, source: str, element: str = "") -> "TextEntry":
+        return cls(
+            id=EntityId.derive("txt", f"{source}_{content}"),
+            content=content, text_type=text_type, source=source, element=element,
+        )
+
+    @classmethod
+    def for_section(cls, section_id: str, text: str) -> "TextEntry":
+        return cls(
+            id=EntityId.derive("stxt", f"{section_id}_{text}"),
+            content=text, text_type=TextType.SECTION_TEXT, source=section_id, element="section",
+        )
 
 
 # ── Extracted domain entities ─────────────────────────────────────────────────
@@ -128,7 +326,7 @@ class ExtractedComponent:
     """
 
     name: str
-    comp_type: str      # inferred: "button" | "card" | "modal" | "screen" | etc.
+    comp_type: ComponentType
     jsx_snippet: str    # sanitized return() block
     occurrence: int     # how many times this function appears in the JS
     classes: str        # space-separated CSS class names found in className=
@@ -171,7 +369,7 @@ class ExtractedComponent:
         return cls(
             name=variants[0].name,
             comp_type=next(
-                (variant.comp_type for variant in variants if variant.comp_type != "component"),
+                (variant.comp_type for variant in variants if variant.comp_type != ComponentType.COMPONENT),
                 variants[0].comp_type,
             ),
             jsx_snippet="\n\n{/* Source variant */}\n\n".join(jsx_variants),
@@ -205,14 +403,36 @@ class ExtractedSection:
     A named visual block within a screen, detected by comment or DOM structure.
     """
 
-    id: str
+    id: EntityId
     screen: str
     name: str
     styles: dict          # prop → value
     component_refs: list[str]
     texts: list[str]
     jsx_snippet: str
-    detection_method: str  # "comment" | "structural" | "semantic" | "none"
+    detection_method: DetectionMethod
+
+    @classmethod
+    def create(
+        cls, screen: str, name: str, styles: dict, component_refs: list[str],
+        texts: list[str], jsx_snippet: str, detection_method: DetectionMethod,
+    ) -> "ExtractedSection":
+        """Comment or structural detection — id keyed by (screen, name)."""
+        return cls(
+            id=EntityId.derive("sec", f"{screen}_{name}"),
+            screen=screen, name=name, styles=styles, component_refs=component_refs,
+            texts=texts, jsx_snippet=jsx_snippet, detection_method=detection_method,
+        )
+
+    @classmethod
+    def create_semantic(cls, screen: str, name: str, index: int, texts: list[str], jsx_snippet: str) -> "ExtractedSection":
+        """Semantic (plain-HTML) detection — index included since same-named
+        semantic sections can repeat within a screen."""
+        return cls(
+            id=EntityId.derive("sec", f"{screen}_{name}_{index}"),
+            screen=screen, name=name, styles={}, component_refs=[],
+            texts=texts, jsx_snippet=jsx_snippet, detection_method=DetectionMethod.SEMANTIC,
+        )
 
 
 # ── DOM analysis (plain HTML) ─────────────────────────────────────────────────
@@ -225,7 +445,7 @@ class DOMPattern:
     count: int
     first_example: str   # truncated HTML of the first occurrence
     inferred_name: str   # e.g. "RestaurantCard"
-    semantic_type: str   # "card" | "nav" | "list-item" | etc.
+    semantic_type: SemanticType
 
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
@@ -239,7 +459,7 @@ class ChunkEnvelope:
 
     chunk_id: str            # slug: [a-z0-9_]+
     breadcrumb: str          # e.g. "RestaurantsPage > Header"
-    level: str               # "screen" | "section" | "component"
+    level: ChunkLevel
     parent_id: Optional[str]
     sibling_ids: list[str]
     child_ids: list[str]

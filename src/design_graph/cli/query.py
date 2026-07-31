@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from design_graph.cli._logging import configure_cli_logging
+from design_graph.core.models import TokenCategory
 from design_graph.paths import resolve_graph_dir
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
 
     tok_p = sub.add_parser("tokens", parents=[shared], help="List design tokens")
     tok_p.add_argument("category", nargs="?", default=None,
-                       choices=["color", "spacing", "typography", "shadow", "radius"],
+                       choices=[c.value for c in TokenCategory],
                        help="Filter by token category")
 
     srch_p = sub.add_parser("search", parents=[shared], help="Full-text search across graph")

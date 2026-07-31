@@ -14,7 +14,6 @@ instance — no shared mutable state.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import re
 from collections import Counter
@@ -28,12 +27,16 @@ from design_graph.core.constants import (
     REACT_INTERNALS,
 )
 from design_graph.core.models import (
+    ComponentType,
     DesignToken,
     ExtractedComponent,
     FunctionBoundary,
     InteractionEntry,
+    InteractionTrigger,
     StyleEntry,
+    StyleState,
     TextEntry,
+    TextType,
 )
 from design_graph.core.patterns import (
     RE_BUTTON_TEXT,
@@ -77,18 +80,18 @@ def select_renderable_boundaries(
         if VisualFunctionCandidate.from_source(js, boundary).renders_visual_output
     ]
 
-_COMPONENT_TYPE_MAP: list[tuple[list[str], str]] = [
-    (["modal", "dialog", "confirm", "alert"],          "modal"),
-    (["page", "screen", "dashboard"],                  "screen"),
-    (["btn", "button"],                                "button"),
-    (["card", "tile", "widget", "section"],            "card"),
-    (["tab", "panel"],                                 "tab"),
-    (["form", "input", "field", "select"],             "form"),
-    (["row", "item", "list"],                          "list-item"),
-    (["badge", "pill", "tag", "dot"],                  "badge"),
-    (["chart", "graph", "sparkline"],                  "chart"),
-    (["drawer", "sidebar", "nav"],                     "navigation"),
-    (["toggle", "switch"],                             "toggle"),
+_COMPONENT_TYPE_MAP: list[tuple[list[str], ComponentType]] = [
+    (["modal", "dialog", "confirm", "alert"],          ComponentType.MODAL),
+    (["page", "screen", "dashboard"],                  ComponentType.SCREEN),
+    (["btn", "button"],                                ComponentType.BUTTON),
+    (["card", "tile", "widget", "section"],            ComponentType.CARD),
+    (["tab", "panel"],                                 ComponentType.TAB),
+    (["form", "input", "field", "select"],             ComponentType.FORM),
+    (["row", "item", "list"],                          ComponentType.LIST_ITEM),
+    (["badge", "pill", "tag", "dot"],                  ComponentType.BADGE),
+    (["chart", "graph", "sparkline"],                  ComponentType.CHART),
+    (["drawer", "sidebar", "nav"],                     ComponentType.NAVIGATION),
+    (["toggle", "switch"],                             ComponentType.TOGGLE),
 ]
 
 _RE_PASCAL_SPLIT = re.compile(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
@@ -104,18 +107,18 @@ def _pascal_words_reversed(name: str) -> list[str]:
     return [w.lower() for w in reversed(words) if w]
 
 
-def infer_component_type(name: str) -> str:
-    """Map a PascalCase component name to a semantic type string.
+def infer_component_type(name: str) -> ComponentType:
+    """Map a PascalCase component name to a semantic type.
 
     Checks each PascalCase word individually (last word first) so that the
     type-suffix wins over incidental prefix keywords.
-    E.g. "ConfirmButton" → "button", not "modal" from "confirm".
+    E.g. "ConfirmButton" → BUTTON, not MODAL from "confirm".
     """
     for word in _pascal_words_reversed(name):
         for keywords, comp_type in _COMPONENT_TYPE_MAP:
             if word in keywords:
                 return comp_type
-    return "component"
+    return ComponentType.COMPONENT
 
 
 def sanitize_jsx(jsx: str) -> str:
@@ -238,13 +241,10 @@ def extract_component(
             val = val.strip().rstrip(",").strip()
             if not val or val in ("true", "false", "null", "undefined", "inherit"):
                 continue
-            sid = _hid(f"{boundary.name}_{prop}_{val}", "st_")
-            if sid not in seen_style_ids:
-                seen_style_ids.add(sid)
-                styles.append(StyleEntry(
-                    id=sid, element=boundary.name, state="default",
-                    property=prop, value=val,
-                ))
+            entry = StyleEntry.create(element=boundary.name, property=prop, value=val)
+            if entry.id not in seen_style_ids:
+                seen_style_ids.add(entry.id)
+                styles.append(entry)
 
     # Hover interactions — value may be a quoted literal, a token/prop reference
     # (C.red, o.color), or a small expression (color + '12'); _clean_style_value
@@ -262,22 +262,21 @@ def extract_component(
     for (prop, to_val), (_, from_val) in zip(enters, leaves):
         if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
             break
-        iid = _hid(f"{boundary.name}_{prop}_{to_val}", "int_")
-        if iid not in seen_inter_ids:
-            seen_inter_ids.add(iid)
-            interactions.append(InteractionEntry(
-                id=iid, trigger="hover", css_prop=prop,
-                from_val=from_val, to_val=to_val, transition=transition,
-            ))
+        entry = InteractionEntry.create(
+            element=boundary.name, trigger=InteractionTrigger.HOVER, css_prop=prop,
+            from_val=from_val, to_val=to_val, transition=transition,
+        )
+        if entry.id not in seen_inter_ids:
+            seen_inter_ids.add(entry.id)
+            interactions.append(entry)
             # Hover state style entry
             if len(styles) < MAX_STYLES_PER_COMPONENT:
-                hsid = _hid(f"{boundary.name}_hover_{prop}_{to_val}", "st_")
-                if hsid not in seen_style_ids:
-                    seen_style_ids.add(hsid)
-                    styles.append(StyleEntry(
-                        id=hsid, element=boundary.name, state="hover",
-                        property=prop, value=to_val,
-                    ))
+                style = StyleEntry.create(
+                    element=boundary.name, property=prop, value=to_val, state=StyleState.HOVER,
+                )
+                if style.id not in seen_style_ids:
+                    seen_style_ids.add(style.id)
+                    styles.append(style)
 
     # Focus interactions
     for prop, raw_val in _handler_mutations(window, "onFocus"):
@@ -286,13 +285,12 @@ def extract_component(
         focus_val = _clean_style_value(raw_val)
         if not focus_val:
             continue
-        iid = _hid(f"{boundary.name}_focus_{prop}", "int_")
-        if iid not in seen_inter_ids:
-            seen_inter_ids.add(iid)
-            interactions.append(InteractionEntry(
-                id=iid, trigger="focus", css_prop=prop,
-                from_val="", to_val=focus_val, transition=transition,
-            ))
+        entry = InteractionEntry.from_focus_mutation(
+            element=boundary.name, css_prop=prop, to_val=focus_val, transition=transition,
+        )
+        if entry.id not in seen_inter_ids:
+            seen_inter_ids.add(entry.id)
+            interactions.append(entry)
 
     # State-toggle hover/focus: const [hov, setHov] = useState(false); handlers
     # flip it (setHov(true)/setHov(false)) instead of mutating style directly,
@@ -306,9 +304,9 @@ def extract_component(
         has_enter = re_state_setter_trigger(setter, "onMouseEnter").search(window)
         has_leave = re_state_setter_trigger(setter, "onMouseLeave").search(window)
         if has_enter and has_leave:
-            state_trigger = "hover"
+            state_trigger = InteractionTrigger.HOVER
         elif re_state_setter_trigger(setter, "onFocus").search(window):
-            state_trigger = "focus"
+            state_trigger = InteractionTrigger.FOCUS
         else:
             continue
         for prop, to_raw, from_raw in re_state_ternary_style(state).findall(window):
@@ -318,44 +316,41 @@ def extract_component(
             from_val = _clean_style_value(from_raw)
             if not to_val or not from_val:
                 continue
-            iid = _hid(f"{boundary.name}_{prop}_{to_val}", "int_")
-            if iid not in seen_inter_ids:
-                seen_inter_ids.add(iid)
-                interactions.append(InteractionEntry(
-                    id=iid, trigger=state_trigger, css_prop=prop,
-                    from_val=from_val, to_val=to_val, transition=transition,
-                ))
+            entry = InteractionEntry.create(
+                element=boundary.name, trigger=state_trigger, css_prop=prop,
+                from_val=from_val, to_val=to_val, transition=transition,
+            )
+            if entry.id not in seen_inter_ids:
+                seen_inter_ids.add(entry.id)
+                interactions.append(entry)
                 if len(styles) < MAX_STYLES_PER_COMPONENT:
-                    hsid = _hid(f"{boundary.name}_{state_trigger}_{prop}_{to_val}", "st_")
-                    if hsid not in seen_style_ids:
-                        seen_style_ids.add(hsid)
-                        styles.append(StyleEntry(
-                            id=hsid, element=boundary.name, state=state_trigger,
-                            property=prop, value=to_val,
-                        ))
+                    style = StyleEntry.create(
+                        element=boundary.name, property=prop, value=to_val,
+                        state=StyleState(state_trigger.value),
+                    )
+                    if style.id not in seen_style_ids:
+                        seen_style_ids.add(style.id)
+                        styles.append(style)
 
     # Text extraction
-    def _add_text(content: str, text_type: str, element: str = "") -> None:
+    def _add_text(content: str, text_type: TextType, element: str = "") -> None:
         c = content.strip()
         if not c or len(c) < 3 or len(c) > 80:
             return
         if re.match(r"^[a-z_]+$", c) or c.startswith(("#", "rgba")):
             return
-        tid = _hid(f"{boundary.name}_{c}", "txt_")
-        if tid not in seen_text_ids and len(texts) < MAX_TEXTS_PER_COMPONENT:
-            seen_text_ids.add(tid)
-            texts.append(TextEntry(
-                id=tid, content=c,
-                text_type=text_type, source=boundary.name, element=element,
-            ))
+        entry = TextEntry.create(content=c, text_type=text_type, source=boundary.name, element=element)
+        if entry.id not in seen_text_ids and len(texts) < MAX_TEXTS_PER_COMPONENT:
+            seen_text_ids.add(entry.id)
+            texts.append(entry)
 
-    for m in RE_HEADING.finditer(window):     _add_text(m.group(1), "heading", "h")
-    for m in RE_BUTTON_TEXT.finditer(window): _add_text(m.group(1), "button", "button")
-    for m in RE_LABEL_TEXT.finditer(window):  _add_text(m.group(1), "label", "label")
-    for m in RE_PLACEHOLDER.finditer(window): _add_text(m.group(1), "placeholder", "input")
+    for m in RE_HEADING.finditer(window):     _add_text(m.group(1), TextType.HEADING, "h")
+    for m in RE_BUTTON_TEXT.finditer(window): _add_text(m.group(1), TextType.BUTTON, "button")
+    for m in RE_LABEL_TEXT.finditer(window):  _add_text(m.group(1), TextType.LABEL, "label")
+    for m in RE_PLACEHOLDER.finditer(window): _add_text(m.group(1), TextType.PLACEHOLDER, "input")
     for m in RE_UI_STRING.finditer(window):
         t = m.group(1).strip()
-        _add_text(t, "description" if len(t) > 40 else "label")
+        _add_text(t, TextType.DESCRIPTION if len(t) > 40 else TextType.LABEL)
 
     # CSS class names
     for m in RE_CLASS_NAME.finditer(window):
@@ -472,10 +467,6 @@ async def extract_all_components(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
-
-def _hid(s: str, prefix: str = "") -> str:
-    return f"{prefix}{hashlib.md5(s.encode()).hexdigest()[:8]}"
-
 
 def _handler_mutations(window: str, event: str) -> list[tuple[str, str]]:
     """

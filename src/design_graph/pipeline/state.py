@@ -12,7 +12,6 @@ Separation of concerns:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from collections import Counter
@@ -21,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from design_graph.core.models import BuildState, ExtractedScreen
+from design_graph.graph.diff import compute_screen_hash
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ def build_new_state(
     return BuildState(
         html_hash=html_hash,
         last_build=datetime.now(timezone.utc).isoformat(),
-        screens={s.name: _screen_fingerprint(s) for s in screens},
+        screens={s.name: compute_screen_hash(s) for s in screens},
         components=dict(comp_counts.most_common(200)),
         source_path=str(source_path.resolve()) if source_path else "",
         database_path=str(database_path.resolve()) if database_path else "",
@@ -146,9 +146,3 @@ def build_new_state(
 
 def _empty_build_state() -> BuildState:
     return BuildState(html_hash="", last_build="", screens={}, components={})
-
-
-def _screen_fingerprint(screen: ExtractedScreen) -> str:
-    """Stable 12-char hex fingerprint of a screen based on name + component refs."""
-    key = f"{screen.name}:{','.join(sorted(screen.component_refs))}"
-    return hashlib.md5(key.encode()).hexdigest()[:12]

@@ -15,7 +15,6 @@ OR >= 3 style properties. This prevents empty sections from polluting the graph.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -23,7 +22,12 @@ import re
 from bs4 import BeautifulSoup
 
 from design_graph.core.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
-from design_graph.core.models import ExtractedSection, ExtractedScreen, FunctionBoundary
+from design_graph.core.models import (
+    DetectionMethod,
+    ExtractedScreen,
+    ExtractedSection,
+    FunctionBoundary,
+)
 from design_graph.parsing.html_parser import extract_semantic_sections
 from design_graph.core.patterns import (
     RE_CLASS_NAME,
@@ -97,7 +101,7 @@ def _detect_by_comments(window: str, screen_name: str) -> list[ExtractedSection]
             block=block,
             sec_name=sec_name,
             screen_name=screen_name,
-            detection_method="comment",
+            detection_method=DetectionMethod.COMMENT,
         ))
 
     return sections
@@ -155,7 +159,7 @@ def _detect_by_structure(window: str, screen_name: str) -> list[ExtractedSection
             block=block,
             sec_name=sec_name,
             screen_name=screen_name,
-            detection_method="structural",
+            detection_method=DetectionMethod.STRUCTURAL,
         ))
 
     return sections
@@ -167,10 +171,8 @@ def _build_section(
     block: str,
     sec_name: str,
     screen_name: str,
-    detection_method: str,
+    detection_method: DetectionMethod,
 ) -> ExtractedSection:
-    sec_id = _hid(f"{screen_name}_{sec_name}", "sec_")
-
     # Styles
     styles: dict[str, str] = {}
     for sm in RE_INLINE_STYLE.finditer(block):
@@ -202,8 +204,7 @@ def _build_section(
             texts.append(f"[placeholder] {t}")
     texts = texts[:15]
 
-    return ExtractedSection(
-        id=sec_id,
+    return ExtractedSection.create(
         screen=screen_name,
         name=sec_name,
         styles=styles,
@@ -251,21 +252,16 @@ def extract_sections_for_plain_html(
         name = raw.get("name", raw.get("tag", "Section").capitalize())
         html = raw.get("html", "")
 
-        # Include index in the ID to guarantee uniqueness across same-named sections
-        sec_id = _hid(f"{screen_name}_{name}_{idx}", "sec_")
-
         # Extract texts: headings and visible text nodes from the HTML snippet
         texts = _extract_texts_from_html(html)
 
-        sections.append(ExtractedSection(
-            id=sec_id,
+        # index is included in the id so same-named sections stay unique
+        sections.append(ExtractedSection.create_semantic(
             screen=screen_name,
             name=name,
-            styles={},
-            component_refs=[],      # plain HTML has no component references
+            index=idx,
             texts=texts[:10],
             jsx_snippet=html[:2_000],
-            detection_method="semantic",
         ))
 
     logger.debug(
@@ -298,9 +294,3 @@ def _extract_texts_from_html(html: str) -> list[str]:
         return texts[:10]
     except Exception:
         return []
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _hid(s: str, prefix: str = "") -> str:
-    return f"{prefix}{hashlib.md5(s.encode()).hexdigest()[:8]}"
