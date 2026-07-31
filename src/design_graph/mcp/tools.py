@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 
+from design_graph.core.models import ComponentType, PropDefault, StyleState, TokenCategory
 from design_graph.graph.reader import GraphReader
 from design_graph.mcp.search import search
 
@@ -101,8 +102,8 @@ TOOL_DEFINITIONS: list[dict] = [
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "'color' or 'spacing'. Omit for all tokens.",
-                    "enum": ["color", "spacing"],
+                    "description": "Token category. Omit for all tokens.",
+                    "enum": [c.value for c in TokenCategory],
                 },
                 "doc": _doc_param(),
             },
@@ -188,7 +189,7 @@ TOOL_DEFINITIONS: list[dict] = [
         "name": "list_components",
         "description": (
             "Lists all components in the prototype, optionally filtered by semantic type. "
-            "Types: button, card, modal, form, badge, toggle, chart, navigation, list-item, screen, tab, component. "
+            f"Types: {', '.join(c.value for c in ComponentType)}. "
             "Returns name, type and occurrence count sorted by frequency."
         ),
         "inputSchema": {
@@ -196,7 +197,7 @@ TOOL_DEFINITIONS: list[dict] = [
             "properties": {
                 "comp_type": {
                     "type": "string",
-                    "description": "Filter by type: button|card|modal|form|badge|toggle|chart|navigation|list-item|screen|tab|component",
+                    "description": f"Filter by type: {'|'.join(c.value for c in ComponentType)}",
                 },
                 "doc": _doc_param(),
             },
@@ -394,8 +395,9 @@ class ToolDispatcher:
                  "| Prop | Required | Default |",
                  "|---|---|---|"]
         for p in props:
-            required = "✓" if p["default_value"] == "" else ""
-            default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+            prop_default = PropDefault(p["default_value"])
+            required = "✓" if prop_default.is_required else ""
+            default  = "—" if prop_default.is_required else f"`{prop_default}`"
             lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
         logger.debug("tools: get_component_props(%s) — %d props", name, len(props))
         return "\n".join(lines)
@@ -520,11 +522,12 @@ class ToolDispatcher:
                     lines.append("| Prop | Required | Default |")
                     lines.append("|---|---|---|")
                     for p in comp["props"]:
-                        required = "✓" if p["default_value"] == "" else ""
-                        default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+                        prop_default = PropDefault(p["default_value"])
+                        required = "✓" if prop_default.is_required else ""
+                        default  = "—" if prop_default.is_required else f"`{prop_default}`"
                         lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
 
-                for state in ("default", "hover", "focus", "transition"):
+                for state in StyleState:
                     state_styles = comp["styles_by_state"].get(state, [])
                     if state_styles:
                         lines.append(f"\n#### Styles — {state}")
@@ -668,7 +671,7 @@ class ToolDispatcher:
                 by_state.setdefault(s.get("s.state", "default"), []).append(
                     f"`{s.get('s.property')}`: `{s.get('s.value')}`"
                 )
-            for state in ("default", "hover", "focus", "transition"):
+            for state in StyleState:
                 if state in by_state:
                     lines.append(f"**{state}**: {' | '.join(by_state[state][:6])}")
         if comp.get("tokens"):
@@ -843,8 +846,9 @@ class ToolDispatcher:
             lines.append("| Prop | Required | Default |")
             lines.append("|---|---|---|")
             for p in spec["props"]:
-                required = "✓" if p["default_value"] == "" else ""
-                default  = f"`{p['default_value']}`" if p["default_value"] else "—"
+                prop_default = PropDefault(p["default_value"])
+                required = "✓" if prop_default.is_required else ""
+                default  = "—" if prop_default.is_required else f"`{prop_default}`"
                 lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
         if spec.get("c.jsx_snippet"):
             lines.append("\n## JSX\n```jsx")

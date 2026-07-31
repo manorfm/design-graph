@@ -16,26 +16,31 @@ Responsibility boundary:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 
-from design_graph.core.models import DOMPattern, ExtractedComponent, StyleEntry
+from design_graph.core.models import (
+    ComponentType,
+    DOMPattern,
+    ExtractedComponent,
+    SemanticType,
+    StyleEntry,
+)
 
 logger = logging.getLogger(__name__)
 
 # Mapping from html_parser semantic types to graph component types
-_SEMANTIC_TYPE_TO_COMP_TYPE: dict[str, str] = {
-    "card":       "card",
-    "nav":        "navigation",
-    "modal":      "modal",
-    "badge":      "badge",
-    "form":       "form",
-    "table":      "table",
-    "list-item":  "list-item",
-    "header":     "component",
-    "footer":     "component",
-    "component":  "component",
+_SEMANTIC_TYPE_TO_COMP_TYPE: dict[SemanticType, ComponentType] = {
+    SemanticType.CARD:      ComponentType.CARD,
+    SemanticType.NAV:       ComponentType.NAVIGATION,
+    SemanticType.MODAL:     ComponentType.MODAL,
+    SemanticType.BADGE:     ComponentType.BADGE,
+    SemanticType.FORM:      ComponentType.FORM,
+    SemanticType.TABLE:     ComponentType.TABLE,
+    SemanticType.LIST_ITEM: ComponentType.LIST_ITEM,
+    SemanticType.HEADER:    ComponentType.COMPONENT,
+    SemanticType.FOOTER:    ComponentType.COMPONENT,
+    SemanticType.COMPONENT: ComponentType.COMPONENT,
 }
 
 # Inline style pattern: property: value (CSS, not JSX)
@@ -55,7 +60,7 @@ def dom_pattern_to_extracted_component(pattern: DOMPattern) -> ExtractedComponen
     The ExtractedComponent represents a repeating DOM structure as if it
     were a named React component — same schema, different origin.
     """
-    comp_type  = _SEMANTIC_TYPE_TO_COMP_TYPE.get(pattern.semantic_type, "component")
+    comp_type  = _SEMANTIC_TYPE_TO_COMP_TYPE.get(pattern.semantic_type, ComponentType.COMPONENT)
     jsx_snippet = pattern.first_example[:3_000]
     classes    = _extract_css_classes(jsx_snippet)
     styles     = _extract_inline_styles(jsx_snippet, pattern.inferred_name)
@@ -143,14 +148,7 @@ def _extract_inline_styles(html_snippet: str, comp_name: str) -> list[StyleEntry
             if not prop or not value or prop in seen_props:
                 continue
             seen_props.add(prop)
-            sid = hashlib.md5(f"{comp_name}_{prop}_{value}".encode()).hexdigest()[:8]
-            styles.append(StyleEntry(
-                id=f"st_{sid}",
-                element=comp_name,
-                state="default",
-                property=prop,
-                value=value,
-            ))
+            styles.append(StyleEntry.create(element=comp_name, property=prop, value=value))
             if len(styles) >= 20:
                 break
         if len(styles) >= 20:

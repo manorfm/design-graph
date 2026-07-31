@@ -10,7 +10,6 @@ Design rules:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import shutil
@@ -23,10 +22,13 @@ from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
 from design_graph.core.models import (
     ComponentDefinitionStatus,
     ComponentProp,
+    ComponentType,
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    StyleEntry,
+    TextEntry,
 )
 from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 
@@ -413,20 +415,19 @@ class GraphWriter:
         canonical query target for section layout and visual properties.
         """
         for prop, value in styles.items():
-            style_id = "sec_" + hashlib.md5(
-                f"{section_id}_{prop}".encode(), usedforsecurity=False
-            ).hexdigest()[:8]
-            if style_id in self._inserted_style_ids:
+            style = StyleEntry.for_section(section_id=section_id, property=prop, value=str(value))
+            if style.id in self._inserted_style_ids:
                 continue
-            self._inserted_style_ids.add(style_id)
+            self._inserted_style_ids.add(style.id)
             self._safe_execute(
-                "CREATE (:Style {id:$id, element:$el, state:'default', property:$pr, value:$vl})",
-                {"id": style_id, "el": section_id, "pr": prop, "vl": str(value)},
+                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl})",
+                {"id": style.id, "el": style.element, "st": style.state,
+                 "pr": style.property, "vl": style.value},
             )
             self._safe_execute(
                 "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "
                 "CREATE (sec)-[:SECTION_HAS_STYLE]->(s)",
-                {"sid": section_id, "sid2": style_id},
+                {"sid": section_id, "sid2": style.id},
             )
 
     def _write_component_props(self, comp_name: str, props: list[ComponentProp]) -> None:
@@ -462,21 +463,19 @@ class GraphWriter:
         canonical query target for section text content.
         """
         for text in texts:
-            text_id = "stxt_" + hashlib.md5(
-                f"{section_id}_{text}".encode(), usedforsecurity=False
-            ).hexdigest()[:8]
-            if text_id in self._inserted_text_ids:
+            entry = TextEntry.for_section(section_id=section_id, text=text)
+            if entry.id in self._inserted_text_ids:
                 continue
-            self._inserted_text_ids.add(text_id)
+            self._inserted_text_ids.add(entry.id)
             self._safe_execute(
-                "CREATE (:UIText {id:$id, content:$ct, text_type:'section_text', "
-                "source:$src, element:'section'})",
-                {"id": text_id, "ct": text, "src": section_id},
+                "CREATE (:UIText {id:$id, content:$ct, text_type:$ty, source:$src, element:$el})",
+                {"id": entry.id, "ct": entry.content, "ty": entry.text_type,
+                 "src": entry.source, "el": entry.element},
             )
             self._safe_execute(
                 "MATCH (sec:Section {id:$sid}),(t:UIText {id:$tid}) "
                 "CREATE (sec)-[:SECTION_HAS_TEXT]->(t)",
-                {"sid": section_id, "tid": text_id},
+                {"sid": section_id, "tid": entry.id},
             )
 
     def _ensure_component_exists(self, name: str) -> None:
@@ -489,7 +488,7 @@ class GraphWriter:
         ok = self._safe_execute(
             "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
             "occurrence:$o, classes:''})",
-            {"n": name, "t": "component", "o": ComponentDefinitionStatus.UNRESOLVED.value},
+            {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )
         if ok or self._node_exists("Component", "name", name):
             self._known_comp_names.add(name)
@@ -514,7 +513,7 @@ class GraphWriter:
 
     def _link_style_to_token(
         self,
-        style: "StyleEntry",
+        style: StyleEntry,
         token_map: dict[str, list[DesignToken]],
     ) -> None:
         """

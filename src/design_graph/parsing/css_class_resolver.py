@@ -10,7 +10,6 @@ Guardrail G1: this module must not import from extraction/, graph/, or mcp/.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from dataclasses import dataclass
@@ -446,11 +445,4 @@ def resolve_classes(
 
 def _make_style_entry(cls_name: str, prop: str, value: str) -> StyleEntry:
     """Create a StyleEntry for a CSS class-resolved property."""
-    sid = f"cls_{hashlib.md5(f'{cls_name}:{prop}'.encode()).hexdigest()[:8]}"
-    return StyleEntry(
-        id=sid,
-        element=f"class:{cls_name}",
-        state="default",
-        property=prop,
-        value=value,
-    )
+    return StyleEntry.from_css_class(class_name=cls_name, property=prop, value=value)
