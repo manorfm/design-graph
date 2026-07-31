@@ -115,11 +115,11 @@ async def run_pipeline(
     _reporter.phase_started("Parsing boundaries and tokens", total=0)
     phase.start()
     if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
-        extracted_comps, screens, sections_map, tokens = await _extract_plain_html(
+        extracted_comps, screens, sections_map, tokens = await extract_plain_html(
             sources, concurrency=concurrency
         )
     else:
-        extracted_comps, screens, sections_map, tokens = await _extract_react(
+        extracted_comps, screens, sections_map, tokens = await extract_react(
             sources,
             concurrency=concurrency,
             on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
@@ -212,7 +212,7 @@ async def run_pipeline(
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
-async def _extract_react(
+async def extract_react(
     sources,
     concurrency: int,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
@@ -220,6 +220,10 @@ async def _extract_react(
     """
     Phases 2–4 for bundled_react and tailwind formats.
     Returns (extracted_comps, screens, sections_map, tokens).
+
+    Public — also reused directly by cli/build.py's chunk-export path so both
+    entry points share one screen/component split (a screen boundary must
+    never also be extracted as a component) instead of each reimplementing it.
 
     on_component_extracted: forwarded to extract_all_components so the caller
         can display per-component extraction progress without importing extraction internals.
@@ -261,7 +265,7 @@ async def _extract_react(
     return extracted_comps, screens, sections_map, tokens
 
 
-async def _extract_plain_html(
+async def extract_plain_html(
     sources,
     concurrency: int,
 ) -> tuple[list, list, dict, list]:
@@ -271,6 +275,8 @@ async def _extract_plain_html(
     Uses html_parser to detect repeating DOM patterns (components) and
     HTML5 semantic elements (sections). No JavaScript boundary detection.
     Returns (extracted_comps, screens, sections_map, tokens).
+
+    Public — also reused directly by cli/build.py's chunk-export path.
     """
     from bs4 import BeautifulSoup
 

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+function BtnPrimary({ label }) {
+  return (
+    <button style={{backgroundColor: '#ffb81c'}}>
+      {label}
+    </button>
+  );
+}
+
+const HomePage = () => (
+  <div style={{backgroundColor: '#1a1a1a'}}>
+    {/* ── Header ── */}
+    <div style={{padding: '16px'}}>
+      <h1>Home</h1>
+      <BtnPrimary label="Order Now" />
+    </div>
+    {/* ── Content ── */}
+    <div style={{padding: '16px'}}>
+      <p>Welcome to the arrow-declared screen fixture.</p>
+      <BtnPrimary label="Learn More" />
+    </div>
+  </div>
+);
+</script>
+</body>
+</html>
