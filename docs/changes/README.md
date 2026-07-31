@@ -40,10 +40,12 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | Change | Título | Status | Tasks | Impacto |
 |--------|--------|--------|-------|---------|
 | [C12](C12-stateful-interactions/) | Extraction: interações via estilo imperativo (hover/focus sem literal) | ✅ Done | T23 | Alto — Interactions 10→39 no prototype de referência |
+| [C13](C13-interaction-capture-completeness/) | Extraction: handlers multi-mutação + correlação estado→ternária + nomes com dígito | ✅ Done | T24–T26 | Alto — Interactions 39→64; 8 componentes/telas versionados (`*V6`/`*V7`) antes invisíveis |
 
-> Cobre o caso dominante (mutação direta de `style` no handler). O caso
-> `onMouseEnter={() => setHover(true)}` com estilo condicional por estado
-> React fica fora de escopo — ver "Fora de escopo" em C12/spec.md.
+> C12 cobriu o caso dominante (mutação direta de `style` no handler). C13
+> fecha os dois gaps que C12 deixou fora de escopo: handlers com mais de uma
+> mutação de estilo, e o padrão `onMouseEnter={() => setHover(true)}` com
+> estilo condicional por estado React (`style={{ prop: hover ? A : B }}`).
 
 ---
 

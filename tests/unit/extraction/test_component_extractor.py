@@ -250,6 +250,167 @@ class TestHoverInteractionWithNonLiteralValues:
         assert all(ref for ref in comp.child_refs)
 
 
+MULTI_MUTATION_HOVER_JS = """
+function OptionButton({ o, onPick }) {
+    return (
+        <button
+            key={o.k}
+            onClick={() => onPick(o.k)}
+            style={{ background: '#2e2e2e', border: `1.5px solid ${C.border2}` }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = o.color; e.currentTarget.style.background = o.color + '0c'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.background = '#2e2e2e'; }}>
+            {o.title}
+        </button>
+    )
+}
+"""
+
+STATE_TOGGLE_HOVER_JS = """
+function RestCard({ r, onSelect }) {
+    const [hov, setHov] = useState(false);
+    return (
+        <div
+            onClick={onSelect}
+            onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+            style={{
+                background: C.card, border: `1px solid ${hov ? C.accent + '55' : C.border}`,
+                boxShadow: hov ? `0 0 0 1px ${C.accent}22, 0 4px 20px #0005` : 'none',
+            }}>
+            {r.name}
+        </div>
+    )
+}
+"""
+
+STATE_TOGGLE_DIRECT_JS = """
+function ItemCard({ item }) {
+    const [h, setH] = useState(false);
+    return (
+        <div
+            onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+            style={{
+                border: `1px solid ${h ? C.border2 : C.border}`, transform: h ? 'translateY(-2px)' : 'none',
+            }}>
+            {item.name}
+        </div>
+    )
+}
+"""
+
+TWO_SIBLINGS_SAME_STATE_NAME_JS = """
+function CardA({ a }) {
+    const [hov, setHov] = useState(false);
+    return (
+        <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+            style={{ border: hov ? C.red : C.border }}>
+            {a.name}
+        </div>
+    )
+}
+function CardB({ b }) {
+    const [hov, setHov] = useState(false);
+    return (
+        <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+            style={{ border: hov ? C.green : C.border }}>
+            {b.name}
+        </div>
+    )
+}
+"""
+
+
+class TestMultiStatementHoverHandlers:
+    """
+    Real prototypes almost always mutate more than one style property per
+    handler (`e => { style.a = X; style.b = Y; }`). The old regex matched the
+    literal text `onMouseEnter` once and captured only the first `style.` it
+    found afterwards — every subsequent mutation in that same handler was
+    silently dropped.
+    """
+
+    def test_both_mutated_properties_captured(self):
+        b = _boundary(MULTI_MUTATION_HOVER_JS, "OptionButton")
+        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1, {})
+        hover_props = {i.css_prop for i in comp.interactions if i.trigger == "hover"}
+        assert hover_props == {"borderColor", "background"}
+
+    def test_second_property_pairs_enter_with_matching_leave(self):
+        b = _boundary(MULTI_MUTATION_HOVER_JS, "OptionButton")
+        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1, {})
+        background = next(i for i in comp.interactions if i.css_prop == "background")
+        assert background.to_val == "o.color + '0c'"
+        assert background.from_val == "#2e2e2e"
+
+    def test_single_statement_handler_still_works(self):
+        # Backward-compat guard: BTN_JS has one mutation per handler, no braces.
+        b = _boundary(BTN_JS, "BtnPrimary")
+        comp = extract_component(BTN_JS, b, 1, {})
+        assert any(i.trigger == "hover" for i in comp.interactions)
+
+
+class TestStateToggleHoverInteractions:
+    """
+    A React boolean state var toggled by the handler, with the actual style
+    change expressed as a ternary elsewhere in the JSX — not an imperative
+    style.prop = value mutation. Covers ~20% of hover feedback in real
+    prototypes (see docs/changes/C12-stateful-interactions/spec.md "Fora de
+    escopo"), previously invisible to the graph entirely.
+    """
+
+    def test_ternary_inside_template_literal_captured(self):
+        b = _boundary(STATE_TOGGLE_HOVER_JS, "RestCard")
+        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1, {})
+        border = next((i for i in comp.interactions if i.css_prop == "border"), None)
+        assert border is not None
+        assert border.trigger == "hover"
+        assert border.to_val == "C.accent + '55'"
+        assert border.from_val == "C.border"
+
+    def test_direct_ternary_value_captured(self):
+        b = _boundary(STATE_TOGGLE_HOVER_JS, "RestCard")
+        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1, {})
+        shadow = next((i for i in comp.interactions if i.css_prop == "boxShadow"), None)
+        assert shadow is not None
+        assert shadow.to_val == "`0 0 0 1px ${C.accent}22, 0 4px 20px #0005`"
+        assert shadow.from_val == "none"
+
+    def test_both_properties_from_same_state_var_captured(self):
+        b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
+        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})
+        props = {i.css_prop for i in comp.interactions if i.trigger == "hover"}
+        assert props == {"border", "transform"}
+
+    def test_hover_state_style_entry_recorded(self):
+        b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
+        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})
+        hover_styles = [s for s in comp.styles if s.state == "hover"]
+        assert any(s.property == "transform" and s.value == "translateY(-2px)" for s in hover_styles)
+
+    def test_reused_state_var_name_does_not_cross_contaminate_siblings(self):
+        bounds = find_all_boundaries(TWO_SIBLINGS_SAME_STATE_NAME_JS)
+        card_a = next(b for b in bounds if b.name == "CardA")
+        card_b = next(b for b in bounds if b.name == "CardB")
+        comp_a = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_a, 1, {})
+        comp_b = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_b, 1, {})
+        a_hover = next(i for i in comp_a.interactions if i.trigger == "hover")
+        b_hover = next(i for i in comp_b.interactions if i.trigger == "hover")
+        assert a_hover.to_val == "C.red"
+        assert b_hover.to_val == "C.green"
+
+    def test_no_false_positive_without_enter_leave_pair(self):
+        # useState(bool) alone, with no onMouseEnter/onMouseLeave setter calls,
+        # must not produce a hover interaction.
+        js = """
+        function Toggle() {
+            const [on, setOn] = useState(false);
+            return <div style={{ opacity: on ? 1 : 0.5 }} onClick={() => setOn(!on)} />;
+        }
+        """
+        b = _boundary(js, "Toggle")
+        comp = extract_component(js, b, 1, {})
+        assert not any(i.trigger == "hover" for i in comp.interactions)
+
+
 class TestExtractAllComponents:
     def test_extracts_multiple_components(self):
         js = BTN_JS + CARD_WITH_CHILDREN_JS

@@ -57,12 +57,12 @@ RE_DESTRUCTURED_PROPS = re.compile(
 
 # ── React/JSX component names ────────────────────────────────────────────────
 
-RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z]{2,})\s*\(')
+RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z0-9]{2,})\s*\(')
 
 # Arrow-function component declarations: const OptRow = ({ ... }) => ( <div/> )
 # Covers both brace-bodied (=> { return (...) }) and implicit-return (=> (...)) forms —
 # js_parser.body_start()/function_end() pick the right delimiter pair per case.
-RE_COMP_ARROW_FN = re.compile(r'const ([A-Z][a-zA-Z]{2,})\s*=\s*\(')
+RE_COMP_ARROW_FN = re.compile(r'const ([A-Z][a-zA-Z0-9]{2,})\s*=\s*\(')
 
 # A function is visual only when its return expression creates JSX/HTML.
 # Supports source JSX and common compiled jsx/jsxs factory calls, from either
@@ -75,22 +75,22 @@ RE_VISUAL_RETURN = re.compile(
 )
 
 RE_SCREEN_FN = re.compile(
-    r'function ([A-Z][a-zA-Z]{2,}'
+    r'function ([A-Z][a-zA-Z0-9]{2,}'
     r'(?:Page|Screen|Dashboard|Detail|Panel|View|Tab|Section|List|Form|Modal))\s*\('
 )
 
 # Matches PascalCase names that look like screen identifiers
 RE_SCREEN_NAME = re.compile(
-    r'^[A-Z][a-zA-Z]+'
+    r'^[A-Z][a-zA-Z0-9]+'
     r'(?:Page|Screen|Dashboard|Detail|Panel|View|Tab|Section|List|Form|Modal)$'
 )
 
-RE_JSX_TAG = re.compile(r'<([A-Z][a-zA-Z]{2,})[\s/>]')
+RE_JSX_TAG = re.compile(r'<([A-Z][a-zA-Z0-9]{2,})[\s/>]')
 
-RE_JSX_CALL = re.compile(r'jsxs?\(([A-Z][a-zA-Z]{2,})\s*,')
+RE_JSX_CALL = re.compile(r'jsxs?\(([A-Z][a-zA-Z0-9]{2,})\s*,')
 
 RE_COMP_REF = re.compile(
-    r'\b([A-Z][a-zA-Z]{2,}'
+    r'\b([A-Z][a-zA-Z0-9]{2,}'
     r'(?:Card|Modal|Row|Tab|Panel|Form|Head|List|Table|Btn|Button|Badge|Item|'
     r'Section|Chart|Detail|View|Drawer|Widget|Dot|Pill|Select|Input|Toggle|'
     r'Switch|Avatar|Icon|Spinner|Toast|Alert|Banner))\b'
@@ -109,15 +109,51 @@ RE_STYLE_PROP   = re.compile(r'(\w+)\s*:\s*["\']?([^,"\'}\n]{1,60})["\']?')
 # Y may be a quoted literal ('#333'), a token/prop reference (C.red, o.color), or
 # a small expression (color + '12') — captured as raw text; extract_component
 # strips a fully-wrapping quote pair, leaving identifiers/expressions intact.
-RE_MOUSE_ENTER = re.compile(
-    r'onMouseEnter[^;]{0,60}style\.(\w+)\s*=\s*([^;}]{1,80})'
+#
+# Applied to a single handler's *isolated* body (see js_parser.find_matching_delimiter
+# + re_event_handler_open below) so every `style.prop = value` statement inside a
+# multi-statement handler (`e => { style.a = X; style.b = Y; }`) is captured, not
+# just the first.
+RE_STYLE_MUTATION = re.compile(r'style\.(\w+)\s*=\s*([^;}]{1,80})')
+
+
+def re_event_handler_open(event: str) -> re.Pattern:
+    """
+    Match the opening `{` of `<event>={...}` (onMouseEnter, onMouseLeave, onFocus).
+    Combine with js_parser.find_matching_delimiter(js, match.end() - 1) to isolate
+    the full handler body — including a nested block (`e => { ... }`) — so every
+    statement inside can be scanned, not just text up to the first `;`/`}`.
+    """
+    return re.compile(rf'\b{event}\s*=\s*\{{')
+
+
+# React boolean state used to toggle style via a ternary instead of an imperative
+# style.prop = value mutation:
+#   const [hov, setHov] = useState(false);
+#   onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+#   style={{ border: `1px solid ${hov ? C.accent : C.border}` }}
+RE_USE_STATE_BOOL = re.compile(
+    r'const\s*\[\s*(\w+)\s*,\s*(set\w+)\s*\]\s*=\s*useState\(\s*(?:true|false)\s*\)'
 )
-RE_MOUSE_LEAVE = re.compile(
-    r'onMouseLeave[^;]{0,60}style\.(\w+)\s*=\s*([^;}]{1,80})'
-)
-RE_ON_FOCUS    = re.compile(
-    r'onFocus[^;]{0,40}style\.(\w+)\s*=\s*([^;}]{1,80})'
-)
+
+
+def re_state_setter_trigger(setter: str, event: str) -> re.Pattern:
+    """<event>={...<setter>(true|false)...} — ties a state setter to the DOM
+    event that flips it (e.g. onMouseEnter={() => setHov(true)})."""
+    return re.compile(rf'\b{event}\b[^}}]{{0,40}}\b{re.escape(setter)}\((?:true|false)\)')
+
+
+def re_state_ternary_style(state: str) -> re.Pattern:
+    """
+    `prop: <state> ? A : B`, including when the ternary sits inside a
+    template-literal interpolation (`prop: \\`... ${state ? A : B} ...\\``).
+    Scoped to a single component's window by the caller — state-var names like
+    `hov`/`h` are commonly reused across unrelated sibling components.
+    """
+    s = re.escape(state)
+    return re.compile(
+        rf'(\w+)\s*:\s*[^,}}]*?\b{s}\s*\?\s*([^:?]{{1,80}})\s*:\s*([^,;\n}}]{{1,80}})'
+    )
 
 
 # ── CSS class names ───────────────────────────────────────────────────────────

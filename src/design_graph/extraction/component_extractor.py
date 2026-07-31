@@ -50,18 +50,20 @@ from design_graph.core.patterns import (
     RE_LONG_ARROW_FN,
     RE_LONG_EVENT_HANDLER,
     RE_LONG_TERNARY,
-    RE_MOUSE_ENTER,
-    RE_MOUSE_LEAVE,
-    RE_ON_FOCUS,
     RE_PLACEHOLDER,
+    RE_STYLE_MUTATION,
     RE_STYLE_PROP,
     RE_TRANSITION,
     RE_UI_STRING,
+    RE_USE_STATE_BOOL,
+    re_event_handler_open,
+    re_state_setter_trigger,
+    re_state_ternary_style,
 )
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
-from design_graph.parsing.js_parser import extract_return_block
+from design_graph.parsing.js_parser import extract_return_block, find_matching_delimiter
 
 logger = logging.getLogger(__name__)
 
@@ -247,8 +249,11 @@ def extract_component(
     # Hover interactions — value may be a quoted literal, a token/prop reference
     # (C.red, o.color), or a small expression (color + '12'); _clean_style_value
     # strips a fully-wrapping quote pair and leaves everything else as-is.
-    enters = [(prop, _clean_style_value(val)) for prop, val in RE_MOUSE_ENTER.findall(window)]
-    leaves = [(prop, _clean_style_value(val)) for prop, val in RE_MOUSE_LEAVE.findall(window)]
+    # _handler_mutations scans each handler's own balanced-brace body, so a
+    # multi-statement handler (`e => { style.a = X; style.b = Y; }`) yields
+    # every mutation, not just the first.
+    enters = [(prop, _clean_style_value(val)) for prop, val in _handler_mutations(window, "onMouseEnter")]
+    leaves = [(prop, _clean_style_value(val)) for prop, val in _handler_mutations(window, "onMouseLeave")]
     enters = [(prop, val) for prop, val in enters if val]
     leaves = [(prop, val) for prop, val in leaves if val]
     trans_match = RE_TRANSITION.search(window)
@@ -275,19 +280,59 @@ def extract_component(
                     ))
 
     # Focus interactions
-    for m in RE_ON_FOCUS.finditer(window):
+    for prop, raw_val in _handler_mutations(window, "onFocus"):
         if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
             break
-        focus_val = _clean_style_value(m.group(2))
+        focus_val = _clean_style_value(raw_val)
         if not focus_val:
             continue
-        iid = _hid(f"{boundary.name}_focus_{m.group(1)}", "int_")
+        iid = _hid(f"{boundary.name}_focus_{prop}", "int_")
         if iid not in seen_inter_ids:
             seen_inter_ids.add(iid)
             interactions.append(InteractionEntry(
-                id=iid, trigger="focus", css_prop=m.group(1),
+                id=iid, trigger="focus", css_prop=prop,
                 from_val="", to_val=focus_val, transition=transition,
             ))
+
+    # State-toggle hover/focus: const [hov, setHov] = useState(false); handlers
+    # flip it (setHov(true)/setHov(false)) instead of mutating style directly,
+    # and the style value is a ternary keyed off the state var — possibly nested
+    # inside a template literal (`border: \`1px solid ${hov ? A : B}\``). window
+    # is exactly this component's body, so correlating the state var by name is
+    # safe even though names like "hov"/"h" repeat across unrelated components.
+    for state, setter in RE_USE_STATE_BOOL.findall(window):
+        if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
+            break
+        has_enter = re_state_setter_trigger(setter, "onMouseEnter").search(window)
+        has_leave = re_state_setter_trigger(setter, "onMouseLeave").search(window)
+        if has_enter and has_leave:
+            state_trigger = "hover"
+        elif re_state_setter_trigger(setter, "onFocus").search(window):
+            state_trigger = "focus"
+        else:
+            continue
+        for prop, to_raw, from_raw in re_state_ternary_style(state).findall(window):
+            if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
+                break
+            to_val = _clean_style_value(to_raw)
+            from_val = _clean_style_value(from_raw)
+            if not to_val or not from_val:
+                continue
+            iid = _hid(f"{boundary.name}_{prop}_{to_val}", "int_")
+            if iid not in seen_inter_ids:
+                seen_inter_ids.add(iid)
+                interactions.append(InteractionEntry(
+                    id=iid, trigger=state_trigger, css_prop=prop,
+                    from_val=from_val, to_val=to_val, transition=transition,
+                ))
+                if len(styles) < MAX_STYLES_PER_COMPONENT:
+                    hsid = _hid(f"{boundary.name}_{state_trigger}_{prop}_{to_val}", "st_")
+                    if hsid not in seen_style_ids:
+                        seen_style_ids.add(hsid)
+                        styles.append(StyleEntry(
+                            id=hsid, element=boundary.name, state=state_trigger,
+                            property=prop, value=to_val,
+                        ))
 
     # Text extraction
     def _add_text(content: str, text_type: str, element: str = "") -> None:
@@ -430,6 +475,22 @@ async def extract_all_components(
 
 def _hid(s: str, prefix: str = "") -> str:
     return f"{prefix}{hashlib.md5(s.encode()).hexdigest()[:8]}"
+
+
+def _handler_mutations(window: str, event: str) -> list[tuple[str, str]]:
+    """
+    All `style.prop = value` mutations inside every <event>={...} handler in
+    window. Isolates each handler's own balanced-brace body first, so a
+    multi-statement handler (`e => { style.a = X; style.b = Y; }`) yields
+    every mutation instead of only the first `style.` assignment in window.
+    """
+    mutations: list[tuple[str, str]] = []
+    for m in re_event_handler_open(event).finditer(window):
+        brace_index = m.end() - 1
+        end = find_matching_delimiter(window, brace_index, "{", "}")
+        body = window[brace_index + 1:end - 1] if end is not None else window[brace_index + 1:brace_index + 300]
+        mutations.extend(RE_STYLE_MUTATION.findall(body))
+    return mutations
 
 
 def _clean_style_value(raw: str) -> str:

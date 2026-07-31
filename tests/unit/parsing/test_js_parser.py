@@ -332,3 +332,32 @@ class TestArrowFunctionComponents:
 
         for i in range(len(bounds) - 1):
             assert bounds[i].end <= bounds[i + 1].start
+
+
+class TestVersionedComponentNames:
+    """
+    Real prototypes commonly version component/screen names with a trailing
+    digit (ItemCardV6, KDSPageV7) — [a-zA-Z] name-body classes silently
+    excluded these entirely (not extracted, not resolved as screens, not
+    recognized as JSX child references).
+    """
+
+    def test_function_component_with_trailing_digit_found(self):
+        js = "function ItemCardV6({ item }) { return <div>{item.name}</div>; }"
+        names = {b.name for b in find_all_boundaries(js)}
+        assert "ItemCardV6" in names
+
+    def test_arrow_component_with_trailing_digit_found(self):
+        js = "const ItemCardV6 = ({ item }) => (<div>{item.name}</div>);"
+        names = {b.name for b in find_all_boundaries(js)}
+        assert "ItemCardV6" in names
+
+    def test_screen_function_with_trailing_digit_found(self):
+        js = "function ItemsPageV6() { return (<div><h1>Items</h1></div>); }"
+        names = {b.name for b in find_all_boundaries(js)}
+        assert "ItemsPageV6" in names
+
+    def test_digit_in_middle_of_name_found(self):
+        js = "function Step2Form() { return <form/>; }"
+        names = {b.name for b in find_all_boundaries(js)}
+        assert "Step2Form" in names
