@@ -2,7 +2,7 @@
 
 import pytest
 
-from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_SCREEN_FN
+from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.js_parser import (
     extract_return_block,
@@ -174,18 +174,6 @@ class TestFindFunctionBoundaries:
                 f"{bounds[i].name}.end={bounds[i].end} > "
                 f"{bounds[i+1].name}.start={bounds[i+1].start}"
             )
-
-    def test_screen_pattern_only_matches_screens(self):
-        js = """
-        function RestaurantsPage() { return <div/>; }
-        function BtnPrimary() { return <div/>; }
-        function LoginForm() { return <div/>; }
-        """
-        bounds = find_function_boundaries(js, RE_SCREEN_FN)
-        names = {b.name for b in bounds}
-        assert "RestaurantsPage" in names
-        assert "LoginForm" in names
-        assert "BtnPrimary" not in names
 
     def test_empty_js_returns_empty_list(self):
         assert find_function_boundaries("", RE_COMP_FN) == []

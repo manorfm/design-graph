@@ -2,8 +2,17 @@
 
 import pytest
 
-from design_graph.extraction.screen_extractor import extract_screens, is_screen
+from design_graph.extraction.screen_extractor import ScreenIdentity, ScreenRole, extract_screens, is_screen
 from design_graph.parsing.js_parser import find_all_boundaries
+
+
+class TestScreenRoleStrBehavior:
+    def test_str_produces_plain_value_not_class_dot_member(self):
+        # A bare (str, Enum) renders "ScreenRole.PAGE" via str()/f-string —
+        # Enum.__str__ shadows str.__str__. ScreenRole must use the shared
+        # StrEnum base (core/models.py) like every other enum in the domain,
+        # not redefine the same footgun independently.
+        assert str(ScreenIdentity.classify("RestaurantsPage").role) == "page"
 
 
 class TestIsScreen:

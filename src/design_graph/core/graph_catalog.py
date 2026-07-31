@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from pathlib import Path
 import shutil
+
+from design_graph.core.models import StrEnum
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ class GraphDatabase:
         return self.path.parent / f".{self.path.name}.building"
 
 
-class GraphArtifactKind(str, Enum):
+class GraphArtifactKind(StrEnum):
     DATABASE = "database"
     STATE = "state"
     BUILD_TEMP = "build-temp"
@@ -152,7 +153,7 @@ class GraphMaintenancePlan:
         )
 
 
-class GraphSelectionSource(str, Enum):
+class GraphSelectionSource(StrEnum):
     EXPLICIT_PATH = "--db"
     EXPLICIT_DOCUMENT = "--doc"
     ENVIRONMENT = "DESIGN_GRAPH_DOC"

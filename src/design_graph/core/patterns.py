@@ -74,17 +74,6 @@ RE_VISUAL_RETURN = re.compile(
     re.DOTALL,
 )
 
-RE_SCREEN_FN = re.compile(
-    r'function ([A-Z][a-zA-Z0-9]{2,}'
-    r'(?:Page|Screen|Dashboard|Detail|Panel|View|Tab|Section|List|Form|Modal))\s*\('
-)
-
-# Matches PascalCase names that look like screen identifiers
-RE_SCREEN_NAME = re.compile(
-    r'^[A-Z][a-zA-Z0-9]+'
-    r'(?:Page|Screen|Dashboard|Detail|Panel|View|Tab|Section|List|Form|Modal)$'
-)
-
 RE_JSX_TAG = re.compile(r'<([A-Z][a-zA-Z0-9]{2,})[\s/>]')
 
 RE_JSX_CALL = re.compile(r'jsxs?\(([A-Z][a-zA-Z0-9]{2,})\s*,')

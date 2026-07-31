@@ -21,6 +21,14 @@ def _db(root: Path, name: str) -> Path:
     return path
 
 
+class TestEnumStrBehavior:
+    def test_graph_artifact_kind_str_is_plain_value(self):
+        assert str(GraphArtifactKind.DATABASE) == "database"
+
+    def test_graph_selection_source_str_is_plain_value(self):
+        assert str(GraphSelectionSource.ONLY_DATABASE) == "only database"
+
+
 class TestGraphDocumentName:
     def test_removes_db_suffix_and_preserves_display_name(self):
         assert GraphDocumentName("Prototype v1.db").value == "Prototype v1"
