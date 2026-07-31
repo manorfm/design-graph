@@ -2,7 +2,8 @@
 
 import pytest
 
-from design_graph.core.patterns import RE_COMP_FN, RE_SCREEN_FN
+from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_SCREEN_FN
+from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.js_parser import (
     extract_return_block,
     find_all_boundaries,
@@ -230,3 +231,104 @@ class TestFindAllBoundaries:
         names = [boundary.name for boundary in find_all_boundaries(js)]
 
         assert names == ["RealPage"]
+
+
+class TestArrowFunctionComponents:
+    """
+    const Name = ({ ... }) => ( <jsx/> ) declarations were previously invisible
+    to boundary detection (RE_COMP_FN only matches `function Name(`), so a
+    component defined this way became a graph node with no jsx_snippet,
+    styles, props or interactions — reported by `design-graph validate` as
+    "unresolved". Reproduces the OptRow pattern from a real prototype.
+    """
+
+    def test_finds_implicit_return_arrow_component(self):
+        js = "const OptRow = ({ o, on }) => (\n  <div>{o.label}</div>\n);"
+
+        bounds = find_all_boundaries(js)
+        names = {b.name for b in bounds}
+
+        assert "OptRow" in names
+
+    def test_extracts_jsx_from_implicit_return_arrow_component(self):
+        js = "const OptRow = ({ o, on }) => (\n  <div>{o.label}</div>\n);"
+
+        boundary = find_all_boundaries(js)[0]
+        jsx = extract_return_block(js, boundary.start, boundary.end)
+
+        assert "<div>{o.label}</div>" in jsx
+        assert "OptRow" not in jsx  # declaration prefix excluded from the JSX
+
+    def test_arrow_component_recognized_as_visual(self):
+        js = "const OptRow = ({ o, on }) => (\n  <div>{o.label}</div>\n);"
+
+        boundary = find_all_boundaries(js)[0]
+
+        assert VisualFunctionCandidate.from_source(js, boundary).renders_visual_output
+
+    def test_finds_brace_bodied_arrow_component(self):
+        js = "const Badge = ({ label }) => { return (<span>{label}</span>); };"
+
+        boundary = find_all_boundaries(js)[0]
+        jsx = extract_return_block(js, boundary.start, boundary.end)
+
+        assert boundary.name == "Badge"
+        assert "<span>{label}</span>" in jsx
+
+    def test_arrow_component_style_object_not_mistaken_for_body_end(self):
+        js = (
+            "const OptRow = ({ on, color }) => (\n"
+            "  <div style={{ background: on ? color : '#2a2a2a' }}>x</div>\n"
+            ");\n"
+            "function After() { return <b/>; }"
+        )
+
+        bounds = find_all_boundaries(js)
+        names = {b.name for b in bounds}
+
+        assert {"OptRow", "After"}.issubset(names)
+
+    def test_nested_arrow_component_does_not_truncate_parent(self):
+        """A component defined inside another component's body (OptRow's real
+        shape) must get its own boundary without corrupting the parent's."""
+        js = """
+        function ClientItemDetail() {
+            const OptRow = ({ o }) => (
+                <div>{o.label}</div>
+            );
+            return (
+                <main>
+                    <OptRow o={item} />
+                    <FooterBar />
+                </main>
+            );
+        }
+        """
+
+        bounds = {b.name: b for b in find_all_boundaries(js)}
+
+        assert "OptRow" in bounds
+        assert "ClientItemDetail" in bounds
+        parent = bounds["ClientItemDetail"]
+        assert "FooterBar" in js[parent.start:parent.end]
+        assert "<OptRow" in js[parent.start:parent.end]
+        child = bounds["OptRow"]
+        assert parent.start < child.start < child.end <= parent.end
+
+    def test_non_component_arrow_const_not_matched(self):
+        js = "const D = () => window.V6; function Card() { return <div/>; }"
+
+        names = {b.name for b in find_all_boundaries(js)}
+
+        assert "D" not in names
+        assert "Card" in names
+
+    def test_find_function_boundaries_still_strict_sibling_non_overlap(self):
+        js = "const A = (p) => (<div/>); const B = (p) => (<span/>);"
+
+        bounds = sorted(
+            find_function_boundaries(js, RE_COMP_ARROW_FN), key=lambda b: b.start
+        )
+
+        for i in range(len(bounds) - 1):
+            assert bounds[i].end <= bounds[i + 1].start

@@ -24,6 +24,7 @@ class RawSources:
     inner_html: str
     html_hash: str
     format: str  # "bundled_react" | "tailwind" | "plain_html"
+    skipped_entries: int = 0  # bundle entries that failed base64/gzip decode (bundled_react only)
 
 
 @dataclass(frozen=True)

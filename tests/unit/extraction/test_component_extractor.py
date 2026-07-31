@@ -107,6 +107,94 @@ class TestExtractComponent:
         comp = extract_component(BTN_JS, b, 1, {})
         assert any("Confirmar" in t.content for t in comp.texts)
 
+
+TOKEN_HOVER_JS = """
+function OptRow({ o, on, color }) {
+    return (
+        <div
+            style={{ background: '#2a2a2a' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = C.red}
+            onMouseLeave={e => e.currentTarget.style.borderColor = C.border2}
+        >
+            {o.label}
+        </div>
+    )
+}
+"""
+
+EXPRESSION_HOVER_JS = """
+function GroupCard({ color }) {
+    return (
+        <div
+            onMouseEnter={e => e.currentTarget.style.background = color + '12'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+            content
+        </div>
+    )
+}
+"""
+
+FOCUS_TOKEN_JS = """
+function TextInput() {
+    return (
+        <input onFocus={e => e.currentTarget.style.borderColor = C.accent} />
+    )
+}
+"""
+
+
+class TestHoverInteractionWithNonLiteralValues:
+    """
+    Real prototypes reference shared color tokens (C.red) or build the hover
+    value from an expression (color + '12') far more often than they use a
+    bare quoted literal. The old regex only matched quoted string literals,
+    silently dropping the majority of hover/focus feedback in such codebases.
+    """
+
+    def test_hover_value_from_token_reference_is_captured(self):
+        b = _boundary(TOKEN_HOVER_JS, "OptRow")
+        comp = extract_component(TOKEN_HOVER_JS, b, 1, {})
+
+        hover = next((i for i in comp.interactions if i.trigger == "hover"), None)
+        assert hover is not None
+        assert hover.css_prop == "borderColor"
+        assert hover.to_val == "C.red"
+        assert hover.from_val == "C.border2"
+
+    def test_hover_value_from_expression_is_captured(self):
+        b = _boundary(EXPRESSION_HOVER_JS, "GroupCard")
+        comp = extract_component(EXPRESSION_HOVER_JS, b, 1, {})
+
+        hover = next((i for i in comp.interactions if i.trigger == "hover"), None)
+        assert hover is not None
+        assert hover.to_val == "color + '12'"
+
+    def test_literal_quoted_hover_value_still_unquoted(self):
+        # Backward-compat guard: plain string literals must render the same
+        # as before this pattern also matched identifiers/expressions.
+        b = _boundary(BTN_JS, "BtnPrimary")
+        comp = extract_component(BTN_JS, b, 1, {})
+
+        hover = next(i for i in comp.interactions if i.trigger == "hover")
+        assert "'" not in hover.to_val
+        assert "'" not in hover.from_val
+
+    def test_focus_value_from_token_reference_is_captured(self):
+        b = _boundary(FOCUS_TOKEN_JS, "TextInput")
+        comp = extract_component(FOCUS_TOKEN_JS, b, 1, {})
+
+        focus = next((i for i in comp.interactions if i.trigger == "focus"), None)
+        assert focus is not None
+        assert focus.to_val == "C.accent"
+
+    def test_hover_state_style_entry_uses_cleaned_value(self):
+        b = _boundary(TOKEN_HOVER_JS, "OptRow")
+        comp = extract_component(TOKEN_HOVER_JS, b, 1, {})
+
+        hover_styles = [s for s in comp.styles if s.state == "hover"]
+        assert any(s.value == "C.red" for s in hover_styles)
+
     def test_class_names_captured(self):
         b = _boundary(BTN_JS, "BtnPrimary")
         comp = extract_component(BTN_JS, b, 1, {})

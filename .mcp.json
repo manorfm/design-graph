@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "design-graph": {
+      "type": "stdio",
+      "command": "design-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}
