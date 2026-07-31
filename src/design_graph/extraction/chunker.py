@@ -20,6 +20,7 @@ from pathlib import Path
 from design_graph.core.constants import CHUNK_CHARS_PER_TOKEN, DEFAULT_CHUNK_MAX_CHARS
 from design_graph.core.models import (
     ChunkEnvelope,
+    ChunkLevel,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
@@ -56,7 +57,7 @@ def chunk_extracted_data(
                 result.append(ChunkEnvelope(
                     chunk_id=screen_id,
                     breadcrumb=screen.name,
-                    level="screen",
+                    level=ChunkLevel.SCREEN,
                     parent_id=None,
                     sibling_ids=[],
                     child_ids=[],
@@ -80,7 +81,7 @@ def chunk_extracted_data(
                 chunk = ChunkEnvelope(
                     chunk_id=cid,
                     breadcrumb=f"{screen.name} > {section.name}",
-                    level="section",
+                    level=ChunkLevel.SECTION,
                     parent_id=screen_id,
                     sibling_ids=siblings,
                     child_ids=[],
@@ -110,7 +111,7 @@ def chunk_extracted_data(
         result.append(ChunkEnvelope(
             chunk_id=screen_id,
             breadcrumb=screen.name,
-            level="screen",
+            level=ChunkLevel.SCREEN,
             parent_id=None,
             sibling_ids=[],
             child_ids=child_ids,
@@ -217,7 +218,7 @@ def _split_section_by_components(
         chunks.append(ChunkEnvelope(
             chunk_id=cid,
             breadcrumb=f"{screen_name} > {section.name} > {comp_name}",
-            level="component",
+            level=ChunkLevel.COMPONENT,
             parent_id=parent_id,
             sibling_ids=section_siblings,
             child_ids=[],
