@@ -41,6 +41,11 @@ from design_graph.graph.writer import GraphWriter
 FIXTURE = Path(__file__).parent.parent.parent / "fixtures" / "simple.html"
 
 
+class TestValidationSeverityStrBehavior:
+    def test_str_is_plain_value_not_class_dot_member(self):
+        assert str(ValidationSeverity.ERROR) == "error"
+
+
 # ── GraphViolation.to_dict ────────────────────────────────────────────────────
 
 class TestGraphViolationToDict:

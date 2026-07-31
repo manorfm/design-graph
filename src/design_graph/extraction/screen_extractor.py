@@ -1,8 +1,10 @@
 """
 Identify React screen/page functions and collect their direct component references.
 
-A function is a Screen if its name ends in one of the semantic suffixes
-defined by RE_SCREEN_NAME (Page, Screen, Dashboard, etc.).
+A function is a Screen if ScreenIdentity.classify() assigns it a non-COMPONENT
+role — a deliberately narrower set of suffixes than a blunt regex would give:
+Panel/Tab/List/Section/Modal are excluded because they're usually reusable
+UI parts (ConfirmModal, SettingsPanel), not top-level navigation surfaces.
 
 Screen extraction is a read-only scan of the JS string — no side effects.
 """
@@ -11,10 +13,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
 
 from design_graph.core.constants import REACT_INTERNALS
-from design_graph.core.models import ExtractedScreen, FunctionBoundary
+from design_graph.core.models import ExtractedScreen, FunctionBoundary, StrEnum
 from design_graph.core.patterns import (
     RE_COMP_REF,
     RE_JSX_CALL,
@@ -25,7 +26,7 @@ from design_graph.extraction.visual_function import VisualFunctionCandidate
 logger = logging.getLogger(__name__)
 
 
-class ScreenRole(str, Enum):
+class ScreenRole(StrEnum):
     PAGE = "page"
     VIEW = "view"
     DETAIL = "detail"

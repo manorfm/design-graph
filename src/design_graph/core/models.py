@@ -79,34 +79,36 @@ class ComponentDefinitionStatus(IntEnum):
 
 # ── Closed-set value types ──────────────────────────────────────────────────────
 
-class _StrEnum(str, Enum):
+class StrEnum(str, Enum):
     """
-    Base for every closed-set value type below.
+    Base for every closed-set value type in this codebase — not just the
+    domain fields below; screen_extractor.ScreenRole, graph_catalog's
+    GraphArtifactKind/GraphSelectionSource, and cli.validate.ValidationSeverity
+    use it too.
 
     `(str, Enum)` members already behave as their plain value for isinstance
     checks, `+` concatenation, and `json.dumps` — but `Enum.__str__` shadows
     `str.__str__`, so `str(member)`/f-strings/`%s` produce "ClassName.MEMBER"
-    instead of the value. Overriding `__str__` once here fixes every seed
-    string built via f-string across the codebase, not just the id-derivation
-    ones written for this refactor.
+    instead of the value. Overriding `__str__` once here fixes that for every
+    consumer, instead of each one needing to remember `.value` everywhere.
     """
 
     def __str__(self) -> str:
         return str(self.value)
 
 
-class StyleState(_StrEnum):
+class StyleState(StrEnum):
     DEFAULT = "default"
     HOVER = "hover"
     FOCUS = "focus"
 
 
-class InteractionTrigger(_StrEnum):
+class InteractionTrigger(StrEnum):
     HOVER = "hover"
     FOCUS = "focus"
 
 
-class TextType(_StrEnum):
+class TextType(StrEnum):
     HEADING = "heading"
     BUTTON = "button"
     LABEL = "label"
@@ -116,7 +118,7 @@ class TextType(_StrEnum):
     TOOLTIP = "tooltip"  # title/aria-label/alt — descriptive, not part of the visible content flow
 
 
-class TokenCategory(_StrEnum):
+class TokenCategory(StrEnum):
     COLOR = "color"
     SPACING = "spacing"
     TYPOGRAPHY = "typography"
@@ -125,25 +127,25 @@ class TokenCategory(_StrEnum):
     CSS_VAR = "css_var"
 
 
-class SourceFormat(_StrEnum):
+class SourceFormat(StrEnum):
     BUNDLED_REACT = "bundled_react"
     TAILWIND = "tailwind"
     PLAIN_HTML = "plain_html"
 
 
-class DetectionMethod(_StrEnum):
+class DetectionMethod(StrEnum):
     COMMENT = "comment"
     STRUCTURAL = "structural"
     SEMANTIC = "semantic"
 
 
-class ChunkLevel(_StrEnum):
+class ChunkLevel(StrEnum):
     SCREEN = "screen"
     SECTION = "section"
     COMPONENT = "component"
 
 
-class ComponentType(_StrEnum):
+class ComponentType(StrEnum):
     """Semantic type of an ExtractedComponent — union of every value the
     React-path inference (component_extractor) and the plain-HTML path
     (plain_html_component_extractor) can produce."""
@@ -163,7 +165,7 @@ class ComponentType(_StrEnum):
     COMPONENT = "component"  # fallback/unknown
 
 
-class SemanticType(_StrEnum):
+class SemanticType(StrEnum):
     """DOM-level semantic category from html_parser._infer_semantic_type —
     distinct value space from ComponentType (e.g. "nav" vs "navigation");
     _SEMANTIC_TYPE_TO_COMP_TYPE maps one to the other."""

@@ -20,16 +20,17 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 from typing import Any
+
+from design_graph.core.models import StrEnum
 
 logger = logging.getLogger(__name__)
 
 
 # ── Domain objects ────────────────────────────────────────────────────────────
 
-class ValidationSeverity(str, Enum):
+class ValidationSeverity(StrEnum):
     ERROR   = "error"
     WARNING = "warning"
     INFO    = "info"
