@@ -113,6 +113,7 @@ class TextType(_StrEnum):
     PLACEHOLDER = "placeholder"
     DESCRIPTION = "description"
     SECTION_TEXT = "section_text"  # section-scoped text (graph/writer.py), not component-scoped
+    TOOLTIP = "tooltip"  # title/aria-label/alt — descriptive, not part of the visible content flow
 
 
 class TokenCategory(_StrEnum):

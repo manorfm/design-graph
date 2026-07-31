@@ -411,6 +411,48 @@ class TestStateToggleHoverInteractions:
         assert not any(i.trigger == "hover" for i in comp.interactions)
 
 
+TOOLTIP_ICON_BUTTON_JS = """
+function CloseButton({ onClose }) {
+    return (
+        <button onClick={onClose} title="Fechar" aria-label="Fechar modal">
+            <XIcon />
+        </button>
+    )
+}
+"""
+
+
+class TestTooltipTextExtraction:
+    """
+    Icon-only buttons carry their only textual signal in `title`/`aria-label` —
+    without this, an agent can't distinguish always-visible content from
+    hover-only supplementary text, and previously both landed under the same
+    generic "label" text_type with no way to tell them apart.
+    """
+
+    def test_title_attribute_captured_as_tooltip(self):
+        b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        tooltips = [t.content for t in comp.texts if t.text_type == "tooltip"]
+        assert "Fechar" in tooltips
+
+    def test_aria_label_attribute_captured_as_tooltip(self):
+        b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        tooltips = [t.content for t in comp.texts if t.text_type == "tooltip"]
+        assert "Fechar modal" in tooltips
+
+    def test_tooltip_text_not_duplicated_as_generic_label(self):
+        # Same content, same source → same id (EntityId.derive("txt", f"{source}_{content}")).
+        # The tooltip pass must run before the generic UI-string pass so it wins
+        # the dedup — otherwise "Fechar" would appear twice, once per type.
+        b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        fechar_entries = [t for t in comp.texts if t.content == "Fechar"]
+        assert len(fechar_entries) == 1
+        assert fechar_entries[0].text_type == "tooltip"
+
+
 class TestExtractAllComponents:
     def test_extracts_multiple_components(self):
         js = BTN_JS + CARD_WITH_CHILDREN_JS
