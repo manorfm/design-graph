@@ -10,6 +10,7 @@ import pytest
 
 from design_graph.core.models import (
     ChunkEnvelope,
+    ChunkLevel,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
@@ -82,6 +83,12 @@ class TestChunkExtractedData:
         chunks = chunk_extracted_data([screen], {}, comps)
         screen_chunks = [c for c in chunks if c.level == "screen"]
         assert len(screen_chunks) == 1
+
+    def test_chunk_level_is_chunklevel_enum_not_bare_string(self):
+        screen = _screen("SimplePage", ["BtnPrimary"])
+        comps = {"BtnPrimary": _comp("BtnPrimary", "<button>OK</button>")}
+        chunks = chunk_extracted_data([screen], {}, comps)
+        assert all(isinstance(c.level, ChunkLevel) for c in chunks)
 
     def test_small_section_generates_section_chunk(self):
         chunks = chunk_extracted_data(
@@ -169,11 +176,17 @@ class TestChunkExtractedData:
 class TestExportChunksJsonl:
     def _make_chunk(self, cid: str) -> ChunkEnvelope:
         return ChunkEnvelope(
-            chunk_id=cid, breadcrumb=f"Pg > {cid}", level="section",
+            chunk_id=cid, breadcrumb=f"Pg > {cid}", level=ChunkLevel.SECTION,
             parent_id="pg", sibling_ids=[], child_ids=[],
             content=f"<div>{cid}</div>", tokens_est=5,
             component_refs=[], context_summary="test", source_screen="Pg",
         )
+
+    def test_level_serializes_as_plain_string_not_enum_repr(self, tmp_path):
+        output = tmp_path / "out.jsonl"
+        export_chunks_jsonl([self._make_chunk("f")], output)
+        data = json.loads(output.read_text().splitlines()[0])
+        assert data["level"] == "section"
 
     def test_creates_file(self, tmp_path):
         output = tmp_path / "out.jsonl"
