@@ -36,6 +36,9 @@ class MockReader:
         return [{"t.label": "primary", "t.value": "#ffb81c",
                  "t.category": "color", "t.id": "col_1", "t.usage": 5}]
 
+    def list_texts(self):
+        return []
+
     def get_interactions(self, name): return []
     def get_full_jsx(self, name): return "<div>full jsx</div>"
     def get_impact(self, name):

@@ -194,10 +194,20 @@ class TestFindTokenUsage:
     def test_screens_list_is_list_of_strings(self, rich_graph):
         result = rich_graph.reader.find_token_usage("#ffb81c")
         for u in result:
-            # screens may be empty if the component using the token
-            # is not directly linked to a screen via USES_COMPONENT
             assert isinstance(u["screens"], list)
             assert all(isinstance(s, str) for s in u["screens"])
+
+    def test_screens_list_includes_screen_via_nested_component(self, rich_graph):
+        # PriceTag uses this token but is only reachable via
+        # CartItem-[:CONTAINS]->PriceTag — CartItem, not PriceTag, is what
+        # RestaurantsPage directly uses. The screen must still be reported:
+        # changing this token visibly affects RestaurantsPage.
+        result = rich_graph.reader.find_token_usage("#ffb81c")
+        entry = next(u for u in result if u["t.label"] == "primary")
+        assert "RestaurantsPage" in entry["screens"], (
+            "find_token_usage must traverse CONTAINS, not just direct "
+            "USES_COMPONENT — PriceTag is nested inside CartItem."
+        )
 
     def test_multiple_matching_tokens_all_returned(self, rich_graph):
         # "primary" matches both the token label and maybe the value
@@ -256,6 +266,15 @@ class TestGetImpact:
         result = rich_graph.reader.get_impact("primary")
         assert "components" in result
         assert "PriceTag" in result["components"]
+
+    def test_token_impact_includes_screen_via_nested_component(self, rich_graph):
+        # Same nested-CONTAINS case as find_token_usage: PriceTag is only
+        # reachable through CartItem, which RestaurantsPage uses directly.
+        result = rich_graph.reader.get_impact("primary")
+        assert "RestaurantsPage" in result["screens"], (
+            "get_impact's token path must traverse CONTAINS, not just "
+            "direct USES_COMPONENT."
+        )
 
     def test_nonexistent_name_returns_not_found(self, rich_graph):
         result = rich_graph.reader.get_impact("XyzNotHere999")
