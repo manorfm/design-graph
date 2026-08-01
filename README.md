@@ -72,6 +72,26 @@ pipx uninstall design-graph
 
 Uninstalling the package does not delete generated databases. Remove those separately from the configured graph directory if they are no longer needed.
 
+### Local clone, installed globally (no venv)
+
+```bash
+git clone https://github.com/manorfm/design-graph.git
+cd design-graph
+python3 -m pip install -e .
+```
+
+This installs `design-graph`, `design-query` and `design-mcp` as global commands backed directly by this clone (an editable install just points at `src/`, it doesn't copy files).
+
+To update, pull and reinstall:
+
+```bash
+cd design-graph
+git pull
+python3 -m pip install -e . --no-deps
+```
+
+`--no-deps` skips reinstalling `beautifulsoup4`/`kuzu` and is safe unless `pyproject.toml` added a new dependency. Reinstalling replaces the old version metadata in place — `pip` uninstalls the previous editable version automatically, so nothing stale is left behind. `git pull` alone is not enough to fix `--version` output, since the version string is baked into package metadata at install time, not read from git at runtime.
+
 ### Development installation
 
 ```bash
