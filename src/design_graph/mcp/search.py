@@ -148,4 +148,13 @@ def _search_reader(
                 id=token.get("t.id", label), doc=doc_name, score=s,
             ))
 
+    for text in reader.list_texts():
+        content = text.get("t.content", "")
+        s = score_match(content, term)
+        if s > 0:
+            results.append(SearchResult(
+                type="UIText", name=content, detail=text.get("t.source", ""),
+                id=text.get("t.id", content), doc=doc_name, score=s,
+            ))
+
     return results

@@ -406,6 +406,19 @@ class GraphReader:
             "ORDER BY t.category, t.usage DESC"
         )
 
+    def list_texts(self) -> list[dict]:
+        """
+        Return every UIText node for cross-prototype search.
+
+        UIText is the only entity type search() was silently skipping —
+        component/section names and token labels are searchable, but the
+        actual visible strings in the prototype (button labels, headings,
+        messages) never were.
+        """
+        return self._q(
+            "MATCH (t:UIText) RETURN t.id, t.content, t.text_type, t.source, t.element"
+        )
+
     def find_token_usage(self, value: str) -> list[dict]:
         """
         Return tokens matching value/label with their using components and screens.
@@ -432,9 +445,15 @@ class GraphReader:
             {"val": value},
         )
 
-        # Single JOIN query for all screen-token relationships
+        # Single JOIN query for all screen-token relationships — expanded to
+        # the CONTAINS closure so a token used only by a nested component
+        # (e.g. PriceTag inside CartItem) still reports the screen that
+        # renders it (same *0..3 depth used throughout get_screen_full).
         screen_rows = self._q(
-            "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component)-[:USES_TOKEN]->(t:Token) "
+            "MATCH (s:Screen)-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT s, c "
+            "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "WHERE toLower(t.value) CONTAINS toLower($val) "
             "OR toLower(t.label) CONTAINS toLower($val) "
             "RETURN DISTINCT t.id AS token_id, s.name AS screen_name",
@@ -522,8 +541,9 @@ class GraphReader:
                 {"tid": tok["t.id"]},
             )
             screens = self._q(
-                "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component)-[:USES_TOKEN]->"
-                "(t:Token {id:$tid}) RETURN DISTINCT s.name",
+                "MATCH (s:Screen)-[:USES_COMPONENT]->(top:Component)"
+                "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token {id:$tid}) "
+                "RETURN DISTINCT s.name",
                 {"tid": tok["t.id"]},
             )
             return {

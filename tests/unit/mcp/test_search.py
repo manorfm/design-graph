@@ -138,6 +138,9 @@ class _StubReader:
     def get_tokens(self, category=None):
         return []
 
+    def list_texts(self):
+        return []
+
 
 class TestSearchCoversAllComponents:
     """search() must find every component, not only the 5 in top_components."""
@@ -168,3 +171,51 @@ class TestSearchCoversAllComponents:
             if comp not in self._run(comp):
                 missing.append(comp)
         assert missing == [], f"Components not found by search: {missing}"
+
+
+# ── Search must cover UIText content, not just names ─────────────────────────
+#
+# UIText nodes hold the actual visible strings in the prototype (button
+# labels, headings, messages) — the thing an agent most often searches for.
+# The tool's own description promises "screens, components, tokens and
+# texts", but the implementation never queried UIText at all.
+
+class _StubReaderWithTexts:
+    def list_screens(self):
+        return []
+
+    def list_components(self, comp_type=None):
+        return []
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return [
+            {"t.id": "txt_1", "t.content": "Adicionar Componente", "t.text_type": "label",
+             "t.source": "CompTab", "t.element": "button"},
+            {"t.id": "txt_2", "t.content": "Bem-vindo ao sistema", "t.text_type": "heading",
+             "t.source": "HomePage", "t.element": "h1"},
+        ]
+
+
+class TestSearchCoversUIText:
+    def _run(self, query: str) -> list[SearchResult]:
+        return search([("proto", _StubReaderWithTexts())], query)
+
+    def test_finds_text_by_exact_content(self):
+        results = self._run("Adicionar Componente")
+        assert any(r.type == "UIText" and r.name == "Adicionar Componente" for r in results)
+
+    def test_finds_text_by_substring(self):
+        results = self._run("Adicionar")
+        assert any(r.type == "UIText" and "Adicionar Componente" in r.name for r in results)
+
+    def test_text_result_carries_source_component_as_detail(self):
+        results = self._run("Bem-vindo")
+        match = next(r for r in results if r.type == "UIText")
+        assert match.detail == "HomePage"
+
+    def test_no_match_returns_no_uitext_results(self):
+        results = self._run("xyz-not-present")
+        assert not any(r.type == "UIText" for r in results)

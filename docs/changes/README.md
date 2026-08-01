@@ -47,6 +47,7 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | [C17](C17-screen-detection-and-strenum-consolidation/) | Core: remove regexes de tela mortas + consolida StrEnum | ✅ Done | T31 | Qualidade — elimina código morto com docstring incorreta + 4 redefinições independentes de `(str, Enum)` |
 | [C18](C18-mcp-token-efficiency/) | MCP: eficiência de token — fecha CONTAINS, corrige inconsistência, dedup de estilo, remove duplicação | ✅ Done | T32 | Alto — get_screen_full 11→21 componentes numa chamada (InventoryPage); elimina resposta divergente entre tools pro mesmo componente |
 | [C19](C19-jsx-variant-disambiguation/) | Extraction: rotula qual variante de JSX concatenada realmente executa | ✅ Done | T33 | Médio — fecha o gap adiado em C18; `Btn`/`Modal` do prototype real confirmados com rótulo correto |
+| [C20](C20-search-and-impact-correctness/) | MCP: busca sem cobertura de UIText + impacto de token subestimado | ✅ Done | T34 | Crítico — busca não indexava 1369 nós de texto, contradizendo a própria descrição da tool |
 
 > C12 cobriu o caso dominante (mutação direta de `style` no handler). C13
 > fecha os dois gaps que C12 deixou fora de escopo: handlers com mais de uma
