@@ -321,6 +321,29 @@ class TextEntry:
 
 # ── Extracted domain entities ─────────────────────────────────────────────────
 
+def _label_jsx_variants(jsx_variants: list[str]) -> str:
+    """
+    Join same-named component definitions found at multiple points in the
+    source, labeling which one actually executes.
+
+    JS hoists `function Name(...)` declarations fully — a later declaration
+    of the same name in the same scope completely replaces an earlier one,
+    so only the last one ever runs. Silently concatenating them would let an
+    agent mistake unreachable code for the real implementation.
+    """
+    if len(jsx_variants) <= 1:
+        return jsx_variants[0] if jsx_variants else ""
+
+    last = len(jsx_variants) - 1
+    labeled = [
+        f"{{/* Variant {i + 1}/{len(jsx_variants)} — "
+        + ("live (last declaration wins in JS)" if i == last else "shadowed by a later declaration, never executes")
+        + f" */}}\n{jsx}"
+        for i, jsx in enumerate(jsx_variants)
+    ]
+    return "\n\n".join(labeled)
+
+
 @dataclass
 class ExtractedComponent:
     """
@@ -351,6 +374,7 @@ class ExtractedComponent:
         jsx_variants = list(dict.fromkeys(
             variant.jsx_snippet for variant in variants if variant.jsx_snippet
         ))
+        jsx_snippet = _label_jsx_variants(jsx_variants)
         classes = sorted({
             class_name
             for variant in variants
@@ -375,7 +399,7 @@ class ExtractedComponent:
                 (variant.comp_type for variant in variants if variant.comp_type != ComponentType.COMPONENT),
                 variants[0].comp_type,
             ),
-            jsx_snippet="\n\n{/* Source variant */}\n\n".join(jsx_variants),
+            jsx_snippet=jsx_snippet,
             occurrence=max(variant.occurrence for variant in variants),
             classes=" ".join(classes),
             styles=list(styles.values()),

@@ -497,6 +497,35 @@ class TestExtractAllComponents:
         assert "First action" in component.jsx_snippet
         assert "Second action" in component.jsx_snippet
 
+    def test_duplicate_definitions_label_which_variant_actually_executes(self):
+        # JS hoists `function Name(...)` declarations fully — a later
+        # declaration of the same name in the same scope completely replaces
+        # an earlier one, so only the last-declared variant ever runs.
+        # Concatenating both without saying so lets an agent mistake
+        # unreachable code for the real implementation.
+        js = '''
+        function SharedCard({ first }) {
+            return (<div><AlphaCard /><button>First action</button></div>);
+        }
+        function SharedCard({ second }) {
+            return (<section><BetaCard /><button>Second action</button></section>);
+        }
+        '''
+        bounds = find_all_boundaries(js)
+        components = asyncio.run(
+            extract_all_components(js, bounds, Counter(b.name for b in bounds), {})
+        )
+        component = components[0]
+
+        first_pos  = component.jsx_snippet.find("First action")
+        second_pos = component.jsx_snippet.find("Second action")
+        live_label_pos    = component.jsx_snippet.find("live")
+        shadowed_label_pos = component.jsx_snippet.find("shadowed")
+
+        assert -1 not in (first_pos, second_pos, live_label_pos, shadowed_label_pos)
+        assert shadowed_label_pos < first_pos, "first-declared variant must be labeled shadowed"
+        assert live_label_pos < second_pos, "last-declared variant must be labeled live"
+
     def test_works_with_concurrency_one(self):
         bounds = find_all_boundaries(BTN_JS)
         occ = Counter(b.name for b in bounds)
