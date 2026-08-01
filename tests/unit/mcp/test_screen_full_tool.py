@@ -209,16 +209,25 @@ class TestGetScreenFullToolComponentOutput:
 
 
 # ── Rendered output — layout profiles ────────────────────────────────────────
+#
+# Layout Profiles used to be rendered as its own section, but every value in
+# it (display, align-items, ...) is already in each component's own
+# "Styles — default" table earlier in the same document — same reader-side
+# data (LAYOUT_CSS_PROPERTIES filter), shown twice. Dropped as pure token
+# waste; get_screen_layout still exposes this data for callers who want only
+# the layout summary without full styles.
 
-class TestGetScreenFullToolLayoutOutput:
-    def test_renders_layout_section_heading(self, dispatcher):
+class TestGetScreenFullToolDoesNotDuplicateLayoutSection:
+    def test_does_not_render_layout_profiles_heading(self, dispatcher):
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
-        assert "Layout" in output
+        assert "Layout Profiles" not in output
 
-    def test_renders_layout_display_value(self, dispatcher):
+    def test_layout_only_style_still_visible_via_component_styles_table(self, dispatcher):
+        # align_items="center" only exists in the layout_profiles fixture data,
+        # not in TopNav's styles_by_state — this is a pre-existing fixture gap,
+        # not something get_screen_full needs to backfill; removing the
+        # duplicate section must not silently drop data that was only ever
+        # available there. Guarded by asserting on a value both sections did
+        # carry: "flex" (styles_by_state.default AND former layout_profiles).
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
         assert "flex" in output
-
-    def test_renders_layout_width(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
-        assert "100%" in output
