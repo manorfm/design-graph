@@ -143,10 +143,6 @@ class GraphReader:
             "RETURN i.trigger, i.css_prop, i.from_val, i.to_val, i.transition",
             {"n": resolved},
         )
-        screens_using = self._q(
-            "MATCH (s:Screen)-[:USES_COMPONENT]->(c:Component {name:$n}) RETURN s.name",
-            {"n": resolved},
-        )
         children = self.get_component_children(resolved)
 
         return {
@@ -155,7 +151,7 @@ class GraphReader:
             "tokens":        tokens,
             "texts":         texts[:15],
             "interactions":  interactions,
-            "screens_using": [r["s.name"] for r in screens_using],
+            "screens_using": self.find_screens_using_comp_transitively(resolved),
             "children":      children,
         }
 
@@ -225,13 +221,6 @@ class GraphReader:
             "RETURN i.trigger, i.css_prop, i.from_val, i.to_val, i.transition",
             {"n": resolved},
         )
-        screens_rows = self._q(
-            "MATCH (s:Screen)-[:USES_COMPONENT]->(p:Component)"
-            "-[:CONTAINS*0..3]->(c:Component {name:$n}) "
-            "RETURN DISTINCT s.name ORDER BY s.name",
-            {"n": resolved},
-        )
-
         props = self.get_component_props(resolved)
 
         logger.debug(
@@ -247,7 +236,7 @@ class GraphReader:
             "interactions":    interactions,
             "children":        self.get_component_children(resolved),
             "parents":         self.get_component_parents(resolved),
-            "screens_using":   [r["s.name"] for r in screens_rows],
+            "screens_using":   self.find_screens_using_comp_transitively(resolved),
             "props":           props,
         }
 
@@ -637,18 +626,31 @@ class GraphReader:
             {"n": resolved},
         )
 
-        # Q5: All components used by this screen
+        # Q5: All components used by this screen, expanded to the full nested
+        # CONTAINS closure (not just direct USES_COMPONENT) — a component only
+        # reachable by following CONTAINS from a top-level one is still
+        # inlined here with its own styles/tokens/props, not just named in
+        # its parent's `children` list. *0..3 matches the depth already used
+        # by get_component_spec/find_screens_using_comp_transitively.
         comp_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "RETURN DISTINCT c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes "
             "ORDER BY c.name",
             {"n": resolved},
         )
 
         # Q6: Component styles — all states via single JOIN (also used for layout profiles)
+        #
+        # Kuzu requires a `WITH DISTINCT` boundary between a variable-length
+        # hop and any further pattern chained after it — a component reached
+        # via multiple CONTAINS paths must be deduped *before* joining its
+        # styles, or the join itself would duplicate rows.
         comp_style_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
-            "-[:HAS_STYLE]->(st:Style) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:HAS_STYLE]->(st:Style) "
             "RETURN c.name AS comp_name, st.state AS state, "
             "       st.property AS property, st.value AS value "
             "ORDER BY c.name, st.state, st.property",
@@ -657,8 +659,10 @@ class GraphReader:
 
         # Q7: Component tokens
         comp_token_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
-            "-[:USES_TOKEN]->(t:Token) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, "
             "       t.value AS value, t.category AS category "
             "ORDER BY c.name, t.category",
@@ -667,8 +671,10 @@ class GraphReader:
 
         # Q8: Component texts
         comp_text_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
-            "-[:COMP_HAS_TEXT]->(t:UIText) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:COMP_HAS_TEXT]->(t:UIText) "
             "RETURN c.name AS comp_name, t.content AS content, "
             "       t.text_type AS text_type, t.element AS element "
             "ORDER BY c.name, t.text_type",
@@ -677,8 +683,10 @@ class GraphReader:
 
         # Q9: Component interactions
         comp_interact_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
-            "-[:HAS_INTERACTION]->(i:Interaction) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:HAS_INTERACTION]->(i:Interaction) "
             "RETURN c.name AS comp_name, i.trigger AS trigger, i.css_prop AS css_prop, "
             "       i.from_val AS from_val, i.to_val AS to_val, i.transition AS transition",
             {"n": resolved},
@@ -686,18 +694,24 @@ class GraphReader:
 
         # Q10: Component props
         comp_prop_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
-            "-[:HAS_PROP]->(p:ComponentProp) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:HAS_PROP]->(p:ComponentProp) "
             "RETURN c.name AS comp_name, p.prop_name AS prop_name, "
             "       p.default_value AS default_value "
             "ORDER BY c.name, p.prop_name",
             {"n": resolved},
         )
 
-        # Q11: Component children (CONTAINS)
+        # Q11: Component children (CONTAINS) — one more hop past the closure
+        # bound above, so every component in `comp_rows` reports its own
+        # direct children, not just the screen's top-level components.
         comp_children_rows = self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(parent:Component)"
-            "-[:CONTAINS]->(child:Component) "
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(parent:Component) "
+            "WITH DISTINCT parent "
+            "MATCH (parent)-[:CONTAINS]->(child:Component) "
             "RETURN parent.name AS parent_name, child.name AS child_name "
             "ORDER BY parent.name, child.name",
             {"n": resolved},

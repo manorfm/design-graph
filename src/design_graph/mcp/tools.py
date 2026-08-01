@@ -28,6 +28,28 @@ def _truncation_notice(total: int, shown: int) -> str | None:
     return None
 
 
+def _dedupe_styles_by_property(styles: list[dict]) -> list[dict]:
+    """
+    Collapse multiple rows for the same CSS property into one, joining
+    distinct values with " | ".
+
+    Conditional/mapped JSX (`color: i === 2 ? col : 'white'`) produces
+    several style rows sharing one property name — truncating the raw list
+    to a fixed cap can crowd out genuinely distinct properties before the
+    reader ever sees them. Deduping by property first means the cap always
+    bounds distinct properties, not raw rows.
+    """
+    values_by_property: dict[str, list[str]] = {}
+    for entry in styles:
+        values = values_by_property.setdefault(entry["property"], [])
+        if entry["value"] not in values:
+            values.append(entry["value"])
+    return [
+        {"property": prop, "value": " | ".join(values)}
+        for prop, values in values_by_property.items()
+    ]
+
+
 # ── Tool schema definitions (MCP protocol) ────────────────────────────────────
 
 def _doc_param() -> dict:
@@ -465,7 +487,10 @@ class ToolDispatcher:
           # Screen heading + counts
           ## Sections — each with styles, component refs, texts and JSX
           ## Components — each with styles-by-state, tokens, interactions, props, children, JSX
-          ## Layout Profiles — spatial layout for each component
+
+        Layout data (display, align-items, ...) lives in each component's own
+        "Styles — default" table, not a separate section — get_screen_layout
+        is the tool for callers who want only the layout summary.
         """
         spec = reader.get_screen_full(name)
         if not spec:
@@ -528,7 +553,7 @@ class ToolDispatcher:
                         lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
 
                 for state in StyleState:
-                    state_styles = comp["styles_by_state"].get(state, [])
+                    state_styles = _dedupe_styles_by_property(comp["styles_by_state"].get(state, []))
                     if state_styles:
                         lines.append(f"\n#### Styles — {state}")
                         lines.append("| Property | Value |")
@@ -566,31 +591,6 @@ class ToolDispatcher:
                     lines.append("\n```jsx")
                     lines.append(comp["jsx_snippet"][:2500])
                     lines.append("```")
-                lines.append("")
-
-        # ── Layout profiles ───────────────────────────────────────────────────
-        if spec["layout_profiles"]:
-            lines.append("---\n## Layout Profiles\n")
-            for p in spec["layout_profiles"]:
-                lines.append(f"### {p['component_name']}")
-                layout_pairs = [
-                    ("display",         p.get("display")),
-                    ("position",        p.get("position")),
-                    ("width",           p.get("width")),
-                    ("height",          p.get("height")),
-                    ("padding",         p.get("padding")),
-                    ("flex-direction",  p.get("flex_direction")),
-                    ("align-items",     p.get("align_items")),
-                    ("justify-content", p.get("justify_content")),
-                    ("gap",             p.get("gap")),
-                    ("overflow",        p.get("overflow")),
-                    ("z-index",         p.get("z_index")),
-                ]
-                for css_prop, val in layout_pairs:
-                    if val is not None:
-                        lines.append(f"- `{css_prop}`: `{val}`")
-                for extra_prop, extra_val in p.get("extra_layout", {}).items():
-                    lines.append(f"- `{extra_prop}`: `{extra_val}`")
                 lines.append("")
 
         logger.debug("tools: get_screen_full(%s) — rendered", spec["name"])
@@ -812,7 +812,8 @@ class ToolDispatcher:
             if spec["children"]:
                 lines.append(f"- Filhos: {', '.join(spec['children'])}")
         if spec.get("styles_by_state"):
-            for state, styles in sorted(spec["styles_by_state"].items()):
+            for state, raw_styles in sorted(spec["styles_by_state"].items()):
+                styles = _dedupe_styles_by_property(raw_styles)
                 lines.append(f"\n## Estilos — {state}")
                 lines.append("| Propriedade | Valor |")
                 lines.append("|---|---|")

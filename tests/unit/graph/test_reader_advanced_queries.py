@@ -519,3 +519,59 @@ class TestGetComponentSpecScreensUsingDepth:
             f"get_component_spec.screens_using={spec_screens} differs from "
             f"find_screens_using_comp_transitively={transitive}"
         )
+
+
+# ── get_component: screens_using must match get_component_spec ───────────────
+#
+# get_component's screens_using used a direct-only USES_COMPONENT match while
+# get_component_spec used CONTAINS*0..3 — the same component gave two
+# different, disagreeing answers depending which tool an agent called.
+
+class TestGetComponentScreensUsingDepth:
+    @pytest.fixture()
+    def deep_graph(self, tmp_path_factory):
+        from types import SimpleNamespace
+        tmp  = tmp_path_factory.mktemp("deep_comp")
+        db   = kuzu.Database(str(tmp / "deep.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+
+        leaf = ExtractedComponent(
+            name="DeepLeaf", comp_type="badge", jsx_snippet="<span />",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
+        )
+        deep = ExtractedComponent(
+            name="DeepMid", comp_type="card", jsx_snippet="<div><DeepLeaf /></div>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=["DeepLeaf"],
+        )
+        mid = ExtractedComponent(
+            name="TopMid", comp_type="card", jsx_snippet="<div><DeepMid /></div>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=["DeepMid"],
+        )
+        for comp in (leaf, deep, mid):
+            gw.write_component(comp, {})
+
+        screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
+        gw.write_screen(screen, [], {})
+
+        ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
+        ro_conn = kuzu.Connection(ro_db)
+        return SimpleNamespace(reader=GraphReader(ro_conn))
+
+    def test_depth2_leaf_found_in_screens_using(self, deep_graph):
+        comp = deep_graph.reader.get_component("DeepLeaf")
+        assert "DeepPage" in comp["screens_using"], (
+            "get_component.screens_using must traverse CONTAINS*0..3 like "
+            "get_component_spec — DeepLeaf is at depth 2 but was not found."
+        )
+
+    def test_consistent_with_get_component_spec(self, deep_graph):
+        direct_tool = set(deep_graph.reader.get_component("DeepLeaf")["screens_using"])
+        spec_tool   = set(deep_graph.reader.get_component_spec("DeepLeaf")["screens_using"])
+        assert direct_tool == spec_tool, (
+            f"get_component.screens_using={direct_tool} differs from "
+            f"get_component_spec.screens_using={spec_tool} for the same component"
+        )

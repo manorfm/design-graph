@@ -299,3 +299,94 @@ class TestGetScreenFullQueryEfficiency:
             f"Expected ≤13 queries (O(1)), got {call_count}. "
             "Likely regressed to per-component queries."
         )
+
+
+# ── Nested components (CONTAINS closure, not just direct USES_COMPONENT) ─────
+#
+# get_screen_full's component set used to come only from the screen's direct
+# USES_COMPONENT edges. A component nested inside another (only reachable via
+# CONTAINS) showed up as a name in its parent's `children` list but its own
+# styles/tokens/props/JSX were never included — the caller had to issue one
+# extra get_component call per nested component, and silently missed any
+# nested two levels deep unless it thought to recurse a second time.
+
+@pytest.fixture(scope="module")
+def nested_screen_graph(tmp_path_factory):
+    """
+    Screen:     DeepScreen
+    Direct use: TopCard (via USES_COMPONENT)
+    Nesting:    TopCard -[CONTAINS]-> MidBadge -[CONTAINS]-> DeepIcon
+
+    MidBadge and DeepIcon are never directly used by the screen — only
+    reachable by following CONTAINS from TopCard, DeepIcon two hops deep.
+    """
+    tmp  = tmp_path_factory.mktemp("nested_screen")
+    db   = kuzu.Database(str(tmp / "nested.db"))
+    conn = kuzu.Connection(db)
+    initialize_schema(conn)
+    gw   = GraphWriter(conn)
+    gw.write_tokens([])
+
+    deep_icon = ExtractedComponent(
+        name="DeepIcon", comp_type="icon",
+        jsx_snippet="<svg />", occurrence=1, classes="",
+        styles=[StyleEntry(id="di1", element="DeepIcon", state="default", property="width", value="16px")],
+    )
+    mid_badge = ExtractedComponent(
+        name="MidBadge", comp_type="badge",
+        jsx_snippet="<span><DeepIcon /></span>", occurrence=1, classes="",
+        styles=[StyleEntry(id="mb1", element="MidBadge", state="default", property="borderRadius", value="99px")],
+        child_refs=["DeepIcon"],
+    )
+    top_card = ExtractedComponent(
+        name="TopCard", comp_type="card",
+        jsx_snippet="<div><MidBadge /></div>", occurrence=1, classes="",
+        styles=[StyleEntry(id="tc1", element="TopCard", state="default", property="display", value="flex")],
+        child_refs=["MidBadge"],
+    )
+
+    gw.write_component(deep_icon, {})
+    gw.write_component(mid_badge, {})
+    gw.write_component(top_card, {})
+    gw.flush_pending_contains()
+
+    screen = ExtractedScreen(name="DeepScreen", component_refs=["TopCard"], sections_count=0)
+    gw.write_screen(screen, [], {})
+
+    return GraphReader(conn)
+
+
+class TestGetScreenFullExpandsNestedComponents:
+    def test_direct_component_present(self, nested_screen_graph):
+        result = nested_screen_graph.get_screen_full("DeepScreen")
+        assert "TopCard" in {c["name"] for c in result["components"]}
+
+    def test_one_level_nested_component_present_with_own_styles(self, nested_screen_graph):
+        result = nested_screen_graph.get_screen_full("DeepScreen")
+        names  = {c["name"] for c in result["components"]}
+        assert "MidBadge" in names, "MidBadge is only reachable via CONTAINS from TopCard"
+        mid = next(c for c in result["components"] if c["name"] == "MidBadge")
+        props = {s["property"] for s in mid["styles_by_state"].get("default", [])}
+        assert "borderRadius" in props
+
+    def test_two_levels_nested_component_present_with_own_styles(self, nested_screen_graph):
+        result = nested_screen_graph.get_screen_full("DeepScreen")
+        names  = {c["name"] for c in result["components"]}
+        assert "DeepIcon" in names, "DeepIcon is 2 CONTAINS hops from TopCard — must still be expanded"
+        deep = next(c for c in result["components"] if c["name"] == "DeepIcon")
+        props = {s["property"] for s in deep["styles_by_state"].get("default", [])}
+        assert "width" in props
+
+    def test_query_count_stays_bounded_with_nested_components(self, nested_screen_graph, monkeypatch):
+        """Expanding to the CONTAINS closure must stay O(1) queries, not O(depth) or O(N)."""
+        call_count = 0
+        original_q = nested_screen_graph._q
+
+        def counting_q(cypher, params=None):
+            nonlocal call_count
+            call_count += 1
+            return original_q(cypher, params)
+
+        monkeypatch.setattr(nested_screen_graph, "_q", counting_q)
+        nested_screen_graph.get_screen_full("DeepScreen")
+        assert call_count <= 13

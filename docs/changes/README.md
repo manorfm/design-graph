@@ -45,6 +45,7 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | [C15](C15-tooltip-text-classification/) | Extraction: classificação de texto de tooltip (title/aria-label/alt) | ✅ Done | T28 | Médio — 143 valores de `title` antes indistinguíveis de conteúdo visível no prototype de referência |
 | [C16](C16-chunk-export-extraction-reuse/) | Pipeline: chunk export reusa extração do coordinator | ✅ Done | T30 | Alto — 2 bugs reais: telas contadas como componente (189→173) e seções de telas arrow-declaradas nunca extraídas |
 | [C17](C17-screen-detection-and-strenum-consolidation/) | Core: remove regexes de tela mortas + consolida StrEnum | ✅ Done | T31 | Qualidade — elimina código morto com docstring incorreta + 4 redefinições independentes de `(str, Enum)` |
+| [C18](C18-mcp-token-efficiency/) | MCP: eficiência de token — fecha CONTAINS, corrige inconsistência, dedup de estilo, remove duplicação | ✅ Done | T32 | Alto — get_screen_full 11→21 componentes numa chamada (InventoryPage); elimina resposta divergente entre tools pro mesmo componente |
 
 > C12 cobriu o caso dominante (mutação direta de `style` no handler). C13
 > fecha os dois gaps que C12 deixou fora de escopo: handlers com mais de uma
