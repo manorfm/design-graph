@@ -7,6 +7,7 @@ from design_graph.core.models import (
     ComponentType,
     DetectionMethod,
     EntityId,
+    ExtractedComponent,
     ExtractedSection,
     InteractionEntry,
     InteractionTrigger,
@@ -257,3 +258,17 @@ class TestExtractedSectionCreate:
         )
         assert section.id == expected
         assert section.detection_method == DetectionMethod.SEMANTIC
+
+
+class TestExtractedComponentConsolidateSingleVariant:
+    def _component(self, jsx: str) -> ExtractedComponent:
+        return ExtractedComponent(
+            name="Btn", comp_type=ComponentType.BUTTON, jsx_snippet=jsx,
+            occurrence=1, classes="",
+        )
+
+    def test_single_variant_returned_without_any_label_noise(self):
+        comp = ExtractedComponent.consolidate([self._component("<button>Go</button>")])
+        assert comp.jsx_snippet == "<button>Go</button>"
+        assert "live" not in comp.jsx_snippet
+        assert "shadowed" not in comp.jsx_snippet
