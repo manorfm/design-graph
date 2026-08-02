@@ -183,9 +183,15 @@ class TestGetScreenFullToolComponentOutput:
         assert "title"   in output
         assert "variant" in output
 
-    def test_renders_required_prop_marker(self, dispatcher):
+    def test_renders_dash_for_prop_without_declared_default(self, dispatcher):
+        """'title' has no declared default — must show a dash, not a false
+        'required' claim JSX's prop system can't actually back up."""
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
-        assert "✓" in output
+        assert "| `title` | — |" in output
+
+    def test_props_table_has_no_required_column(self, dispatcher):
+        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        assert "Required" not in output
 
     def test_renders_optional_prop_default_value(self, dispatcher):
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")

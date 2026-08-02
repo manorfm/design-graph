@@ -155,14 +155,28 @@ class TestSemanticType:
 # ── PropDefault ────────────────────────────────────────────────────────────────
 
 class TestPropDefault:
-    def test_empty_is_required(self):
-        assert PropDefault("").is_required is True
+    """
+    JSX has no required/optional prop system, so "no default declared" is not
+    proof a prop is required — a prop is routinely omitted at call sites
+    (guarded by `&&`, safely undefined, etc.) with no default in sight.
+    PropDefault only reports what's verifiable: whether a default was
+    declared, and what it is — never a required/optional claim.
+    """
 
-    def test_non_empty_is_not_required(self):
-        assert PropDefault("primary").is_required is False
+    def test_empty_was_not_declared(self):
+        assert PropDefault("").was_declared is False
+
+    def test_non_empty_was_declared(self):
+        assert PropDefault("primary").was_declared is True
 
     def test_behaves_as_plain_string(self):
         assert PropDefault("false") == "false"
+
+    def test_table_cell_is_a_dash_when_not_declared(self):
+        assert PropDefault("").as_table_cell() == "—"
+
+    def test_table_cell_is_backticked_value_when_declared(self):
+        assert PropDefault("secondary").as_table_cell() == "`secondary`"
 
 
 # ── Rich entity factories ─────────────────────────────────────────────────────
@@ -239,7 +253,7 @@ class TestComponentPropCreate:
         expected = "prop_" + hashlib.md5(b"NavBar_onClose").hexdigest()[:8]
         prop = ComponentProp.create(component_name="NavBar", prop_name="onClose", default_value="")
         assert prop.id == expected
-        assert prop.default_value.is_required
+        assert prop.default_value.was_declared is False
 
 
 class TestExtractedSectionCreate:
