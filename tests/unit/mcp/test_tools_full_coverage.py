@@ -453,3 +453,77 @@ class TestTruncationWarnings:
         d = ToolDispatcher([("proto", SmallReader())])
         result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
         assert "mais" not in result.lower()
+
+
+# ── JSX truncation: agent must know a snippet was cut, and whether it can ────
+# ── recover the rest via get_full_jsx (components only, not sections) ───────
+
+class _JsxOverflowReader:
+    """jsx_snippet longer than every render-time cap (2000/2500/3000/4000)."""
+
+    _LONG_JSX = "<div>" + "x" * 4100 + "</div>"
+
+    def get_section(self, screen, section_hint):
+        return {
+            "id": "sec_x", "name": "BigSection", "detection_method": "comment",
+            "styles": {}, "component_refs": [], "texts": [],
+            "jsx_snippet": self._LONG_JSX,
+        }
+
+    def get_screen_full(self, name):
+        return {
+            "name": "BigScreen", "component_count": 1, "sections_count": 1,
+            "sections": [{
+                "name": "BigSection", "detection_method": "comment",
+                "styles": {}, "component_refs": [], "texts": [],
+                "jsx_snippet": self._LONG_JSX,
+            }],
+            "components": [{
+                "name": "BigComp", "comp_type": "card", "occurrence": 1,
+                "jsx_snippet": self._LONG_JSX, "classes": "",
+                "styles_by_state": {}, "tokens": [], "texts": [],
+                "interactions": [], "props": [], "children": [],
+            }],
+        }
+
+    def get_component(self, name):
+        return {
+            "c.name": "BigComp", "c.comp_type": "card", "c.occurrence": 1,
+            "c.jsx_snippet": self._LONG_JSX, "c.classes": "",
+            "styles": [], "tokens": [], "texts": [], "interactions": [],
+            "screens_using": [], "children": [],
+        }
+
+    def get_component_children(self, name): return []
+    def find_screens_using_comp_transitively(self, name): return []
+
+
+class TestJsxTruncationWarnings:
+    """A capped JSX snippet must say so — and must only point to get_full_jsx
+    where that tool can actually recover the rest (Component nodes; sections
+    have no such lookup)."""
+
+    def _dispatcher(self):
+        return ToolDispatcher([("proto", _JsxOverflowReader())])
+
+    def test_get_component_notice_is_visible_and_actionable(self):
+        result = self._dispatcher().dispatch("get_component", {"name": "BigComp"}, "proto")
+        assert "+" in result
+        assert "get_full_jsx('BigComp')" in result
+
+    def test_get_section_notice_is_visible_without_a_false_lead(self):
+        result = self._dispatcher().dispatch(
+            "get_section", {"screen": "X", "section": "BigSection"}, "proto"
+        )
+        assert "+" in result
+        assert "get_full_jsx" not in result
+
+    def test_get_screen_full_component_notice_is_actionable(self):
+        result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
+        assert "get_full_jsx('BigComp')" in result
+
+    def test_get_screen_full_section_notice_has_no_false_lead(self):
+        result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
+        # Only the component-level cut may reference get_full_jsx; the
+        # section-level cut must not carry the same (false) claim.
+        assert result.count("get_full_jsx") == 1
