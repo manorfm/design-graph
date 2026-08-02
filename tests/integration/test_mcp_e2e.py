@@ -2,11 +2,13 @@
 End-to-end tests for the MCP layer against a real graph.
 
 Unlike tests/unit/mcp/test_tools.py (which uses MockReader), these tests
-build an actual Kuzu database from simple.html and exercise MCPServer.handle()
-through the complete stack: server → dispatcher → tools → GraphReader → Kuzu.
+build an actual Kuzu database from simple.html and exercise MCPServer through
+the complete stack: server → dispatcher → tools → GraphReader → Kuzu.
 
-Coverage:
-  - JSON-RPC protocol compliance (initialize, tools/list, error codes)
+JSON-RPC framing, protocol version negotiation and notification handling are
+the mcp SDK's responsibility now (wired at the bottom of server.py) — testing
+that here would just re-test the SDK's own suite, not our code. What's left
+to cover here is everything MCPServer still owns itself:
   - Every standard tool with real data
   - Multi-prototype reader selection (pick_reader scenarios)
   - Relevance-ordered search results
@@ -17,7 +19,6 @@ Coverage:
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
 
 import kuzu
@@ -65,40 +66,24 @@ def dual_server(real_reader):
 
 # ── helper ────────────────────────────────────────────────────────────────────
 
-def _call(server: MCPServer, tool: str, args: dict | None = None, mid: int = 1) -> dict:
-    """Shorthand for a tools/call request."""
-    return server.handle({
-        "jsonrpc": "2.0",
-        "id": mid,
-        "method": "tools/call",
-        "params": {"name": tool, "arguments": args or {}},
-    })
+def _call(server: MCPServer, tool: str, args: dict | None = None):
+    """Shorthand for a tool call, returning a ToolCallResult."""
+    return server.dispatch_tool_call(tool, args or {})
 
 
-def _text(response: dict) -> str:
-    """Extract the text payload from a tools/call response."""
-    return response["result"]["content"][0]["text"]
+def _text(response) -> str:
+    """Extract the text payload from a ToolCallResult."""
+    return response.text
 
 
-# ── JSON-RPC protocol compliance ──────────────────────────────────────────────
+# ── MCPServer's own responsibility: tool definitions and startup text ────────
 
-class TestJsonRpcProtocol:
-    def test_initialize_returns_2024_protocol_version(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        assert resp["result"]["protocolVersion"] == "2024-11-05"
+class TestServerOwnResponsibility:
+    def test_startup_description_contains_prototype_name(self, single_server):
+        assert "simple" in single_server.startup_description()
 
-    def test_initialize_includes_tools_capability(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        assert "tools" in resp["result"]["capabilities"]
-
-    def test_initialize_description_contains_prototype_name(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        desc = resp["result"]["serverInfo"]["description"]
-        assert "simple" in desc
-
-    def test_tools_list_returns_all_expected_tools(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
-        names = {t["name"] for t in resp["result"]["tools"]}
+    def test_tool_definitions_returns_all_expected_tools(self, single_server):
+        names = {t["name"] for t in single_server.tool_definitions()}
         expected = {
             "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
@@ -108,30 +93,6 @@ class TestJsonRpcProtocol:
             "set_prototype",
         }
         assert expected.issubset(names), f"Missing tools: {expected - names}"
-
-    def test_notification_initialized_returns_none(self, single_server):
-        result = single_server.handle({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {},
-        })
-        assert result is None
-
-    def test_unknown_method_returns_error_32601(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 3, "method": "unknown/method", "params": {}})
-        assert resp["error"]["code"] == -32601
-
-    def test_unknown_method_error_includes_method_name(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 3, "method": "some/unknown", "params": {}})
-        assert "some/unknown" in resp["error"]["message"]
-
-    def test_response_always_includes_jsonrpc_version(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 5, "method": "tools/list", "params": {}})
-        assert resp.get("jsonrpc") == "2.0"
-
-    def test_response_id_matches_request_id(self, single_server):
-        resp = single_server.handle({"jsonrpc": "2.0", "id": 42, "method": "tools/list", "params": {}})
-        assert resp["id"] == 42
 
 
 # ── list_screens tool ─────────────────────────────────────────────────────────
@@ -333,8 +294,7 @@ class TestMultiPrototypePickReader:
         assert isinstance(text, str)
 
     def test_initialize_with_multiple_readers_lists_all(self, dual_server):
-        resp = dual_server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        desc = resp["result"]["serverInfo"]["description"]
+        desc = dual_server.startup_description()
         # Should mention both prototype names
         assert "proto_a" in desc or "proto_b" in desc
 
@@ -390,21 +350,9 @@ class TestErrorHandling:
         text = _text(resp)
         assert "unknown" in text.lower() or "totally_unknown" in text.lower()
 
-    def test_tool_call_with_empty_name_returns_error(self, single_server):
-        resp = single_server.handle({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/call",
-            "params": {"name": "", "arguments": {}},
-        })
-        assert "result" in resp or "error" in resp  # must not crash
-
-    def test_no_crash_on_malformed_params(self, single_server):
-        resp = single_server.handle({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/call",
-            "params": {},  # missing 'name' and 'arguments'
-        })
-        assert "result" in resp or "error" in resp
+    def test_tool_call_with_empty_name_does_not_crash(self, single_server):
+        resp = _call(single_server, "")
+        assert isinstance(_text(resp), str)
 
 
 # ── private helpers ───────────────────────────────────────────────────────────

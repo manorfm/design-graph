@@ -1,20 +1,22 @@
 """
-MCP server — JSON-RPC 2.0 over stdio.
+MCP server for design-graph, backed by the official `mcp` SDK.
 
-Responsibilities: protocol loop only.
-All tool logic lives in tools.py; all DB access lives in graph/reader.py.
-Mutable state: _active_doc (changed via set_prototype) and the loaded
-readers/dispatcher, which _reload_if_stale() replaces when the graph
-directory changes on disk.
+MCPServer owns tool dispatch and session state (active prototype, loaded
+readers, reload-on-staleness) as plain dicts/strings — it has no dependency
+on `mcp` SDK types. The SDK is wired to it only at the bottom of this module
+(_to_sdk_tool, _build_sdk_server, run_stdio), the one place that imports
+`mcp`. That keeps MCPServer trivially testable, and the wire protocol (JSON-RPC
+framing, version negotiation, notifications) entirely the SDK's problem.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
+import asyncio
 import logging
 import os
 import sys
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -73,8 +75,37 @@ def _load_readers(graph_dir: Path) -> list[tuple[str, GraphReader]]:
     return readers
 
 
+def _warn_if_no_graphs(readers: list, graph_dir: Path) -> None:
+    if readers:
+        return
+    sys.stderr.write(
+        f"[design-graph] no graphs found in {graph_dir}\n"
+        "  Run: design-graph <prototype.html>\n"
+    )
+
+
+@dataclass(frozen=True)
+class ToolCallResult:
+    """
+    The outcome of one dispatched tool call: the Markdown text a client
+    should show, and whether it represents a genuine execution failure —
+    MCP's isError, distinct from a protocol-level error. Carrying both facts
+    on one value means the SDK-wiring boundary never has to guess which text
+    strings mean "this call failed."
+    """
+
+    text: str
+    is_error: bool = False
+
+
 class MCPServer:
-    """JSON-RPC 2.0 server. Reads from stdin, writes to stdout."""
+    """
+    Tool dispatch and session state for the design-graph MCP server.
+
+    No `mcp` SDK dependency: tool_definitions() and dispatch_tool_call() work
+    over plain dicts/strings, so this class is unit-testable without a
+    protocol layer and stays reusable if that layer ever changes again.
+    """
 
     def __init__(
         self, readers: list[tuple[str, GraphReader]], graph_dir: Path | None = None
@@ -89,74 +120,40 @@ class MCPServer:
         configured = str(load_user_config().get("default_doc", "")).strip()
         self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip() or configured
 
-    def run(self) -> None:
-        """Main event loop — blocks until stdin closes."""
-        logger.info("mcp-server: started (version=%s, prototypes=%d)", _VERSION, len(self._readers))
-        for raw_line in sys.stdin:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            response = self.handle(msg)
-            if response is not None:
-                self._send(response)
+    def tool_definitions(self) -> list[dict]:
+        from design_graph.mcp.tools import TOOL_DEFINITIONS
+        return TOOL_DEFINITIONS
 
-    def handle(self, msg: dict) -> dict | None:
-        method = msg.get("method", "")
-        mid    = msg.get("id")
-        params = msg.get("params", {})
-
-        if method == "initialize":
-            return self._handle_initialize(mid)
-
-        if method in ("notifications/initialized", "initialized"):
-            return None
-
-        if method == "tools/list":
-            from design_graph.mcp.tools import TOOL_DEFINITIONS
-
-            return {"jsonrpc": "2.0", "id": mid,
-                    "result": {"tools": TOOL_DEFINITIONS}}
-
-        if method == "tools/call":
-            return self._handle_tool_call(mid, params)
-
-        return {"jsonrpc": "2.0", "id": mid,
-                "error": {"code": -32601, "message": f"Method not found: {method}"}}
-
-    # ── Protocol handlers ────────────────────────────────────────────────────
-
-    def _handle_initialize(self, mid) -> dict:
+    def startup_description(self) -> str:
+        """A short line describing what's loaded, shown at initialize time."""
         doc_names = [n for n, _ in self._readers]
         if not doc_names:
-            description = (
-                "No graphs loaded. Run 'design-graph <prototype.html>' to build one."
-            )
-        elif len(doc_names) == 1 or self._active_doc:
+            return "No graphs loaded. Run 'design-graph <prototype.html>' to build one."
+        if len(doc_names) == 1 or self._active_doc:
             active = self._active_doc or doc_names[0]
-            description = (
+            return (
                 f"Active prototype: '{active}'. "
                 "Use list_screens to explore, get_component for components."
             )
-        else:
-            description = (
-                f"Loaded: {', '.join(f'{chr(39)}{n}{chr(39)}' for n in doc_names)}. "
-                "Call set_prototype(name='...') to select one."
-            )
+        return (
+            f"Loaded: {', '.join(f'{chr(39)}{n}{chr(39)}' for n in doc_names)}. "
+            "Call set_prototype(name='...') to select one."
+        )
 
-        return {
-            "jsonrpc": "2.0",
-            "id": mid,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities":    {"tools": {}},
-                "serverInfo":      {"name": "design-graph", "version": _VERSION,
-                                    "description": description},
-            },
-        }
+    def dispatch_tool_call(self, name: str, arguments: dict) -> ToolCallResult:
+        self._reload_if_stale()
+
+        if name == "set_prototype":
+            return ToolCallResult(text=self._set_prototype(arguments.get("name", "")))
+
+        try:
+            text = self._dispatcher.dispatch(name, arguments, self._active_doc)
+        except Exception as exc:
+            sys.stderr.write(f"[design-graph] ERROR {name}: {traceback.format_exc()}\n")
+            return ToolCallResult(text=f"Error executing {name}: {exc}", is_error=True)
+
+        sys.stderr.write(f"[design-graph] {name} → {len(text)} chars\n")
+        return ToolCallResult(text=text)
 
     def _reload_if_stale(self) -> None:
         """
@@ -180,28 +177,6 @@ class MCPServer:
             len(self._readers),
         )
 
-    def _handle_tool_call(self, mid, params: dict) -> dict:
-        self._reload_if_stale()
-        tool_name = params.get("name", "")
-        args      = params.get("arguments", {})
-
-        if tool_name == "set_prototype":
-            text = self._set_prototype(args.get("name", ""))
-            return {"jsonrpc": "2.0", "id": mid,
-                    "result": {"content": [{"type": "text", "text": text}]}}
-
-        try:
-            text = self._dispatcher.dispatch(tool_name, args, self._active_doc)
-            sys.stderr.write(f"[design-graph] {tool_name} → {len(text)} chars\n")
-        except Exception as exc:
-            import traceback
-            tb = traceback.format_exc()
-            sys.stderr.write(f"[design-graph] ERROR {tool_name}: {tb}\n")
-            text = f"Error executing {tool_name}:\n{tb}"
-
-        return {"jsonrpc": "2.0", "id": mid,
-                "result": {"content": [{"type": "text", "text": text}]}}
-
     def _set_prototype(self, name: str) -> str:
         if not name:
             if self._active_doc:
@@ -220,10 +195,55 @@ class MCPServer:
         available = ", ".join(f"'{n}'" for n, _ in self._readers)
         return f"Prototype '{name}' not found.\nAvailable: {available}"
 
-    @staticmethod
-    def _send(obj: dict) -> None:
-        sys.stdout.write(json.dumps(obj) + "\n")
-        sys.stdout.flush()
+
+# ── mcp SDK wiring ─────────────────────────────────────────────────────────────
+# Only this section imports `mcp`. It translates MCPServer's plain
+# dicts/strings into SDK types and back — MCPServer itself never sees them.
+
+def _to_sdk_tool(definition: dict):
+    from mcp import types
+
+    return types.Tool(
+        name=definition["name"],
+        description=definition["description"],
+        input_schema=definition["inputSchema"],
+        annotations=types.ToolAnnotations(read_only_hint=True),
+    )
+
+
+def _build_sdk_server(mcp_server: MCPServer):
+    from mcp import types
+    from mcp.server.lowlevel import Server
+
+    async def on_list_tools(ctx, params):
+        return types.ListToolsResult(
+            tools=[_to_sdk_tool(t) for t in mcp_server.tool_definitions()]
+        )
+
+    async def on_call_tool(ctx, params):
+        result = mcp_server.dispatch_tool_call(params.name, params.arguments or {})
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=result.text)],
+            is_error=result.is_error,
+        )
+
+    return Server(
+        "design-graph",
+        version=_VERSION,
+        description=mcp_server.startup_description(),
+        on_list_tools=on_list_tools,
+        on_call_tool=on_call_tool,
+    )
+
+
+async def run_stdio(mcp_server: MCPServer) -> None:
+    from mcp.server.stdio import stdio_server
+
+    sdk_server = _build_sdk_server(mcp_server)
+    async with stdio_server() as (read_stream, write_stream):
+        await sdk_server.run(
+            read_stream, write_stream, sdk_server.create_initialization_options()
+        )
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -232,7 +252,7 @@ def main() -> None:
     """Open graph databases and start the MCP server."""
     parser = argparse.ArgumentParser(
         prog="design-mcp",
-        description="Serve design-graph databases over MCP using JSON-RPC 2.0 on stdio.",
+        description="Serve design-graph databases over MCP using the official SDK.",
     )
     parser.add_argument("--version", action="version", version=f"design-mcp {_VERSION}")
     # MCP hosts may append client-specific arguments; only this server's own
@@ -243,11 +263,6 @@ def main() -> None:
 
     graph_dir = resolve_graph_dir()
     readers = _load_readers(graph_dir)
+    _warn_if_no_graphs(readers, graph_dir)
 
-    if not readers:
-        sys.stderr.write(
-            f"[design-graph] no graphs found in {graph_dir}\n"
-            "  Run: design-graph <prototype.html>\n"
-        )
-
-    MCPServer(readers, graph_dir).run()
+    asyncio.run(run_stdio(MCPServer(readers, graph_dir)))
