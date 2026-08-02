@@ -83,6 +83,31 @@ def _props_table_lines(props: list[dict]) -> list[str]:
     return lines
 
 
+class StyleExtractionGap:
+    """
+    True when a component's JSX declares inline styles but the graph has no
+    structured Style rows for it — usually because every value is a runtime
+    expression (`hsl(${hue}...)`, a ternary, a prop reference) rather than a
+    literal the extractor can store. Only meaningful where styles are
+    already known to be empty: an empty Styles section alone can't tell
+    "no styling" apart from this case.
+    """
+
+    __slots__ = ("exists",)
+
+    def __init__(self, jsx_snippet: str) -> None:
+        self.exists = "style={" in (jsx_snippet or "")
+
+    def notice(self) -> str | None:
+        if not self.exists:
+            return None
+        return (
+            "> No structured styles extracted — this component's styling is "
+            "likely computed at runtime (template literals, ternaries); read "
+            "the JSX for actual values."
+        )
+
+
 def _dedupe_styles_by_property(styles: list[dict]) -> list[dict]:
     """
     Collapse multiple rows for the same CSS property into one, joining
@@ -598,9 +623,11 @@ class ToolDispatcher:
                     lines.append("\n#### Props")
                     lines.extend(_props_table_lines(comp["props"]))
 
+                any_styles = False
                 for state in StyleState:
                     state_styles = _dedupe_styles_by_property(comp["styles_by_state"].get(state, []))
                     if state_styles:
+                        any_styles = True
                         lines.append(f"\n#### Styles — {state}")
                         lines.append("| Property | Value |")
                         lines.append("|---|---|")
@@ -609,6 +636,10 @@ class ToolDispatcher:
                         notice = _truncation_notice(len(state_styles), 12)
                         if notice:
                             lines.append(notice)
+                if not any_styles:
+                    notice = StyleExtractionGap(comp["jsx_snippet"]).notice()
+                    if notice:
+                        lines.append(f"\n{notice}")
 
                 if comp["tokens"]:
                     lines.append("\n#### Tokens")
@@ -732,6 +763,10 @@ class ToolDispatcher:
             for state in StyleState:
                 if state in by_state:
                     lines.append(f"**{state}**: {' | '.join(by_state[state][:6])}")
+        else:
+            notice = StyleExtractionGap(comp.get("c.jsx_snippet", "")).notice()
+            if notice:
+                lines.append(f"\n{notice}")
         if comp.get("tokens"):
             lines.append("\n## Tokens de design")
             for t in comp["tokens"]:
@@ -880,6 +915,10 @@ class ToolDispatcher:
                 notice = _truncation_notice(len(styles), 12)
                 if notice:
                     lines.append(notice)
+        else:
+            notice = StyleExtractionGap(spec.get("c.jsx_snippet", "")).notice()
+            if notice:
+                lines.append(f"\n{notice}")
         if spec.get("tokens"):
             lines.append("\n## Tokens")
             lines.append("| Label | Valor | Categoria |")
