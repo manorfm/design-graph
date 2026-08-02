@@ -64,6 +64,25 @@ class CappedJsx(str):
         return f"> ... +{cut} caracteres cortados"
 
 
+def _props_table_lines(props: list[dict]) -> list[str]:
+    """
+    A one-line honesty note plus a Prop/Default Markdown table.
+
+    No "Required" column: JSX has no required/optional prop system, so a
+    missing default is not proof a prop is required — only PropDefault's
+    verifiable fact (whether a default exists, and what it is) is shown.
+    """
+    lines = [
+        "> A missing default does not mean the prop is required — JSX enforces no such contract; check real usage before assuming.",
+        "| Prop | Default |",
+        "|---|---|",
+    ]
+    for p in props:
+        prop_default = PropDefault(p["default_value"])
+        lines.append(f"| `{p['prop_name']}` | {prop_default.as_table_cell()} |")
+    return lines
+
+
 def _dedupe_styles_by_property(styles: list[dict]) -> list[dict]:
     """
     Collapse multiple rows for the same CSS property into one, joining
@@ -449,14 +468,7 @@ class ToolDispatcher:
                 f"No declared props found for '{name}'. "
                 "The component may use positional props, TypeScript interfaces, or have no props."
             )
-        lines = [f"# Props: {name}\n",
-                 "| Prop | Required | Default |",
-                 "|---|---|---|"]
-        for p in props:
-            prop_default = PropDefault(p["default_value"])
-            required = "✓" if prop_default.is_required else ""
-            default  = "—" if prop_default.is_required else f"`{prop_default}`"
-            lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
+        lines = [f"# Props: {name}\n", *_props_table_lines(props)]
         logger.debug("tools: get_component_props(%s) — %d props", name, len(props))
         return "\n".join(lines)
 
@@ -584,13 +596,7 @@ class ToolDispatcher:
 
                 if comp["props"]:
                     lines.append("\n#### Props")
-                    lines.append("| Prop | Required | Default |")
-                    lines.append("|---|---|---|")
-                    for p in comp["props"]:
-                        prop_default = PropDefault(p["default_value"])
-                        required = "✓" if prop_default.is_required else ""
-                        default  = "—" if prop_default.is_required else f"`{prop_default}`"
-                        lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
+                    lines.extend(_props_table_lines(comp["props"]))
 
                 for state in StyleState:
                     state_styles = _dedupe_styles_by_property(comp["styles_by_state"].get(state, []))
@@ -896,13 +902,7 @@ class ToolDispatcher:
                 )
         if spec.get("props"):
             lines.append("\n## Props")
-            lines.append("| Prop | Required | Default |")
-            lines.append("|---|---|---|")
-            for p in spec["props"]:
-                prop_default = PropDefault(p["default_value"])
-                required = "✓" if prop_default.is_required else ""
-                default  = "—" if prop_default.is_required else f"`{prop_default}`"
-                lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
+            lines.extend(_props_table_lines(spec["props"]))
         if spec.get("c.jsx_snippet"):
             jsx = CappedJsx(spec["c.jsx_snippet"], 3000)
             lines.append("\n## JSX\n```jsx")

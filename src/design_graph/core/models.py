@@ -183,13 +183,24 @@ class SemanticType(StrEnum):
 
 
 class PropDefault(str):
-    """A React prop's default-value literal. Empty means the prop is required."""
+    """
+    A React prop's default-value literal, as declared in the component's
+    destructured function signature (e.g. `variant = 'secondary'`).
+
+    JSX has no required/optional prop system, so an empty value here means
+    only that no default was declared — not that callers must supply the
+    prop. A prop is routinely omitted at call sites (guarded by `&&`,
+    rendered safely as `undefined`, etc.) with no default in sight.
+    """
 
     __slots__ = ()
 
     @property
-    def is_required(self) -> bool:
-        return len(self) == 0
+    def was_declared(self) -> bool:
+        return len(self) > 0
+
+    def as_table_cell(self) -> str:
+        return f"`{self}`" if self.was_declared else "—"
 
 
 # ── Design tokens ─────────────────────────────────────────────────────────────

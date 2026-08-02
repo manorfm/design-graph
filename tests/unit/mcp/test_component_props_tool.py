@@ -47,9 +47,12 @@ class TestGetComponentPropsTool:
         assert "sticky" in output
         assert "onClose" in output
 
-    def test_output_marks_required_props(self, dispatcher):
+    def test_output_warns_no_default_is_not_proof_of_required(self, dispatcher):
+        """JSX has no required/optional prop system — a missing default must
+        read as a caveat about what's unknown, not a false '✓ Required'."""
         output = dispatcher.dispatch("get_component_props", {"name": "NavBar"}, "myapp")
         assert "required" in output.lower()
+        assert "✓" not in output
 
     def test_output_shows_default_value_for_optional_props(self, dispatcher):
         output = dispatcher.dispatch("get_component_props", {"name": "NavBar"}, "myapp")
