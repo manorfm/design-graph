@@ -28,6 +28,42 @@ def _truncation_notice(total: int, shown: int) -> str | None:
     return None
 
 
+class CappedJsx(str):
+    """
+    A JSX/markup snippet capped to a display limit, aware of its own cut.
+
+    Mirrors PropDefault (core/models.py): a fact about the value — whether it
+    was cut, and by how much — lives on the value itself instead of being
+    recomputed from a raw length comparison at every render site.
+    """
+
+    __slots__ = ("full_length",)
+
+    def __new__(cls, raw: str, limit: int) -> CappedJsx:
+        obj = str.__new__(cls, raw[:limit])
+        obj.full_length = len(raw)
+        return obj
+
+    @property
+    def was_cut(self) -> bool:
+        return self.full_length > len(self)
+
+    def notice(self, recoverable_via: str | None) -> str | None:
+        """
+        A Markdown blockquote naming what was cut, or None when nothing was.
+
+        recoverable_via: component name to pass get_full_jsx() when that tool
+        can recover the rest. get_full_jsx only matches Component nodes, so
+        callers rendering a section pass None instead of a false lead.
+        """
+        if not self.was_cut:
+            return None
+        cut = self.full_length - len(self)
+        if recoverable_via:
+            return f"> ... +{cut} caracteres (chame get_full_jsx('{recoverable_via}') para o JSX completo)"
+        return f"> ... +{cut} caracteres cortados"
+
+
 def _dedupe_styles_by_property(styles: list[dict]) -> list[dict]:
     """
     Collapse multiple rows for the same CSS property into one, joining
@@ -527,9 +563,13 @@ class ToolDispatcher:
                     if notice:
                         lines.append(notice)
                 if sec["jsx_snippet"]:
+                    jsx = CappedJsx(sec["jsx_snippet"], 2000)
                     lines.append("\n```jsx")
-                    lines.append(sec["jsx_snippet"][:2000])
+                    lines.append(jsx)
                     lines.append("```")
+                    notice = jsx.notice(recoverable_via=None)  # sections aren't Component nodes
+                    if notice:
+                        lines.append(notice)
                 lines.append("")
 
         # ── Components ────────────────────────────────────────────────────────
@@ -588,9 +628,13 @@ class ToolDispatcher:
                         lines.append(notice)
 
                 if comp["jsx_snippet"]:
+                    jsx = CappedJsx(comp["jsx_snippet"], 2500)
                     lines.append("\n```jsx")
-                    lines.append(comp["jsx_snippet"][:2500])
+                    lines.append(jsx)
                     lines.append("```")
+                    notice = jsx.notice(recoverable_via=cname)
+                    if notice:
+                        lines.append(notice)
                 lines.append("")
 
         logger.debug("tools: get_screen_full(%s) — rendered", spec["name"])
@@ -646,9 +690,13 @@ class ToolDispatcher:
             if notice:
                 lines.append(notice)
         if sec["jsx_snippet"]:
+            jsx = CappedJsx(sec["jsx_snippet"], 3000)
             lines.append("\n## JSX\n```jsx")
-            lines.append(sec["jsx_snippet"][:3000])
+            lines.append(jsx)
             lines.append("```")
+            notice = jsx.notice(recoverable_via=None)  # sections aren't Component nodes
+            if notice:
+                lines.append(notice)
         return "\n".join(lines)
 
     def get_component(self, reader: GraphReader, name: str) -> str:
@@ -663,7 +711,11 @@ class ToolDispatcher:
             f"Usado em: {', '.join(comp.get('screens_using', [])) or 'não detectado'}",
         ]
         if comp.get("c.jsx_snippet"):
-            lines += ["", "## JSX", "```jsx", comp["c.jsx_snippet"][:4000], "```"]
+            jsx = CappedJsx(comp["c.jsx_snippet"], 4000)
+            lines += ["", "## JSX", "```jsx", jsx, "```"]
+            notice = jsx.notice(recoverable_via=cname)
+            if notice:
+                lines.append(notice)
         if comp.get("styles"):
             lines.append("\n## Estilos")
             by_state: dict[str, list[str]] = {}
@@ -852,9 +904,13 @@ class ToolDispatcher:
                 default  = "—" if prop_default.is_required else f"`{prop_default}`"
                 lines.append(f"| `{p['prop_name']}` | {required} | {default} |")
         if spec.get("c.jsx_snippet"):
+            jsx = CappedJsx(spec["c.jsx_snippet"], 3000)
             lines.append("\n## JSX\n```jsx")
-            lines.append(spec["c.jsx_snippet"][:3000])
+            lines.append(jsx)
             lines.append("```")
+            notice = jsx.notice(recoverable_via=cname)
+            if notice:
+                lines.append(notice)
         logger.debug("tools: get_component_spec(%s) — rendered", cname)
         return "\n".join(lines)
 
