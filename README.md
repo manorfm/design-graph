@@ -58,6 +58,8 @@ With `pipx`:
 pipx upgrade design-graph
 ```
 
+This package now requires Python 3.10+ (the `mcp` SDK dependency doesn't support 3.9). If `python3`/`pipx` resolve to an older interpreter, the upgrade fails to resolve dependencies — install or point `pipx` at a 3.10+ interpreter first (e.g. `pipx install --python python3.11 ...`).
+
 ### Uninstall
 
 ```bash
@@ -323,7 +325,7 @@ Environment variables can be passed by the MCP client:
 - `GRAPH_DIR` selects the directory scanned for databases.
 - `DESIGN_GRAPH_DOC` sets the default active prototype when multiple databases are loaded.
 
-Restart or reconnect the MCP client after changing configuration or rebuilding a graph so the server reloads the database files.
+The server detects a rebuilt `*.db` file on its own (it compares file mtimes before each tool call) and reloads without a restart. Restarting or reconnecting the MCP client is only needed after changing `GRAPH_DIR`, `DESIGN_GRAPH_DOC`, or upgrading the package itself — those are read once, at startup.
 
 ## MCP tools
 
