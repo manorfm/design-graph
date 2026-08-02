@@ -25,15 +25,12 @@ FIXTURE_DIR = Path(__file__).parent.parent.parent / "fixtures"
 SIMPLE_HTML = FIXTURE_DIR / "simple.html"
 
 
-def _call(server: MCPServer, tool: str, args: dict | None = None) -> dict:
-    return server.handle({
-        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": tool, "arguments": args or {}},
-    })
+def _call(server: MCPServer, tool: str, args: dict | None = None):
+    return server.dispatch_tool_call(tool, args or {})
 
 
-def _text(response: dict) -> str:
-    return response["result"]["content"][0]["text"]
+def _text(response) -> str:
+    return response.text
 
 
 @pytest.fixture
@@ -121,4 +118,4 @@ class TestReloadOnStaleness:
         no graph_dir. That path must stay inert, not attempt any reload."""
         server = MCPServer([("stub", object())])
         resp = _call(server, "totally_unknown_tool")
-        assert "result" in resp
+        assert isinstance(resp.text, str)

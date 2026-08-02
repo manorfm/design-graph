@@ -7,12 +7,13 @@ name = "design-graph"
 dynamic = ["version"]
 description = "Parse prototype HTML into a knowledge graph — surgical MCP context for LLM agents at a fraction of the token cost"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["mcp", "llm", "design-system", "agent", "context", "kuzu"]
 dependencies = [
     "beautifulsoup4>=4.12",
     "kuzu>=0.6",
+    "mcp>=2.0",
 ]
 
 [project.scripts]

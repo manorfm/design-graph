@@ -1,7 +1,7 @@
 # design-graph
 
 [![Tests](https://github.com/manorfm/design-graph/actions/workflows/tests.yml/badge.svg)](https://github.com/manorfm/design-graph/actions/workflows/tests.yml)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-v0.21.5-green.svg)](https://github.com/manorfm/design-graph/tags)
 
@@ -11,11 +11,11 @@ Instead of sending a 50–200k-token HTML bundle to an agent, the agent can requ
 
 ## Requirements
 
-- Python 3.9 or later
+- Python 3.10 or later
 - `pip` or `pipx`
 - An MCP-compatible client only if you intend to use `design-mcp`
 
-Runtime dependencies (`beautifulsoup4` and `kuzu`) are installed automatically.
+Runtime dependencies (`beautifulsoup4`, `kuzu` and `mcp`) are installed automatically.
 
 ## Install
 

@@ -209,51 +209,40 @@ class TestToolDefinitions:
 
 
 # ── MCPServer tests ───────────────────────────────────────────────────────────
+#
+# MCPServer itself no longer speaks JSON-RPC — that's the mcp SDK's job now
+# (wired at the bottom of server.py). These tests exercise MCPServer's own
+# responsibility: tool definitions, dispatch, session state and reload —
+# all through plain dicts/strings, with no SDK types involved.
 
 class TestMCPServer:
     def _server(self, n=1):
         readers = [(f"doc{i}", MockReader()) for i in range(1, n + 1)]
         return MCPServer(readers)
 
-    def _msg(self, method, params=None, mid=1):
-        return {"jsonrpc": "2.0", "id": mid, "method": method, "params": params or {}}
-
-    def test_initialize_returns_protocol_version(self):
-        response = self._server().handle(self._msg("initialize"))
-        assert response["result"]["protocolVersion"] == "2024-11-05"
-
-    def test_tools_list_includes_new_tool(self):
-        response = self._server().handle(self._msg("tools/list"))
-        names = [t["name"] for t in response["result"]["tools"]]
+    def test_tool_definitions_includes_new_tool(self):
+        names = [t["name"] for t in self._server().tool_definitions()]
         assert "get_component_children" in names
 
-    def test_tools_call_list_screens(self):
-        response = self._server().handle(self._msg("tools/call", {
-            "name": "list_screens", "arguments": {}
-        }))
-        assert response["result"]["content"][0]["type"] == "text"
-        assert "RestaurantsPage" in response["result"]["content"][0]["text"]
+    def test_dispatch_list_screens(self):
+        result = self._server().dispatch_tool_call("list_screens", {})
+        assert result.is_error is False
+        assert "RestaurantsPage" in result.text
 
-    def test_unknown_method_returns_error_32601(self):
-        response = self._server().handle(self._msg("nonexistent"))
-        assert response["error"]["code"] == -32601
-
-    def test_notification_returns_none(self):
-        result = self._server().handle(self._msg("notifications/initialized"))
-        assert result is None
+    def test_dispatch_unknown_tool_is_not_an_error(self):
+        """An unrecognized tool name is a routing miss, not an execution
+        failure — ToolDispatcher already reports it as text."""
+        result = self._server().dispatch_tool_call("nonexistent", {})
+        assert result.is_error is False
+        assert "unknown" in result.text.lower() or "nonexistent" in result.text.lower()
 
     def test_set_prototype_updates_active_doc(self):
         server = self._server(2)
-        server.handle(self._msg("tools/call", {
-            "name": "set_prototype", "arguments": {"name": "doc2"}
-        }))
+        server.dispatch_tool_call("set_prototype", {"name": "doc2"})
         assert server._active_doc == "doc2"
 
     def test_set_prototype_no_arg_reports_state(self):
         server = self._server(1)
-        response = server.handle(self._msg("tools/call", {
-            "name": "set_prototype", "arguments": {}
-        }))
-        text = response["result"]["content"][0]["text"]
-        assert isinstance(text, str)
-        assert len(text) > 0
+        result = server.dispatch_tool_call("set_prototype", {})
+        assert isinstance(result.text, str)
+        assert result.is_error is False

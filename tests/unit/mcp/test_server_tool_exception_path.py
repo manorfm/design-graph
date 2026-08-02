@@ -1,22 +1,19 @@
 """
-Tests for the MCPServer tool exception path and multi-reader description.
+Tests for MCPServer's tool-exception path and multi-reader startup text.
 
 Targets:
-  - _handle_tool_call except block (lines 117-121): tool raises → error response
-  - _handle_initialize with multiple readers and no active_doc (line 79)
-  - _send writes to stdout correctly (indirect)
+  - dispatch_tool_call's except block: a tool that raises must come back as
+    ToolCallResult(is_error=True) with a plain message — not a leaked
+    traceback in the text a client/LLM would see. The full traceback still
+    goes to stderr for whoever operates the process.
+  - startup_description() with multiple readers and no active_doc.
 """
 
 from __future__ import annotations
 
-import io
-import json
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from design_graph.mcp.server import MCPServer
-from design_graph.mcp.tools import ToolDispatcher
 
 
 class _FailingDispatcher:
@@ -30,63 +27,33 @@ class _FailingDispatcher:
     def dispatch(self, *args, **kwargs):
         raise RuntimeError("simulated tool failure")
 
-    def list_screens(self):
-        raise RuntimeError("list_screens failure")
-
 
 class TestToolExceptionHandling:
     def _failing_server(self):
         server = MCPServer([("doc1", MagicMock())])
-        # Replace the dispatcher with one that always raises
         server._dispatcher = _FailingDispatcher([("doc1", MagicMock())])
         return server
 
-    def test_tool_exception_returns_result_not_error(self):
-        """Server must NOT propagate tool exceptions as JSON-RPC errors.
-        Instead it catches them and returns the traceback as the text content."""
-        server = self._failing_server()
-        resp = server.handle({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/call",
-            "params": {"name": "list_screens", "arguments": {}},
-        })
-        # Response must be a result (not a protocol error)
-        assert "result" in resp
-        text = resp["result"]["content"][0]["text"]
-        assert "Error" in text or "error" in text or "failure" in text
+    def test_tool_exception_is_reported_as_an_error(self):
+        result = self._failing_server().dispatch_tool_call("list_screens", {})
+        assert result.is_error is True
+        assert "failure" in result.text.lower() or "error" in result.text.lower()
+
+    def test_tool_exception_text_does_not_leak_a_traceback(self):
+        """The client sees a message, not a stack trace — full detail stays
+        server-side, in stderr."""
+        result = self._failing_server().dispatch_tool_call("list_screens", {})
+        assert "Traceback" not in result.text
 
     def test_tool_exception_written_to_stderr(self, capsys):
-        server = self._failing_server()
-        server.handle({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/call",
-            "params": {"name": "list_screens", "arguments": {}},
-        })
+        self._failing_server().dispatch_tool_call("list_screens", {})
         err = capsys.readouterr().err
-        assert "ERROR" in err or "error" in err.lower() or "failure" in err.lower()
-
-    def test_tool_exception_response_has_correct_id(self):
-        server = self._failing_server()
-        resp = server.handle({
-            "jsonrpc": "2.0", "id": 42,
-            "method": "tools/call",
-            "params": {"name": "list_screens", "arguments": {}},
-        })
-        assert resp["id"] == 42
-
-    def test_tool_exception_response_is_text_type(self):
-        server = self._failing_server()
-        resp = server.handle({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/call",
-            "params": {"name": "get_component", "arguments": {"name": "Btn"}},
-        })
-        assert resp["result"]["content"][0]["type"] == "text"
+        assert "error" in err.lower() or "failure" in err.lower()
 
 
-# ── _handle_initialize: multiple readers description ─────────────────────────
+# ── startup_description: multiple readers ────────────────────────────────────
 
-class TestInitializeMultipleReadersDescription:
+class TestStartupDescriptionMultipleReaders:
     def _stub_reader(self):
         r = MagicMock()
         r.list_screens.return_value = []
@@ -95,22 +62,16 @@ class TestInitializeMultipleReadersDescription:
     def test_multiple_readers_no_active_doc_shows_set_prototype_hint(self):
         server = MCPServer([("proto_a", self._stub_reader()), ("proto_b", self._stub_reader())])
         server._active_doc = ""
-        resp = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        desc = resp["result"]["serverInfo"]["description"]
-        # Should mention both prototypes and instruct to call set_prototype
+        desc = server.startup_description()
         assert "proto_a" in desc or "proto_b" in desc
         assert "set_prototype" in desc or "select" in desc.lower()
 
     def test_single_reader_auto_selected_in_description(self):
         server = MCPServer([("myapp", self._stub_reader())])
         server._active_doc = ""
-        resp = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        desc = resp["result"]["serverInfo"]["description"]
-        assert "myapp" in desc
+        assert "myapp" in server.startup_description()
 
     def test_active_doc_shown_when_set(self):
         server = MCPServer([("a", self._stub_reader()), ("b", self._stub_reader())])
         server._active_doc = "a"
-        resp = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
-        desc = resp["result"]["serverInfo"]["description"]
-        assert "a" in desc
+        assert "a" in server.startup_description()
