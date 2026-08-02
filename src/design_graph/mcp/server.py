@@ -3,7 +3,9 @@ MCP server — JSON-RPC 2.0 over stdio.
 
 Responsibilities: protocol loop only.
 All tool logic lives in tools.py; all DB access lives in graph/reader.py.
-The only mutable state here is _active_doc (changed via set_prototype).
+Mutable state: _active_doc (changed via set_prototype) and the loaded
+readers/dispatcher, which _reload_if_stale() replaces when the graph
+directory changes on disk.
 """
 
 from __future__ import annotations
@@ -13,6 +15,8 @@ import json
 import logging
 import os
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,15 +31,61 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class GraphDirectorySnapshot:
+    """
+    The on-disk state of a graph directory's *.db files at one point in time.
+
+    Two snapshots compare equal only when every path and its mtime match —
+    that's what tells MCPServer a rebuild happened since it last loaded,
+    without either side needing to know *what* changed.
+    """
+
+    mtime_by_path: dict[Path, float]
+
+    @classmethod
+    def of(cls, graph_dir: Path | None) -> GraphDirectorySnapshot:
+        if graph_dir is None or not graph_dir.exists():
+            return cls({})
+        return cls({p: p.stat().st_mtime for p in graph_dir.glob("*.db")})
+
+    def has_changed_since(self, previous: GraphDirectorySnapshot) -> bool:
+        return self.mtime_by_path != previous.mtime_by_path
+
+
+def _load_readers(graph_dir: Path) -> list[tuple[str, GraphReader]]:
+    """Open one read-only GraphReader per *.db file in graph_dir."""
+    if not graph_dir.exists():
+        return []
+
+    import kuzu
+
+    from design_graph.graph.reader import GraphReader
+
+    readers: list[tuple[str, GraphReader]] = []
+    for db_path in sorted(graph_dir.glob("*.db")):
+        try:
+            db = kuzu.Database(str(db_path), read_only=True)
+            readers.append((db_path.stem, GraphReader(kuzu.Connection(db))))
+            sys.stderr.write(f"[design-graph] loaded: {db_path.name}\n")
+        except Exception as exc:
+            sys.stderr.write(f"[design-graph] failed to open {db_path.name}: {exc}\n")
+    return readers
+
+
 class MCPServer:
     """JSON-RPC 2.0 server. Reads from stdin, writes to stdout."""
 
-    def __init__(self, readers: list[tuple[str, GraphReader]]) -> None:
+    def __init__(
+        self, readers: list[tuple[str, GraphReader]], graph_dir: Path | None = None
+    ) -> None:
         from design_graph.mcp.tools import ToolDispatcher
         from design_graph.paths import load_user_config
 
+        self._graph_dir  = graph_dir
         self._readers    = readers
         self._dispatcher = ToolDispatcher(readers)
+        self._snapshot   = GraphDirectorySnapshot.of(graph_dir)
         configured = str(load_user_config().get("default_doc", "")).strip()
         self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip() or configured
 
@@ -108,7 +158,30 @@ class MCPServer:
             },
         }
 
+    def _reload_if_stale(self) -> None:
+        """
+        Reopen every *.db file when the graph directory changed since load.
+
+        Kuzu read-only connections don't see writes made by another process
+        after they're opened, so a prototype rebuilt while this session is
+        already running would otherwise stay invisible until it restarts.
+        """
+        current = GraphDirectorySnapshot.of(self._graph_dir)
+        if not current.has_changed_since(self._snapshot):
+            return
+
+        from design_graph.mcp.tools import ToolDispatcher
+
+        self._readers    = _load_readers(self._graph_dir)
+        self._dispatcher = ToolDispatcher(self._readers)
+        self._snapshot   = current
+        logger.info(
+            "mcp-server: graph directory changed — reloaded %d prototype(s)",
+            len(self._readers),
+        )
+
     def _handle_tool_call(self, mid, params: dict) -> dict:
+        self._reload_if_stale()
         tool_name = params.get("name", "")
         args      = params.get("arguments", {})
 
@@ -166,22 +239,10 @@ def main() -> None:
     # help/version flags are relevant and unknown host arguments are ignored.
     parser.parse_known_args()
 
-    from design_graph.graph.reader import GraphReader
     from design_graph.paths import resolve_graph_dir
 
     graph_dir = resolve_graph_dir()
-    readers: list[tuple[str, GraphReader]] = []
-
-    if graph_dir.exists():
-        import kuzu
-        for db_path in sorted(graph_dir.glob("*.db")):
-            try:
-                db   = kuzu.Database(str(db_path), read_only=True)
-                conn = kuzu.Connection(db)
-                readers.append((db_path.stem, GraphReader(conn)))
-                sys.stderr.write(f"[design-graph] loaded: {db_path.name}\n")
-            except Exception as exc:
-                sys.stderr.write(f"[design-graph] failed to open {db_path.name}: {exc}\n")
+    readers = _load_readers(graph_dir)
 
     if not readers:
         sys.stderr.write(
@@ -189,4 +250,4 @@ def main() -> None:
             "  Run: design-graph <prototype.html>\n"
         )
 
-    MCPServer(readers).run()
+    MCPServer(readers, graph_dir).run()
