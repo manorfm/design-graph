@@ -200,6 +200,27 @@ class MCPServer:
 # Only this section imports `mcp`. It translates MCPServer's plain
 # dicts/strings into SDK types and back — MCPServer itself never sees them.
 
+# The same server is often reached from several projects at once (Cursor,
+# Kiro and similar tools keep one MCP connection shared across every open
+# workspace), and most turns in a session have nothing to do with a
+# prototype at all. These instructions are the MCP handshake's own place to
+# teach that judgment call to every connecting agent once, instead of
+# leaving it to the user to repeat per prompt or to a config file that can
+# only ever pin one fixed prototype.
+_AGENT_INSTRUCTIONS = (
+    "When the task is to create, update or review a UI component or page, "
+    "check whether a loaded prototype is relevant before writing anything "
+    "from scratch — call list_screens or search to see what's available. "
+    "Most requests aren't about a prototype at all; if none of them relate "
+    "to the task, skip this and proceed normally.\n\n"
+    "This server is commonly shared across several projects at once, so "
+    "more than one prototype may be loaded. Call set_prototype(name=...) "
+    "once at the start of the task to select the right one, instead of "
+    "passing doc= on every call. Prefer get_screen_full to reconstruct a "
+    "full screen, or get_component_spec for a single component."
+)
+
+
 def _to_sdk_tool(definition: dict):
     from mcp import types
 
@@ -231,6 +252,7 @@ def _build_sdk_server(mcp_server: MCPServer):
         "design-graph",
         version=_VERSION,
         description=mcp_server.startup_description(),
+        instructions=_AGENT_INSTRUCTIONS,
         on_list_tools=on_list_tools,
         on_call_tool=on_call_tool,
     )

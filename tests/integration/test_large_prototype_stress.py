@@ -114,7 +114,8 @@ class TestLargePrototypeChunking:
     """Run chunker on the pipeline results extracted from large_bundle.html."""
 
     @pytest.fixture(scope="class")
-    def chunks(self, reader):
+    @classmethod
+    def chunks(cls, reader):
         from collections import defaultdict
 
         from design_graph.core.models import ExtractedComponent, ExtractedScreen, ExtractedSection
