@@ -4,6 +4,9 @@
 .graph-state.json
 graph-diff.md
 
+# Private prototypes loaded for local testing (never commit these)
+/*.html
+
 # Generated context directories
 agent-context/
 
