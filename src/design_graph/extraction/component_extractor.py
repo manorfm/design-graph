@@ -44,15 +44,9 @@ from design_graph.core.patterns import (
     RE_COMP_REF,
     RE_HEADING,
     RE_INLINE_STYLE,
-    RE_JSX_MAP_RENDER,
     RE_JSX_MARKER_COMP,
-    RE_JSX_SHORT_CIRCUIT,
     RE_JSX_TAG,
-    RE_JSX_TERNARY_COMPONENTS,
     RE_LABEL_TEXT,
-    RE_LONG_ARROW_FN,
-    RE_LONG_EVENT_HANDLER,
-    RE_LONG_TERNARY,
     RE_PLACEHOLDER,
     RE_STYLE_MUTATION,
     RE_STYLE_PROP,
@@ -64,6 +58,7 @@ from design_graph.core.patterns import (
     re_state_setter_trigger,
     re_state_ternary_style,
 )
+from design_graph.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
@@ -120,69 +115,6 @@ def infer_component_type(name: str) -> ComponentType:
             if word in keywords:
                 return comp_type
     return ComponentType.COMPONENT
-
-
-def sanitize_jsx(jsx: str) -> str:
-    """
-    Strip JavaScript logic from JSX, replacing dynamic expressions with
-    typed markers that preserve structural information for AI agents:
-
-      {[list:ComponentName]}           — .map() list rendering
-      {[conditional:ComponentName]}    — short-circuit && rendering
-      {[either:ComponentA|ComponentB]} — ternary between components
-
-    Static content, tags, inline styles, and component names are preserved.
-    """
-    # 1. Collapse long event handlers: onClick={() => doSomethingLong()} → on[handler]
-    jsx = RE_LONG_EVENT_HANDLER.sub("on[handler]", jsx)
-
-    # 2. Collapse long arrow functions in method chains
-    jsx = RE_LONG_ARROW_FN.sub(".[fn]", jsx)
-
-    # 3. List rendering: {arr.map(item => <Comp />)} → {[list:Comp]}
-    n_list = [0]
-    def _list_marker(m: re.Match) -> str:
-        n_list[0] += 1
-        return f"{{[list:{m.group(1)}]}}"
-    jsx = RE_JSX_MAP_RENDER.sub(_list_marker, jsx)
-
-    # 4. Short-circuit conditional: {flag && <Comp />} → {[conditional:Comp]}
-    n_conditional = [0]
-    def _conditional_marker(m: re.Match) -> str:
-        n_conditional[0] += 1
-        return f"{{[conditional:{m.group(1)}]}}"
-    jsx = RE_JSX_SHORT_CIRCUIT.sub(_conditional_marker, jsx)
-
-    # 5. Ternary between components: {cond ? <A /> : <B />} → {[either:A|B]}
-    n_ternary = [0]
-    def _ternary_marker(m: re.Match) -> str:
-        n_ternary[0] += 1
-        return f"{{[either:{m.group(1)}|{m.group(2)}]}}"
-    jsx = RE_JSX_TERNARY_COMPONENTS.sub(_ternary_marker, jsx)
-
-    # 6. Collapse remaining long style objects: style={{ ... (>400 chars) }}
-    def _collapse_long_style(m: re.Match) -> str:
-        inner = m.group(0)
-        if len(inner) <= 400:
-            return inner
-        props = RE_STYLE_PROP.findall(inner)[:6]
-        preview = ", ".join(f"{k}: {v.strip()}" for k, v in props)
-        return f"style={{{{ {preview}, ... }}}}"
-    jsx = re.sub(r"style=\{\{[^}]{200,}\}\}", _collapse_long_style, jsx)
-
-    # 7. Collapse remaining very long expressions (fallback — anything > 300 chars)
-    jsx = RE_LONG_TERNARY.sub("{...}", jsx)
-
-    # 8. Normalize whitespace
-    jsx = re.sub(r"\n{3,}", "\n\n", jsx)
-
-    if n_list[0] or n_conditional[0] or n_ternary[0]:
-        logger.debug(
-            "sanitize_jsx: inserted %d list, %d conditional, %d ternary markers",
-            n_list[0], n_conditional[0], n_ternary[0],
-        )
-
-    return jsx.strip()
 
 
 def _extract_marker_refs(sanitized_jsx: str) -> set[str]:

@@ -53,8 +53,10 @@ class CappedJsx(str):
         A Markdown blockquote naming what was cut, or None when nothing was.
 
         recoverable_via: component name to pass get_full_jsx() when that tool
-        can recover the rest. get_full_jsx only matches Component nodes, so
-        callers rendering a section pass None instead of a false lead.
+        can recover the rest. get_full_jsx lifts the CappedJsx length limit
+        applied here, not the jsx_sanitizer markers already baked into the
+        stored snippet — it only matches Component nodes, so callers
+        rendering a section pass None instead of a false lead.
         """
         if not self.was_cut:
             return None
@@ -250,7 +252,7 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "get_full_jsx",
-        "description": "Returns the full unsanitized JSX of a component. Use when get_component truncated details.",
+        "description": "Returns a component's complete sanitized JSX, without the display length cap other tools apply. Dynamic expressions (.map/&&/ternary) still appear as typed markers ({[conditional:X]} etc) — this recovers what CappedJsx truncated, not the original pre-sanitization source. Use when get_component truncated details.",
         "inputSchema": {
             "type": "object",
             "properties": {

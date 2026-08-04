@@ -203,6 +203,45 @@ class PropDefault(str):
         return f"`{self}`" if self.was_declared else "—"
 
 
+# ── JSX sanitization markers ────────────────────────────────────────────────────
+
+class JsxMarkerKind(StrEnum):
+    """The three ways sanitize_jsx collapses a dynamic JSX expression."""
+
+    LIST = "list"
+    CONDITIONAL = "conditional"
+    EITHER = "either"
+
+
+@dataclass(frozen=True)
+class JsxMarker:
+    """
+    A typed placeholder standing in for one dynamic JSX expression — a
+    `.map()` render, a `&&` short-circuit, or a `? :` ternary — so an AI
+    agent can see which component renders there without the surrounding
+    JS logic.
+
+    LIST and CONDITIONAL name exactly one component; EITHER names two, in
+    source order (then-branch, else-branch — e.g. `error ? <A/> : <B/>`
+    becomes `("A", "B")`). The count is validated on construction so a
+    caller can never assemble a marker that doesn't match its own kind.
+    """
+
+    kind: JsxMarkerKind
+    component_names: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        expected = 2 if self.kind is JsxMarkerKind.EITHER else 1
+        if len(self.component_names) != expected:
+            raise ValueError(
+                f"{self.kind} marker takes {expected} component name(s), "
+                f"got {self.component_names!r}"
+            )
+
+    def __str__(self) -> str:
+        return f"{{[{self.kind}:{'|'.join(self.component_names)}]}}"
+
+
 # ── Design tokens ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)

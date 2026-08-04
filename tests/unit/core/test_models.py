@@ -2,6 +2,8 @@
 
 import hashlib
 
+import pytest
+
 from design_graph.core.models import (
     ComponentProp,
     ComponentType,
@@ -11,6 +13,8 @@ from design_graph.core.models import (
     ExtractedSection,
     InteractionEntry,
     InteractionTrigger,
+    JsxMarker,
+    JsxMarkerKind,
     PropDefault,
     SemanticType,
     SourceFormat,
@@ -177,6 +181,38 @@ class TestPropDefault:
 
     def test_table_cell_is_backticked_value_when_declared(self):
         assert PropDefault("secondary").as_table_cell() == "`secondary`"
+
+
+# ── JsxMarker ──────────────────────────────────────────────────────────────────
+
+class TestJsxMarker:
+    def test_list_marker_renders_single_name(self):
+        marker = JsxMarker(JsxMarkerKind.LIST, ("CartItem",))
+        assert str(marker) == "{[list:CartItem]}"
+
+    def test_conditional_marker_renders_single_name(self):
+        marker = JsxMarker(JsxMarkerKind.CONDITIONAL, ("Badge",))
+        assert str(marker) == "{[conditional:Badge]}"
+
+    def test_either_marker_renders_both_names_in_order(self):
+        marker = JsxMarker(JsxMarkerKind.EITHER, ("SuccessCard", "ErrorBanner"))
+        assert str(marker) == "{[either:SuccessCard|ErrorBanner]}"
+
+    def test_conditional_rejects_two_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.CONDITIONAL, ("A", "B"))
+
+    def test_list_rejects_zero_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.LIST, ())
+
+    def test_either_rejects_single_name(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.EITHER, ("A",))
+
+    def test_either_rejects_three_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.EITHER, ("A", "B", "C"))
 
 
 # ── Rich entity factories ─────────────────────────────────────────────────────

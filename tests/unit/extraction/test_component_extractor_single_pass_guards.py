@@ -14,39 +14,13 @@ from __future__ import annotations
 import pytest
 
 from design_graph.core.constants import MAX_INTERACTIONS_PER_COMPONENT
-from design_graph.extraction.component_extractor import extract_component, sanitize_jsx
+from design_graph.extraction.component_extractor import extract_component
 from design_graph.parsing.js_parser import find_all_boundaries
 
 
 def _boundary(js: str, name: str):
     bounds = find_all_boundaries(js)
     return next(b for b in bounds if b.name == name)
-
-
-# ── sanitize_jsx: medium-length style block (200-400 chars) ──────────────────
-
-class TestSanitizeJsxMediumStyle:
-    def test_style_between_200_and_400_chars_returned_unchanged(self):
-        # Build style={{...}} where inner is 200-299 chars.
-        # The style regex fires (≥ 200 chars) but RE_LONG_TERNARY does NOT (< 300).
-        # _collapse_long_style takes the `return inner` branch (line 95).
-        inner = ", ".join(f"prop{i}: '{10 + i}px'" for i in range(12))
-        # Pad to land between 200-299 chars
-        while len(inner) < 200:
-            inner += ", extraFillProp: '1px'"
-        assert 200 <= len(inner) <= 299, f"Need 200-299 chars, got {len(inner)}"
-        jsx = "style={{" + inner + "}}"
-        result = sanitize_jsx(jsx)
-        # _collapse_long_style returns unchanged (line 95 taken), RE_LONG_TERNARY skips (<300)
-        assert "..." not in result
-        assert "prop0" in result or "extraFillProp" in result
-
-    def test_style_above_400_chars_collapsed(self):
-        inner = ", ".join(f"propNameLong{i}: 'veryLongValue{i}px'" for i in range(18))
-        jsx = "style={{" + inner + "}}"
-        assert len(inner) > 400
-        result = sanitize_jsx(jsx)
-        assert "..." in result
 
 
 # ── extract_component: reserved/empty style values skipped ───────────────────
@@ -334,79 +308,9 @@ from design_graph.core.models import FunctionBoundary
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
 
 
-# ── JSX typed markers (C11) ──────────────────────────────────────────────────
-
-class TestSanitizeJsxTypedMarkers:
-    """Verify sanitize_jsx replaces dynamic JSX with typed markers."""
-
-    def test_map_render_gets_list_marker(self):
-        jsx = "<ul>{items.map(item => <CartItem key={item.id} />)}</ul>"
-        result = sanitize_jsx(jsx)
-        assert "[list:CartItem]" in result
-
-    def test_short_circuit_gets_conditional_marker(self):
-        jsx = "<div>{isOpen && <Modal />}</div>"
-        result = sanitize_jsx(jsx)
-        assert "[conditional:Modal]" in result
-
-    def test_ternary_two_components_gets_either_marker(self):
-        jsx = "<div>{error ? <ErrorBanner /> : <SuccessCard />}</div>"
-        result = sanitize_jsx(jsx)
-        assert "[either:ErrorBanner|SuccessCard]" in result
-
-    def test_marker_uses_bracket_notation(self):
-        jsx = "<div>{flag && <Sidebar />}</div>"
-        result = sanitize_jsx(jsx)
-        assert "{[conditional:Sidebar]}" in result
-
-    def test_no_js_logic_exposed_after_substitution(self):
-        jsx = "<div>{isLoggedIn && <UserMenu />}</div>"
-        result = sanitize_jsx(jsx)
-        assert "isLoggedIn" not in result
-        assert "&&" not in result
-
-    def test_map_logic_not_exposed(self):
-        jsx = "<ul>{items.map(i => <ListItem />)}</ul>"
-        result = sanitize_jsx(jsx)
-        assert "items.map" not in result
-        assert ".map(" not in result
-
-    def test_static_text_unchanged(self):
-        jsx = "<h1>Título fixo</h1>"
-        assert "Título fixo" in sanitize_jsx(jsx)
-
-    def test_handler_still_collapsed(self):
-        # RE_LONG_EVENT_HANDLER requires >= 60 non-brace chars inside the handler
-        flat_body = "() => handleMouseEnterEventWithLongNameAndManyParameters(event, index, itemId, extraData)"
-        jsx = f'<div onMouseEnter={{{flat_body}}} />'
-        result = sanitize_jsx(jsx)
-        assert "on[handler]" in result
-        assert "handleMouseEnter" not in result
-
-    def test_multiple_markers_in_same_jsx(self):
-        jsx = (
-            "<div>"
-            "{items.map(i => <Item />)}"
-            "{isAdmin && <AdminPanel />}"
-            "</div>"
-        )
-        result = sanitize_jsx(jsx)
-        assert "[list:Item]" in result
-        assert "[conditional:AdminPanel]" in result
-
-    def test_component_name_preserved_in_marker(self):
-        jsx = "<div>{flag && <MyComplexComponent />}</div>"
-        result = sanitize_jsx(jsx)
-        assert "MyComplexComponent" in result
-
-    def test_ternary_marker_order_is_then_else(self):
-        jsx = "<div>{ok ? <ThenComp /> : <ElseComp />}</div>"
-        result = sanitize_jsx(jsx)
-        # ThenComp must come before ElseComp in the marker
-        idx_then = result.find("ThenComp")
-        idx_else = result.find("ElseComp")
-        assert idx_then < idx_else
-
+# sanitize_jsx's typed-marker behaviour is covered by
+# tests/unit/extraction/test_jsx_sanitizer.py — child_refs derivation from
+# those markers (extract_component's responsibility) stays here.
 
 class TestChildRefsFromMarkers:
     """Verify extract_component adds marker-referenced components to child_refs."""

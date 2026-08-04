@@ -48,6 +48,7 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | [C18](C18-mcp-token-efficiency/) | MCP: eficiência de token — fecha CONTAINS, corrige inconsistência, dedup de estilo, remove duplicação | ✅ Done | T32 | Alto — get_screen_full 11→21 componentes numa chamada (InventoryPage); elimina resposta divergente entre tools pro mesmo componente |
 | [C19](C19-jsx-variant-disambiguation/) | Extraction: rotula qual variante de JSX concatenada realmente executa | ✅ Done | T33 | Médio — fecha o gap adiado em C18; `Btn`/`Modal` do prototype real confirmados com rótulo correto |
 | [C20](C20-search-and-impact-correctness/) | MCP: busca sem cobertura de UIText + impacto de token subestimado | ✅ Done | T34 | Crítico — busca não indexava 1369 nós de texto, contradizendo a própria descrição da tool |
+| [C21](C21-jsx-marker-balanced-collapse/) | Extraction: colapso balanceado de expressões dinâmicas em JSX | ✅ Done | T35 | Crítico — marcador `{[conditional:X]}` saía corrompido com prop de chave aninhada (`color={C.red}`); markup cru (ícones) perdido silenciosamente acima de 300 chars |
 
 > C12 cobriu o caso dominante (mutação direta de `style` no handler). C13
 > fecha os dois gaps que C12 deixou fora de escopo: handlers com mais de uma
