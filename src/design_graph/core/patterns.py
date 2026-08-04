@@ -177,27 +177,54 @@ RE_LONG_ARROW_FN = re.compile(
 )
 RE_LONG_TERNARY = re.compile(r'\{[^{}]{300,}\}')
 
-# JSX typed marker patterns — used by sanitize_jsx to replace dynamic expressions
-# with structured markers instead of erasing them.
+# JSX typed marker patterns — used by jsx_sanitizer.sanitize_jsx to replace
+# dynamic expressions with structured markers instead of erasing them.
+#
+# Each pattern below matches only the *head* of the expression — up to the
+# opening `<Component` tag — never its end. The true end is found by scanning
+# forward from the leading `{` for its balanced closing `}`
+# (parsing.js_parser.find_matching_delimiter), not by a regex tail such as
+# `[^}]{0,400}\}`. A tail like that stops at the FIRST `}` it meets, and a
+# component prop as ordinary as `color={C.red}` supplies one well before the
+# expression's real end — corrupting the match and leaking raw JSX into the
+# replacement. Balanced scanning has no such failure mode.
 
 # {items.map(item => <Component ... />)}  or  {items.map((item) => <Component/>)}
-RE_JSX_MAP_RENDER = re.compile(
-    r'\{[^{}<>]{0,80}\.map\([^)]{0,120}\s*=>\s*(?:\([^)]*\)|\s*)?'
-    r'<([A-Z][A-Za-z0-9]+)[^}]{0,400}\}',
+RE_JSX_LIST_HEAD = re.compile(
+    r'\{[^{}<>]{0,80}\.map\([^)]{0,120}\s*=>\s*(?:\([^)]*\)|\s*)?<([A-Z][A-Za-z0-9]+)',
     re.DOTALL,
 )
 
 # {condition && <Component ... />}
 # Note: avoid && inside [] to prevent FutureWarning (set intersection) in Python 3.12+
-RE_JSX_SHORT_CIRCUIT = re.compile(
-    r'\{[^{}<>&]{1,120}&{2}\s*<([A-Z][A-Za-z0-9]+)[^}]{0,400}\}',
+RE_JSX_CONDITIONAL_HEAD = re.compile(
+    r'\{[^{}<>&]{1,120}&{2}\s*<([A-Z][A-Za-z0-9]+)',
     re.DOTALL,
 )
 
-# {condition ? <ComponentA ... /> : <ComponentB ... />}
-RE_JSX_TERNARY_COMPONENTS = re.compile(
-    r'\{[^{}<>?]{1,120}\?\s*<([A-Z][A-Za-z0-9]+)[^:]{0,300}'
-    r':\s*<([A-Z][A-Za-z0-9]+)[^}]{0,300}\}',
+# {condition ? <ComponentA ... /> : <ComponentB ... />} — then-branch name only.
+# The else-branch name is read from the already balance-bounded region text
+# via RE_JSX_EITHER_ELSE_BRANCH, never by regex-scanning an unbounded tail.
+RE_JSX_EITHER_HEAD = re.compile(
+    r'\{[^{}<>?]{1,120}\?\s*<([A-Z][A-Za-z0-9]+)',
+    re.DOTALL,
+)
+RE_JSX_EITHER_ELSE_BRANCH = re.compile(r':\s*<([A-Z][A-Za-z0-9]+)')
+
+# {condition && <span>...</span>}  or  {condition && (<svg>...</svg>)}
+# Raw markup — an icon, a decorative wrapper — with no PascalCase component
+# name, conditionally rendered. Never collapsed into a marker: unlike a named
+# component (whose real shape is one get_component_spec call away), this is
+# the ONLY copy of that markup's visual detail. These patterns exist purely
+# to locate and protect such spans from the generic long-expression fallback
+# below, so whether one survives sanitization stops depending on how many
+# characters it happens to be.
+RE_JSX_MARKUP_CONDITIONAL_HEAD = re.compile(
+    r'\{[^{}<>&]{1,120}&{2}\s*\(?\s*<[a-z][a-zA-Z0-9]*',
+    re.DOTALL,
+)
+RE_JSX_MARKUP_EITHER_HEAD = re.compile(
+    r'\{[^{}<>?]{1,120}\?\s*\(?\s*<[a-z][a-zA-Z0-9]*',
     re.DOTALL,
 )
 
