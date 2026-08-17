@@ -263,3 +263,70 @@ class TestExtractReactScreenComponentSplit:
         assert "HomePage" not in [c.name for c in comps]
         assert "BtnPrimary" in [c.name for c in comps]
         assert "HomePage" in [s.name for s in screens]
+
+
+# ── extract_react: component alias resolution ──────────────────────────────
+#
+# Some prototypes rename a component and keep the old name as a plain
+# re-export (`const Badge = window.V6K.Pill;`) instead of a function. Left
+# alone, that produces an empty unresolved-component shell for the alias
+# name. extract_react must resolve it to the real definition everywhere the
+# alias is referenced — by other components and by screens alike.
+
+class TestExtractReactComponentAliasResolution:
+    _JS = """
+    function Pill({ label, color }) {
+      return <span style={{color}}>{label}</span>;
+    }
+    const Badge = window.V6K.Pill;
+    function RestaurantRow({ r }) {
+      return (<div><Badge label={r.status} /></div>);
+    }
+    function RestaurantsPage() {
+      return (
+        <div>
+          {/* ── Lista ── */}
+          <RestaurantRow r={r} />
+          <Badge label="top" />
+        </div>
+      );
+    }
+    """
+
+    def _extract(self):
+        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.pipeline.coordinator import extract_react
+
+        sources = RawSources(js=self._JS, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        return asyncio.run(extract_react(sources, concurrency=1))
+
+    def test_alias_name_is_not_extracted_as_its_own_component(self):
+        comps, _screens, _sections_map, _tokens = self._extract()
+        assert "Badge" not in [c.name for c in comps]
+        assert "Pill" in [c.name for c in comps]
+
+    def test_component_child_refs_resolve_alias_to_target(self):
+        comps, _screens, _sections_map, _tokens = self._extract()
+        row = next(c for c in comps if c.name == "RestaurantRow")
+        assert "Badge" not in row.child_refs
+        assert "Pill" in row.child_refs
+
+    def test_screen_component_refs_resolve_alias_to_target(self):
+        _comps, screens, _sections_map, _tokens = self._extract()
+        page = next(s for s in screens if s.name == "RestaurantsPage")
+        assert "Badge" not in page.component_refs
+        assert "Pill" in page.component_refs
+        # RestaurantRow already referenced Pill via the alias — the direct
+        # <Badge label="top" /> reference must dedupe into the same entry.
+        assert page.component_refs.count("Pill") == 1
+
+    def test_section_component_refs_resolve_alias_to_target(self):
+        # Sections are collected independently of screens/components — the
+        # writer creates unresolved shells straight from section.component_refs
+        # (graph/writer.py write_screen), so this leak survives even after
+        # screen- and component-level refs are fixed unless handled here too.
+        _comps, _screens, sections_map, _tokens = self._extract()
+        sections = sections_map["RestaurantsPage"]
+        section = next(s for s in sections if s.name == "Lista")
+        assert "Badge" not in section.component_refs
+        assert "Pill" in section.component_refs

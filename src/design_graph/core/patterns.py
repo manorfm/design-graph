@@ -85,6 +85,16 @@ RE_COMP_REF = re.compile(
     r'Switch|Avatar|Icon|Spinner|Toast|Alert|Banner))\b'
 )
 
+# Re-export binding: const Badge = window.V6K.Pill;
+# Neither RE_COMP_FN nor RE_COMP_ARROW_FN matches this — there's no `(` after
+# `=`, since it assigns an existing component rather than defining a new one.
+# Left unresolved, JSX references to the alias name (group 1) would produce
+# an empty unresolved-component shell instead of finding the real definition
+# (group 2, the member being re-exported).
+RE_COMPONENT_ALIAS = re.compile(
+    r'\bconst\s+([A-Z][a-zA-Z0-9]{2,})\s*=\s*'
+    r'[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*\.([A-Z][a-zA-Z0-9]{2,})\s*;'
+)
 
 # ── Inline styles ─────────────────────────────────────────────────────────────
 

@@ -22,6 +22,7 @@ import shutil
 import sys
 import time
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
@@ -29,6 +30,7 @@ import kuzu
 
 from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBoundary
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
+from design_graph.extraction.alias_extractor import apply_aliases, extract_component_aliases
 from design_graph.extraction.component_extractor import extract_all_components, select_renderable_boundaries
 from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
@@ -247,7 +249,21 @@ async def extract_react(
         on_component_extracted=on_component_extracted,
     )
 
-    screens          = extract_screens(sources.js, all_boundaries)
+    screens = extract_screens(sources.js, all_boundaries)
+
+    known_component_names = {comp.name for comp in extracted_comps}
+    aliases = extract_component_aliases(sources.js, known_component_names)
+    if aliases:
+        logger.info("pipeline: resolved %d component aliases: %s", len(aliases), aliases)
+        extracted_comps = [
+            replace(comp, child_refs=apply_aliases(comp.child_refs, aliases))
+            for comp in extracted_comps
+        ]
+        screens = [
+            replace(screen, component_refs=apply_aliases(screen.component_refs, aliases))
+            for screen in screens
+        ]
+
     screen_bound_map = {b.name: b for b in screen_bounds}
     sem              = asyncio.Semaphore(concurrency)
 
@@ -261,6 +277,14 @@ async def extract_react(
 
     section_pairs = await asyncio.gather(*[_extract_sections_for(s) for s in screens])
     sections_map  = dict(section_pairs)
+    if aliases:
+        sections_map = {
+            screen_name: [
+                replace(section, component_refs=apply_aliases(section.component_refs, aliases))
+                for section in sections
+            ]
+            for screen_name, sections in sections_map.items()
+        }
 
     return extracted_comps, screens, sections_map, tokens
 
