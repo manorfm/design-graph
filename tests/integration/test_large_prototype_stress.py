@@ -59,8 +59,12 @@ class TestLargePrototypePipelineOutput:
         assert stats.screens >= 8, f"Expected 8 screens, got {stats.screens}"
 
     def test_build_duration_is_reasonable(self, built_db):
+        # Shared CI runners are consistently ~2x slower than local hardware for
+        # this fixture's sequential DB writes (observed: 15.5s local vs 33.0s
+        # on ubuntu-latest for the same commit) — 60s catches a real regression
+        # (e.g. an accidental O(n^2) pass) without failing on ordinary runner noise.
         _, stats = built_db
-        assert stats.duration_seconds < 30, (
+        assert stats.duration_seconds < 60, (
             f"Build took {stats.duration_seconds:.1f}s — single-pass should be fast"
         )
 
