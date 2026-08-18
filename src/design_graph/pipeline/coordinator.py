@@ -135,25 +135,27 @@ async def run_pipeline(
     )
 
     token_map = build_token_map(tokens)
+    icons = list({icon.id: icon for comp in extracted_comps for icon in comp.icons}.values())
 
     for screen in screens:
         screen.sections_count = len(sections_map.get(screen.name, []))
 
     logger.info(
-        "pipeline: %d screens, %d components, %d tokens (format=%s)",
-        len(screens), len(extracted_comps), len(tokens), sources.format,
+        "pipeline: %d screens, %d components, %d tokens, %d icons (format=%s)",
+        len(screens), len(extracted_comps), len(tokens), len(icons), sources.format,
     )
 
     # ── Phase 5: Sequential graph writes (atomic via GraphWriteSession) ──────
-    write_total = len(extracted_comps) + len(screens) + len(tokens)
+    write_total = len(extracted_comps) + len(screens) + len(tokens) + len(icons)
     _reporter.phase_started("Writing graph", total=write_total)
     phase.start()
 
     raw_stats: dict[str, int] = {}
     with GraphWriteSession(db_path) as writer:
         writer.write_tokens(tokens)
+        writer.write_icons(icons)
         writer.declare_screens(screens)
-        item_index = len(tokens)
+        item_index = len(tokens) + len(icons)
 
         for comp in extracted_comps:
             writer.write_component(comp, token_map)
@@ -188,6 +190,7 @@ async def run_pipeline(
         extracted_components=raw_stats.get("extracted_components", 0),
         unresolved_components=raw_stats.get("unresolved_components", 0),
         tokens=raw_stats.get("tokens", 0),
+        icons=raw_stats.get("icons", 0),
         sections=raw_stats.get("sections", 0),
         interactions=raw_stats.get("interactions", 0),
         styles=raw_stats.get("styles", 0),

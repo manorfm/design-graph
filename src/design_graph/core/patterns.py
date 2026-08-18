@@ -243,6 +243,20 @@ RE_JSX_MARKER_COMP = re.compile(
     r'\[\s*(?:conditional|list|either)\s*:\s*([A-Z][A-Za-z0-9]*(?:\|[A-Z][A-Za-z0-9]*)*)\s*\]'
 )
 
+# ── Icon markup ────────────────────────────────────────────────────────────────
+# extraction.icon_extractor scans a component's raw jsx for <svg>...</svg> (or
+# self-closing <svg .../>) blocks and replaces each with a {[icon:id]} marker,
+# deduplicating identical icon markup across the graph. Nested <svg> tags are
+# matched by depth, not just the first </svg> found, so an icon that legally
+# nests another <svg> inside it (e.g. a <use>/<symbol> sprite defs block) still
+# resolves to its true closing tag rather than the innermost one.
+RE_SVG_OPEN_TAG  = re.compile(r'<svg\b[^>]*?(?P<self_close>/)?>', re.IGNORECASE)
+RE_SVG_CLOSE_TAG = re.compile(r'</svg\s*>', re.IGNORECASE)
+
+# Matches the {[icon:id]} marker IconAsset.__str__ produces, for expansion
+# back into full markup by graph.reader.GraphReader._resolve_icons.
+RE_ICON_MARKER = re.compile(r'\{\[icon:(icon_[0-9a-f]{8})\]\}')
+
 
 # ── Format detection ──────────────────────────────────────────────────────────
 

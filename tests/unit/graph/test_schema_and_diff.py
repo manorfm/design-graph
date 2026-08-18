@@ -25,7 +25,7 @@ def fresh_conn(tmp_path):
 class TestInitializeSchema:
     def test_creates_all_node_tables(self, fresh_conn):
         initialize_schema(fresh_conn)
-        for table in ["Screen", "Component", "Token", "UIText", "Style", "Interaction", "Section"]:
+        for table in ["Screen", "Component", "Token", "Icon", "UIText", "Style", "Interaction", "Section"]:
             fresh_conn.execute(f"MATCH (n:{table}) RETURN count(n)")
 
     def test_creates_all_rel_tables(self, fresh_conn):

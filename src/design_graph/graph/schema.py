@@ -65,6 +65,13 @@ _NODE_TABLES: list[str] = [
         ")"
     ),
     (
+        "CREATE NODE TABLE Icon("
+        "  id STRING,"
+        "  markup STRING,"
+        "  PRIMARY KEY(id)"
+        ")"
+    ),
+    (
         "CREATE NODE TABLE UIText("
         "  id STRING,"
         "  content STRING,"
@@ -143,6 +150,7 @@ STATS_QUERIES: dict[str, str] = {
         f"{ComponentDefinitionStatus.UNRESOLVED.value} RETURN count(n)"
     ),
     "tokens":           "MATCH (n:Token) RETURN count(n)",
+    "icons":            "MATCH (n:Icon) RETURN count(n)",
     "texts":            "MATCH (n:UIText) RETURN count(n)",
     "styles":           "MATCH (n:Style) RETURN count(n)",
     "sections":         "MATCH (n:Section) RETURN count(n)",

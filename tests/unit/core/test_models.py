@@ -11,6 +11,7 @@ from design_graph.core.models import (
     EntityId,
     ExtractedComponent,
     ExtractedSection,
+    IconAsset,
     InteractionEntry,
     InteractionTrigger,
     JsxMarker,
@@ -322,3 +323,46 @@ class TestExtractedComponentConsolidateSingleVariant:
         assert comp.jsx_snippet == "<button>Go</button>"
         assert "live" not in comp.jsx_snippet
         assert "shadowed" not in comp.jsx_snippet
+
+
+# ── Deduplicated icon assets ────────────────────────────────────────────────────
+
+class TestIconAssetCreate:
+    def test_id_is_deterministic_hash_of_markup(self):
+        markup = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7"/></svg>'
+        expected = "icon_" + hashlib.md5(markup.encode()).hexdigest()[:8]
+        icon = IconAsset.create(markup)
+        assert icon.id == expected
+        assert icon.markup == markup
+
+    def test_identical_markup_produces_identical_id(self):
+        markup = "<svg><path d=\"M0 0\"/></svg>"
+        assert IconAsset.create(markup).id == IconAsset.create(markup).id
+
+    def test_different_markup_produces_different_id(self):
+        a = IconAsset.create("<svg><path d=\"M0 0\"/></svg>")
+        b = IconAsset.create("<svg><path d=\"M1 1\"/></svg>")
+        assert a.id != b.id
+
+    def test_str_renders_bracket_marker(self):
+        icon = IconAsset.create("<svg><circle/></svg>")
+        assert str(icon) == f"{{[icon:{icon.id}]}}"
+
+
+class TestExtractedComponentConsolidateMergesIcons:
+    def _component(self, icons: list[IconAsset]) -> ExtractedComponent:
+        return ExtractedComponent(
+            name="Btn", comp_type=ComponentType.BUTTON, jsx_snippet="<button/>",
+            occurrence=1, classes="", icons=icons,
+        )
+
+    def test_icons_from_all_variants_are_merged_and_deduped(self):
+        shared = IconAsset.create("<svg><path d=\"M0 0\"/></svg>")
+        only_in_second = IconAsset.create("<svg><path d=\"M1 1\"/></svg>")
+        variant_a = self._component([shared])
+        variant_b = self._component([shared, only_in_second])
+
+        comp = ExtractedComponent.consolidate([variant_a, variant_b])
+
+        assert {i.id for i in comp.icons} == {shared.id, only_in_second.id}
+        assert len(comp.icons) == 2
