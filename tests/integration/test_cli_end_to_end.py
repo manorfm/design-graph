@@ -192,6 +192,35 @@ class TestChunkCommand:
             data = json.loads(line)
             assert len(data["content"]) <= max_c or data.get("level") == "screen"
 
+    def test_chunk_expands_icon_markers_to_full_svg(self, tmp_path):
+        """
+        chunk runs its own extraction pass independent of the graph — it
+        never goes through GraphReader, so it must expand {[icon:id]}
+        markers itself rather than leaking them into exported chunk content.
+        """
+        import json
+
+        icon = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7 12 12 22 7z"/></svg>'
+        html = tmp_path / "icon.html"
+        html.write_text(f"""
+        <!DOCTYPE html><html><body><script>
+        function IconButton() {{
+          return (<button>{icon}Go</button>);
+        }}
+        function IconPage() {{
+          return (<div><IconButton /></div>);
+        }}
+        </script></body></html>
+        """, encoding="utf-8")
+        out = tmp_path / "chunks.jsonl"
+        with patch("sys.argv", ["design-graph", "chunk", str(html), "--output", str(out)]):
+            from design_graph.cli.build import main
+            main()
+
+        contents = [json.loads(line)["content"] for line in out.read_text().splitlines()]
+        assert any(icon in c for c in contents)
+        assert not any("{[icon:" in c for c in contents)
+
     def test_chunk_prints_count_to_stdout(self, tmp_path, capsys):
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(SIMPLE_HTML),

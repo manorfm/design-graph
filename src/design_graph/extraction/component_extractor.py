@@ -58,6 +58,7 @@ from design_graph.core.patterns import (
     re_state_setter_trigger,
     re_state_ternary_style,
 )
+from design_graph.extraction.icon_extractor import extract_icons
 from design_graph.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.extraction.visual_function import VisualFunctionCandidate
@@ -150,8 +151,12 @@ def extract_component(
     window = js[boundary.start : boundary.end]
 
     # ── JSX snippet (extracted from return block) ──
+    # Icons are pulled out before sanitize_jsx so the sanitizer — and every
+    # downstream consumer of jsx_snippet — only ever sees the short marker,
+    # never the raw SVG source.
     jsx_raw = extract_return_block(js, boundary.start, boundary.end)
-    jsx_snippet = sanitize_jsx(jsx_raw) if jsx_raw else ""
+    jsx_with_icon_refs, icons = extract_icons(jsx_raw) if jsx_raw else ("", [])
+    jsx_snippet = sanitize_jsx(jsx_with_icon_refs) if jsx_with_icon_refs else ""
     marker_refs = _extract_marker_refs(jsx_snippet)
 
     # ── Single pass: collect everything ──
@@ -342,6 +347,7 @@ def extract_component(
         texts=texts,
         child_refs=sorted(child_refs),
         props=props,
+        icons=icons,
     )
 
 

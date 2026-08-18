@@ -11,6 +11,7 @@ from design_graph.core.models import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    IconAsset,
     InteractionEntry,
     StyleEntry,
     TextEntry,
@@ -126,6 +127,36 @@ class TestWriteTokens:
         count = gw.write_tokens(tokens)
         assert count == 1
         result = conn.execute("MATCH (t:Token {id:'rx_dup'}) RETURN count(t)")
+        assert result.get_next()[0] == 1
+
+
+class TestWriteIcons:
+    def test_inserts_icon_node(self, writer):
+        gw, conn = writer
+        icon = IconAsset(id="icon_aaaaaaaa", markup="<svg><path d=\"M0 0\"/></svg>")
+        count = gw.write_icons([icon])
+        assert count == 1
+        result = conn.execute("MATCH (i:Icon {id:'icon_aaaaaaaa'}) RETURN i.markup")
+        assert result.get_next()[0] == icon.markup
+
+    def test_idempotent_duplicate(self, writer):
+        gw, conn = writer
+        icon = IconAsset(id="icon_bbbbbbbb", markup="<svg/>")
+        gw.write_icons([icon])
+        count = gw.write_icons([icon])
+        assert count == 0
+        result = conn.execute("MATCH (i:Icon {id:'icon_bbbbbbbb'}) RETURN count(i)")
+        assert result.get_next()[0] == 1
+
+    def test_duplicate_icon_ids_in_same_batch_inserted_once(self, writer):
+        gw, conn = writer
+        icons = [
+            IconAsset(id="icon_cccccccc", markup="<svg/>"),
+            IconAsset(id="icon_cccccccc", markup="<svg/>"),
+        ]
+        count = gw.write_icons(icons)
+        assert count == 1
+        result = conn.execute("MATCH (i:Icon {id:'icon_cccccccc'}) RETURN count(i)")
         assert result.get_next()[0] == 1
 
 

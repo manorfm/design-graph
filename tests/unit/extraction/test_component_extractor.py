@@ -83,6 +83,23 @@ class TestExtractComponent:
         assert "button" in comp.jsx_snippet.lower()
         assert "Confirmar" in comp.jsx_snippet
 
+    def test_svg_icon_is_deduplicated_into_marker(self):
+        js = """
+        function IconButton() {
+            return (
+                <button>
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7"/></svg>
+                </button>
+            )
+        }
+        """
+        b = _boundary(js, "IconButton")
+        comp = extract_component(js, b, 1, {})
+
+        assert len(comp.icons) == 1
+        assert "<svg" not in comp.jsx_snippet
+        assert str(comp.icons[0]) in comp.jsx_snippet
+
     def test_default_style_found(self):
         b = _boundary(BTN_JS, "BtnPrimary")
         comp = extract_component(BTN_JS, b, 1, {})

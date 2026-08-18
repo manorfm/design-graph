@@ -17,6 +17,8 @@ from collections import defaultdict
 import kuzu
 
 from design_graph.core.constants import LAYOUT_CSS_PROPERTIES, _LAYOUT_FAST_PATH_PROPERTIES
+from design_graph.core.models import resolve_icon_markers
+from design_graph.core.patterns import RE_ICON_MARKER
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,7 @@ class GraphReader:
         if not rows:
             return None
         comp = rows[0]
+        comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
 
         styles       = self._q(
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
@@ -195,6 +198,7 @@ class GraphReader:
         if not rows:
             return None
         comp = rows[0]
+        comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
 
         raw_styles = self._q(
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
@@ -338,7 +342,7 @@ class GraphReader:
             "styles":           styles,
             "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
             "texts":            texts,
-            "jsx_snippet":      sec["sec.jsx_snippet"],
+            "jsx_snippet":      self._resolve_icons(sec["sec.jsx_snippet"] or ""),
         }
 
     def get_section_texts(self, section_id: str) -> list[dict]:
@@ -500,7 +504,7 @@ class GraphReader:
             {"n": name},
         )
         if comp_rows and comp_rows[0].get("c.jsx_snippet"):
-            return comp_rows[0]["c.jsx_snippet"]
+            return self._resolve_icons(comp_rows[0]["c.jsx_snippet"])
         return ""
 
     # ── Impact analysis ───────────────────────────────────────────────────────
@@ -629,6 +633,8 @@ class GraphReader:
             "       sec.styles_json, sec.jsx_snippet, sec.detection_method",
             {"n": resolved},
         )
+        for row in section_rows:
+            row["sec.jsx_snippet"] = self._resolve_icons(row["sec.jsx_snippet"] or "")
 
         # Q3: Section styles — canonical source (SECTION_HAS_STYLE)
         sec_style_rows = self._q(
@@ -659,6 +665,8 @@ class GraphReader:
             "ORDER BY c.name",
             {"n": resolved},
         )
+        for row in comp_rows:
+            row["c.jsx_snippet"] = self._resolve_icons(row["c.jsx_snippet"] or "")
 
         # Q6: Component styles — all states via single JOIN (also used for layout profiles)
         #
@@ -840,6 +848,28 @@ class GraphReader:
         all_comps = self._q("MATCH (c:Component) RETURN c.name")
         names = [r["c.name"] for r in all_comps]
         return _fuzzy_match(hint, names)
+
+    # ── Icon expansion ────────────────────────────────────────────────────────
+
+    def _resolve_icons(self, jsx_snippet: str) -> str:
+        """
+        Expand every {[icon:id]} reference in `jsx_snippet` back into the full
+        SVG markup it stands for, via one batched lookup for however many
+        distinct icons the snippet references.
+
+        A snippet with no icon reference is returned unchanged with no query.
+        A reference with no matching Icon node (should not happen against a
+        graph built by this same codebase) is left as-is rather than dropped.
+        """
+        if not jsx_snippet or "{[icon:" not in jsx_snippet:
+            return jsx_snippet
+
+        ids = sorted(set(RE_ICON_MARKER.findall(jsx_snippet)))
+        rows = self._q(
+            "MATCH (i:Icon) WHERE i.id IN $ids RETURN i.id, i.markup", {"ids": ids},
+        )
+        markup_by_id = {row["i.id"]: row["i.markup"] for row in rows}
+        return resolve_icon_markers(jsx_snippet, markup_by_id)
 
     # ── Query helper ──────────────────────────────────────────────────────────
 

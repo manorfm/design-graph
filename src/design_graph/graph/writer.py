@@ -27,6 +27,7 @@ from design_graph.core.models import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    IconAsset,
     StyleEntry,
     TextEntry,
 )
@@ -115,6 +116,7 @@ class GraphWriter:
         self._resolved_comp_names: set[str] = set()
         self._declared_screen_names: set[str] = set()
         self._inserted_token_ids:  set[str] = set()
+        self._inserted_icon_ids:   set[str] = set()
         self._inserted_style_ids:  set[str] = set()
         self._inserted_inter_ids:  set[str] = set()
         self._inserted_text_ids:   set[str] = set()
@@ -148,6 +150,28 @@ class GraphWriter:
             elif self._node_exists("Token", "id", token.id):
                 self._inserted_token_ids.add(token.id)
         logger.debug("writer: wrote %d tokens", inserted)
+        return inserted
+
+    def write_icons(self, icons: list[IconAsset]) -> int:
+        """
+        Insert deduplicated Icon nodes. Returns the number of icons successfully
+        inserted — a caller passing repeated ids (same icon reused across many
+        components) gets each one written exactly once.
+        """
+        inserted = 0
+        for icon in icons:
+            if icon.id in self._inserted_icon_ids:
+                continue
+            ok = self._safe_execute(
+                "CREATE (:Icon {id:$id, markup:$markup})",
+                {"id": icon.id, "markup": icon.markup},
+            )
+            if ok:
+                self._inserted_icon_ids.add(icon.id)
+                inserted += 1
+            elif self._node_exists("Icon", "id", icon.id):
+                self._inserted_icon_ids.add(icon.id)
+        logger.debug("writer: wrote %d icons", inserted)
         return inserted
 
     def declare_screens(self, screens: list[ExtractedScreen]) -> None:

@@ -33,6 +33,7 @@ from pathlib import Path
 
 from design_graph.cli._logging import configure_cli_logging
 from design_graph.core.graph_catalog import GraphDocumentName
+from design_graph.core.models import resolve_icon_markers
 from design_graph.paths import default_db_for
 from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
 
@@ -315,6 +316,7 @@ def _run_build(argv: list[str]) -> None:
             "extracted_components": stats.extracted_components,
             "unresolved_components": stats.unresolved_components,
             "tokens":           stats.tokens,
+            "icons":            stats.icons,
             "sections":         stats.sections,
             "interactions":     stats.interactions,
             "styles":           stats.styles,
@@ -399,6 +401,13 @@ async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
         comps, screens, sections_map, _tokens = await extract_react(
             sources, concurrency=EXTRACTION_CONCURRENCY
         )
+    # chunk export has no graph to resolve {[icon:id]} markers against —
+    # unlike GraphReader, it reads straight off this in-memory extraction
+    # pass — so markers are expanded here from the icons these same
+    # components just produced, before anything is chunked.
+    markup_by_icon_id = {icon.id: icon.markup for c in comps for icon in c.icons}
+    for c in comps:
+        c.jsx_snippet = resolve_icon_markers(c.jsx_snippet, markup_by_icon_id)
     comps_d = {c.name: c for c in comps}
 
     chunks = chunk_extracted_data(screens, sections_map, comps_d, parsed.max_chars)
@@ -553,6 +562,7 @@ def _print_build_summary(html_path: Path, db_path: Path, stats) -> None:
         f"Unresolved: {stats.unresolved_components:>4}"
     )
     print(f"  UITexts:      {stats.texts:>4}    Styles:     {stats.styles:>4}")
+    print(f"  Icons:        {stats.icons:>4}")
     print(f"  Interactions: {stats.interactions:>4}    CONTAINS:   {stats.contains_rels:>4}")
     print(f"  Props:        {stats.component_props:>4}    SecStyles:  {stats.section_styles:>4}")
     print(f"  Built in {stats.duration_seconds:.2f}s")

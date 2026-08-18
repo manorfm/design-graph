@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Optional
 
+from design_graph.core.patterns import RE_ICON_MARKER
+
 
 # ── Identity ───────────────────────────────────────────────────────────────────
 
@@ -255,6 +257,48 @@ class DesignToken:
     usage: int     # occurrence count across css+js
 
 
+# ── Icon assets ─────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class IconAsset:
+    """
+    A deduplicated inline SVG icon extracted from a component's markup.
+
+    id is a content hash of `markup` (see EntityId.derive), so the same icon
+    reused across components or within one component always resolves to the
+    same IconAsset — the graph stores its source once no matter how many
+    places render it. str(icon) is the {[icon:id]} marker left in place of
+    the markup in a component's jsx_snippet; GraphReader expands it back on
+    read (see graph.reader.GraphReader._resolve_icons).
+    """
+
+    id: EntityId
+    markup: str     # the raw <svg>...</svg> (or self-closing <svg .../>) source
+
+    @classmethod
+    def create(cls, markup: str) -> "IconAsset":
+        return cls(id=EntityId.derive("icon", markup), markup=markup)
+
+    def __str__(self) -> str:
+        return f"{{[icon:{self.id}]}}"
+
+
+def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:
+    """
+    Expand every {[icon:id]} marker in `text` back into its full markup,
+    the inverse of IconAsset.__str__. A marker with no entry in
+    `markup_by_id` is left as-is rather than silently erased.
+
+    Shared by every reader of icon-bearing text — GraphReader (looking up
+    markup in the graph) and the standalone chunk exporter (looking up
+    markup in a freshly extracted, not-yet-written icon list) — so the
+    marker format has exactly one place that knows how to undo it.
+    """
+    if not text or "{[icon:" not in text:
+        return text
+    return RE_ICON_MARKER.sub(lambda m: markup_by_id.get(m.group(1), m.group(0)), text)
+
+
 # ── Component prop declarations ───────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -411,6 +455,7 @@ class ExtractedComponent:
     texts: list[TextEntry] = field(default_factory=list)
     child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
+    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
 
     @classmethod
     def consolidate(cls, variants: list["ExtractedComponent"]) -> "ExtractedComponent":
@@ -443,6 +488,9 @@ class ExtractedComponent:
         props = {
             item.id: item for variant in variants for item in variant.props
         }
+        icons = {
+            item.id: item for variant in variants for item in variant.icons
+        }
         return cls(
             name=variants[0].name,
             comp_type=next(
@@ -459,6 +507,7 @@ class ExtractedComponent:
                 child for variant in variants for child in variant.child_refs
             }),
             props=list(props.values()),
+            icons=list(icons.values()),
         )
 
 
@@ -582,6 +631,7 @@ class BuildStats:
     extracted_components: int = 0
     unresolved_components: int = 0
     tokens: int = 0
+    icons: int = 0
     sections: int = 0
     interactions: int = 0
     styles: int = 0
