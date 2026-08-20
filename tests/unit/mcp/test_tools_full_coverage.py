@@ -112,6 +112,8 @@ class RichMockReader:
     def get_full_jsx(self, name):
         if name == "BtnPrimary":
             return "<button style={{color:'#ffb81c'}}>Click</button>"
+        if name == "BasicTab":
+            return "<div>{[conditional:Chip]}</div>"
         return ""
 
     def get_impact(self, name):
@@ -310,6 +312,24 @@ class TestGetFullJsxTool:
         r, _ = d.pick_reader(doc="doc", active_doc="")
         result = d.get_full_jsx(r, "ComponentWithNoJSX")
         assert "force" in result.lower() or "disponível" in result.lower()
+
+    def test_clean_jsx_keeps_complete_header_unflagged(self):
+        # No marker survived sanitize_jsx for this snippet — must not carry
+        # a false-positive "this was cut" warning.
+        d = self._d()
+        r, _ = d.pick_reader(doc="doc", active_doc="")
+        result = d.get_full_jsx(r, "BtnPrimary")
+        assert "sanitizado" not in result.lower()
+
+    def test_sanitized_jsx_carries_explicit_warning(self):
+        # The stored snippet already went through sanitize_jsx at
+        # extraction time — a caller must be told this isn't the original
+        # source, instead of reading "JSX completo" and stopping there.
+        d = self._d()
+        r, _ = d.pick_reader(doc="doc", active_doc="")
+        result = d.get_full_jsx(r, "BasicTab")
+        assert "sanitizado" in result.lower()
+        assert "{[conditional:Chip]}" in result
 
 
 # ── get_component_interactions ────────────────────────────────────────────────

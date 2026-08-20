@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 
-from design_graph.core.models import ComponentType, PropDefault, StyleState, TokenCategory
+from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
 from design_graph.graph.reader import GraphReader
 from design_graph.mcp.search import search
 
@@ -842,10 +842,23 @@ class ToolDispatcher:
         return "\n".join(lines)
 
     def get_full_jsx(self, reader: GraphReader, name: str) -> str:
-        jsx = reader.get_full_jsx(name)
-        if not jsx:
+        raw = reader.get_full_jsx(name)
+        if not raw:
             return f"JSX completo não disponível para '{name}'. Rode: design-graph --force <proto.html>"
-        return f"# JSX completo: {name}\n\n```jsx\n{jsx}\n```"
+
+        jsx = JsxSnippet(raw)
+        if jsx.was_sanitized:
+            header = f"# JSX de {name} (sanitizado na extração — não é o fonte original)"
+            footer = (
+                "\n> Este snippet já passou por `sanitize_jsx` na extração — "
+                "handlers longos e ramos de lista/condicional/ternária foram "
+                "substituídos por marcadores. Chamar `get_full_jsx` de novo não "
+                "recupera o restante: o texto original não fica armazenado."
+            )
+        else:
+            header = f"# JSX completo: {name}"
+            footer = ""
+        return f"{header}\n\n```jsx\n{jsx}\n```{footer}"
 
     def get_component_interactions(self, reader: GraphReader, name: str) -> str:
         interactions = reader.get_interactions(name)

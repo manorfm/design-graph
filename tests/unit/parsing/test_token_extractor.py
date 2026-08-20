@@ -230,6 +230,17 @@ class TestExtractTypographyWeights:
         tokens = extract_tokens(_sources(js=js))
         assert not any(t.value == "300" and t.category == "typography" for t in tokens)
 
+    def test_garbage_after_weight_keyword_never_reaches_a_label(self):
+        # Audit sibling of the radius fix (T40): RE_FONT_WEIGHT only ever
+        # captures `\d{3,4}|bold|semibold` — unlike RE_BORDER_RADIUS, it
+        # has no permissive tail that could leak a trailing comma or a
+        # token reference into a label. Locks that in as a regression
+        # test rather than leaving it as an unverified assumption.
+        js = "fontWeight: R.bold,\n" * 3
+        tokens = extract_tokens(_sources(js=js))
+        weight_tokens = [t for t in tokens if t.category == "typography" and t.label.startswith("weight_")]
+        assert not any("," in t.label or "r.bold" in t.label for t in weight_tokens)
+
     def test_weight_from_css_detected(self):
         css = "font-weight: 500; font-weight: 500; font-weight: 500;"
         tokens = extract_tokens(_sources(css=css))
@@ -353,6 +364,26 @@ class TestExtractRadii:
         ids_a = {t.id for t in extract_tokens(sources) if t.category == "radius"}
         ids_b = {t.id for t in extract_tokens(sources) if t.category == "radius"}
         assert ids_a == ids_b
+
+    def test_malformed_value_with_trailing_comma_is_discarded_not_leaked(self):
+        # RE_BORDER_RADIUS's capture is permissive enough to pick up a JS
+        # token definition's trailing comma (`borderRadius: 8,`, as in
+        # `const R = { sm: 8, ... }`). Publishing that as a token label
+        # (`radius_8,`) is a corrupted category name a caller can't reason
+        # about — the value must be discarded, not leaked half-parsed.
+        js = "borderRadius: 8,\n" * 3
+        tokens = extract_tokens(_sources(js=js))
+        radius_tokens = [t for t in tokens if t.category == "radius"]
+        assert not any("," in t.label for t in radius_tokens)
+        assert not any("," in t.value for t in radius_tokens)
+
+    def test_token_reference_value_is_discarded_not_leaked(self):
+        # `borderRadius: R.sm` (a reference to a token constant, not a
+        # literal) has no numeric value to classify — must be dropped, not
+        # published as a nonsense label built from the reference text.
+        js = "borderRadius: R.sm\n" * 3
+        tokens = extract_tokens(_sources(js=js))
+        assert not any(t.category == "radius" for t in tokens)
 
 
 REPEATED_CSS_VARS_CSS = """

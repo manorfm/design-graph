@@ -36,6 +36,40 @@ class TestIsScreen:
         assert is_screen(name) == expected
 
 
+class TestIsScreenRecognisesOverlayShellsByStructure:
+    """
+    ScreenIdentity's suffix table deliberately excludes Tab/Panel/Modal/...
+    (C17 — "usually reusable UI parts, not navigation surfaces") and this
+    stays untouched. But a full-page editor shell that conditionally
+    switches between 2+ of its own Tab-suffixed children (an overlay like
+    ItemEditorV6) is exactly the kind of screen an agent needs whole to
+    check visual parity — recognised here by structure, never by name.
+    """
+
+    OVERLAY_JS = """
+    function ItemEditorV6({ tab }) {
+        return (
+            <div>
+                {tab === 'basic' && <BasicTab />}
+                {tab === 'comp' && <CompTab />}
+            </div>
+        )
+    }
+    """
+
+    def test_two_or_more_conditional_tabs_is_a_screen(self):
+        assert is_screen("ItemEditorV6", body=self.OVERLAY_JS) is True
+
+    def test_a_single_conditional_tab_is_not_enough(self):
+        js = "function Wrapper() { return (<div>{tab==='basic' && <BasicTab/>}</div>) }"
+        assert is_screen("Wrapper", body=js) is False
+
+    def test_call_without_body_keeps_pure_name_based_classification(self):
+        # Every existing caller that only has a name (no body yet) must
+        # keep getting the same classification as before this change.
+        assert is_screen("ItemEditorV6") is False
+
+
 SCREENS_JS = """
 function RestaurantsPage() {
     return (
@@ -100,6 +134,14 @@ class TestExtractScreens:
         screens = self._screens(SCREENS_JS)
         for screen in screens:
             assert screen.component_refs == sorted(screen.component_refs)
+
+    def test_overlay_shell_is_extracted_as_a_screen_with_its_tab_refs(self):
+        screens = self._screens(TestIsScreenRecognisesOverlayShellsByStructure.OVERLAY_JS)
+        names = {s.name for s in screens}
+        assert "ItemEditorV6" in names
+        editor = next(s for s in screens if s.name == "ItemEditorV6")
+        assert "BasicTab" in editor.component_refs
+        assert "CompTab" in editor.component_refs
 
     def test_sections_count_initialised_to_zero(self):
         screens = self._screens(SCREENS_JS)

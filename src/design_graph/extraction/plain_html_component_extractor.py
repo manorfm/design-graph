@@ -133,24 +133,31 @@ def _extract_css_classes(html_snippet: str) -> str:
 
 def _extract_inline_styles(html_snippet: str, comp_name: str) -> list[StyleEntry]:
     """
-    Extract CSS inline style properties from the HTML snippet.
-    Returns at most 20 style entries to match the component_extractor cap.
+    Extract CSS inline style properties from the component's own root
+    element — the first style="..." attribute in the snippet.
+
+    A nested descendant (e.g. a decorative <span class="dot"> inside a
+    <button>) may carry its own style="..." further into the snippet;
+    reading past the first one attributes a child's styling to the
+    component itself — this is exactly how Chip's 7px status dot ended up
+    in the component's own "Styles — default" table, as if the button
+    were a 7px circle. Returns at most 20 style entries to match the
+    component_extractor cap.
     """
+    style_attr_re = re.compile(r'style="([^"]{5,400})"')
+    root_style = style_attr_re.search(html_snippet)
+    if root_style is None:
+        return []
+
     styles: list[StyleEntry] = []
     seen_props: set[str] = set()
-
-    style_attr_re = re.compile(r'style="([^"]{5,400})"')
-    for style_match in style_attr_re.finditer(html_snippet):
-        css_block = style_match.group(1)
-        for prop_match in _CSS_INLINE_STYLE_RE.finditer(css_block):
-            prop  = prop_match.group(1).strip()
-            value = prop_match.group(2).strip()
-            if not prop or not value or prop in seen_props:
-                continue
-            seen_props.add(prop)
-            styles.append(StyleEntry.create(element=comp_name, property=prop, value=value))
-            if len(styles) >= 20:
-                break
+    for prop_match in _CSS_INLINE_STYLE_RE.finditer(root_style.group(1)):
+        prop  = prop_match.group(1).strip()
+        value = prop_match.group(2).strip()
+        if not prop or not value or prop in seen_props:
+            continue
+        seen_props.add(prop)
+        styles.append(StyleEntry.create(element=comp_name, property=prop, value=value))
         if len(styles) >= 20:
             break
 

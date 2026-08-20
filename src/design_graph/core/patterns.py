@@ -74,7 +74,13 @@ RE_VISUAL_RETURN = re.compile(
     re.DOTALL,
 )
 
-RE_JSX_TAG = re.compile(r'<([A-Z][a-zA-Z0-9]{2,})[\s/>]')
+# A JSX tag's component name, with an optional namespace-object prefix
+# (`<K.Chip`, `<Namespace.Sub.Component`) — a common design-system pattern
+# where the tag is a member expression rather than a bare identifier. The
+# prefix is non-capturing: only the final PascalCase segment is the
+# component's own name, matching how it's registered elsewhere in the
+# graph (as `Chip`, never `K.Chip`).
+RE_JSX_TAG = re.compile(r'<(?:[A-Za-z_$][\w$]*\.)*([A-Z][a-zA-Z0-9]{2,})[\s/>]')
 
 RE_JSX_CALL = re.compile(r'jsxs?\(([A-Z][a-zA-Z0-9]{2,})\s*,')
 
@@ -100,6 +106,28 @@ RE_COMPONENT_ALIAS = re.compile(
 
 RE_INLINE_STYLE = re.compile(r'style=\{\{([^}]{5,600})\}\}')
 RE_STYLE_PROP   = re.compile(r'(\w+)\s*:\s*["\']?([^,"\'}\n]{1,60})["\']?')
+
+# Preview-only variant of RE_STYLE_PROP, used exclusively by the sanitizer's
+# long-style-block collapse (jsx_sanitizer._collapse_long_style_blocks) to
+# render a human/agent-readable "prop: value" summary. RE_STYLE_PROP itself
+# stays untouched — it feeds real StyleEntry extraction (component_extractor,
+# section_extractor), and its tighter contract (no ternary awareness, quotes
+# excluded from the captured value) is relied upon there.
+#
+# A ternary value (`padding: cond ? '4px 8px' : '6px 10px'`) has no single
+# quoted literal to strip — RE_STYLE_PROP's plain char class stops at the
+# first quote it meets, truncating right after the `?` and losing both
+# branches. The ternary alternative below is tried first and keeps the full
+# expression (quotes and all); the second alternative reproduces
+# RE_STYLE_PROP's plain-value behaviour for everything else.
+RE_STYLE_PROP_PREVIEW = re.compile(
+    r'(\w+)\s*:\s*'
+    r'('
+    r"[^,{}\n]*?\?[^,{}\n]*?:[^,{}\n]*?(?=\s*(?:,\s*\w+\s*:|,?\s*\}\}))"
+    r'|'
+    r'''["']?[^,"'}\n]{1,60}["']?'''
+    r')'
+)
 
 
 # ── Interactions ──────────────────────────────────────────────────────────────
@@ -180,7 +208,7 @@ RE_SECTION_COMMENT = re.compile(
 # ── JSX sanitization ─────────────────────────────────────────────────────────
 
 RE_LONG_EVENT_HANDLER = re.compile(
-    r'on[A-Z]\w+\s*=\s*\{(?:[^{}]|\{[^{}]*\}){60,}\}'
+    r'(on[A-Z]\w+)\s*=\s*\{(?:[^{}]|\{[^{}]*\}){60,}\}'
 )
 RE_LONG_ARROW_FN = re.compile(
     r'\.\w+\s*\(\s*(?:\([^)]*\)|[\w,\s]+)\s*=>\s*\{[^}]{120,}\}'

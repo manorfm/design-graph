@@ -244,6 +244,47 @@ class JsxMarker:
         return f"{{[{self.kind}:{'|'.join(self.component_names)}]}}"
 
 
+# Literal markers sanitize_jsx (extraction/jsx_sanitizer.py) leaves behind
+# for a collapsed region that isn't a named-component reference — JsxMarker
+# above covers list/conditional/either, which always name one or two
+# components. Defined once here, and imported by jsx_sanitizer.py to build
+# its replacement text, so a marker's written form and its detection in
+# JsxSnippet.was_sanitized can never drift apart.
+JSX_HANDLER_MARKER               = "={[handler]}"
+JSX_ARROW_FN_MARKER              = ".[fn]"
+JSX_STYLE_BLOCK_COLLAPSE_SUFFIX  = ", ... }}"
+JSX_BARE_EXPRESSION_MARKER       = "{...}"
+
+
+class JsxSnippet(str):
+    """
+    A JSX snippet as stored on a Component/Section node — already passed
+    through sanitize_jsx during extraction, never the original source text.
+
+    `.was_sanitized` names whether any collapse marker survived censorship
+    in this particular snippet, so a caller (mcp.tools.get_full_jsx) can
+    tell a genuinely complete snippet from one where sanitize_jsx already
+    discarded part of the original JSX. CappedJsx (mcp/tools.py) captures
+    the same kind of fact for a *display-time* cut applied to an already-
+    stored snippet; this is the *extraction-time* cut baked into the
+    snippet itself, which no display-side limit can recover.
+    """
+
+    __slots__ = ()
+
+    _MARKERS: tuple[str, ...] = (
+        JSX_HANDLER_MARKER,
+        JSX_ARROW_FN_MARKER,
+        JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
+        JSX_BARE_EXPRESSION_MARKER,
+        *(f"{{[{kind}:" for kind in JsxMarkerKind),
+    )
+
+    @property
+    def was_sanitized(self) -> bool:
+        return any(marker in self for marker in self._MARKERS)
+
+
 # ── Design tokens ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)

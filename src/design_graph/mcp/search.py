@@ -53,14 +53,22 @@ def score_match(name: str, query: str) -> int:
 
 def expand_query(query: str, aliases: dict[str, list[str]]) -> list[str]:
     """
-    Return the query plus any alias expansions, deduplicated and capped.
-    All terms are lowercased for consistent matching.
+    Return the query's words plus the whole phrase and any alias
+    expansions, deduplicated and capped. All terms are lowercased for
+    consistent matching.
+
+    Component/screen names are single PascalCase tokens, so a multi-word
+    query only ever matches one by one of its words — the whole phrase is
+    kept too because UIText content (real sentences) can match it whole.
+    No regex is compiled from `query` anywhere in this module: an MCP
+    search query is external input, and a regex built from it would be a
+    ReDoS vector.
     """
     q = query.lower().strip()
     if not q:
         return []
 
-    terms: list[str] = [q]
+    terms: list[str] = [q, *q.split()]
     for alias_key, expansions in aliases.items():
         if alias_key in q:
             terms.extend(e.lower() for e in expansions)
@@ -84,33 +92,49 @@ def search(
     """
     Search across all loaded prototypes with relevance scoring.
 
-    Results are deduplicated by (doc, id) and sorted by score descending.
-    Returns at most max_results items.
+    A result found by more than one term (e.g. two different query words
+    both matching the same component) keeps its best score, not whichever
+    term happened to run first. Ranked by how many distinct query words
+    the result covers, then by that best score — a name matching every
+    word in the query outranks one matching only one, even at equal score.
+    Deduplicated by (doc, id). Returns at most max_results items.
     """
     if not query.strip():
         return []
 
-    aliases = get_aliases()
-    terms   = expand_query(query, aliases)
-    results: list[SearchResult] = []
-    seen_keys: set[tuple[str, str]] = set()
+    aliases      = get_aliases()
+    terms        = expand_query(query, aliases)
+    query_words  = set(query.lower().split())
+    best_by_key: dict[tuple[str, str], SearchResult] = {}
 
     for doc_name, reader in readers:
         for term in terms:
             for result in _search_reader(reader, doc_name, term):
                 key = (result.doc, result.id)
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    results.append(result)
+                current_best = best_by_key.get(key)
+                if current_best is None or result.score > current_best.score:
+                    best_by_key[key] = result
 
-    results.sort(key=lambda r: -r.score)
-    logger.debug(
-        "search: query=%r terms=%r found=%d", query, terms, len(results)
+    ranked = sorted(
+        best_by_key.values(),
+        key=lambda r: (-_word_coverage(r, query_words), -r.score),
     )
-    return results[:max_results]
+    logger.debug(
+        "search: query=%r terms=%r found=%d", query, terms, len(ranked)
+    )
+    return ranked[:max_results]
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+def _word_coverage(result: SearchResult, query_words: set[str]) -> float:
+    """Fraction of the query's distinct words present in this result's own text."""
+    if not query_words:
+        return 0.0
+    target = f"{result.name} {result.detail}"
+    matched = sum(1 for word in query_words if score_match(target, word) > 0)
+    return matched / len(query_words)
+
 
 def _search_reader(
     reader: GraphReader, doc_name: str, term: str
