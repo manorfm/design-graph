@@ -18,7 +18,14 @@ from __future__ import annotations
 import logging
 import re
 
-from design_graph.core.models import JsxMarker, JsxMarkerKind
+from design_graph.core.models import (
+    JSX_ARROW_FN_MARKER,
+    JSX_BARE_EXPRESSION_MARKER,
+    JSX_HANDLER_MARKER,
+    JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
+    JsxMarker,
+    JsxMarkerKind,
+)
 from design_graph.core.patterns import (
     RE_JSX_CONDITIONAL_HEAD,
     RE_JSX_EITHER_ELSE_BRANCH,
@@ -29,7 +36,7 @@ from design_graph.core.patterns import (
     RE_LONG_ARROW_FN,
     RE_LONG_EVENT_HANDLER,
     RE_LONG_TERNARY,
-    RE_STYLE_PROP,
+    RE_STYLE_PROP_PREVIEW,
 )
 from design_graph.parsing.js_parser import find_matching_delimiter
 
@@ -66,8 +73,8 @@ def sanitize_jsx(jsx: str) -> str:
     visual detail, unlike a component whose real shape is one
     get_component_spec call away.
     """
-    jsx = RE_LONG_EVENT_HANDLER.sub("on[handler]", jsx)
-    jsx = RE_LONG_ARROW_FN.sub(".[fn]", jsx)
+    jsx = RE_LONG_EVENT_HANDLER.sub(rf"\1{JSX_HANDLER_MARKER}", jsx)
+    jsx = RE_LONG_ARROW_FN.sub(JSX_ARROW_FN_MARKER, jsx)
 
     marker_counts: dict[JsxMarkerKind, int] = {}
     for head, kind in _MARKED_REGION_PATTERNS:
@@ -144,9 +151,9 @@ def _collapse_long_style_blocks(jsx: str) -> str:
         inner = match.group(0)
         if len(inner) <= _STYLE_BLOCK_COLLAPSE_THRESHOLD:
             return inner
-        props = RE_STYLE_PROP.findall(inner)[:_STYLE_BLOCK_PREVIEW_PROP_COUNT]
+        props = RE_STYLE_PROP_PREVIEW.findall(inner)[:_STYLE_BLOCK_PREVIEW_PROP_COUNT]
         preview = ", ".join(f"{k}: {v.strip()}" for k, v in props)
-        return f"style={{{{ {preview}, ... }}}}"
+        return f"style={{{{ {preview}{JSX_STYLE_BLOCK_COLLAPSE_SUFFIX}"
     return re.sub(r"style=\{\{[^}]{200,}\}\}", _collapse, jsx)
 
 
@@ -161,7 +168,7 @@ def _collapse_long_expressions(jsx: str, protected: list[tuple[int, int]]) -> st
         if any(start <= match.start() and match.end() <= end for start, end in protected):
             continue
         pieces.append(jsx[cursor:match.start()])
-        pieces.append("{...}")
+        pieces.append(JSX_BARE_EXPRESSION_MARKER)
         cursor = match.end()
     pieces.append(jsx[cursor:])
     return "".join(pieces)

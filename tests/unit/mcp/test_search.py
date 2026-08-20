@@ -199,6 +199,72 @@ class _StubReaderWithTexts:
         ]
 
 
+class TestMultiWordQueryTokenization:
+    """
+    search() must find results by any individual word of a multi-word
+    query, not only when the whole phrase is a literal substring of a
+    name — component/screen names are PascalCase single tokens, so a
+    phrase like "BtnPrimary FooterLink" (an agent naming two components
+    it's after in one query) never appears as a substring of either.
+    """
+
+    def _run(self, query: str) -> list[SearchResult]:
+        return search([("home", _StubReader())], query)
+
+    def test_finds_both_names_from_a_two_word_query(self):
+        results = self._run("BtnPrimary FooterLink")
+        names = {r.name for r in results}
+        assert "BtnPrimary" in names
+        assert "FooterLink" in names
+
+    def test_whole_phrase_still_matches_when_it_is_a_real_substring(self):
+        # regression: exact multi-word phrase matching must not be lost
+        results = self._run("Adicionar Componente")
+        assert results == []  # nothing in _StubReader matches — just must not crash
+
+
+class _StubReaderForCoverage:
+    """Two components sharing one word — isolates coverage-based ranking."""
+
+    def list_screens(self):
+        return []
+
+    def list_components(self, comp_type=None):
+        return [
+            {"c.name": "AvatarCircle", "c.comp_type": "component", "c.occurrence": 1},
+            {"c.name": "AvatarBadge", "c.comp_type": "component", "c.occurrence": 1},
+        ]
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return []
+
+
+class TestCoverageRanking:
+    def test_result_matching_more_query_words_ranks_first(self):
+        results = search([("home", _StubReaderForCoverage())], "Avatar Circle")
+        names = [r.name for r in results]
+        assert names[0] == "AvatarCircle"
+        assert "AvatarBadge" in names
+
+
+class TestSearchHasNoRegexInjectionSurface:
+    """
+    A search query is external input (from an AI agent, not an
+    authenticated end user). Compiling a regex from it would open a ReDoS
+    vector — search.py must stay on plain string operations only.
+    """
+
+    def test_search_module_never_imports_re(self):
+        import inspect
+
+        import design_graph.mcp.search as search_module
+        source = inspect.getsource(search_module)
+        assert "import re" not in source
+
+
 class TestSearchCoversUIText:
     def _run(self, query: str) -> list[SearchResult]:
         return search([("proto", _StubReaderWithTexts())], query)

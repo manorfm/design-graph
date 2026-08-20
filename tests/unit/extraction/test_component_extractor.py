@@ -222,6 +222,38 @@ class TestHoverInteractionWithNonLiteralValues:
         assert "Badge" in comp.child_refs
         assert "StarRating" in comp.child_refs
 
+    def test_namespaced_child_tag_is_captured(self):
+        # Real gap (C23/P7): a design-system namespace object (`K.Chip`,
+        # `K.Segmented`, `K.Field`...) is a common JSX authoring pattern.
+        # `<K.Chip />` never matched the old <ComponentName tag pattern at
+        # all — the child was invisible to CONTAINS, no matter how plainly
+        # it was used, because it isn't behind any conditional/list marker
+        # for _extract_marker_refs to catch either.
+        js = """
+        function BasicTab() {
+            return (
+                <K.Card>
+                    <K.Field label="Nivel">
+                        <K.Segmented options={opts} />
+                    </K.Field>
+                    <K.Chip label="Vegano" />
+                </K.Card>
+            )
+        }
+        """
+        b = _boundary(js, "BasicTab")
+        comp = extract_component(js, b, 1, {})
+        assert "Card" in comp.child_refs
+        assert "Field" in comp.child_refs
+        assert "Segmented" in comp.child_refs
+        assert "Chip" in comp.child_refs
+
+    def test_namespace_prefix_itself_is_not_captured_as_a_child(self):
+        js = 'function Comp() { return (<K.Chip label="x" />) }'
+        b = _boundary(js, "Comp")
+        comp = extract_component(js, b, 1, {})
+        assert "K" not in comp.child_refs
+
     def test_self_not_in_child_refs(self):
         b = _boundary(BTN_JS, "BtnPrimary")
         comp = extract_component(BTN_JS, b, 1, {})

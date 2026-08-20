@@ -240,8 +240,9 @@ async def extract_react(
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
     visual_bounds = select_renderable_boundaries(sources.js, all_boundaries)
-    screen_bounds = [b for b in visual_bounds if is_screen(b.name)]
-    comp_bounds   = [b for b in visual_bounds if not is_screen(b.name)]
+    screen_flags  = [is_screen(b.name, sources.js[b.start:b.end]) for b in visual_bounds]
+    screen_bounds = [b for b, is_scr in zip(visual_bounds, screen_flags) if is_scr]
+    comp_bounds   = [b for b, is_scr in zip(visual_bounds, screen_flags) if not is_scr]
     occurrences   = Counter(b.name for b in all_boundaries)
 
     logger.info("pipeline: resolved %d CSS class rules from stylesheet", len(rule_map))

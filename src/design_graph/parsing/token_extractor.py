@@ -281,19 +281,19 @@ def _extract_shadows(combined: str) -> list[DesignToken]:
 
 # ── Radius extraction ─────────────────────────────────────────────────────────
 
-def _radius_label(raw_value: str) -> str:
+_RE_CLEAN_RADIUS_VALUE = re.compile(r"\d+(?:\.\d+)?(?:px|%)?")
+
+
+def _radius_label(clean_value: str) -> str:
     """
-    Map a border-radius value to a semantic label using size ranges.
+    Map a clean border-radius value (already validated by
+    _clean_radius_component) to a semantic label using size ranges.
     Returns "radius_full" for percentage values, otherwise a t-shirt size.
     """
-    v = raw_value.strip().lower()
+    v = clean_value.strip().lower()
     if "%" in v:
         return "radius_full"
-    try:
-        px = int(float(v.replace("px", "")))
-    except ValueError:
-        return f"radius_{v[:12]}"
-
+    px = int(float(v.replace("px", "")))
     if px <= 4:
         return "radius_xs"
     if px <= 8:
@@ -310,24 +310,45 @@ def _normalise_radius(raw: str) -> str:
     return raw.strip().strip("'\"").lower()
 
 
+def _clean_radius_component(raw: str) -> str | None:
+    """
+    The first space-separated component of a normalised radius value, or
+    None if it isn't a clean number with an optional px/% unit.
+
+    RE_BORDER_RADIUS's capture is permissive enough to pick up a JS token
+    definition's trailing comma (`borderRadius: 8,`, as written inside
+    `const R = { sm: 8, ... }`) or a reference to another token
+    (`borderRadius: R.sm`) instead of a literal value. Neither is a value
+    this module can classify — discarding it here is the only gate; a
+    fallback that published the raw text as a label instead
+    (`radius_8,`) would corrupt the token category with something no
+    caller could reason about.
+    """
+    normalised = _normalise_radius(raw)
+    if not normalised:
+        return None
+    first_component = normalised.split()[0]
+    match = _RE_CLEAN_RADIUS_VALUE.fullmatch(first_component)
+    return first_component if match else None
+
+
 def _extract_radii(combined: str) -> list[DesignToken]:
     """Extract border-radius values and classify them by size range."""
     raw_counts: Counter[str] = Counter(
-        _normalise_radius(m) for m in RE_BORDER_RADIUS.findall(combined)
-        if _normalise_radius(m) and re.search(r'[\d%]', _normalise_radius(m))
+        clean for m in RE_BORDER_RADIUS.findall(combined)
+        if (clean := _clean_radius_component(m)) is not None
     )
 
     tokens: list[DesignToken] = []
     for radius_value, count in raw_counts.most_common(MAX_RADIUS_TOKENS):
         if count < MIN_RADIUS_OCCURRENCES:
             continue
-        first_component = radius_value.split()[0]
-        tid = EntityId.derive("rx", first_component)
+        tid = EntityId.derive("rx", radius_value)
         tokens.append(DesignToken(
             id=tid,
             category=TokenCategory.RADIUS,
-            label=_radius_label(first_component),
-            value=first_component,
+            label=_radius_label(radius_value),
+            value=radius_value,
             usage=count,
         ))
 

@@ -12,6 +12,7 @@ Screen extraction is a read-only scan of the JS string — no side effects.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 from design_graph.core.constants import REACT_INTERNALS
@@ -21,9 +22,17 @@ from design_graph.core.patterns import (
     RE_JSX_CALL,
     RE_JSX_TAG,
 )
+from design_graph.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 
 logger = logging.getLogger(__name__)
+
+# A full-page overlay/editor shell (e.g. ItemEditorV6) conditionally
+# switches between 2+ of its own Tab-suffixed children — the shape of a
+# multi-tab editor root, regardless of what its own name ends in.
+_MIN_TAB_SWITCHES_FOR_OVERLAY = 2
+_RE_TAB_TAG_HINT = re.compile(r'<(?:[A-Za-z_$][\w$]*\.)?(\w*Tab)\b')
+_RE_CONDITIONAL_TAB_MARKER = re.compile(r'\{\[(?:conditional|either):[^}]*Tab[^}]*\]\}')
 
 
 class ScreenRole(StrEnum):
@@ -59,9 +68,30 @@ class ScreenIdentity:
         return self.role is not ScreenRole.COMPONENT
 
 
-def is_screen(name: str) -> bool:
-    """Return True only for semantic top-level navigation surfaces."""
-    return ScreenIdentity.classify(name).is_top_level
+def _is_overlay_shell(body: str) -> bool:
+    """
+    Structural counterpart to ScreenIdentity's name-based classification:
+    a function whose own body conditionally switches between 2+ of its
+    own Tab-suffixed children is a multi-tab editor shell, whatever its
+    name ends in. `_RE_TAB_TAG_HINT` is a cheap pre-filter — sanitize_jsx
+    only runs when there's already a real chance of a match, since this
+    is checked against every candidate boundary in the file.
+    """
+    if not body or len(_RE_TAB_TAG_HINT.findall(body)) < _MIN_TAB_SWITCHES_FOR_OVERLAY:
+        return False
+    sanitized = sanitize_jsx(body)
+    return len(_RE_CONDITIONAL_TAB_MARKER.findall(sanitized)) >= _MIN_TAB_SWITCHES_FOR_OVERLAY
+
+
+def is_screen(name: str, body: str = "") -> bool:
+    """
+    True for a semantic top-level navigation surface (name-based), or for
+    a full-page overlay shell recognised by structure (see
+    _is_overlay_shell) — never by reopening ScreenIdentity's deliberate
+    suffix exclusions (C17: Panel/Tab/List/Section/Modal usually name
+    reusable UI parts, not navigation surfaces).
+    """
+    return ScreenIdentity.classify(name).is_top_level or _is_overlay_shell(body)
 
 
 def extract_screens(
@@ -78,10 +108,10 @@ def extract_screens(
 
     for boundary in all_boundaries:
         candidate = VisualFunctionCandidate.from_source(js, boundary)
-        if not is_screen(boundary.name) or not candidate.renders_visual_output:
+        body = js[boundary.start : boundary.end]
+        if not is_screen(boundary.name, body) or not candidate.renders_visual_output:
             continue
 
-        body = js[boundary.start : boundary.end]
         component_refs = _collect_component_refs(body, exclude=boundary.name)
 
         screens.append(ExtractedScreen(

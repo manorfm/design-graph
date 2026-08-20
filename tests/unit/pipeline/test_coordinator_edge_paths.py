@@ -264,6 +264,35 @@ class TestExtractReactScreenComponentSplit:
         assert "BtnPrimary" in [c.name for c in comps]
         assert "HomePage" in [s.name for s in screens]
 
+    def test_overlay_shell_excluded_from_extracted_components(self):
+        # C23/T43: a name that carries none of ScreenIdentity's suffixes
+        # (Page/Screen/Dashboard/View/Detail) still becomes a screen — not
+        # a component — when its own body conditionally switches between
+        # 2+ Tab-suffixed children (a full-page multi-tab editor shell).
+        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.pipeline.coordinator import extract_react
+
+        js = """
+        function BasicTab() { return <div>basic</div>; }
+        function CompTab() { return <div>comp</div>; }
+        function ItemEditorV6({ tab }) {
+          return (
+            <div>
+              {tab === 'basic' && <BasicTab />}
+              {tab === 'comp' && <CompTab />}
+            </div>
+          );
+        }
+        """
+        sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        comps, screens, sections_map, tokens = asyncio.run(extract_react(sources, concurrency=1))
+        assert "ItemEditorV6" not in [c.name for c in comps]
+        assert "BasicTab" in [c.name for c in comps]
+        assert "ItemEditorV6" in [s.name for s in screens]
+        editor = next(s for s in screens if s.name == "ItemEditorV6")
+        assert "BasicTab" in editor.component_refs
+        assert "CompTab" in editor.component_refs
+
 
 # ── extract_react: component alias resolution ──────────────────────────────
 #

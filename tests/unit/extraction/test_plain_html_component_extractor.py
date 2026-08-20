@@ -93,6 +93,31 @@ class TestDomPatternToExtractedComponent:
         # At least some style entries may be extracted from inline style
         assert isinstance(result.styles, list)
 
+    def test_nested_child_style_is_not_attributed_to_the_component(self):
+        # Real case: Chip's root <button> carries only its own layout
+        # styling; a decorative 7px status dot nested inside declares its
+        # own width/height/border-radius/background. Reading past the
+        # button's own style="..." attribute made those dot properties
+        # show up in the *component's* "Styles — default" table, as if
+        # Chip itself were a 7px circle.
+        html = (
+            '<button style="display:flex; padding:6px 10px">'
+            '<span class="dot" style="width:7px; height:7px; border-radius:50%; background:red"></span>'
+            'Vegano'
+            '</button>'
+        )
+        result = dom_pattern_to_extracted_component(_pattern(example=html))
+        properties = {s.property for s in result.styles}
+        assert "display" in properties  # root's own style — must survive
+        assert "width" not in properties       # dot's, not the button's
+        assert "border-radius" not in properties
+
+    def test_root_only_style_is_unaffected_by_the_nested_child_fix(self):
+        html = '<div style="background-color:#1f1f1f; padding:16px"><span>no style here</span></div>'
+        result = dom_pattern_to_extracted_component(_pattern(example=html))
+        properties = {s.property for s in result.styles}
+        assert properties == {"background-color", "padding"}
+
 
 # ── dom_patterns_to_extracted_components ─────────────────────────────────────
 

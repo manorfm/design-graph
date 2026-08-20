@@ -177,8 +177,25 @@ class TestExistingBehaviourUnchanged:
         flat_body = "() => handleMouseEnterEventWithLongNameAndManyParameters(event, index, itemId, extraData)"
         jsx = f'<div onMouseEnter={{{flat_body}}} />'
         result = sanitize_jsx(jsx)
-        assert "on[handler]" in result
+        assert "[handler]" in result
         assert "handleMouseEnter" not in result
+
+    def test_handler_collapse_preserves_event_prop_name(self):
+        # A collapsed onChange must stay distinguishable from a collapsed
+        # onClick/onBlur — losing the prop name makes every handler on a
+        # component look identical to an agent reading the JSX.
+        flat_body = "e => setFieldValueFromControlledInputWithValidation(e.target.value, fieldName, index)"
+        jsx = f'<input onChange={{{flat_body}}} />'
+        result = sanitize_jsx(jsx)
+        assert "onChange={[handler]}" in result
+
+    def test_different_handlers_collapse_to_different_markers(self):
+        long_click = "() => handleClickWithLoggingAndAnalyticsAndMoreExtraPadding(event, id)"
+        long_blur  = "() => handleBlurWithLoggingAndAnalyticsAndMoreExtraPadding(event, id)"
+        jsx = f'<button onClick={{{long_click}}} onBlur={{{long_blur}}} />'
+        result = sanitize_jsx(jsx)
+        assert "onClick={[handler]}" in result
+        assert "onBlur={[handler]}" in result
 
     def test_multiple_markers_in_same_jsx(self):
         jsx = "<div>{items.map(i => <Item />)}{isAdmin && <AdminPanel />}</div>"
@@ -209,6 +226,19 @@ class TestExistingBehaviourUnchanged:
         assert len(inner) > 400
         result = sanitize_jsx("style={{" + inner + "}}")
         assert "..." in result
+
+    def test_collapsed_style_block_preserves_both_ternary_branches(self):
+        # A collapsed preview must never stop mid-ternary — that's the
+        # exact case that made an agent invent a selected-state color the
+        # real JSX never stated (Segmented's `background: value === o.value
+        # ? ... : ...`).
+        ternary_prop = "padding: cond ? '4px 8px' : '6px 10px'"
+        filler = ", ".join(f"propNameLong{i}: 'veryLongValue{i}px'" for i in range(14))
+        inner = f"{ternary_prop}, {filler}"
+        assert len(inner) > 400
+        result = sanitize_jsx("style={{" + inner + "}}")
+        assert "'4px 8px'" in result
+        assert "'6px 10px'" in result
 
     def test_short_style_kept_intact(self):
         jsx = 'style={{color: "#fff", padding: "8px"}}'
