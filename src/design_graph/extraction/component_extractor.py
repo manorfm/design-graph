@@ -47,9 +47,11 @@ from design_graph.core.patterns import (
     RE_JSX_MARKER_COMP,
     RE_JSX_TAG,
     RE_LABEL_TEXT,
+    RE_NATIVE_HTML_TAG,
     RE_PLACEHOLDER,
     RE_STYLE_MUTATION,
     RE_STYLE_PROP,
+    RE_STYLE_SPREAD,
     RE_TOOLTIP_TEXT,
     RE_TRANSITION,
     RE_UI_STRING,
@@ -138,6 +140,7 @@ def extract_component(
     occurrence: int,
     token_map: dict[str, list[DesignToken]],
     rule_map: dict[str, list[CssRule]] | None = None,
+    tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
 ) -> ExtractedComponent:
     """
     Extract all data for one component in a single pass over its function body.
@@ -147,6 +150,12 @@ def extract_component(
 
     rule_map: optional CSS class resolver map from css_class_resolver.extract_css_rules().
     When provided, className strings are resolved into additional StyleEntry objects.
+
+    tag_rule_map: optional map from css_class_resolver.extract_tag_pseudo_rules().
+    When provided, native HTML tags the component renders (<input>, <select>, ...)
+    are resolved against bare tag+pseudo-class stylesheet rules (input:focus { ... })
+    into additional StyleEntry objects — independent of rule_map, which is keyed by
+    className and can't answer "does this element carry that class" from CSS alone.
     """
     window = js[boundary.start : boundary.end]
 
@@ -171,18 +180,45 @@ def extract_component(
     seen_text_ids:    set[str] = set()
     seen_class_strs:  set[str] = set()
 
-    # Inline styles → StyleEntry (default state)
+    def _add_literal_style(prop: str, raw_val: str) -> bool:
+        """Validate + append one `prop: value` pair as a default-state
+        StyleEntry; returns whether it was actually added (kept out of the
+        reserved-value skip list and not a duplicate)."""
+        val = raw_val.strip().rstrip(",").strip()
+        if not val or val in ("true", "false", "null", "undefined", "inherit"):
+            return False
+        entry = StyleEntry.create(element=boundary.name, property=prop, value=val)
+        if entry.id in seen_style_ids:
+            return False
+        seen_style_ids.add(entry.id)
+        styles.append(entry)
+        return True
+
+    # Inline styles → StyleEntry (default state). A `...identifier` spread
+    # inside the block (`style={{...inputStyle, width: 34}}`) resolves
+    # against `const identifier = { ... }` found anywhere in the file —
+    # shared style objects are usually declared once at module scope, not
+    # inside the component that spreads them — with local properties in
+    # the same block taking precedence over the same property name coming
+    # from the spread (JS's own semantics for `{...base, override}`).
     for sm in RE_INLINE_STYLE.finditer(window):
         if len(styles) >= MAX_STYLES_PER_COMPONENT:
             break
-        for prop, val in RE_STYLE_PROP.findall(sm.group(1)):
-            val = val.strip().rstrip(",").strip()
-            if not val or val in ("true", "false", "null", "undefined", "inherit"):
+        style_block = sm.group(1)
+        local_props = {prop for prop, _ in RE_STYLE_PROP.findall(style_block)}
+        for prop, val in RE_STYLE_PROP.findall(style_block):
+            _add_literal_style(prop, val)
+
+        already_resolved = set(local_props)
+        for spread_name in RE_STYLE_SPREAD.findall(style_block):
+            spread_body = _find_const_object_body(js, spread_name)
+            if spread_body is None:
                 continue
-            entry = StyleEntry.create(element=boundary.name, property=prop, value=val)
-            if entry.id not in seen_style_ids:
-                seen_style_ids.add(entry.id)
-                styles.append(entry)
+            for prop, val in RE_STYLE_PROP.findall(spread_body):
+                if prop in already_resolved:
+                    continue
+                if _add_literal_style(prop, val):
+                    already_resolved.add(prop)
 
     # Hover interactions — value may be a quoted literal, a token/prop reference
     # (C.red, o.color), or a small expression (color + '12'); _clean_style_value
@@ -313,6 +349,32 @@ def extract_component(
                     seen_style_ids.add(cs.id)
                     styles.append(cs)
 
+    # Resolve native-tag pseudo-class CSS (input:focus { ... }) → StyleEntry,
+    # by which native HTML tags the component itself renders — not by
+    # className, unlike the block above.
+    if tag_rule_map:
+        native_tags = {m.group(1) for m in RE_NATIVE_HTML_TAG.finditer(window)}
+        for tag in native_tags & tag_rule_map.keys():
+            for pseudo_class, rules in tag_rule_map[tag].items():
+                if pseudo_class not in (StyleState.HOVER, StyleState.FOCUS):
+                    continue
+                remaining_capacity = MAX_STYLES_PER_COMPONENT - len(styles)
+                if remaining_capacity <= 0:
+                    break
+                for rule in rules[:remaining_capacity]:
+                    # element carries the tag (LoginForm:input, not just
+                    # LoginForm) so a component rendering two matching
+                    # native tags with the same property/value doesn't
+                    # collapse into one StyleEntry id — the tag is a real
+                    # distinguishing fact here, not decoration.
+                    entry = StyleEntry.create(
+                        element=f"{boundary.name}:{tag}", property=rule.property,
+                        value=rule.value, state=StyleState(pseudo_class),
+                    )
+                    if entry.id not in seen_style_ids:
+                        seen_style_ids.add(entry.id)
+                        styles.append(entry)
+
     # Child component references — from JSX tags and from typed markers in jsx_snippet
     for pattern in (RE_JSX_TAG, RE_COMP_REF):
         for m in pattern.finditer(window):
@@ -358,6 +420,7 @@ async def extract_all_components(
     token_map: dict[str, list[DesignToken]],
     concurrency: int = 8,
     rule_map: dict[str, list[CssRule]] | None = None,
+    tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> list[ExtractedComponent]:
     """
@@ -366,6 +429,7 @@ async def extract_all_components(
     The JS string is immutable — concurrent reads are safe.
     Each task produces an independent ExtractedComponent — no shared writes.
     rule_map: optional CSS class resolver map forwarded to each extract_component call.
+    tag_rule_map: optional native-tag pseudo-class map, same forwarding.
     on_component_extracted: optional callback(name, index, total) called once per
         completed extraction in the asyncio event loop — safe for non-thread-safe
         reporters since asyncio is single-threaded.
@@ -381,7 +445,7 @@ async def extract_all_components(
         async with semaphore:
             result = await asyncio.to_thread(
                 extract_component,
-                js, boundary, occurrences.get(boundary.name, 1), token_map, rule_map,
+                js, boundary, occurrences.get(boundary.name, 1), token_map, rule_map, tag_rule_map,
             )
         completed[0] += 1
         if on_component_extracted is not None:
@@ -411,6 +475,23 @@ async def extract_all_components(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+def _find_const_object_body(js: str, name: str) -> str | None:
+    """
+    The inner text of `const <name> = { ... }`, or None if no such
+    declaration exists in js. Searches the whole file, not just one
+    component's window — shared style objects are normally declared once
+    at module scope and referenced by spread from several components.
+    """
+    decl = re.search(rf'\bconst\s+{re.escape(name)}\s*=\s*\{{', js)
+    if decl is None:
+        return None
+    open_brace = decl.end() - 1
+    region_end = find_matching_delimiter(js, open_brace, "{", "}")
+    if region_end is None:
+        return None
+    return js[open_brace + 1 : region_end - 1]
+
 
 def _handler_mutations(window: str, event: str) -> list[tuple[str, str]]:
     """

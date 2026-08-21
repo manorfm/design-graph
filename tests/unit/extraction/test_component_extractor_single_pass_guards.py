@@ -434,6 +434,114 @@ class TestCssClassResolutionInExtractor:
         assert len(comp.styles) <= MAX_STYLES_PER_COMPONENT
 
 
+# ── Native-tag pseudo-class CSS resolution (C24/T45) ──────────────────────────
+#
+# input:focus { ... } is resolved by which native HTML tag the component
+# itself renders, not by className — css_class_resolver.extract_tag_pseudo_rules
+# feeds this, separately from rule_map (className-keyed, C10).
+
+class TestTagPseudoClassResolutionInExtractor:
+    def _boundary(self, name: str, js: str) -> FunctionBoundary:
+        bounds = find_all_boundaries(js)
+        return next(b for b in bounds if b.name == name)
+
+    def test_focus_style_added_for_matching_native_tag(self):
+        js = 'function NumInput() { return <input type="number" />; }'
+        b = self._boundary("NumInput", js)
+        tag_rule_map = {"input": {"focus": [CssRule("input:focus", "border-color", "#FFB81C")]}}
+        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        focus_styles = {s.property: s.value for s in comp.styles if s.state == "focus"}
+        assert focus_styles.get("border-color") == "#FFB81C"
+
+    def test_non_matching_tag_is_unaffected(self):
+        js = 'function Card() { return <div className="card" />; }'
+        b = self._boundary("Card", js)
+        tag_rule_map = {"input": {"focus": [CssRule("input:focus", "border-color", "#FFB81C")]}}
+        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        assert not any(s.state == "focus" for s in comp.styles)
+
+    def test_multiple_tags_sharing_one_rule_each_resolve_independently(self):
+        js = """
+        function LoginForm() {
+            return (
+                <form>
+                    <input type="text" />
+                    <select></select>
+                </form>
+            );
+        }
+        """
+        b = self._boundary("LoginForm", js)
+        tag_rule_map = {
+            "input":  {"focus": [CssRule("input:focus", "outline", "none")]},
+            "select": {"focus": [CssRule("select:focus", "outline", "none")]},
+        }
+        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        assert sum(1 for s in comp.styles if s.property == "outline" and s.state == "focus") == 2
+
+    def test_no_tag_rule_map_leaves_extraction_unaffected(self):
+        js = 'function NumInput() { return <input type="number" />; }'
+        b = self._boundary("NumInput", js)
+        comp = extract_component(js, b, 1, {}, tag_rule_map=None)
+        assert not any(s.state == "focus" for s in comp.styles)
+
+
+# ── Style object spread resolution (C24/T46) ──────────────────────────────────
+#
+# style={{...inputStyle, width: 34}} silently dropped the ...inputStyle
+# token — real properties defined on the shared `inputStyle` object were
+# invisible to the component's own spec.
+
+class TestStyleSpreadResolution:
+    def _boundary(self, name: str, js: str) -> FunctionBoundary:
+        bounds = find_all_boundaries(js)
+        return next(b for b in bounds if b.name == name)
+
+    def test_spread_reference_properties_are_resolved(self):
+        js = """
+        const inputStyle = { height: 34, padding: '0 12px' };
+        function NumInput() {
+            return <input style={{...inputStyle, width: 34}} />;
+        }
+        """
+        b = self._boundary("NumInput", js)
+        comp = extract_component(js, b, 1, {})
+        props = {s.property: s.value for s in comp.styles}
+        assert props.get("height") == "34"
+        assert props.get("padding") == "0 12px"
+        assert props.get("width") == "34"
+
+    def test_local_property_overrides_spread_property(self):
+        js = """
+        const inputStyle = { width: 30 };
+        function NumInput() {
+            return <input style={{...inputStyle, width: 34}} />;
+        }
+        """
+        b = self._boundary("NumInput", js)
+        comp = extract_component(js, b, 1, {})
+        widths = [s.value for s in comp.styles if s.property == "width"]
+        assert widths == ["34"]
+
+    def test_unresolvable_spread_does_not_break_extraction(self):
+        js = """
+        function NumInput() {
+            return <input style={{...missingStyle, width: 34}} />;
+        }
+        """
+        b = self._boundary("NumInput", js)
+        comp = extract_component(js, b, 1, {})
+        props = {s.property: s.value for s in comp.styles}
+        assert props.get("width") == "34"
+
+    def test_no_spread_present_is_unaffected(self):
+        js = 'function Card() { return <div style={{color: "red"}} />; }'
+        b = self._boundary("Card", js)
+        comp = extract_component(js, b, 1, {})
+        props = {s.property: s.value for s in comp.styles}
+        assert props.get("color") == "red"
+
+
 class TestTruncationLogging:
     def test_styles_cap_logged_at_debug_when_exceeded(self, caplog):
         limit = MAX_STYLES_PER_COMPONENT

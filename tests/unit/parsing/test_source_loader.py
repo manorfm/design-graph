@@ -1,13 +1,16 @@
 """Tests for source_loader — T01."""
 
 import asyncio
+import base64
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 
 from design_graph.core.models import RawSources
-from design_graph.parsing.source_loader import load
+from design_graph.parsing.source_loader import _extract_bundled_react, load
 
 FIXTURE_DIR = Path(__file__).parent.parent.parent / "fixtures"
 SIMPLE_HTML = FIXTURE_DIR / "simple.html"
@@ -82,3 +85,83 @@ class TestLoad:
         )
         sources = asyncio.run(load(f))
         assert "MyComp" in sources.js
+
+
+def _bundle_soup(inner_html: str) -> BeautifulSoup:
+    """
+    A minimal bundled_react <script> whose JSON bundle map decodes to
+    `inner_html` for the html entry. Padded past _extract_bundled_react's
+    10_000-char "is this the actual bundle" threshold with a throwaway JS
+    entry — real bundles are always this large; a tiny JSON test fixture
+    isn't, so it must be padded to be recognised at all.
+    """
+    bundle = {
+        "index.html": {
+            "data": base64.b64encode(inner_html.encode()).decode(),
+            "compressed": False,
+            "mime": "text/html",
+        },
+        "padding.js": {
+            "data": base64.b64encode(b"//" + b"x" * 10_000).decode(),
+            "compressed": False,
+            "mime": "application/javascript",
+        },
+    }
+    html = f"<html><body><script>{json.dumps(bundle)}</script></body></html>"
+    return BeautifulSoup(html, "html.parser")
+
+
+class TestExtractBundledReactStyleTagInInnerHtml:
+    """
+    C24/T44 — real evidence: source_loader.load() against the checked-in
+    `iPede Manager v15.1.html` returns sources.css == "" even though
+    sources.inner_html (4692 bytes) contains a real <style> tag with rules
+    including `input:focus, select:focus, textarea:focus {...}` and
+    `.pulse-dot {...}` — _extract_bundled_react only harvested CSS from
+    bundle entries whose mime contains "css", never from a <style> tag
+    already sitting inside the inner_html it resolves itself.
+    """
+
+    STYLE_INNER_HTML = (
+        "<!DOCTYPE html><html><head><style>"
+        ".pulse-dot { animation: pulseDot 1.8s ease-in-out infinite; }\n"
+        "input:focus, select:focus, textarea:focus { outline: none; "
+        "border-color: #FFB81C !important; }"
+        "</style></head><body></body></html>"
+    )
+
+    def test_style_tag_css_is_captured(self):
+        _js, css, _html, _skipped = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        assert ".pulse-dot" in css
+        assert "input:focus" in css
+
+    def test_inner_html_itself_is_still_returned_unchanged(self):
+        _js, _css, html_out, _skipped = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        assert html_out == self.STYLE_INNER_HTML
+
+    def test_no_style_tag_yields_empty_css_without_error(self):
+        inner_html = "<!DOCTYPE html><html><body><div>no styles here</div></body></html>"
+        _js, css, _html, _skipped = _extract_bundled_react(_bundle_soup(inner_html))
+        assert css == ""
+
+    def test_style_from_bundle_css_mime_entry_still_works_alongside_inner_html_style(self):
+        # Regression: a bundle that already has a separate CSS-mime entry
+        # must keep contributing — the new source is additive, not a
+        # replacement.
+        bundle = {
+            "index.html": {
+                "data": base64.b64encode(self.STYLE_INNER_HTML.encode()).decode(),
+                "compressed": False,
+                "mime": "text/html",
+            },
+            "styles.css": {
+                "data": base64.b64encode(b".from-bundle-entry { color: red; }" + b"/*" + b"x" * 10_000 + b"*/").decode(),
+                "compressed": False,
+                "mime": "text/css",
+            },
+        }
+        html = f"<html><body><script>{json.dumps(bundle)}</script></body></html>"
+        soup = BeautifulSoup(html, "html.parser")
+        _js, css, _html, _skipped = _extract_bundled_react(soup)
+        assert ".from-bundle-entry" in css
+        assert ".pulse-dot" in css

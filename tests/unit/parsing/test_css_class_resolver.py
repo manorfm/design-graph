@@ -16,6 +16,7 @@ import pytest
 from design_graph.parsing.css_class_resolver import (
     CssRule,
     extract_css_rules,
+    extract_tag_pseudo_rules,
     resolve_classes,
 )
 
@@ -91,6 +92,66 @@ class TestExtractCssRules:
         css = ".bg-primary { background-color: #ffb81c; }"
         rules = extract_css_rules(css)
         assert "bg-primary" in rules
+
+
+# ── extract_tag_pseudo_rules — C24/T45 ────────────────────────────────────────
+#
+# extract_css_rules deliberately ignores element/pseudo-class selectors
+# (test_ignores_element_selectors / test_ignores_pseudo_classes above) —
+# correct for it, since a className string alone can't say whether an
+# element carries a given class. A bare TAG selector needs no such lookup:
+# the tag name a component renders is already enough to know whether
+# `input:focus { ... }` applies. Separate function, separate contract.
+
+class TestExtractTagPseudoRules:
+    def test_single_tag_pseudo_selector(self):
+        css = "input:focus { outline: none; }"
+        rules = extract_tag_pseudo_rules(css)
+        assert "input" in rules
+        assert "focus" in rules["input"]
+        props = {r.property: r.value for r in rules["input"]["focus"]}
+        assert props["outline"] == "none"
+
+    def test_real_multi_selector_focus_rule(self):
+        # Verbatim from iPede Manager v15.1.html's embedded <style>.
+        css = (
+            "input:focus, select:focus, textarea:focus { outline: none; "
+            "border-color: #FFB81C !important; "
+            "box-shadow: 0 0 0 3px rgba(255,184,28,0.12); }"
+        )
+        rules = extract_tag_pseudo_rules(css)
+        for tag in ("input", "select", "textarea"):
+            props = {r.property: r.value for r in rules[tag]["focus"]}
+            assert props["border-color"] == "#FFB81C !important"
+
+    def test_class_selector_with_pseudo_class_is_not_captured(self):
+        css = ".btn:hover { background: red; }"
+        assert extract_tag_pseudo_rules(css) == {}
+
+    def test_id_selector_with_pseudo_class_is_not_captured(self):
+        css = "#field:focus { outline: none; }"
+        assert extract_tag_pseudo_rules(css) == {}
+
+    def test_descendant_combinator_is_not_captured(self):
+        # `div input:focus` is narrower than "any input:focus" — treating
+        # it as if it applied everywhere would be a false positive.
+        css = "div input:focus { color: red; }"
+        assert extract_tag_pseudo_rules(css) == {}
+
+    def test_plain_element_selector_without_pseudo_class_is_not_captured(self):
+        css = "input { color: black; }"
+        assert extract_tag_pseudo_rules(css) == {}
+
+    def test_keyframes_block_is_not_misparsed(self):
+        css = "@keyframes pulseDot { 0% { opacity: 1; } 100% { opacity: 0; } }"
+        assert extract_tag_pseudo_rules(css) == {}
+
+    def test_empty_css_returns_empty_dict(self):
+        assert extract_tag_pseudo_rules("") == {}
+
+    def test_malformed_css_does_not_raise(self):
+        result = extract_tag_pseudo_rules("this is not css {{{{")
+        assert isinstance(result, dict)
 
 
 # ── resolve_classes ───────────────────────────────────────────────────────────
