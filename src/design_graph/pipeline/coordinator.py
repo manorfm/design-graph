@@ -38,7 +38,7 @@ from design_graph.extraction.section_extractor import extract_sections, extract_
 from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 from design_graph.graph.writer import GraphWriteSession
-from design_graph.parsing.css_class_resolver import extract_css_rules
+from design_graph.parsing.css_class_resolver import extract_css_rules, extract_tag_pseudo_rules
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.source_loader import load
@@ -239,17 +239,21 @@ async def extract_react(
 
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
+    tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
     visual_bounds = select_renderable_boundaries(sources.js, all_boundaries)
     screen_flags  = [is_screen(b.name, sources.js[b.start:b.end]) for b in visual_bounds]
     screen_bounds = [b for b, is_scr in zip(visual_bounds, screen_flags) if is_scr]
     comp_bounds   = [b for b, is_scr in zip(visual_bounds, screen_flags) if not is_scr]
     occurrences   = Counter(b.name for b in all_boundaries)
 
-    logger.info("pipeline: resolved %d CSS class rules from stylesheet", len(rule_map))
+    logger.info(
+        "pipeline: resolved %d CSS class rules, %d tag pseudo-class rules from stylesheet",
+        len(rule_map), len(tag_rule_map),
+    )
 
     extracted_comps = await extract_all_components(
         sources.js, comp_bounds, occurrences, token_map,
-        concurrency=concurrency, rule_map=rule_map,
+        concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
         on_component_extracted=on_component_extracted,
     )
 

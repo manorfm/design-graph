@@ -120,6 +120,15 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
     if not inner_html:
         inner_html = str(soup)
 
+    # The page's own static <style> tag — the shell React hydrates into —
+    # lives inside inner_html, not in a bundle entry with a "css" mime.
+    # Additive: a bundle that also ships a separate CSS-mime entry keeps
+    # contributing both.
+    for style_tag in BeautifulSoup(inner_html, "html.parser").find_all("style"):
+        style_text = style_tag.get_text()
+        if style_text.strip():
+            css_parts.append(style_text)
+
     return "\n".join(js_parts), "\n".join(css_parts), inner_html, skipped
 
 

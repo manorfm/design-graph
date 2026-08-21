@@ -84,6 +84,13 @@ RE_JSX_TAG = re.compile(r'<(?:[A-Za-z_$][\w$]*\.)*([A-Z][a-zA-Z0-9]{2,})[\s/>]')
 
 RE_JSX_CALL = re.compile(r'jsxs?\(([A-Z][a-zA-Z0-9]{2,})\s*,')
 
+# A native (lowercase) HTML tag a component renders — <input>, <select>,
+# <button>... — as opposed to RE_JSX_TAG's PascalCase custom components.
+# Feeds css_class_resolver.extract_tag_pseudo_rules matching: knowing the
+# component renders <input> is enough to know an `input:focus { ... }`
+# stylesheet rule applies, no className lookup needed.
+RE_NATIVE_HTML_TAG = re.compile(r'<([a-z][a-z0-9]*)\b')
+
 RE_COMP_REF = re.compile(
     r'\b([A-Z][a-zA-Z0-9]{2,}'
     r'(?:Card|Modal|Row|Tab|Panel|Form|Head|List|Table|Btn|Button|Badge|Item|'
@@ -106,6 +113,13 @@ RE_COMPONENT_ALIAS = re.compile(
 
 RE_INLINE_STYLE = re.compile(r'style=\{\{([^}]{5,600})\}\}')
 RE_STYLE_PROP   = re.compile(r'(\w+)\s*:\s*["\']?([^,"\'}\n]{1,60})["\']?')
+
+# An object-spread reference inside a style block: `...inputStyle` in
+# `style={{...inputStyle, width: 34}}`. RE_STYLE_PROP has no `key:` to
+# match against a bare spread token, so it silently drops it — this
+# pattern names what was dropped, so the referenced object can be resolved
+# separately (component_extractor._find_const_object_body).
+RE_STYLE_SPREAD = re.compile(r'\.\.\.(\w+)')
 
 # Preview-only variant of RE_STYLE_PROP, used exclusively by the sanitizer's
 # long-style-block collapse (jsx_sanitizer._collapse_long_style_blocks) to

@@ -43,6 +43,16 @@ _RE_CSS_PROPERTY = re.compile(
     re.MULTILINE,
 )
 
+# Any selector-list followed by a flat (non-nested) rule body. Deliberately
+# broad — it also matches @keyframes steps and class/id selectors, which
+# _RE_TAG_PSEUDO_SELECTOR below filters back out per individual selector.
+_RE_SELECTOR_BLOCK = re.compile(r'([^{}]+)\{([^{}]*)\}', re.MULTILINE)
+
+# A single selector that is exactly `tag:pseudo-class` — nothing before it
+# (no `.`/`#`/other identifier char, which would make it a class/id/part of
+# a compound selector) and nothing after (no descendant combinator).
+_RE_TAG_PSEUDO_SELECTOR = re.compile(r'\A([a-z][a-z0-9]*):([a-z-]+)\Z')
+
 
 # ── Tailwind numeric class generator ─────────────────────────────────────────
 #
@@ -385,6 +395,47 @@ def extract_css_rules(css_text: str) -> dict[str, list[CssRule]]:
         logger.warning("css_class_resolver: failed to parse CSS — %s", exc)
 
     logger.debug("css_class_resolver: extracted %d class rules from CSS", len(result))
+    return result
+
+
+def extract_tag_pseudo_rules(css_text: str) -> dict[str, dict[str, list[CssRule]]]:
+    """
+    Parse CSS text and return a map of tag_name → pseudo_class → [CssRule],
+    for selectors made of nothing but a bare HTML tag name and a
+    pseudo-class (`input:focus`, alone or in a comma-separated list sharing
+    one rule body: `input:focus, select:focus, textarea:focus { ... }`).
+
+    Unlike extract_css_rules (className-keyed — needs to know which
+    classes an element actually carries), a bare tag selector needs no such
+    lookup: the tag name a component renders is already enough to know the
+    rule applies. Any selector that isn't *exactly* `tag:pseudo` — a class
+    (`.btn:hover`), an id (`#field:focus`), a descendant combinator
+    (`div input:focus`), or a plain element selector with no pseudo-class
+    (`input`) — is left for its own, unrelated resolution path (or none).
+    """
+    if not css_text or not css_text.strip():
+        return {}
+
+    result: dict[str, dict[str, list[CssRule]]] = {}
+    try:
+        for selector_list, body in _RE_SELECTOR_BLOCK.findall(css_text):
+            for raw_selector in selector_list.split(","):
+                match = _RE_TAG_PSEUDO_SELECTOR.fullmatch(raw_selector.strip())
+                if not match:
+                    continue
+                tag, pseudo_class = match.group(1), match.group(2)
+                rules: list[CssRule] = []
+                for pm in _RE_CSS_PROPERTY.finditer(body):
+                    prop = pm.group(1).strip()
+                    val  = pm.group(2).strip()
+                    if prop and val:
+                        rules.append(CssRule(f"{tag}:{pseudo_class}", prop, val))
+                if rules:
+                    result.setdefault(tag, {})[pseudo_class] = rules
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("css_class_resolver: failed to parse tag/pseudo-class CSS — %s", exc)
+
+    logger.debug("css_class_resolver: extracted tag/pseudo-class rules for %d tags", len(result))
     return result
 
 
