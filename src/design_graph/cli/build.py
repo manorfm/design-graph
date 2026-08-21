@@ -394,11 +394,11 @@ async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
     sources = await load(parsed.html_path)
 
     if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
-        comps, screens, sections_map, _tokens = await extract_plain_html(
+        comps, screens, sections_map, _tokens, _module_texts = await extract_plain_html(
             sources, concurrency=EXTRACTION_CONCURRENCY
         )
     else:
-        comps, screens, sections_map, _tokens = await extract_react(
+        comps, screens, sections_map, _tokens, _module_texts = await extract_react(
             sources, concurrency=EXTRACTION_CONCURRENCY
         )
     # chunk export has no graph to resolve {[icon:id]} markers against —

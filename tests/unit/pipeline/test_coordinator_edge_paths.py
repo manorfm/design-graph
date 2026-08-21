@@ -259,7 +259,7 @@ class TestExtractReactScreenComponentSplit:
         }
         """
         sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
-        comps, screens, sections_map, tokens = asyncio.run(extract_react(sources, concurrency=1))
+        comps, screens, sections_map, tokens, _module_texts = asyncio.run(extract_react(sources, concurrency=1))
         assert "HomePage" not in [c.name for c in comps]
         assert "BtnPrimary" in [c.name for c in comps]
         assert "HomePage" in [s.name for s in screens]
@@ -285,7 +285,7 @@ class TestExtractReactScreenComponentSplit:
         }
         """
         sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
-        comps, screens, sections_map, tokens = asyncio.run(extract_react(sources, concurrency=1))
+        comps, screens, sections_map, tokens, _module_texts = asyncio.run(extract_react(sources, concurrency=1))
         assert "ItemEditorV6" not in [c.name for c in comps]
         assert "BasicTab" in [c.name for c in comps]
         assert "ItemEditorV6" in [s.name for s in screens]
@@ -330,18 +330,18 @@ class TestExtractReactComponentAliasResolution:
         return asyncio.run(extract_react(sources, concurrency=1))
 
     def test_alias_name_is_not_extracted_as_its_own_component(self):
-        comps, _screens, _sections_map, _tokens = self._extract()
+        comps, _screens, _sections_map, _tokens, _module_texts = self._extract()
         assert "Badge" not in [c.name for c in comps]
         assert "Pill" in [c.name for c in comps]
 
     def test_component_child_refs_resolve_alias_to_target(self):
-        comps, _screens, _sections_map, _tokens = self._extract()
+        comps, _screens, _sections_map, _tokens, _module_texts = self._extract()
         row = next(c for c in comps if c.name == "RestaurantRow")
         assert "Badge" not in row.child_refs
         assert "Pill" in row.child_refs
 
     def test_screen_component_refs_resolve_alias_to_target(self):
-        _comps, screens, _sections_map, _tokens = self._extract()
+        _comps, screens, _sections_map, _tokens, _module_texts = self._extract()
         page = next(s for s in screens if s.name == "RestaurantsPage")
         assert "Badge" not in page.component_refs
         assert "Pill" in page.component_refs
@@ -354,7 +354,7 @@ class TestExtractReactComponentAliasResolution:
         # writer creates unresolved shells straight from section.component_refs
         # (graph/writer.py write_screen), so this leak survives even after
         # screen- and component-level refs are fixed unless handled here too.
-        _comps, _screens, sections_map, _tokens = self._extract()
+        _comps, _screens, sections_map, _tokens, _module_texts = self._extract()
         sections = sections_map["RestaurantsPage"]
         section = next(s for s in sections if s.name == "Lista")
         assert "Badge" not in section.component_refs

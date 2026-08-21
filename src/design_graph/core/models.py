@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Optional
 
-from design_graph.core.patterns import RE_ICON_MARKER
+from design_graph.core.patterns import RE_ICON_MARKER, RE_IDENTIFIER_SHAPED_TOKEN
 
 
 # ── Identity ───────────────────────────────────────────────────────────────────
@@ -431,13 +431,17 @@ class InteractionEntry:
 
 @dataclass(frozen=True)
 class TextEntry:
-    """A UI string extracted from a component's return block."""
+    """A UI string extracted from a component's return block, a section,
+    or a module-level constant array (see extraction.module_text_extractor)."""
 
     id: EntityId
     content: str
     text_type: TextType
-    source: str      # component name (or section id, for section-scoped text)
+    source: str      # component name, section id, or module-level constant name
     element: str      # HTML tag context, e.g. "h1", "button"
+
+    _MIN_CONTENT_CHARS = 3
+    _MAX_CONTENT_CHARS = 80
 
     @classmethod
     def create(cls, content: str, text_type: TextType, source: str, element: str = "") -> "TextEntry":
@@ -445,6 +449,27 @@ class TextEntry:
             id=EntityId.derive("txt", f"{source}_{content}"),
             content=content, text_type=text_type, source=source, element=element,
         )
+
+    @staticmethod
+    def is_plausible_content(candidate: str) -> bool:
+        """
+        True when `candidate` reads as real, visible UI copy rather than a
+        code artifact a naive string-literal scan can pick up alongside
+        genuine text: an identifier-shaped lowercase token (`primary`,
+        `flex_start`) or a raw color literal (`#1a1a1a`, `rgba(0,0,0,.5)`).
+
+        The single definition every extractor that classifies string
+        literals as UI text shares, so "plausible" can't drift between
+        call sites — component-scoped text (component_extractor) and
+        module-level constant-array text (module_text_extractor) apply
+        the exact same judgment.
+        """
+        c = candidate.strip()
+        if not (TextEntry._MIN_CONTENT_CHARS <= len(c) <= TextEntry._MAX_CONTENT_CHARS):
+            return False
+        if RE_IDENTIFIER_SHAPED_TOKEN.match(c) or c.startswith(("#", "rgba")):
+            return False
+        return True
 
     @classmethod
     def for_section(cls, section_id: str, text: str) -> "TextEntry":

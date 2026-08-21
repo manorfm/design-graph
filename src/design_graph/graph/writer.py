@@ -189,6 +189,32 @@ class GraphWriter:
         logger.debug("writer: wrote %d icons", inserted)
         return inserted
 
+    def write_module_texts(self, texts: list[TextEntry]) -> int:
+        """
+        Insert UIText nodes with no owning Component or Section — text
+        from a module-level constant array (const DETAIL_TABS = [...])
+        isn't rendered by any one component, so there's no node to relate
+        it to via COMP_HAS_TEXT/SECTION_HAS_TEXT. Still directly queryable
+        through list_texts()/search() exactly like any other UIText, which
+        query the node type directly rather than through either edge.
+        """
+        inserted = 0
+        for text in texts:
+            if text.id in self._inserted_text_ids:
+                continue
+            ok = self._safe_execute(
+                "CREATE (:UIText {id:$id, content:$ct, text_type:$ty, source:$src, element:$el})",
+                {"id": text.id, "ct": text.content, "ty": text.text_type,
+                 "src": text.source, "el": text.element},
+            )
+            if ok:
+                self._inserted_text_ids.add(text.id)
+                inserted += 1
+            elif self._node_exists("UIText", "id", text.id):
+                self._inserted_text_ids.add(text.id)
+        logger.debug("writer: wrote %d module-level texts", inserted)
+        return inserted
+
     def declare_screens(self, screens: list[ExtractedScreen]) -> None:
         """Materialize screen identities before resolving typed screen references."""
         for screen in screens:

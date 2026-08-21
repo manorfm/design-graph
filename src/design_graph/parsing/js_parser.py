@@ -417,38 +417,23 @@ def iter_style_object_blocks(text: str) -> Iterator[str]:
         yield text[object_open + 1 : object_close - 1]
 
 
-def parse_object_literal_props(block: str) -> list[tuple[str, str]]:
+def split_top_level(text: str, separator: str = ",") -> list[str]:
     """
-    Split a JS object-literal body (already unwrapped from its outer braces)
-    into its top-level `key: value` pairs, in source order.
-
-    Splits only on a comma at bracket depth 0 and outside a quote/template
-    literal, so a ternary or template-literal value that itself contains a
-    comma, a quote, or a brace survives whole instead of being cut at the
-    first such character found anywhere in the block. A quoted-literal value
-    (`'red'`) is unwrapped to its bare content, matching StyleEntry's
-    existing convention of storing literal values unquoted; any other value
-    (ternary, template literal, identifier, expression) is kept as written.
-    An entry with no top-level `:` (a `...spread`) is skipped rather than
-    recorded with an empty value.
+    Split text on `separator` at bracket depth 0 and outside a quote or
+    template literal — the general form of the depth-aware splitting both
+    an object literal's `key: value` pairs and a constant array's own
+    elements need: a separator inside a nested object, a ternary, or a
+    template-literal interpolation must never be mistaken for a top-level
+    boundary. One splitter, so the two consumers can't drift apart.
     """
-    pairs: list[tuple[str, str]] = []
+    segments: list[str] = []
     depth = {"(": 0, "[": 0, "{": 0}
     opening_for = {")": "(", "]": "[", "}": "{"}
     quote: str | None = None
     escaped = False
     segment_start = 0
 
-    def flush(segment_end: int) -> None:
-        segment = block[segment_start:segment_end].strip()
-        if not segment:
-            return
-        key, separator, value = segment.partition(":")
-        if not separator:
-            return
-        pairs.append((key.strip(), _unwrap_quoted_literal(value.strip())))
-
-    for index, char in enumerate(block):
+    for index, char in enumerate(text):
         if quote:
             if escaped:
                 escaped = False
@@ -463,15 +448,59 @@ def parse_object_literal_props(block: str) -> list[tuple[str, str]]:
             depth[char] += 1
         elif char in opening_for:
             depth[opening_for[char]] = max(0, depth[opening_for[char]] - 1)
-        elif char == "," and not any(depth.values()):
-            flush(index)
+        elif char == separator and not any(depth.values()):
+            segments.append(text[segment_start:index])
             segment_start = index + 1
 
-    flush(len(block))
-    return pairs
+    segments.append(text[segment_start:])
+    return segments
 
 
-def _unwrap_quoted_literal(value: str) -> str:
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
-    return value
+def iter_object_literal_pairs(block: str) -> Iterator[tuple[str, str]]:
+    """
+    Split a JS object-literal body (already unwrapped from its outer
+    braces) into its top-level `key: value` pairs, in source order, values
+    exactly as written — a quoted string keeps its quotes. An entry with
+    no top-level `:` (a `...spread`) is skipped rather than yielded with
+    an empty value.
+
+    The raw (non-unwrapped) value is what a caller needs to tell a genuine
+    string literal (`label: 'Cardápio'`) apart from a bare identifier or
+    expression (`icon: Icon.card`) — see is_quoted_string_literal.
+    parse_object_literal_props below is the convenience wrapper for
+    callers that only want the unwrapped value.
+    """
+    for segment in split_top_level(block):
+        segment = segment.strip()
+        if not segment:
+            continue
+        key, separator, value = segment.partition(":")
+        if not separator:
+            continue
+        yield key.strip(), value.strip()
+
+
+def parse_object_literal_props(block: str) -> list[tuple[str, str]]:
+    """
+    iter_object_literal_pairs, with each value unwrapped to its bare
+    content when it's a quoted literal (`'red'` → `red`) — matching
+    StyleEntry's existing convention of storing literal values unquoted.
+    Any other value (ternary, template literal, identifier, expression) is
+    kept as written.
+    """
+    return [(key, unwrap_quoted_literal(value)) for key, value in iter_object_literal_pairs(block)]
+
+
+def is_quoted_string_literal(value: str) -> bool:
+    """
+    True when `value` (as written in source, untrimmed of its own quotes)
+    is a single/double-quoted string literal — `'red'`, `"Cardápio"` — as
+    opposed to a bare identifier, member expression (`Icon.card`), or a
+    backtick template literal (which can embed `${expr}` and so isn't
+    static text).
+    """
+    return len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'"
+
+
+def unwrap_quoted_literal(value: str) -> str:
+    return value[1:-1] if is_quoted_string_literal(value) else value

@@ -9,8 +9,12 @@ from design_graph.parsing.js_parser import (
     find_all_boundaries,
     find_function_boundaries,
     find_function_end,
+    is_quoted_string_literal,
+    iter_object_literal_pairs,
     iter_style_object_blocks,
     parse_object_literal_props,
+    split_top_level,
+    unwrap_quoted_literal,
 )
 
 
@@ -431,3 +435,62 @@ class TestParseObjectLiteralProps:
         # be mistaken for a prop with an empty value.
         props = parse_object_literal_props("...base, color: 'red'")
         assert props == [("color", "red")]
+
+
+class TestIsQuotedStringLiteral:
+    def test_single_quoted_is_literal(self):
+        assert is_quoted_string_literal("'Cardápio & Preço'") is True
+
+    def test_double_quoted_is_literal(self):
+        assert is_quoted_string_literal('"Produção & Setores"') is True
+
+    def test_bare_member_expression_is_not_literal(self):
+        assert is_quoted_string_literal("Icon.card") is False
+
+    def test_bare_identifier_is_not_literal(self):
+        assert is_quoted_string_literal("overview") is False
+
+    def test_template_literal_is_not_a_plain_string_literal(self):
+        # Backtick strings can embed ${expr} — not safe to treat as static text.
+        assert is_quoted_string_literal("`1px solid ${C.border2}`") is False
+
+    def test_mismatched_quotes_not_literal(self):
+        assert is_quoted_string_literal("'oops\"") is False
+
+
+class TestUnwrapQuotedLiteral:
+    def test_strips_matching_single_quotes(self):
+        assert unwrap_quoted_literal("'red'") == "red"
+
+    def test_leaves_unquoted_value_untouched(self):
+        assert unwrap_quoted_literal("Icon.card") == "Icon.card"
+
+
+class TestSplitTopLevel:
+    """
+    The general depth-aware splitter both parse_object_literal_props (key:
+    value pairs) and module-level constant-array extraction (array
+    elements) build on — one comma-splitting primitive instead of two
+    independent reimplementations that could drift apart.
+    """
+
+    def test_splits_on_top_level_commas(self):
+        assert split_top_level("a, b, c") == ["a", " b", " c"]
+
+    def test_comma_inside_nested_braces_does_not_split(self):
+        parts = split_top_level("{ a: 1, b: 2 }, { c: 3 }")
+        assert len(parts) == 2
+
+    def test_comma_inside_quotes_does_not_split(self):
+        parts = split_top_level("label: 'a, b', next: 1")
+        assert len(parts) == 2
+
+    def test_custom_separator(self):
+        assert split_top_level("a:b:c", separator=":") == ["a", "b", "c"]
+
+
+class TestIterObjectLiteralPairs:
+    def test_values_kept_raw_not_unwrapped(self):
+        pairs = list(iter_object_literal_pairs("label: 'Cardápio & Preço', icon: Icon.card"))
+        assert ("label", "'Cardápio & Preço'") in pairs
+        assert ("icon", "Icon.card") in pairs
