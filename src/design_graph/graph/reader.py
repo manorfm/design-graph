@@ -396,7 +396,32 @@ class GraphReader:
             {"n": resolved},
         )
 
-    def get_tokens(self, category: str | None = None) -> list[dict]:
+    def get_tokens(self, category: str | None = None, screen: str | None = None) -> list[dict]:
+        """
+        Every token (optionally filtered by category), or — when screen is
+        given — only the tokens actually reachable from that screen's own
+        components. Without scoping, a token's usage count is ranked
+        prototype-wide, so a canvas color used on one screen looks
+        identical to one used everywhere; scoping answers "what does this
+        specific screen use" instead of "what's popular overall".
+
+        Expands through the same USES_COMPONENT → CONTAINS* closure
+        find_token_usage's screen listing uses, so a token used only by a
+        nested component still counts toward the screen that renders it.
+        """
+        if screen:
+            where = "AND t.category=$cat " if category else ""
+            params: dict = {"screen": screen}
+            if category:
+                params["cat"] = category
+            return self._q(
+                "MATCH (s:Screen {name:$screen})-[:USES_COMPONENT]->(top:Component)"
+                "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token) "
+                f"WHERE true {where}"
+                "RETURN DISTINCT t.category, t.label, t.value, t.usage "
+                "ORDER BY t.category, t.usage DESC",
+                params,
+            )
         if category:
             return self._q(
                 "MATCH (t:Token {category:$cat}) "
@@ -499,12 +524,27 @@ class GraphReader:
     # ── Full JSX ──────────────────────────────────────────────────────────────
 
     def get_full_jsx(self, name: str) -> str:
+        """
+        A Component's jsx_snippet, or — when no Component of that name
+        exists — the jsx_snippet of a Screen by that name. A full-page
+        overlay shell (ItemEditorV6) is classified as a Screen and
+        deliberately never also extracted as a Component (a screen
+        boundary is never double-counted as a component), so without this
+        fallback its own root JSX — the shell around its children — would
+        never be reachable through this call at all.
+        """
         comp_rows = self._q(
             "MATCH (c:Component {name:$n}) RETURN c.jsx_snippet, c.comp_type",
             {"n": name},
         )
         if comp_rows and comp_rows[0].get("c.jsx_snippet"):
             return self._resolve_icons(comp_rows[0]["c.jsx_snippet"])
+
+        screen_rows = self._q(
+            "MATCH (s:Screen {name:$n}) RETURN s.jsx_snippet", {"n": name},
+        )
+        if screen_rows and screen_rows[0].get("s.jsx_snippet"):
+            return self._resolve_icons(screen_rows[0]["s.jsx_snippet"])
         return ""
 
     # ── Impact analysis ───────────────────────────────────────────────────────

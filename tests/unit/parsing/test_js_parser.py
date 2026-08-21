@@ -9,6 +9,8 @@ from design_graph.parsing.js_parser import (
     find_all_boundaries,
     find_function_boundaries,
     find_function_end,
+    iter_style_object_blocks,
+    parse_object_literal_props,
 )
 
 
@@ -349,3 +351,83 @@ class TestVersionedComponentNames:
         js = "function Step2Form() { return <form/>; }"
         names = {b.name for b in find_all_boundaries(js)}
         assert "Step2Form" in names
+
+
+class TestIterStyleObjectBlocks:
+    """
+    A `[^}]`-style regex over `style={{ ... }}` truncates at the first `}`
+    it meets — including one belonging to a `${expr}` interpolation nested
+    inside a template-literal value, not the object's real closing `}}`.
+    Real prototypes routinely write `border: \\`1px solid ${cond ? a : b}\\``
+    inside a style block; the block must still resolve to its true end.
+    """
+
+    def test_simple_block_found(self):
+        js = "<div style={{ color: 'red', padding: 8 }} />"
+        blocks = list(iter_style_object_blocks(js))
+        assert blocks == [" color: 'red', padding: 8 "]
+
+    def test_template_literal_interpolation_does_not_truncate_block(self):
+        js = "<button style={{ background: '#2e2e2e', border: `1.5px solid ${C.border2}` }} />"
+        blocks = list(iter_style_object_blocks(js))
+        assert len(blocks) == 1
+        assert "border" in blocks[0]
+        assert blocks[0].strip().endswith("`1.5px solid ${C.border2}`")
+
+    def test_two_blocks_in_same_component_both_found(self):
+        js = (
+            "<button style={{ background: on ? color : '#2e2e2e' }}>"
+            "<span style={{ width: 7, height: 7 }} />"
+            "</button>"
+        )
+        blocks = list(iter_style_object_blocks(js))
+        assert len(blocks) == 2
+        assert "background" in blocks[0]
+        assert "width" in blocks[1]
+
+    def test_no_style_attribute_yields_nothing(self):
+        js = "<div className='card'>text</div>"
+        assert list(iter_style_object_blocks(js)) == []
+
+
+class TestParseObjectLiteralProps:
+    """
+    RE_STYLE_PROP's value char class excluded quotes, so a ternary with
+    quoted branches (`cursor: disabled ? 'not-allowed' : 'pointer'`) was
+    captured only up to its condition (`disabled ?`) — the actual branch
+    values, the part an agent needs to reconstruct the selected/unselected
+    look, never made it into the graph.
+    """
+
+    def test_simple_quoted_value_unwrapped(self):
+        props = parse_object_literal_props(" color: 'red', padding: 8 ")
+        assert ("color", "red") in props
+        assert ("padding", "8") in props
+
+    def test_ternary_with_quoted_branches_kept_whole(self):
+        block = "background: on ? color + '1e' : '#2e2e2e', border: '1px solid gray'"
+        props = dict(parse_object_literal_props(block))
+        assert props["background"] == "on ? color + '1e' : '#2e2e2e'"
+        assert props["border"] == "1px solid gray"
+
+    def test_condition_with_comparison_and_quoted_branches_kept_whole(self):
+        block = "background: value === o.value ? '#444' : 'transparent'"
+        props = dict(parse_object_literal_props(block))
+        assert props["background"] == "value === o.value ? '#444' : 'transparent'"
+
+    def test_template_literal_value_kept_whole(self):
+        block = "border: `1.5px solid ${C.border2}`"
+        props = dict(parse_object_literal_props(block))
+        assert props["border"] == "`1.5px solid ${C.border2}`"
+
+    def test_comma_inside_template_literal_does_not_split_pair(self):
+        block = "boxShadow: `0 0 0 1px ${C.accent}22, 0 4px 20px #0005`, opacity: 1"
+        props = dict(parse_object_literal_props(block))
+        assert props["boxShadow"] == "`0 0 0 1px ${C.accent}22, 0 4px 20px #0005`"
+        assert props["opacity"] == "1"
+
+    def test_entry_without_colon_is_skipped(self):
+        # A `...spread` entry inside the same block has no `key:` — must not
+        # be mistaken for a prop with an empty value.
+        props = parse_object_literal_props("...base, color: 'red'")
+        assert props == [("color", "red")]

@@ -22,8 +22,10 @@ from design_graph.core.patterns import (
     RE_JSX_CALL,
     RE_JSX_TAG,
 )
+from design_graph.extraction.icon_extractor import extract_icons
 from design_graph.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.extraction.visual_function import VisualFunctionCandidate
+from design_graph.parsing.js_parser import extract_return_block
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +115,14 @@ def extract_screens(
             continue
 
         component_refs = _collect_component_refs(body, exclude=boundary.name)
+        jsx_snippet, icons = _extract_screen_jsx(js, boundary)
 
         screens.append(ExtractedScreen(
             name=boundary.name,
             component_refs=sorted(component_refs),
             sections_count=0,
+            jsx_snippet=jsx_snippet,
+            icons=icons,
         ))
 
         logger.debug(
@@ -129,6 +134,20 @@ def extract_screens(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+def _extract_screen_jsx(js: str, boundary: FunctionBoundary) -> tuple[str, list]:
+    """
+    The screen's own return-block, sanitized the same way an
+    ExtractedComponent's jsx_snippet is: icons pulled out first (so the
+    sanitizer and every downstream reader only ever see the short marker),
+    then sanitize_jsx collapses dynamic expressions.
+    """
+    jsx_raw = extract_return_block(js, boundary.start, boundary.end)
+    if not jsx_raw:
+        return "", []
+    jsx_with_icon_refs, icons = extract_icons(jsx_raw)
+    return sanitize_jsx(jsx_with_icon_refs), icons
+
 
 def _collect_component_refs(body: str, exclude: str) -> set[str]:
     """

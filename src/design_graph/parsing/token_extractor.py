@@ -312,8 +312,9 @@ def _normalise_radius(raw: str) -> str:
 
 def _clean_radius_component(raw: str) -> str | None:
     """
-    The first space-separated component of a normalised radius value, or
-    None if it isn't a clean number with an optional px/% unit.
+    The first space-separated component of a normalised radius value,
+    canonicalised to one pixel representation, or None if it isn't a clean
+    number with an optional px/% unit.
 
     RE_BORDER_RADIUS's capture is permissive enough to pick up a JS token
     definition's trailing comma (`borderRadius: 8,`, as written inside
@@ -329,7 +330,20 @@ def _clean_radius_component(raw: str) -> str | None:
         return None
     first_component = normalised.split()[0]
     match = _RE_CLEAN_RADIUS_VALUE.fullmatch(first_component)
-    return first_component if match else None
+    return _canonicalise_radius_value(first_component) if match else None
+
+
+def _canonicalise_radius_value(clean_value: str) -> str:
+    """
+    Normalise an already-validated radius component to one pixel
+    representation, so `8` and `'8px'` — the same visual radius, since
+    React appends 'px' to a unitless numeric style value at render time —
+    count toward the same token instead of splitting usage across two
+    same-label entries with different literal `value` strings.
+    """
+    if clean_value.endswith("%"):
+        return clean_value
+    return clean_value if clean_value.endswith("px") else f"{clean_value}px"
 
 
 def _extract_radii(combined: str) -> list[DesignToken]:

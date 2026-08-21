@@ -199,7 +199,11 @@ TOOL_DEFINITIONS: list[dict] = [
         "name": "get_tokens",
         "description": (
             "Returns design tokens (colors and spacing). "
-            "Always call before writing any color or spacing value."
+            "Always call before writing any color or spacing value. "
+            "Pass screen to scope the list to tokens that screen's own components "
+            "actually use, instead of every token in the whole prototype ranked by "
+            "overall frequency — the global list can't tell you which hex is that "
+            "screen's canvas."
         ),
         "inputSchema": {
             "type": "object",
@@ -208,6 +212,10 @@ TOOL_DEFINITIONS: list[dict] = [
                     "type": "string",
                     "description": "Token category. Omit for all tokens.",
                     "enum": [c.value for c in TokenCategory],
+                },
+                "screen": {
+                    "type": "string",
+                    "description": "Screen name. Omit for every token in the prototype.",
                 },
                 "doc": _doc_param(),
             },
@@ -468,7 +476,7 @@ class ToolDispatcher:
             "get_screen":                lambda: self.get_screen(reader, name),
             "get_section":               lambda: self.get_section(reader, args.get("screen", ""), args.get("section", "")),
             "get_component":             lambda: self.get_component(reader, name),
-            "get_tokens":                lambda: self.get_tokens(reader, args.get("category")),
+            "get_tokens":                lambda: self.get_tokens(reader, args.get("category"), args.get("screen")),
             "find_token_usage":          lambda: self.find_token_usage(reader, args.get("value", "")),
             "impact":                    lambda: self.impact(reader, name),
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
@@ -777,11 +785,14 @@ class ToolDispatcher:
             lines.append(f"\n## Componentes filhos\n{', '.join(comp['children'])}")
         return "\n".join(lines)
 
-    def get_tokens(self, reader: GraphReader, category: str | None) -> str:
-        rows = reader.get_tokens(category)
+    def get_tokens(self, reader: GraphReader, category: str | None, screen: str | None = None) -> str:
+        rows = reader.get_tokens(category, screen)
         if not rows:
-            return "Nenhum token encontrado."
-        lines = ["# Design Tokens\n"]
+            return (
+                f"Nenhum token encontrado para a tela '{screen}'." if screen
+                else "Nenhum token encontrado."
+            )
+        lines = [f"# Design Tokens — tela {screen}\n" if screen else "# Design Tokens\n"]
         by_cat: dict[str, list] = {}
         for r in rows:
             by_cat.setdefault(r.get("t.category", "?"), []).append(r)
@@ -811,16 +822,25 @@ class ToolDispatcher:
         results = search(self._readers, query)
         if not results:
             return f"Nenhum resultado para '{query}'."
+        shown = results[:30]
         lines = [f"# Resultados para: '{query}'\n"]
+        if all(r.word_coverage < 1.0 for r in shown):
+            lines.append(
+                "> Nenhum resultado cobre todas as palavras da busca — os itens "
+                "abaixo são correspondências **parciais** (compartilham só parte "
+                "dos termos), não confirmam que a frase completa existe no "
+                "protótipo.\n"
+            )
         by_type: dict[str, list] = {}
-        for r in results[:30]:
+        for r in shown:
             by_type.setdefault(r.type, []).append(r)
         for t, items in sorted(by_type.items()):
             lines.append(f"## {t}")
             for item in items:
                 doc_tag = f" `[{item.doc}]`" if len(self._readers) > 1 else ""
                 detail  = f" — {item.detail}" if item.detail else ""
-                lines.append(f"- **{item.name}**{doc_tag}{detail}")
+                partial_tag = " *(parcial)*" if item.word_coverage < 1.0 else ""
+                lines.append(f"- **{item.name}**{doc_tag}{detail}{partial_tag}")
             lines.append("")
         return "\n".join(lines)
 
