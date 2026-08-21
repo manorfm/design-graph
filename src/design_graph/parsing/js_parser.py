@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from design_graph.core.constants import (
@@ -382,3 +383,95 @@ def find_all_boundaries(js: str) -> list[FunctionBoundary]:
     """
     raw = _raw_boundaries(js, RE_COMP_FN) + _raw_boundaries(js, RE_COMP_ARROW_FN)
     return _clip_sibling_overlaps(raw)
+
+
+# ── Object-literal parsing (style={{...}} and spread-source const objects) ─────
+#
+# The regex these two functions replaced (`RE_INLINE_STYLE` / `RE_STYLE_PROP`)
+# used plain character classes — `[^}]` for the block, `[^,"'}\n]` for a
+# value — to stay closing-brace- and comma-safe. Both classes break the
+# instant a *legitimate* JS value contains that character: a template
+# literal's `${cond ? a : b}` interpolation carries a `}` that isn't the
+# object's own closing brace, and a ternary's quoted branches
+# (`disabled ? 'not-allowed' : 'pointer'`) carry commas/quotes inside a
+# single value. The two functions below walk the text once, tracking quote/
+# template-literal state and bracket depth the same way find_matching_
+# delimiter already does for function bodies, so a value is only ever split
+# on a comma or closed on a brace that is truly its own.
+
+def iter_style_object_blocks(text: str) -> Iterator[str]:
+    """
+    Yield the inner content of every `style={{ ... }}` object literal found
+    in text, in source order.
+
+    Locates each `{{` pair by its balanced closing `}}` rather than by
+    scanning for the first `}` — so a template-literal interpolation nested
+    inside the block (`border: \\`1px solid ${C.border2}\\``) cannot cut the
+    block short before its real end.
+    """
+    for match in re.finditer(r"style=\{\{", text):
+        object_open = match.end() - 1
+        object_close = find_matching_delimiter(text, object_open, "{", "}")
+        if object_close is None:
+            continue
+        yield text[object_open + 1 : object_close - 1]
+
+
+def parse_object_literal_props(block: str) -> list[tuple[str, str]]:
+    """
+    Split a JS object-literal body (already unwrapped from its outer braces)
+    into its top-level `key: value` pairs, in source order.
+
+    Splits only on a comma at bracket depth 0 and outside a quote/template
+    literal, so a ternary or template-literal value that itself contains a
+    comma, a quote, or a brace survives whole instead of being cut at the
+    first such character found anywhere in the block. A quoted-literal value
+    (`'red'`) is unwrapped to its bare content, matching StyleEntry's
+    existing convention of storing literal values unquoted; any other value
+    (ternary, template literal, identifier, expression) is kept as written.
+    An entry with no top-level `:` (a `...spread`) is skipped rather than
+    recorded with an empty value.
+    """
+    pairs: list[tuple[str, str]] = []
+    depth = {"(": 0, "[": 0, "{": 0}
+    opening_for = {")": "(", "]": "[", "}": "{"}
+    quote: str | None = None
+    escaped = False
+    segment_start = 0
+
+    def flush(segment_end: int) -> None:
+        segment = block[segment_start:segment_end].strip()
+        if not segment:
+            return
+        key, separator, value = segment.partition(":")
+        if not separator:
+            return
+        pairs.append((key.strip(), _unwrap_quoted_literal(value.strip())))
+
+    for index, char in enumerate(block):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in "\"'`":
+            quote = char
+        elif char in depth:
+            depth[char] += 1
+        elif char in opening_for:
+            depth[opening_for[char]] = max(0, depth[opening_for[char]] - 1)
+        elif char == "," and not any(depth.values()):
+            flush(index)
+            segment_start = index + 1
+
+    flush(len(block))
+    return pairs
+
+
+def _unwrap_quoted_literal(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value

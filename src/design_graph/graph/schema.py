@@ -28,6 +28,7 @@ _NODE_TABLES: list[str] = [
         "  name STRING,"
         "  component_count INT64,"
         "  sections_count INT64,"
+        "  jsx_snippet STRING,"
         "  PRIMARY KEY(name)"
         ")"
     ),

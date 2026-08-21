@@ -557,11 +557,20 @@ class ExtractedScreen:
     """
     A React function identified as a top-level screen/page.
     sections_count is filled after SectionExtractor runs.
+
+    jsx_snippet is the screen's own return-block — the shell around its
+    children (header, grid, chrome) — captured the same way an
+    ExtractedComponent's is. Screens and components are deliberately
+    disjoint (coordinator.extract_react: "a screen boundary must never
+    also be extracted as a component"), so without its own jsx_snippet a
+    screen's root markup would never be stored anywhere.
     """
 
     name: str
     component_refs: list[str] = field(default_factory=list)  # direct children
     sections_count: int = 0
+    jsx_snippet: str = ""
+    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
 
 
 @dataclass(frozen=True)

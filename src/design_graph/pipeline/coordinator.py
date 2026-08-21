@@ -135,7 +135,9 @@ async def run_pipeline(
     )
 
     token_map = build_token_map(tokens)
-    icons = list({icon.id: icon for comp in extracted_comps for icon in comp.icons}.values())
+    icons_by_id = {icon.id: icon for comp in extracted_comps for icon in comp.icons}
+    icons_by_id.update({icon.id: icon for screen in screens for icon in screen.icons})
+    icons = list(icons_by_id.values())
 
     for screen in screens:
         screen.sections_count = len(sections_map.get(screen.name, []))

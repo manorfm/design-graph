@@ -250,6 +250,53 @@ class TestCoverageRanking:
         assert "AvatarBadge" in names
 
 
+class _StubReaderForPartialMatch:
+    """One UIText sharing only one of the query's two words — isolates the
+    'weak match found, no strong match exists' case from a genuine hit."""
+
+    def list_screens(self):
+        return []
+
+    def list_components(self, comp_type=None):
+        return []
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return [{"t.id": "t1", "t.content": "Alertas operacionais", "t.source": "InventoryOverview"}]
+
+
+class TestWordCoverageExposedOnResult:
+    """
+    search("Destinos operacionais") returned "Alertas operacionais" — a
+    UIText that shares only the word "operacionais" — indistinguishable in
+    the output from a genuine match on the full phrase. word_coverage was
+    already computed internally to rank results but discarded before
+    reaching the caller; a caller (or the rendering layer) needs it on the
+    result itself to tell "this matched everything you asked for" apart
+    from "this matched one word out of two".
+    """
+
+    def test_partial_word_match_has_coverage_below_one(self):
+        results = search([("home", _StubReaderForPartialMatch())], "Destinos operacionais")
+        assert results
+        assert results[0].word_coverage < 1.0
+
+    def test_full_word_match_has_coverage_of_one(self):
+        results = search([("home", _StubReaderForCoverage())], "Avatar Circle")
+        full = next(r for r in results if r.name == "AvatarCircle")
+        assert full.word_coverage == 1.0
+
+    def test_mixed_results_keep_distinct_coverage_values(self):
+        # AvatarCircle covers both query words; AvatarBadge covers only one —
+        # they must not collapse to the same word_coverage.
+        results = search([("home", _StubReaderForCoverage())], "Avatar Circle")
+        by_name = {r.name: r.word_coverage for r in results}
+        assert by_name["AvatarCircle"] == 1.0
+        assert by_name["AvatarBadge"] < 1.0
+
+
 class TestSearchHasNoRegexInjectionSurface:
     """
     A search query is external input (from an AI agent, not an

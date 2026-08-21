@@ -149,3 +149,93 @@ class TestQualityFilter:
         dummy = FunctionBoundary(name="Missing", start=0, body_start=0, end=0)
         result = extract_sections(js, screen, dummy)
         assert isinstance(result, list)
+
+
+TEMPLATE_LITERAL_STYLE_JS = """
+function RestaurantsPage() {
+    return (
+        <div>
+            {/* ── Header ── */}
+            <div style={{ padding: '24px', border: `1px solid ${C.border2}` }}>
+                <h1>Restaurantes</h1>
+                <BtnFilter />
+            </div>
+        </div>
+    )
+}
+"""
+
+
+LONG_DESCRIPTIVE_COMMENT_JS = """
+function RestaurantDetail() {
+    return (
+        <div>
+            {/* Quick KPIs */}
+            <div style={{ display: 'grid', gap: '1px', marginTop: '18px' }}>
+                {heroKpis.map(([l, v]) => <KpiCell key={l} label={l} value={v} />)}
+            </div>
+
+            {/* -- Painel unico: tabs + descricao + conteudo compartilham a mesma superficie -- */}
+            <div style={{ background: C.card2 }}>
+                <K.Tabs items={DETAIL_TABS} active={tab} onChange={setTab} />
+                {tab === 'menus' && <PricingPageV6 lockRestaurantId={r.id} />}
+                {tab === 'sectors' && <RestaurantSectorsView restaurantId={r.id} />}
+            </div>
+
+            {/* Edit modal */}
+            {editing && <EditRestaurantModal r={r} />}
+        </div>
+    )
+}
+"""
+
+
+class TestLongDescriptiveSectionComment:
+    """
+    Reproduces the RestaurantDetail screen from ipede_manager_v21.2: the
+    real prototype separates "Quick KPIs" from the tabs+content panel with
+    its own comment, `{/* -- Painel unico: tabs + descricao + conteudo
+    compartilham a mesma superficie -- */}` — but RE_SECTION_COMMENT's name
+    capture was hard-capped at 40 characters, so a comment whose text
+    (sandwiched between the `--` decorators) ran longer than that failed to
+    match at all. The panel's content — Tabs, PricingPageV6,
+    RestaurantSectorsView, every other tab — then silently fell inside the
+    *previous* section's block (Quick KPIs), and "Edit modal" became the
+    very next detected boundary.
+    """
+
+    def test_long_comment_still_starts_its_own_section(self):
+        boundary = _boundary(LONG_DESCRIPTIVE_COMMENT_JS, "RestaurantDetail")
+        sections = extract_sections(LONG_DESCRIPTIVE_COMMENT_JS, _screen("RestaurantDetail"), boundary)
+        assert len(sections) == 3
+
+    def test_panel_content_not_absorbed_into_kpis_section(self):
+        boundary = _boundary(LONG_DESCRIPTIVE_COMMENT_JS, "RestaurantDetail")
+        sections = extract_sections(LONG_DESCRIPTIVE_COMMENT_JS, _screen("RestaurantDetail"), boundary)
+        kpis = next(s for s in sections if "kpi" in s.name.lower())
+        assert "PricingPageV6" not in kpis.component_refs
+        assert "RestaurantSectorsView" not in kpis.component_refs
+
+    def test_panel_section_gets_short_label_before_colon(self):
+        boundary = _boundary(LONG_DESCRIPTIVE_COMMENT_JS, "RestaurantDetail")
+        sections = extract_sections(LONG_DESCRIPTIVE_COMMENT_JS, _screen("RestaurantDetail"), boundary)
+        panel = next(s for s in sections if "PricingPageV6" in s.component_refs)
+        assert panel.name.lower() == "painel unico"
+        assert len(panel.name) < 40
+
+
+class TestSectionStyleSurvivesTemplateLiteral:
+    """
+    Same `[^}]{5,600}` block-boundary bug as component_extractor: a style
+    block containing a template-literal interpolation (`${...}`) has a `}`
+    that isn't the object's real closing brace. section_extractor used the
+    same regex pair, so a section's own container style silently lost every
+    property whenever any one of them held a template literal.
+    """
+
+    def test_all_properties_captured_despite_template_literal(self):
+        boundary = _boundary(TEMPLATE_LITERAL_STYLE_JS)
+        sections = extract_sections(TEMPLATE_LITERAL_STYLE_JS, _screen(), boundary)
+        header = next(s for s in sections if "header" in s.name.lower())
+        assert header.styles.get("padding") == "24px"
+        assert header.styles.get("border") == "`1px solid ${C.border2}`"

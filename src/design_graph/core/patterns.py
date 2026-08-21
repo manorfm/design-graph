@@ -110,30 +110,33 @@ RE_COMPONENT_ALIAS = re.compile(
 )
 
 # ── Inline styles ─────────────────────────────────────────────────────────────
-
-RE_INLINE_STYLE = re.compile(r'style=\{\{([^}]{5,600})\}\}')
-RE_STYLE_PROP   = re.compile(r'(\w+)\s*:\s*["\']?([^,"\'}\n]{1,60})["\']?')
+#
+# Real StyleEntry extraction (component_extractor, section_extractor) locates
+# `style={{...}}` blocks and their `key: value` pairs via balanced-brace
+# scanning — parsing.js_parser.iter_style_object_blocks and
+# parse_object_literal_props — not regex, so a template-literal interpolation
+# or a ternary with quoted branches inside a value can't truncate the block
+# or the value early. The two regexes formerly here (`RE_INLINE_STYLE`,
+# `RE_STYLE_PROP`) had exactly that failure mode and were replaced outright.
 
 # An object-spread reference inside a style block: `...inputStyle` in
-# `style={{...inputStyle, width: 34}}`. RE_STYLE_PROP has no `key:` to
-# match against a bare spread token, so it silently drops it — this
+# `style={{...inputStyle, width: 34}}`. parse_object_literal_props has no
+# `key:` to match against a bare spread token, so it silently drops it — this
 # pattern names what was dropped, so the referenced object can be resolved
 # separately (component_extractor._find_const_object_body).
 RE_STYLE_SPREAD = re.compile(r'\.\.\.(\w+)')
 
-# Preview-only variant of RE_STYLE_PROP, used exclusively by the sanitizer's
-# long-style-block collapse (jsx_sanitizer._collapse_long_style_blocks) to
-# render a human/agent-readable "prop: value" summary. RE_STYLE_PROP itself
-# stays untouched — it feeds real StyleEntry extraction (component_extractor,
-# section_extractor), and its tighter contract (no ternary awareness, quotes
-# excluded from the captured value) is relied upon there.
+# Preview-only variant, used exclusively by the sanitizer's long-style-block
+# collapse (jsx_sanitizer._collapse_long_style_blocks) to render a
+# human/agent-readable "prop: value" summary — an independent, lighter-weight
+# parse than parse_object_literal_props because it only ever needs to display
+# a handful of properties, not build StyleEntry rows.
 #
 # A ternary value (`padding: cond ? '4px 8px' : '6px 10px'`) has no single
-# quoted literal to strip — RE_STYLE_PROP's plain char class stops at the
-# first quote it meets, truncating right after the `?` and losing both
-# branches. The ternary alternative below is tried first and keeps the full
-# expression (quotes and all); the second alternative reproduces
-# RE_STYLE_PROP's plain-value behaviour for everything else.
+# quoted literal to strip — a plain char class stops at the first quote it
+# meets, truncating right after the `?` and losing both branches. The
+# ternary alternative below is tried first and keeps the full expression
+# (quotes and all); the second alternative covers everything else.
 RE_STYLE_PROP_PREVIEW = re.compile(
     r'(\w+)\s*:\s*'
     r'('
@@ -213,9 +216,18 @@ RE_LABEL_TEXT  = re.compile(r'<(?:label|span)[^>]*>\s*["\']?([^<"\']{3,60})')
 
 
 # ── JSX section comments ──────────────────────────────────────────────────────
-
+#
+# The name capture is deliberately generous (up to 300 chars): a section
+# marker is as often a short decorated header (`── Header ──`) as it is a
+# longer descriptive sentence (`-- Painel unico: tabs + descricao +
+# conteudo compartilham a mesma superficie --`). A tight cap here doesn't
+# just truncate a long name — it makes the whole regex fail to match, so
+# the comment stops being recognised as a section boundary at all and
+# every component after it silently falls inside the *previous* section.
+# Deriving a short, displayable label from whatever text is captured is a
+# separate concern — see section_extractor._section_label.
 RE_SECTION_COMMENT = re.compile(
-    r'\{/\*\s*[─━\-=*]{0,6}\s*(.{2,40}?)\s*[─━\-=*]{0,6}\s*\*/\}'
+    r'\{/\*\s*[─━\-=*]{0,6}\s*(.{2,300}?)\s*[─━\-=*]{0,6}\s*\*/\}'
 )
 
 

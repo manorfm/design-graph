@@ -36,6 +36,21 @@ from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 logger = logging.getLogger(__name__)
 
 
+def _capped_jsx_snippet(owner: str, jsx_snippet: str) -> str:
+    """
+    A jsx_snippet truncated to MAX_JSX_SNIPPET_CHARS for storage, logging
+    when truncation actually happened. Shared by every node type that
+    stores one (Component, Section, Screen) so the cap and its log message
+    can't drift between them.
+    """
+    if len(jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
+        logger.debug(
+            "writer: jsx_snippet for %s capped at %d chars (was %d)",
+            owner, MAX_JSX_SNIPPET_CHARS, len(jsx_snippet),
+        )
+    return jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
+
+
 class GraphWriteSession:
     """
     Atomic write context for the design graph.
@@ -180,8 +195,8 @@ class GraphWriter:
             if screen.name in self._declared_screen_names:
                 continue
             self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc})",
-                {"n": screen.name, "sc": screen.sections_count},
+                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc, jsx_snippet:$s})",
+                {"n": screen.name, "sc": screen.sections_count, "s": _capped_jsx_snippet(screen.name, screen.jsx_snippet)},
             )
             self._declared_screen_names.add(screen.name)
 
@@ -199,12 +214,7 @@ class GraphWriter:
             return
 
         component_exists = self._node_exists("Component", "name", comp.name)
-        jsx = comp.jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
-        if len(comp.jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
-            logger.debug(
-                "writer: jsx_snippet for %s capped at %d chars (was %d)",
-                comp.name, MAX_JSX_SNIPPET_CHARS, len(comp.jsx_snippet),
-            )
+        jsx = _capped_jsx_snippet(comp.name, comp.jsx_snippet)
         if not component_exists:
             self._safe_execute(
                 "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, classes:$c})",
@@ -344,16 +354,17 @@ class GraphWriter:
         component_refs = [
             name for name in screen.component_refs if name not in self._declared_screen_names
         ]
+        jsx = _capped_jsx_snippet(screen.name, screen.jsx_snippet)
         if screen.name in self._declared_screen_names:
             self._safe_execute(
                 "MATCH (s:Screen {name:$n}) "
-                "SET s.component_count=$cc, s.sections_count=$sc",
-                {"n": screen.name, "cc": len(component_refs), "sc": len(sections)},
+                "SET s.component_count=$cc, s.sections_count=$sc, s.jsx_snippet=$s",
+                {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
             )
         else:
             self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc})",
-                {"n": screen.name, "cc": len(component_refs), "sc": len(sections)},
+                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, jsx_snippet:$s})",
+                {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
             )
 
         for comp_name in screen.component_refs:
@@ -373,12 +384,7 @@ class GraphWriter:
             )
 
         for section in sections:
-            sec_jsx = section.jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
-            if len(section.jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
-                logger.debug(
-                    "writer: jsx_snippet for section %s capped at %d chars (was %d)",
-                    section.id, MAX_JSX_SNIPPET_CHARS, len(section.jsx_snippet),
-                )
+            sec_jsx = _capped_jsx_snippet(f"section {section.id}", section.jsx_snippet)
             self._safe_execute(
                 "CREATE (:Section {id:$id, screen:$sc, name:$nm, "
                 "styles_json:$sj, components_json:$cj, texts_json:$tj, "

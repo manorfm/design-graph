@@ -385,6 +385,26 @@ class TestExtractRadii:
         tokens = extract_tokens(_sources(js=js))
         assert not any(t.category == "radius" for t in tokens)
 
+    def test_bare_number_and_px_suffixed_forms_merge_into_one_token(self):
+        # React appends 'px' to a unitless numeric style value at render
+        # time, so `borderRadius: 8` and `borderRadius: '8px'` are the same
+        # visual radius — but were counted under separate raw strings ("8"
+        # vs "8px"), producing two same-label radius_sm tokens with split
+        # usage counts instead of one token an agent could trust as "the"
+        # small radius.
+        js = "borderRadius: 8\n" * 2 + "borderRadius: '8px'\n" * 2
+        tokens = [t for t in extract_tokens(_sources(js=js)) if t.category == "radius"]
+        assert len(tokens) == 1
+        assert tokens[0].value == "8px"
+        assert tokens[0].usage == 4
+
+    def test_bare_number_radius_gets_canonical_px_value(self):
+        js = "borderRadius: 8\n" * 3
+        tokens = [t for t in extract_tokens(_sources(js=js)) if t.category == "radius"]
+        assert len(tokens) == 1
+        assert tokens[0].value == "8px"
+        assert tokens[0].label == "radius_sm"
+
 
 REPEATED_CSS_VARS_CSS = """
 :root {

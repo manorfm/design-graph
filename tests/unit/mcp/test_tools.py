@@ -32,7 +32,7 @@ class MockReader:
             return ["Badge"]
         return []
 
-    def get_tokens(self, category=None):
+    def get_tokens(self, category=None, screen=None):
         return [{"t.label": "primary", "t.value": "#ffb81c",
                  "t.category": "color", "t.id": "col_1", "t.usage": 5}]
 
@@ -138,6 +138,34 @@ class TestDispatch:
         d = _dispatcher(2)
         result = d.dispatch("search", {"query": "primary"}, "")
         assert isinstance(result, str)
+
+
+class _WeakMatchOnlyReader:
+    """
+    A single UIText sharing only one of a two-word query's words with the
+    text — no result anywhere covers the full query. Reproduces
+    search("Destinos operacionais") returning "Alertas operacionais" with
+    nothing in the rendered output to say it's a partial, not exact, hit.
+    """
+
+    def list_screens(self): return []
+    def list_components(self, comp_type=None): return []
+    def get_tokens(self, category=None): return []
+    def list_texts(self):
+        return [{"t.id": "t1", "t.content": "Alertas operacionais", "t.source": "InventoryOverview"}]
+
+
+class TestSearchWeakMatchWarning:
+    def test_partial_only_results_carry_an_explicit_warning(self):
+        d = ToolDispatcher([("doc1", _WeakMatchOnlyReader())])
+        result = d.dispatch("search", {"query": "Destinos operacionais"}, "doc1")
+        assert "Alertas operacionais" in result
+        assert "parcial" in result.lower()
+
+    def test_full_match_carries_no_partial_warning(self):
+        d = ToolDispatcher([("doc1", MockReader())])
+        result = d.dispatch("search", {"query": "RestaurantsPage"}, "doc1")
+        assert "parcial" not in result.lower()
 
 
 class TestListComponentsTool:

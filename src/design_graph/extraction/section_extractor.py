@@ -29,14 +29,12 @@ from design_graph.core.models import (
     FunctionBoundary,
 )
 from design_graph.parsing.html_parser import extract_semantic_sections
+from design_graph.parsing.js_parser import iter_style_object_blocks, parse_object_literal_props
 from design_graph.core.patterns import (
-    RE_CLASS_NAME,
     RE_COMP_REF,
-    RE_INLINE_STYLE,
     RE_JSX_TAG,
     RE_PLACEHOLDER,
     RE_SECTION_COMMENT,
-    RE_STYLE_PROP,
     RE_UI_STRING,
 )
 
@@ -83,9 +81,31 @@ def extract_sections(
 
 # ── Strategy 1: JSX comment markers ──────────────────────────────────────────
 
+_MAX_SECTION_LABEL_CHARS = 40
+
+
+def _section_label(raw_comment_text: str) -> str:
+    """
+    Derive a short, displayable section name from a comment's raw captured
+    text (RE_SECTION_COMMENT's generous, boundary-detection-only capture).
+
+    A descriptive comment routinely elaborates past its own name
+    (`Painel unico: tabs + descricao + conteudo compartilham a mesma
+    superficie`) — the same `label: elaboration` convention its author
+    already used to separate the two, so the phrase before the first `:`
+    is the label. A comment with no `:` (`── Header ──`) is short by
+    construction and used whole, hard-capped only as a last resort against
+    a pathological one-sentence comment with no punctuation at all.
+    """
+    label = raw_comment_text.split(":", 1)[0].strip()
+    if len(label) > _MAX_SECTION_LABEL_CHARS:
+        label = label[:_MAX_SECTION_LABEL_CHARS].rstrip()
+    return label
+
+
 def _detect_by_comments(window: str, screen_name: str) -> list[ExtractedSection]:
     comment_positions = [
-        (m.start(), m.end(), m.group(1).strip())
+        (m.start(), m.end(), _section_label(m.group(1)))
         for m in RE_SECTION_COMMENT.finditer(window)
     ]
 
@@ -175,9 +195,8 @@ def _build_section(
 ) -> ExtractedSection:
     # Styles
     styles: dict[str, str] = {}
-    for sm in RE_INLINE_STYLE.finditer(block):
-        for prop, val in RE_STYLE_PROP.findall(sm.group(1)):
-            val = val.strip().rstrip(",").strip()
+    for style_block in iter_style_object_blocks(block):
+        for prop, val in parse_object_literal_props(style_block):
             if val and val not in ("true", "false", "null", "undefined"):
                 styles[prop] = val
 
