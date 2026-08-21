@@ -16,7 +16,11 @@ from collections import defaultdict
 
 import kuzu
 
-from design_graph.core.constants import LAYOUT_CSS_PROPERTIES, _LAYOUT_FAST_PATH_PROPERTIES
+from design_graph.core.constants import (
+    DECORATIVE_DIMENSION_MAX_PX,
+    LAYOUT_CSS_PROPERTIES,
+    _LAYOUT_FAST_PATH_PROPERTIES,
+)
 from design_graph.core.models import resolve_icon_markers
 from design_graph.core.patterns import RE_ICON_MARKER
 
@@ -1050,6 +1054,26 @@ def _assemble_screen_full(
     }
 
 
+def _pixel_magnitude(value: str) -> float | None:
+    """A bare or `px`-suffixed number's magnitude, or None for anything
+    else (a percentage, a keyword like `auto`, an unparsable value) —
+    those are never candidates for the decorative-dimension check."""
+    v = value.strip()
+    if not v or v.endswith("%"):
+        return None
+    if v.endswith("px"):
+        v = v[:-2]
+    try:
+        return float(v)
+    except ValueError:
+        return None
+
+
+def _is_decorative_dimension(value: str) -> bool:
+    magnitude = _pixel_magnitude(value)
+    return magnitude is not None and 0 < magnitude <= DECORATIVE_DIMENSION_MAX_PX
+
+
 def _build_layout_profile(comp_name: str, layout_props: dict[str, str]) -> dict:
     """
     Build a normalised layout profile dict from a raw property→value map.
@@ -1057,14 +1081,25 @@ def _build_layout_profile(comp_name: str, layout_props: dict[str, str]) -> dict:
     First-class fields (display, width, flex_direction, …) are lifted to named
     keys with snake_case names.  Any remaining layout property that has no
     first-class key is collected in ``extra_layout``.
+
+    width/height are hidden together when both are present and both read
+    as a decorative-sized dimension (see DECORATIVE_DIMENSION_MAX_PX) —
+    style capture has no notion of which JSX node within a component a
+    style came from, so a tiny nested decoration's dimensions would
+    otherwise be indistinguishable from the component's own real size.
     """
+    hide_dimensions = (
+        "width" in layout_props and "height" in layout_props
+        and _is_decorative_dimension(layout_props["width"])
+        and _is_decorative_dimension(layout_props["height"])
+    )
     extra = {k: v for k, v in layout_props.items() if k not in _LAYOUT_FAST_PATH_PROPERTIES}
     return {
         "component_name":  comp_name,
         "display":         layout_props.get("display"),
         "position":        layout_props.get("position"),
-        "width":           layout_props.get("width"),
-        "height":          layout_props.get("height"),
+        "width":           None if hide_dimensions else layout_props.get("width"),
+        "height":          None if hide_dimensions else layout_props.get("height"),
         "padding":         layout_props.get("padding"),
         "padding_top":     layout_props.get("paddingTop"),
         "padding_right":   layout_props.get("paddingRight"),

@@ -311,9 +311,7 @@ def extract_component(
     # Text extraction
     def _add_text(content: str, text_type: TextType, element: str = "") -> None:
         c = content.strip()
-        if not c or len(c) < 3 or len(c) > 80:
-            return
-        if re.match(r"^[a-z_]+$", c) or c.startswith(("#", "rgba")):
+        if not TextEntry.is_plausible_content(c):
             return
         entry = TextEntry.create(content=c, text_type=text_type, source=boundary.name, element=element)
         if entry.id not in seen_text_ids and len(texts) < MAX_TEXTS_PER_COMPONENT:

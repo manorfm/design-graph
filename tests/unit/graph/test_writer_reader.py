@@ -160,6 +160,44 @@ class TestWriteIcons:
         assert result.get_next()[0] == 1
 
 
+class TestWriteModuleTexts:
+    """
+    UIText from a module-level constant array (const DETAIL_TABS = [...])
+    has no owning Component or Section — that's the whole point, it's
+    text no other extractor could ever attach to one. write_module_texts
+    inserts the UIText node on its own, with no COMP_HAS_TEXT/
+    SECTION_HAS_TEXT edge, and it's still directly queryable exactly like
+    every other UIText (list_texts/search don't require an edge).
+    """
+
+    def test_inserts_uitext_node(self, writer):
+        gw, conn = writer
+        text = TextEntry.create(content="Cardápio & Preço", text_type="label", source="DETAIL_TABS")
+        count = gw.write_module_texts([text])
+        assert count == 1
+        result = conn.execute(f"MATCH (t:UIText {{id:'{text.id}'}}) RETURN t.content, t.source")
+        row = result.get_next()
+        assert row[0] == "Cardápio & Preço"
+        assert row[1] == "DETAIL_TABS"
+
+    def test_idempotent_duplicate(self, writer):
+        gw, conn = writer
+        text = TextEntry.create(content="Produção & Setores", text_type="label", source="DETAIL_TABS")
+        gw.write_module_texts([text])
+        count = gw.write_module_texts([text])
+        assert count == 0
+        result = conn.execute(f"MATCH (t:UIText {{id:'{text.id}'}}) RETURN count(t)")
+        assert result.get_next()[0] == 1
+
+    def test_findable_via_list_texts_with_no_owning_component(self, writer):
+        gw, conn = writer
+        text = TextEntry.create(content="Visão Geral", text_type="label", source="DETAIL_TABS")
+        gw.write_module_texts([text])
+        reader = GraphReader(conn)
+        contents = {t["t.content"] for t in reader.list_texts()}
+        assert "Visão Geral" in contents
+
+
 class TestWriteComponent:
     def _make_comp(self, name, child_refs=None):
         return ExtractedComponent(

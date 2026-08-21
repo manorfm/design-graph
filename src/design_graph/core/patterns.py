@@ -214,6 +214,12 @@ RE_HEADING     = re.compile(r'<h[1-6][^>]*>\s*["\']?([^<"\']{3,60})')
 RE_BUTTON_TEXT = re.compile(r'<(?:button|Btn)[\s\S]*?>\s*\n?\s*([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^<"\']{1,39})')
 RE_LABEL_TEXT  = re.compile(r'<(?:label|span)[^>]*>\s*["\']?([^<"\']{3,60})')
 
+# A raw string candidate that reads as a code artifact rather than visible
+# copy: a lowercase/underscore identifier (`flex_start`, `overview`) or a
+# color literal (`#1a1a1a`, `rgba(0,0,0,.5)` — the latter caught by its
+# `rgba` prefix, not this pattern). Backs TextEntry.is_plausible_content.
+RE_IDENTIFIER_SHAPED_TOKEN = re.compile(r"^[a-z_]+$")
+
 
 # ── JSX section comments ──────────────────────────────────────────────────────
 #

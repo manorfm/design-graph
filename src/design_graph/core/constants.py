@@ -190,6 +190,19 @@ _LAYOUT_FAST_PATH_PROPERTIES: frozenset[str] = frozenset({
     "flexDirection", "alignItems", "justifyContent", "gap", "overflow", "zIndex",
 })
 
+# A bare pixel width/height at or under this size reads as a decorative
+# indicator (a status dot, a Segmented track's selection marker) rather
+# than real spatial structure. Style capture has no notion of which JSX
+# node within a component a given style came from (StyleEntry.element is
+# the component's name, not a node identity), so a component's own real
+# container dimensions and a tiny nested decoration's dimensions land in
+# the same flat property→value map. _build_layout_profile hides width AND
+# height together only when BOTH are present and BOTH are this small —
+# a real layout element practically never reports both that tiny at once,
+# while a lone small width (a fixed-size icon) or a percentage/keyword
+# value is left untouched as a genuine signal.
+DECORATIVE_DIMENSION_MAX_PX = 12
+
 # Maximum characters stored for a JSX snippet in the graph.
 # Prevents oversized components from bloating the database and MCP responses.
 MAX_JSX_SNIPPET_CHARS = 8_000

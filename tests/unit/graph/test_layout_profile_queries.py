@@ -205,3 +205,53 @@ class TestBuildLayoutProfileHelper:
         assert profile["padding_top"] == "8px"
         assert profile["padding_bottom"] == "16px"
         assert profile["padding"] is None
+
+
+class TestBuildLayoutProfileHidesDecorativeDimensions:
+    """
+    Reproduces PricingPageV6 in the real ipede_manager_v21.2 prototype:
+    get_screen_layout("RestaurantDetail") mixed the Segmented indicator
+    dot's `width: 7, height: 7` in with the component's real macro layout
+    (`gridTemplateColumns: '1fr 340px'`) — both StyleEntry rows share the
+    same component name regardless of which JSX node they came from, so
+    they land in the same flat property→value map with no way to tell
+    "this is the container" from "this is a 7px decoration nested inside
+    it". A real layout element practically never reports both width AND
+    height that small at once — a lone small width (an icon's fixed size)
+    or a percentage/keyword value is left untouched.
+    """
+
+    def test_tiny_width_and_height_pair_is_hidden(self):
+        profile = _build_layout_profile("Segmented", {"width": "7", "height": "7"})
+        assert profile["width"] is None
+        assert profile["height"] is None
+
+    def test_tiny_pair_with_px_suffix_is_also_hidden(self):
+        profile = _build_layout_profile("Dot", {"width": "7px", "height": "7px"})
+        assert profile["width"] is None
+        assert profile["height"] is None
+
+    def test_real_grid_layout_survives_alongside_hidden_dimensions(self):
+        profile = _build_layout_profile("PricingPageV6", {
+            "width": "7", "height": "7", "gridTemplateColumns": "1fr 340px", "display": "grid",
+        })
+        assert profile["width"] is None
+        assert profile["height"] is None
+        assert profile["display"] == "grid"
+        assert profile["extra_layout"]["gridTemplateColumns"] == "1fr 340px"
+
+    def test_lone_small_width_without_matching_height_is_kept(self):
+        # A fixed-size icon or a sidebar's own single dimension — no pair
+        # to be suspicious of, so it's left as a real signal.
+        profile = _build_layout_profile("IconBtn", {"width": "7"})
+        assert profile["width"] == "7"
+
+    def test_percentage_width_is_never_treated_as_decorative(self):
+        profile = _build_layout_profile("FlexCard", {"width": "100%", "height": "7"})
+        assert profile["width"] == "100%"
+        assert profile["height"] == "7"
+
+    def test_large_matching_pair_is_kept(self):
+        profile = _build_layout_profile("Avatar", {"width": "48", "height": "48"})
+        assert profile["width"] == "48"
+        assert profile["height"] == "48"

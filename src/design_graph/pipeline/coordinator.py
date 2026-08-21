@@ -32,6 +32,7 @@ from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBounda
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
 from design_graph.extraction.alias_extractor import apply_aliases, extract_component_aliases
 from design_graph.extraction.component_extractor import extract_all_components, select_renderable_boundaries
+from design_graph.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
@@ -117,11 +118,11 @@ async def run_pipeline(
     _reporter.phase_started("Parsing boundaries and tokens", total=0)
     phase.start()
     if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
-        extracted_comps, screens, sections_map, tokens = await extract_plain_html(
+        extracted_comps, screens, sections_map, tokens, module_texts = await extract_plain_html(
             sources, concurrency=concurrency
         )
     else:
-        extracted_comps, screens, sections_map, tokens = await extract_react(
+        extracted_comps, screens, sections_map, tokens, module_texts = await extract_react(
             sources,
             concurrency=concurrency,
             on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
@@ -143,12 +144,12 @@ async def run_pipeline(
         screen.sections_count = len(sections_map.get(screen.name, []))
 
     logger.info(
-        "pipeline: %d screens, %d components, %d tokens, %d icons (format=%s)",
-        len(screens), len(extracted_comps), len(tokens), len(icons), sources.format,
+        "pipeline: %d screens, %d components, %d tokens, %d icons, %d module texts (format=%s)",
+        len(screens), len(extracted_comps), len(tokens), len(icons), len(module_texts), sources.format,
     )
 
     # ── Phase 5: Sequential graph writes (atomic via GraphWriteSession) ──────
-    write_total = len(extracted_comps) + len(screens) + len(tokens) + len(icons)
+    write_total = len(extracted_comps) + len(screens) + len(tokens) + len(icons) + len(module_texts)
     _reporter.phase_started("Writing graph", total=write_total)
     phase.start()
 
@@ -156,8 +157,9 @@ async def run_pipeline(
     with GraphWriteSession(db_path) as writer:
         writer.write_tokens(tokens)
         writer.write_icons(icons)
+        writer.write_module_texts(module_texts)
         writer.declare_screens(screens)
-        item_index = len(tokens) + len(icons)
+        item_index = len(tokens) + len(icons) + len(module_texts)
 
         for comp in extracted_comps:
             writer.write_component(comp, token_map)
@@ -223,10 +225,10 @@ async def extract_react(
     sources,
     concurrency: int,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
-) -> tuple[list, list, dict, list]:
+) -> tuple[list, list, dict, list, list]:
     """
     Phases 2–4 for bundled_react and tailwind formats.
-    Returns (extracted_comps, screens, sections_map, tokens).
+    Returns (extracted_comps, screens, sections_map, tokens, module_texts).
 
     Public — also reused directly by cli/build.py's chunk-export path so both
     entry points share one screen/component split (a screen boundary must
@@ -238,6 +240,11 @@ async def extract_react(
     tokens_task     = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
     boundaries_task = asyncio.create_task(asyncio.to_thread(find_all_boundaries, sources.js))
     tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
+
+    # UI copy from shared module-level constant arrays (const DETAIL_TABS =
+    # [...]) — outside every function boundary by construction, so it's the
+    # one text source component/section extraction can never see.
+    module_texts = extract_module_level_texts(sources.js, all_boundaries)
 
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
@@ -296,19 +303,22 @@ async def extract_react(
             for screen_name, sections in sections_map.items()
         }
 
-    return extracted_comps, screens, sections_map, tokens
+    return extracted_comps, screens, sections_map, tokens, module_texts
 
 
 async def extract_plain_html(
     sources,
     concurrency: int,
-) -> tuple[list, list, dict, list]:
+) -> tuple[list, list, dict, list, list]:
     """
     Phases 2–4 for plain_html format.
 
     Uses html_parser to detect repeating DOM patterns (components) and
     HTML5 semantic elements (sections). No JavaScript boundary detection.
-    Returns (extracted_comps, screens, sections_map, tokens).
+    Returns (extracted_comps, screens, sections_map, tokens, module_texts).
+    module_texts is always empty here — the module-level-constant-array
+    pattern it covers (const DETAIL_TABS = [...]) is a JS/JSX source
+    concept with no plain-HTML equivalent to detect.
 
     Public — also reused directly by cli/build.py's chunk-export path.
     """
@@ -339,7 +349,7 @@ async def extract_plain_html(
         "plain_html: %d DOM patterns → %d components, %d semantic sections",
         len(patterns), len(extracted_comps), len(sections),
     )
-    return extracted_comps, [screen], sections_map, tokens
+    return extracted_comps, [screen], sections_map, tokens, []
 
 
 def _has_react_functions(js: str) -> bool:
