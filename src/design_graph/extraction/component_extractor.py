@@ -43,14 +43,12 @@ from design_graph.core.patterns import (
     RE_CLASS_NAME,
     RE_COMP_REF,
     RE_HEADING,
-    RE_INLINE_STYLE,
     RE_JSX_MARKER_COMP,
     RE_JSX_TAG,
     RE_LABEL_TEXT,
     RE_NATIVE_HTML_TAG,
     RE_PLACEHOLDER,
     RE_STYLE_MUTATION,
-    RE_STYLE_PROP,
     RE_STYLE_SPREAD,
     RE_TOOLTIP_TEXT,
     RE_TRANSITION,
@@ -65,7 +63,12 @@ from design_graph.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
-from design_graph.parsing.js_parser import extract_return_block, find_matching_delimiter
+from design_graph.parsing.js_parser import (
+    extract_return_block,
+    find_matching_delimiter,
+    iter_style_object_blocks,
+    parse_object_literal_props,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -201,20 +204,19 @@ def extract_component(
     # inside the component that spreads them — with local properties in
     # the same block taking precedence over the same property name coming
     # from the spread (JS's own semantics for `{...base, override}`).
-    for sm in RE_INLINE_STYLE.finditer(window):
+    for style_block in iter_style_object_blocks(window):
         if len(styles) >= MAX_STYLES_PER_COMPONENT:
             break
-        style_block = sm.group(1)
-        local_props = {prop for prop, _ in RE_STYLE_PROP.findall(style_block)}
-        for prop, val in RE_STYLE_PROP.findall(style_block):
+        local_props = parse_object_literal_props(style_block)
+        for prop, val in local_props:
             _add_literal_style(prop, val)
 
-        already_resolved = set(local_props)
+        already_resolved = {prop for prop, _ in local_props}
         for spread_name in RE_STYLE_SPREAD.findall(style_block):
             spread_body = _find_const_object_body(js, spread_name)
             if spread_body is None:
                 continue
-            for prop, val in RE_STYLE_PROP.findall(spread_body):
+            for prop, val in parse_object_literal_props(spread_body):
                 if prop in already_resolved:
                     continue
                 if _add_literal_style(prop, val):

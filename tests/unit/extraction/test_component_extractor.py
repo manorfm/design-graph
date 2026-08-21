@@ -428,6 +428,59 @@ class TestStateToggleHoverInteractions:
         props = {i.css_prop for i in comp.interactions if i.trigger == "hover"}
         assert props == {"border", "transform"}
 
+
+CHIP_LIKE_JS = """
+function Chip({ on, color, label, dot }) {
+    return (
+        <button style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 16,
+            cursor: 'pointer', background: on ? color + '1e' : '#2e2e2e', border: `1px solid ${on ? color : C.border2}`,
+            color: on ? color : C.muted,
+        }}>
+            {dot && <span style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />}
+            {label}
+        </button>
+    )
+}
+"""
+
+
+class TestRootStyleSurvivesTemplateLiteralInSiblingBlock:
+    """
+    Reproduces the Chip component from the ipede_manager_v21.2 prototype:
+    the root <button>'s style block used a ternary directly (no template
+    literal), but get_component_spec("Chip") still showed the nested
+    <span>'s 7px-dot styles (width/height/borderRadius/background) as if
+    they were the component's own default look — because the old
+    `[^}]{5,600}` block regex silently failed to match the root block at
+    all whenever *any* later property broke its assumptions, leaving only
+    the sibling block's clean, simple object to be found.
+    """
+
+    def test_root_button_styles_are_captured(self):
+        b = _boundary(CHIP_LIKE_JS, "Chip")
+        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        default_props = {s.property for s in comp.styles if s.state == "default"}
+        assert "display" in default_props
+        assert "borderRadius" in default_props
+        assert "padding" in default_props
+
+    def test_both_root_and_child_blocks_are_captured(self):
+        b = _boundary(CHIP_LIKE_JS, "Chip")
+        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        default_props = {s.property for s in comp.styles if s.state == "default"}
+        # Root <button> block:
+        assert {"display", "cursor", "background"} <= default_props
+        # Nested <span> block:
+        assert {"width", "height"} <= default_props
+
+    def test_ternary_value_kept_whole_not_truncated_at_condition(self):
+        b = _boundary(CHIP_LIKE_JS, "Chip")
+        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        background = next(s for s in comp.styles if s.property == "background" and s.state == "default")
+        assert background.value == "on ? color + '1e' : '#2e2e2e'"
+        assert not background.value.rstrip().endswith("?")
+
     def test_hover_state_style_entry_recorded(self):
         b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
         comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})

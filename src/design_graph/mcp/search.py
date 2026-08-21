@@ -25,6 +25,7 @@ class SearchResult:
     id: str      # unique identifier within its type
     doc: str     # prototype/document name
     score: int   # 0–100
+    word_coverage: float = 1.0  # fraction of the query's distinct words this result actually matched
 
 
 def score_match(name: str, query: str) -> int:
@@ -115,9 +116,12 @@ def search(
                 if current_best is None or result.score > current_best.score:
                     best_by_key[key] = result
 
+    for result in best_by_key.values():
+        result.word_coverage = _word_coverage(result, query_words)
+
     ranked = sorted(
         best_by_key.values(),
-        key=lambda r: (-_word_coverage(r, query_words), -r.score),
+        key=lambda r: (-r.word_coverage, -r.score),
     )
     logger.debug(
         "search: query=%r terms=%r found=%d", query, terms, len(ranked)

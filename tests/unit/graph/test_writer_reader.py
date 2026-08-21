@@ -418,6 +418,82 @@ class TestGetScreen:
         assert len(screen["sections"]) >= 1
 
 
+@pytest.fixture
+def two_screen_db(tmp_path):
+    """
+    Two screens, each using a component styled with a different token, so
+    get_tokens(screen=...) has something real to distinguish:
+    - Token 'primary' (#ffb81c) → Component BtnWithBadge → Screen RestaurantsPage
+    - Token 'dark' (#111111)    → Component DarkCard      → Screen OrdersPage
+    """
+    db = kuzu.Database(str(tmp_path / "two_screen.db"))
+    conn = kuzu.Connection(db)
+    initialize_schema(conn)
+    gw = GraphWriter(conn)
+
+    primary = DesignToken(id="col_primary", category="color", label="primary", value="#ffb81c", usage=5)
+    dark = DesignToken(id="col_dark", category="color", label="dark", value="#111111", usage=3)
+    gw.write_tokens([primary, dark])
+    tm = build_token_map([primary, dark])
+
+    btn = ExtractedComponent(
+        name="BtnWithBadge", comp_type="button", jsx_snippet="<button/>",
+        occurrence=1, classes="", child_refs=[],
+        styles=[StyleEntry(id="st_primary", element="BtnWithBadge", state="default",
+                           property="backgroundColor", value="#ffb81c")],
+        interactions=[], texts=[],
+    )
+    gw.write_component(btn, tm)
+
+    dark_card = ExtractedComponent(
+        name="DarkCard", comp_type="card", jsx_snippet="<div/>",
+        occurrence=1, classes="", child_refs=[],
+        styles=[StyleEntry(id="st_dark", element="DarkCard", state="default",
+                           property="backgroundColor", value="#111111")],
+        interactions=[], texts=[],
+    )
+    gw.write_component(dark_card, tm)
+
+    restaurants = ExtractedScreen(name="RestaurantsPage", component_refs=["BtnWithBadge"], sections_count=0)
+    orders = ExtractedScreen(name="OrdersPage", component_refs=["DarkCard"], sections_count=0)
+    gw.write_screen(restaurants, [], tm)
+    gw.write_screen(orders, [], tm)
+
+    ro_db = kuzu.Database(str(tmp_path / "two_screen.db"), read_only=True)
+    ro_conn = kuzu.Connection(ro_db)
+    return GraphReader(ro_conn)
+
+
+class TestGetTokensScopedByScreen:
+    """
+    get_tokens() with no scope is one global list ranked by prototype-wide
+    frequency — useful for "what colors exist", useless for "what's the
+    canvas of screen X" once dozens of unrelated screens share one
+    catalog. screen= narrows to tokens actually reachable from that
+    screen's own components, via the same USES_COMPONENT → CONTAINS*
+    closure find_token_usage already uses for its screen listing.
+    """
+
+    def test_no_screen_returns_every_token(self, two_screen_db):
+        labels = {t["t.label"] for t in two_screen_db.get_tokens()}
+        assert labels == {"primary", "dark"}
+
+    def test_screen_scope_includes_only_its_own_tokens(self, two_screen_db):
+        labels = {t["t.label"] for t in two_screen_db.get_tokens(screen="RestaurantsPage")}
+        assert labels == {"primary"}
+
+    def test_other_screen_scope_excludes_it(self, two_screen_db):
+        labels = {t["t.label"] for t in two_screen_db.get_tokens(screen="OrdersPage")}
+        assert labels == {"dark"}
+
+    def test_unknown_screen_returns_no_tokens(self, two_screen_db):
+        assert two_screen_db.get_tokens(screen="NoSuchScreen") == []
+
+    def test_screen_scope_composes_with_category(self, two_screen_db):
+        labels = {t["t.label"] for t in two_screen_db.get_tokens(category="color", screen="RestaurantsPage")}
+        assert labels == {"primary"}
+
+
 class TestGetComponentChildren:
     def test_returns_direct_children(self, populated_db):
         children = populated_db.reader.get_component_children("BtnWithBadge")
@@ -553,3 +629,65 @@ class TestJsxSnippetSizeCap:
         fresh_writer.writer.write_component(comp, {})
         result = fresh_writer.reader.get_component("SmallComp")
         assert result["c.jsx_snippet"] == jsx
+
+    def test_oversized_screen_jsx_is_capped(self, fresh_writer):
+        from design_graph.core.models import ExtractedScreen
+        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        screen = ExtractedScreen(
+            name="BigScreen", component_refs=[], sections_count=0,
+            jsx_snippet=self._oversized_jsx(),
+        )
+        fresh_writer.writer.declare_screens([screen])
+        stored = fresh_writer.reader.get_full_jsx("BigScreen")
+        assert stored.startswith("<div>"), "screen fallback did not return the stored jsx_snippet at all"
+        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
+            f"Stored screen jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        )
+
+
+class TestGetFullJsxFallsBackToScreen:
+    """
+    get_full_jsx('ItemEditorV6') failed outright before this: a full-page
+    overlay shell is classified as a Screen and (deliberately) never also
+    extracted as a Component, so a Component-only lookup always came up
+    empty for it. get_full_jsx must resolve a Screen's own jsx_snippet
+    when no Component of that name exists — not report the screen's shell
+    JSX as "unavailable" when it was captured, just filed differently.
+    """
+
+    @pytest.fixture()
+    def fresh_writer(self, tmp_path):
+        db = kuzu.Database(str(tmp_path / "screen_jsx.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+
+    def test_screen_without_matching_component_returns_its_own_jsx(self, fresh_writer):
+        screen = ExtractedScreen(
+            name="ItemEditorV6", component_refs=["BasicTab"], sections_count=0,
+            jsx_snippet="<div className='shell'>{tab === 'basic' && <BasicTab />}</div>",
+        )
+        fresh_writer.writer.declare_screens([screen])
+        result = fresh_writer.reader.get_full_jsx("ItemEditorV6")
+        assert "shell" in result
+        assert "BasicTab" in result
+
+    def test_component_of_same_name_still_takes_precedence(self, fresh_writer):
+        # A name that resolves to a real Component (the common case) must
+        # keep returning the Component's JSX unchanged — the Screen
+        # fallback only fires when no Component matches at all.
+        comp = ExtractedComponent(
+            name="PricingPageV6", comp_type="card", jsx_snippet="<div>component version</div>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
+        )
+        fresh_writer.writer.write_component(comp, {})
+        screen = ExtractedScreen(
+            name="PricingPageV6", component_refs=[], sections_count=0,
+            jsx_snippet="<div>should not surface</div>",
+        )
+        fresh_writer.writer.declare_screens([screen])
+        result = fresh_writer.reader.get_full_jsx("PricingPageV6")
+        assert result == "<div>component version</div>"
+
+    def test_unknown_name_still_returns_empty(self, fresh_writer):
+        assert fresh_writer.reader.get_full_jsx("NoSuchThing") == ""
