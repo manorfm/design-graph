@@ -17,7 +17,7 @@ import pytest
 
 from design_graph.core.models import DesignToken, ExtractedComponent
 from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriteSession, GraphWriter
+from design_graph.graph.writer import BuildLockError, GraphWriteSession, GraphWriter
 
 
 # ── Success path ──────────────────────────────────────────────────────────────
@@ -141,3 +141,42 @@ class TestGraphWriteSessionTempCleanup:
         with GraphWriteSession(nested_final):
             pass
         assert nested_final.exists()
+
+
+# ── Concurrent build lock ───────────────────────────────────────────────────────
+
+class TestGraphWriteSessionLock:
+    def test_concurrent_write_session_raises_build_lock_error(self, tmp_path):
+        final = tmp_path / "design.db"
+        outer = GraphWriteSession(final)
+        with outer:
+            inner = GraphWriteSession(final)
+            with pytest.raises(BuildLockError):
+                with inner:
+                    pass
+
+    def test_lock_released_after_successful_session(self, tmp_path):
+        final = tmp_path / "design.db"
+        with GraphWriteSession(final):
+            pass
+        # A second, non-overlapping session over the same path must succeed.
+        with GraphWriteSession(final):
+            pass
+        assert final.exists()
+
+    def test_lock_released_after_failed_session(self, tmp_path):
+        final = tmp_path / "design.db"
+        with pytest.raises(RuntimeError):
+            with GraphWriteSession(final):
+                raise RuntimeError("crash mid-build")
+        # Lock must not leak even though __enter__'s body raised.
+        with GraphWriteSession(final):
+            pass
+        assert final.exists()
+
+    def test_lock_file_removed_after_session(self, tmp_path):
+        final = tmp_path / "design.db"
+        lock_path = tmp_path / ".design.db.lock"
+        with GraphWriteSession(final):
+            assert lock_path.exists()
+        assert not lock_path.exists()

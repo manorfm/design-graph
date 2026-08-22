@@ -343,13 +343,13 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_component_children` | Return direct child components | `name`, `doc?` |
 | `get_component_interactions` | Return hover/focus effects and transitions | `name`, `doc?` |
 | `get_full_jsx` | Return unsanitized JSX | `name`, `doc?` |
-| `get_tokens` | Return color/spacing tokens, or all categories when omitted | `category?`, `doc?` |
+| `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted | `category?`, `screen?`, `doc?` |
 | `find_token_usage` | Find components and screens using a token | `value`, `doc?` |
 | `search` | Search screens, components, tokens and text across prototypes | `query` |
 | `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |
 | `set_prototype` | Set or inspect the active prototype for the MCP session | `name?` |
 
-The MCP schema currently exposes `color` and `spacing` as explicit `get_tokens.category` values. Omit `category` to retrieve every extracted category.
+`get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category. Pass `screen` to scope the list to tokens that screen's own components actually use.
 
 ### Prototype selection
 

@@ -10,11 +10,13 @@ Design rules:
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import shutil
 import sys
 from pathlib import Path
+from typing import TextIO
 
 import kuzu
 
@@ -34,6 +36,10 @@ from design_graph.core.models import (
 from design_graph.graph.schema import initialize_schema, STATS_QUERIES
 
 logger = logging.getLogger(__name__)
+
+
+class BuildLockError(RuntimeError):
+    """Raised when a build is already in progress for the target database."""
 
 
 def _capped_jsx_snippet(owner: str, jsx_snippet: str) -> str:
@@ -72,15 +78,22 @@ class GraphWriteSession:
     def __init__(self, final_path: Path) -> None:
         self._final = final_path
         self._temp  = final_path.parent / f".{final_path.name}.building"
+        self._lock_path = final_path.parent / f".{final_path.name}.lock"
+        self._lock_file: TextIO | None = None
         self._db:   kuzu.Database   | None = None
         self._conn: kuzu.Connection | None = None
 
     def __enter__(self) -> "GraphWriter":
-        self._cleanup_temp()
         self._final.parent.mkdir(parents=True, exist_ok=True)
-        self._db   = kuzu.Database(str(self._temp))
-        self._conn = kuzu.Connection(self._db)
-        initialize_schema(self._conn)
+        self._acquire_lock()
+        try:
+            self._cleanup_temp()
+            self._db   = kuzu.Database(str(self._temp))
+            self._conn = kuzu.Connection(self._db)
+            initialize_schema(self._conn)
+        except Exception:
+            self._release_lock()
+            raise
         return GraphWriter(self._conn)
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
@@ -89,9 +102,42 @@ class GraphWriteSession:
             self._swap_temp_to_final()
         else:
             self._cleanup_temp()
+        self._release_lock()
         return False  # never suppress exceptions
 
     # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _acquire_lock(self) -> None:
+        """
+        Take an exclusive, non-blocking lock on a sentinel file next to the
+        database so a second concurrent build (e.g. a manual build racing
+        watch_prototype.sh) fails fast and clearly instead of corrupting the
+        shared .building temp directory or the final database.
+        """
+        lock_file = open(self._lock_path, "w")
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            lock_file.close()
+            raise BuildLockError(
+                f"Another build is already in progress for {self._final.name} "
+                f"(lock held at {self._lock_path}). Wait for it to finish, or "
+                "remove the lock file manually if you're sure no build is running."
+            ) from exc
+        self._lock_file = lock_file
+
+    def _release_lock(self) -> None:
+        if self._lock_file is not None:
+            try:
+                fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                self._lock_file.close()
+            except OSError:
+                pass
+            self._lock_file = None
+        self._lock_path.unlink(missing_ok=True)
 
     def _release_db(self) -> None:
         """Close Kuzu handles so the OS releases any file locks before rename."""
@@ -140,6 +186,8 @@ class GraphWriter:
         self._inserted_prop_ids:   set[str] = set()
         # Pairs (parent, child) deferred because child wasn't inserted yet
         self._pending_contains:    set[tuple[str, str]] = set()
+        # Non-duplicate write failures, capped so a catastrophic run can't grow this unbounded
+        self._write_errors:        list[str] = []
 
     @property
     def inserted_names(self) -> frozenset[str]:
@@ -458,6 +506,7 @@ class GraphWriter:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("writer: stats query failed for %s: %s", name, exc)
                 stats[name] = -1
+        stats["write_errors"] = len(self._write_errors)
         return stats
 
     # ── Private helpers ───────────────────────────────────────────────────────
@@ -599,6 +648,8 @@ class GraphWriter:
                 )
                 return
 
+    _MAX_TRACKED_WRITE_ERRORS = 50
+
     def _safe_execute(self, cypher: str, params: dict | None = None) -> bool:
         """Execute a Cypher statement. Returns False on error (never raises)."""
         try:
@@ -608,5 +659,7 @@ class GraphWriter:
             if "duplicated primary key" in str(exc).lower():
                 logger.debug("writer: skipped duplicate primary key statement: %r", exc)
                 return False
+            if len(self._write_errors) < self._MAX_TRACKED_WRITE_ERRORS:
+                self._write_errors.append(f"{type(exc).__name__}: {exc}")
             logger.warning("writer: skipped statement (%s): %r", type(exc).__name__, exc)
             return False

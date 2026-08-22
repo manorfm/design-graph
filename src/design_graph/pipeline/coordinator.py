@@ -179,6 +179,13 @@ async def run_pipeline(
         # Collect stats while the write connection is still open
         raw_stats = writer.get_stats()
 
+    if raw_stats.get("write_errors", 0) > 0:
+        logger.warning(
+            "pipeline: %d non-duplicate write errors during this build — "
+            "the graph may be missing nodes or edges; rerun with --verbose for details",
+            raw_stats["write_errors"],
+        )
+
     _reporter.phase_completed("Writing graph", elapsed_seconds=phase.split())
 
     # ── Phase 6: State persistence ───────────────────────────────────────────
@@ -203,6 +210,7 @@ async def run_pipeline(
         contains_rels=raw_stats.get("contains", 0),
         component_props=raw_stats.get("component_props", 0),
         section_styles=raw_stats.get("section_styles", 0),
+        write_errors=raw_stats.get("write_errors", 0),
         duration_seconds=elapsed,
     )
 
