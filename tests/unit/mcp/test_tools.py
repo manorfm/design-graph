@@ -73,6 +73,28 @@ class MockReader:
             "children": [], "parents": [], "screens_using": ["RestaurantsPage"],
         }
 
+    def get_component_full(self, name):
+        if "Ghost" in name or "Nonexistent" in name:
+            return None
+        return {
+            "root": name,
+            "components": [
+                {
+                    "name": name, "comp_type": "card", "jsx_snippet": "<div/>",
+                    "occurrence": 2, "classes": "", "truncated_fields": [],
+                    "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
+                    "tokens": [], "texts": [], "interactions": [], "props": [],
+                    "children": ["Badge"],
+                },
+                {
+                    "name": "Badge", "comp_type": "badge", "jsx_snippet": "<span/>",
+                    "occurrence": 1, "classes": "", "truncated_fields": [],
+                    "styles_by_state": {}, "tokens": [], "texts": [],
+                    "interactions": [], "props": [], "children": [],
+                },
+            ],
+        }
+
 
 def _dispatcher(n=2):
     readers = [(f"doc{i}", MockReader()) for i in range(1, n + 1)]
@@ -232,6 +254,107 @@ class TestGetComponentSpecTool:
         assert "default" in result.lower() or "estilo" in result.lower() or "style" in result.lower()
 
 
+class TestGetComponentFullTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_component_full" in names
+
+    def test_tool_requires_name_in_schema(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component_full")
+        assert "name" in tool["inputSchema"].get("required", [])
+
+    def test_dispatch_known_component_returns_markdown_with_descendants(self):
+        result = _dispatcher(1).dispatch("get_component_full", {"name": "BtnPrimary"}, "doc1")
+        assert isinstance(result, str)
+        assert "BtnPrimary" in result
+        assert "Badge" in result  # descendant included, not just the root
+
+    def test_dispatch_unknown_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch("get_component_full", {"name": "GhostComp"}, "doc1")
+        assert "não encontrado" in result.lower() or "ghostcomp" in result.lower()
+
+    def test_root_marked_in_output(self):
+        result = _dispatcher(1).dispatch("get_component_full", {"name": "BtnPrimary"}, "doc1")
+        assert "(raiz)" in result
+
+
+class TestExtractValidationCandidate:
+    def test_wraps_bare_jsx_and_extracts_inline_style(self):
+        from design_graph.mcp.tools import _extract_validation_candidate
+        candidate = _extract_validation_candidate('<button style={{color: "red"}}>OK</button>')
+        assert candidate is not None
+        assert any(s.property == "color" and s.value == "red" for s in candidate.styles)
+
+    def test_captures_child_refs(self):
+        from design_graph.mcp.tools import _extract_validation_candidate
+        candidate = _extract_validation_candidate("<div><Sparkline /><Badge /></div>")
+        assert candidate is not None
+        assert set(candidate.child_refs) == {"Sparkline", "Badge"}
+
+    def test_spread_reference_is_not_resolved_without_whole_file_context(self):
+        # Documented limitation (C33 spike finding): a spread referencing a
+        # shared style object can't resolve for an isolated snippet — no
+        # "rest of the file" to search for the const declaration.
+        from design_graph.mcp.tools import _extract_validation_candidate
+        candidate = _extract_validation_candidate('<div style={{...sharedStyle, width: 34}} />')
+        assert candidate is not None
+        props = {s.property for s in candidate.styles}
+        assert "width" in props
+        # sharedStyle's own properties are simply absent, not wrong — this
+        # is exactly the documented gap, not a crash or false data.
+
+
+class TestValidateComponentImplementationTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "validate_component_implementation" in names
+
+    def test_tool_requires_name_and_jsx_source(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "validate_component_implementation")
+        required = tool["inputSchema"].get("required", [])
+        assert "name" in required and "jsx_source" in required
+
+    def test_empty_jsx_source_reports_nothing_to_compare(self):
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation", {"name": "BtnPrimary", "jsx_source": ""}, "doc1",
+        )
+        assert "vazio" in result.lower()
+
+    def test_unknown_component_reports_not_found(self):
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "GhostComp", "jsx_source": "<div/>"}, "doc1",
+        )
+        assert "não encontrado" in result.lower() or "ghostcomp" in result.lower()
+
+    def test_matching_style_reports_no_missing_styles(self):
+        # MockReader.get_component_spec returns styles_by_state.default = [{"property": "color", "value": "red"}]
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "BtnPrimary", "jsx_source": '<button style={{color: "red"}}>OK</button>'},
+            "doc1",
+        )
+        assert "✅" in result
+        assert "ausentes" not in result.lower() or "estilos default ausentes" not in result.lower()
+
+    def test_missing_style_is_flagged(self):
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "BtnPrimary", "jsx_source": "<button>OK</button>"},
+            "doc1",
+        )
+        assert "ausentes" in result.lower()
+        assert "color" in result and "red" in result
+
+    def test_output_carries_best_effort_caveat(self):
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "BtnPrimary", "jsx_source": "<button>OK</button>"},
+            "doc1",
+        )
+        assert "best-effort" in result.lower() or "não verifica" in result.lower()
+
+
 class TestToolDefinitions:
     def test_all_standard_tools_defined(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
@@ -240,7 +363,7 @@ class TestToolDefinitions:
             "get_tokens", "find_token_usage", "search", "impact",
             "get_full_jsx", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
-            "set_prototype",
+            "get_component_full", "set_prototype",
         }
         assert expected.issubset(names)
 

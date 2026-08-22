@@ -384,10 +384,16 @@ class StyleEntry:
         return cls(id=EntityId.derive("st", seed), element=element, state=state, property=property, value=value)
 
     @classmethod
-    def from_css_class(cls, class_name: str, property: str, value: str) -> "StyleEntry":
+    def from_css_class(
+        cls, class_name: str, property: str, value: str, state: StyleState = StyleState.DEFAULT,
+    ) -> "StyleEntry":
+        seed = (
+            f"{class_name}:{property}" if state == StyleState.DEFAULT
+            else f"{class_name}:{state}:{property}"
+        )
         return cls(
-            id=EntityId.derive("cls", f"{class_name}:{property}"),
-            element=f"class:{class_name}", state=StyleState.DEFAULT, property=property, value=value,
+            id=EntityId.derive("cls", seed),
+            element=f"class:{class_name}", state=state, property=property, value=value,
         )
 
     @classmethod
@@ -522,6 +528,7 @@ class ExtractedComponent:
     child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
+    truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
 
     @classmethod
     def consolidate(cls, variants: list["ExtractedComponent"]) -> "ExtractedComponent":
@@ -557,6 +564,29 @@ class ExtractedComponent:
         icons = {
             item.id: item for variant in variants for item in variant.icons
         }
+        truncated_fields = frozenset(
+            field_name for variant in variants for field_name in variant.truncated_fields
+        )
+        # Render order comes from the *live* variant (the last declaration —
+        # same "last declaration wins in JS" criterion _label_jsx_variants
+        # already uses above to pick which jsx_snippet actually executes),
+        # not a union sorted alphabetically. A variant order this component
+        # only referenced in a shadowed, dead declaration is still included
+        # — for completeness, matching the union semantics this dedup
+        # already had — just appended after the live variant's real order
+        # instead of taking equal precedence with it.
+        live_variant = variants[-1]
+        seen_children: set[str] = set()
+        child_refs: list[str] = []
+        for child in live_variant.child_refs:
+            if child not in seen_children:
+                seen_children.add(child)
+                child_refs.append(child)
+        for variant in variants:
+            for child in variant.child_refs:
+                if child not in seen_children:
+                    seen_children.add(child)
+                    child_refs.append(child)
         return cls(
             name=variants[0].name,
             comp_type=next(
@@ -569,11 +599,10 @@ class ExtractedComponent:
             styles=list(styles.values()),
             interactions=list(interactions.values()),
             texts=list(texts.values()),
-            child_refs=sorted({
-                child for variant in variants for child in variant.child_refs
-            }),
+            child_refs=child_refs,
             props=list(props.values()),
             icons=list(icons.values()),
+            truncated_fields=truncated_fields,
         )
 
 
@@ -684,6 +713,7 @@ class BuildState:
     source_path: str = ""
     database_path: str = ""
     schema_version: int = 2
+    last_diff: "BuildDiff | None" = None  # what this build changed relative to the one before it
 
 
 @dataclass(frozen=True)

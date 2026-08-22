@@ -177,6 +177,66 @@ class TestDuplicateContainsGuard:
         assert result.get_next()[0] == 1
 
 
+# ── Permanently unresolved children (C32/T70) ────────────────────────────────
+# A child referenced only via CONTAINS that's never independently
+# write_component()'d — the common shape of a library import like
+# lucide-react's <ChevronRight /> — must not vanish silently.
+
+class TestUnresolvedChildBecomesShell:
+    def test_edge_is_written_for_a_child_never_defined_anywhere(self, writer):
+        gw, conn = writer
+        parent = _comp("IconButton", child_refs=["ChevronRight"])
+        gw.write_component(parent, {})
+        gw.flush_pending_contains()
+
+        result = conn.execute(
+            "MATCH (:Component {name:'IconButton'})-[r:CONTAINS]->(c:Component {name:'ChevronRight'}) "
+            "RETURN count(r)"
+        )
+        assert result.get_next()[0] == 1
+
+    def test_shell_component_marked_unresolved(self, writer):
+        from design_graph.core.models import ComponentDefinitionStatus
+        gw, conn = writer
+        parent = _comp("IconButton", child_refs=["ChevronRight"])
+        gw.write_component(parent, {})
+        gw.flush_pending_contains()
+
+        result = conn.execute("MATCH (c:Component {name:'ChevronRight'}) RETURN c.occurrence")
+        assert result.get_next()[0] == ComponentDefinitionStatus.UNRESOLVED.value
+
+    def test_get_component_children_surfaces_the_external_reference(self, tmp_path):
+        import kuzu as _kuzu
+        from design_graph.graph.reader import GraphReader
+        db = _kuzu.Database(str(tmp_path / "shell.db"))
+        conn = _kuzu.Connection(db)
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]), {})
+        gw.flush_pending_contains()
+
+        reader = GraphReader(conn)
+        assert reader.get_component_children("IconButton") == ["ChevronRight"]
+
+    def test_stats_count_unresolved_components(self, writer):
+        gw, conn = writer
+        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]), {})
+        gw.flush_pending_contains()
+        stats = gw.get_stats()
+        assert stats["unresolved_components"] == 1
+
+    def test_locally_defined_child_is_not_marked_unresolved(self, writer):
+        # Regression guard: a real, locally-extracted child must not be
+        # affected by the shell-creation path meant for external ones.
+        gw, conn = writer
+        gw.write_component(_comp("Wrapper", child_refs=["Leaf"]), {})
+        gw.write_component(_comp("Leaf"), {})
+        gw.flush_pending_contains()
+
+        result = conn.execute("MATCH (c:Component {name:'Leaf'}) RETURN c.occurrence")
+        assert result.get_next()[0] == 1
+
+
 # ── STYLE_USES_TOKEN linkage (C09) ────────────────────────────────────────────
 
 class TestStyleTokenLinkage:

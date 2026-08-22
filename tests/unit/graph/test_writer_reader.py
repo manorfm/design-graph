@@ -212,6 +212,23 @@ class TestWriteComponent:
         result = conn.execute("MATCH (c:Component {name:'TestComp'}) RETURN c.name")
         assert result.get_next()[0] == "TestComp"
 
+    def test_truncated_fields_persisted_as_sorted_csv(self, writer):
+        gw, conn = writer
+        comp = ExtractedComponent(
+            name="Truncated", comp_type="card", jsx_snippet="<div/>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=[], truncated_fields=frozenset({"texts", "styles"}),
+        )
+        gw.write_component(comp, {})
+        result = conn.execute("MATCH (c:Component {name:'Truncated'}) RETURN c.truncated_fields")
+        assert result.get_next()[0] == "styles,texts"
+
+    def test_no_truncation_persisted_as_empty_string(self, writer):
+        gw, conn = writer
+        gw.write_component(self._make_comp("Clean"), {})
+        result = conn.execute("MATCH (c:Component {name:'Clean'}) RETURN c.truncated_fields")
+        assert result.get_next()[0] == ""
+
     def test_idempotent_on_duplicate(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("DupComp"), {})
@@ -481,6 +498,215 @@ class TestGetScreen:
         screen = populated_db.reader.get_screen("RestaurantsPage")
         assert "sections" in screen
         assert len(screen["sections"]) >= 1
+
+
+class TestOrderIndex:
+    """C30/T63-T65: CONTAINS.order_index preserves sibling render order —
+    first-appearance order in the source JSX, not alphabetical."""
+
+    @pytest.fixture()
+    def fresh(self, tmp_path):
+        db   = kuzu.Database(str(tmp_path / "order.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn), conn=conn)
+
+    def _comp(self, name, child_refs=None):
+        return ExtractedComponent(
+            name=name, comp_type="card", jsx_snippet="<div/>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=child_refs or [],
+        )
+
+    def test_order_index_persisted_in_declared_order(self, fresh):
+        for name in ("Zebra", "Alpha", "Mango"):
+            fresh.writer.write_component(self._comp(name), {})
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]), {})
+        rows = fresh.conn.execute(
+            "MATCH (p:Component {name:'Parent'})-[r:CONTAINS]->(c:Component) "
+            "RETURN c.name, r.order_index ORDER BY r.order_index"
+        )
+        ordered = []
+        while rows.has_next():
+            ordered.append(rows.get_next())
+        assert [n for n, _ in ordered] == ["Zebra", "Alpha", "Mango"]
+        assert [i for _, i in ordered] == [0, 1, 2]
+
+    def test_get_component_children_returns_render_order_not_alphabetical(self, fresh):
+        for name in ("Zebra", "Alpha", "Mango"):
+            fresh.writer.write_component(self._comp(name), {})
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]), {})
+        assert fresh.reader.get_component_children("Parent") == ["Zebra", "Alpha", "Mango"]
+
+    def test_deferred_contains_edge_keeps_its_order_index(self, fresh):
+        # Parent written before its children exist — order_index must
+        # survive the deferred/flush_pending_contains path too.
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]), {})
+        fresh.writer.write_component(self._comp("Zebra"), {})
+        fresh.writer.write_component(self._comp("Alpha"), {})
+        fresh.writer.flush_pending_contains()
+        assert fresh.reader.get_component_children("Parent") == ["Zebra", "Alpha"]
+
+    def test_screen_full_children_follow_render_order(self, fresh):
+        for name in ("Zebra", "Alpha"):
+            fresh.writer.write_component(self._comp(name), {})
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]), {})
+        screen = ExtractedScreen(name="OrderScreen", component_refs=["Parent"], sections_count=0)
+        fresh.writer.write_screen(screen, [], {})
+        full = fresh.reader.get_screen_full("OrderScreen")
+        parent = next(c for c in full["components"] if c["name"] == "Parent")
+        assert parent["children"] == ["Zebra", "Alpha"]
+
+
+class TestGetBuildDiff:
+    """C31/T69: GraphReader reads the persisted last_diff from
+    <database>.state.json — no state_path, no file, or a malformed/legacy
+    file must all degrade to None, never raise."""
+
+    @pytest.fixture()
+    def reader_with_conn(self, tmp_path):
+        db   = kuzu.Database(str(tmp_path / "diff.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return conn, tmp_path
+
+    def test_none_when_no_state_path_given(self, reader_with_conn):
+        conn, _ = reader_with_conn
+        reader = GraphReader(conn)
+        assert reader.get_build_diff() is None
+
+    def test_none_when_state_file_missing(self, reader_with_conn):
+        conn, tmp_path = reader_with_conn
+        reader = GraphReader(conn, state_path=tmp_path / "missing.db.state.json")
+        assert reader.get_build_diff() is None
+
+    def test_returns_persisted_diff_payload(self, reader_with_conn):
+        import json as _json
+        conn, tmp_path = reader_with_conn
+        state_path = tmp_path / "diff.db.state.json"
+        state_path.write_text(_json.dumps({
+            "last_diff": {
+                "is_first_build": False,
+                "screens_added": ["NewPage"],
+                "screens_removed": [],
+                "comps_added": ["NewBtn"],
+                "comps_removed": ["OldBtn"],
+            }
+        }))
+        reader = GraphReader(conn, state_path=state_path)
+        diff = reader.get_build_diff()
+        assert diff["screens_added"] == ["NewPage"]
+        assert diff["comps_removed"] == ["OldBtn"]
+
+    def test_none_when_state_file_has_no_diff_key(self, reader_with_conn):
+        import json as _json
+        conn, tmp_path = reader_with_conn
+        state_path = tmp_path / "diff.db.state.json"
+        state_path.write_text(_json.dumps({"html_hash": "abc"}))  # legacy shape, no last_diff
+        reader = GraphReader(conn, state_path=state_path)
+        assert reader.get_build_diff() is None
+
+    def test_none_when_state_file_is_malformed_json(self, reader_with_conn):
+        conn, tmp_path = reader_with_conn
+        state_path = tmp_path / "diff.db.state.json"
+        state_path.write_text("{not valid json")
+        reader = GraphReader(conn, state_path=state_path)
+        assert reader.get_build_diff() is None
+
+
+class TestGetComponentFull:
+    """C31/T67: one call reconstructs a component's whole subtree, not just
+    its direct children — including grandchildren, in render order."""
+
+    @pytest.fixture()
+    def fresh(self, tmp_path):
+        db   = kuzu.Database(str(tmp_path / "full.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+
+    def _comp(self, name, child_refs=None, styles=None):
+        return ExtractedComponent(
+            name=name, comp_type="card", jsx_snippet=f"<div>{name}</div>",
+            occurrence=1, classes="", styles=styles or [],
+            interactions=[], texts=[], child_refs=child_refs or [],
+        )
+
+    def test_none_when_root_not_found(self, fresh):
+        assert fresh.reader.get_component_full("Nonexistent") is None
+
+    def test_includes_root_and_descendants(self, fresh):
+        fresh.writer.write_component(self._comp("Grandchild"), {})
+        fresh.writer.write_component(self._comp("Child", ["Grandchild"]), {})
+        fresh.writer.write_component(self._comp("Root", ["Child"]), {})
+        full = fresh.reader.get_component_full("Root")
+        names = {c["name"] for c in full["components"]}
+        assert names == {"Root", "Child", "Grandchild"}
+        assert full["root"] == "Root"
+
+    def test_children_in_render_order(self, fresh):
+        for name in ("Zebra", "Alpha"):
+            fresh.writer.write_component(self._comp(name), {})
+        fresh.writer.write_component(self._comp("Root", ["Zebra", "Alpha"]), {})
+        full = fresh.reader.get_component_full("Root")
+        root = next(c for c in full["components"] if c["name"] == "Root")
+        assert root["children"] == ["Zebra", "Alpha"]
+
+    def test_each_component_carries_its_own_styles(self, fresh):
+        style = StyleEntry(id="st_x", element="Child", state="default",
+                            property="color", value="red")
+        fresh.writer.write_component(self._comp("Child", styles=[style]), {})
+        fresh.writer.write_component(self._comp("Root", ["Child"]), {})
+        full = fresh.reader.get_component_full("Root")
+        child = next(c for c in full["components"] if c["name"] == "Child")
+        assert child["styles_by_state"]["default"] == [{"property": "color", "value": "red"}]
+
+    def test_fuzzy_match_resolves_root(self, fresh):
+        fresh.writer.write_component(self._comp("RestaurantCard"), {})
+        full = fresh.reader.get_component_full("Restaurant")
+        assert full["root"] == "RestaurantCard"
+
+
+class TestTruncatedFieldsRoundTrip:
+    """C28/T57: truncated_fields must survive write → read for the tools
+    that a reconstruction agent actually calls."""
+
+    @pytest.fixture()
+    def fresh(self, tmp_path):
+        db   = kuzu.Database(str(tmp_path / "trunc.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+
+    def _comp(self, name, truncated=frozenset()):
+        return ExtractedComponent(
+            name=name, comp_type="card", jsx_snippet="<div/>",
+            occurrence=1, classes="", styles=[], interactions=[], texts=[],
+            child_refs=[], truncated_fields=truncated,
+        )
+
+    def test_get_component_surfaces_truncated_fields(self, fresh):
+        fresh.writer.write_component(self._comp("Trunc", frozenset({"styles"})), {})
+        comp = fresh.reader.get_component("Trunc")
+        assert comp["c.truncated_fields"] == "styles"
+
+    def test_get_component_spec_surfaces_truncated_fields(self, fresh):
+        fresh.writer.write_component(self._comp("Trunc2", frozenset({"texts", "classes"})), {})
+        spec = fresh.reader.get_component_spec("Trunc2")
+        assert spec["c.truncated_fields"] == "classes,texts"
+
+    def test_clean_component_has_empty_truncated_fields(self, fresh):
+        fresh.writer.write_component(self._comp("Clean2"), {})
+        comp = fresh.reader.get_component("Clean2")
+        assert comp["c.truncated_fields"] == ""
+
+    def test_get_screen_full_surfaces_truncated_fields_as_list(self, fresh):
+        fresh.writer.write_component(self._comp("TruncOnScreen", frozenset({"interactions"})), {})
+        screen = ExtractedScreen(name="TruncScreen", component_refs=["TruncOnScreen"], sections_count=0)
+        fresh.writer.write_screen(screen, [], {})
+        full = fresh.reader.get_screen_full("TruncScreen")
+        comp = next(c for c in full["components"] if c["name"] == "TruncOnScreen")
+        assert comp["truncated_fields"] == ["interactions"]
 
 
 class TestComponentExists:

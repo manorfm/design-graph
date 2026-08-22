@@ -659,7 +659,11 @@ class TestExtractAllComponents:
         assert len(components) == 1
         component = components[0]
         assert component.occurrence == 2
-        assert component.child_refs == ["AlphaCard", "BetaCard"]
+        # C30: order comes from the *live* variant (last declaration — the
+        # one that actually executes per JS scoping), not alphabetical —
+        # BetaCard (second/live declaration) sorts before AlphaCard (first,
+        # shadowed declaration, still included but appended after).
+        assert component.child_refs == ["BetaCard", "AlphaCard"]
         assert {prop.prop_name for prop in component.props} == {"first", "second"}
         assert "First action" in component.jsx_snippet
         assert "Second action" in component.jsx_snippet

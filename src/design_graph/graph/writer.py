@@ -184,8 +184,8 @@ class GraphWriter:
         self._token_rel_keys:      set[str] = set()
         self._contains_keys:       set[str] = set()
         self._inserted_prop_ids:   set[str] = set()
-        # Pairs (parent, child) deferred because child wasn't inserted yet
-        self._pending_contains:    set[tuple[str, str]] = set()
+        # (parent, child, order_index) deferred because child wasn't inserted yet
+        self._pending_contains:    set[tuple[str, str, int]] = set()
         # Non-duplicate write failures, capped so a catastrophic run can't grow this unbounded
         self._write_errors:        list[str] = []
 
@@ -289,18 +289,20 @@ class GraphWriter:
 
         component_exists = self._node_exists("Component", "name", comp.name)
         jsx = _capped_jsx_snippet(comp.name, comp.jsx_snippet)
+        truncated = ",".join(sorted(comp.truncated_fields))
         if not component_exists:
             self._safe_execute(
-                "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, classes:$c})",
+                "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, "
+                "classes:$c, truncated_fields:$tf})",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes},
+                 "o": comp.occurrence, "c": comp.classes, "tf": truncated},
             )
         else:
             self._safe_execute(
                 "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.jsx_snippet=$s, "
-                "c.occurrence=$o, c.classes=$c",
+                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes},
+                 "o": comp.occurrence, "c": comp.classes, "tf": truncated},
             )
         self._known_comp_names.add(comp.name)
         self._resolved_comp_names.add(comp.name)
@@ -369,40 +371,52 @@ class GraphWriter:
 
         # CONTAINS relationships: create immediately for already-inserted children;
         # defer the rest so flush_pending_contains() can retry after all nodes exist.
-        for child_name in comp.child_refs:
+        # order_index is comp.child_refs' own position — first-appearance order
+        # in the source JSX (see component_extractor.py), not alphabetical —
+        # so a reader can recover sibling render order without re-parsing JSX.
+        for order_index, child_name in enumerate(comp.child_refs):
             if child_name in self._resolved_comp_names:
-                self._write_contains_edge(comp.name, child_name)
+                self._write_contains_edge(comp.name, child_name, order_index)
             else:
                 # Child not yet in graph — queue for deferred write
-                self._pending_contains.add((comp.name, child_name))
+                self._pending_contains.add((comp.name, child_name, order_index))
 
     def flush_pending_contains(self) -> int:
         """
         Retry all deferred CONTAINS edges now that more components may exist.
 
-        Should be called once after all write_component() calls complete.
-        Safe to call multiple times — already-created edges are skipped via
-        the _contains_keys guard. Returns the number of new edges created.
+        Must be called only after every write_component() call for this
+        build has completed — a child still unresolved at that point is
+        treated as final and permanent (nothing later in the same build
+        could still resolve it), not as "maybe next time". Safe to call
+        more than once: _contains_keys still guards against duplicate
+        edges, and a second call simply finds nothing left pending.
+
+        A child that's still unresolved here is external to the bundle —
+        most commonly a library import (e.g. `<ChevronRight />` from
+        lucide-react) rather than a local function this pipeline could ever
+        have extracted. Before this fix, such a child silently vanished:
+        the edge stayed in _pending_contains forever and was only logged at
+        debug, never written — an agent asking get_component_children for
+        the parent got back nothing, with no signal that a real reference
+        existed. Now it gets the same shell-Component treatment
+        (_ensure_component_exists, occurrence=UNRESOLVED) already used for
+        a screen/section referencing an undefined component — the CONTAINS
+        edge is written, and the reference is at least visible by name
+        even with no markup/props known for it.
+
+        Returns the number of new edges created.
         """
         created = 0
-        still_pending: set[tuple[str, str]] = set()
-        for parent, child in self._pending_contains:
-            if child in self._resolved_comp_names:
-                if self._write_contains_edge(parent, child):
-                    created += 1
-            else:
-                still_pending.add((parent, child))
-
-        self._pending_contains = still_pending
-        if still_pending:
-            logger.debug(
-                "writer: %d CONTAINS edges still pending (child components not in graph): %s",
-                len(still_pending),
-                [f"{p}→{c}" for p, c in still_pending],
-            )
+        for parent, child, order_index in self._pending_contains:
+            if child not in self._resolved_comp_names:
+                self._ensure_component_exists(child)
+            if self._write_contains_edge(parent, child, order_index):
+                created += 1
+        self._pending_contains = set()
         return created
 
-    def _write_contains_edge(self, parent: str, child: str) -> bool:
+    def _write_contains_edge(self, parent: str, child: str, order_index: int = 0) -> bool:
         """Create a single CONTAINS edge if not already present. Returns True if created."""
         key = f"{parent}→{child}"
         if key in self._contains_keys:
@@ -410,8 +424,8 @@ class GraphWriter:
         self._contains_keys.add(key)
         self._safe_execute(
             "MATCH (p:Component {name:$p}),(c:Component {name:$c}) "
-            "CREATE (p)-[:CONTAINS {weight:1}]->(c)",
-            {"p": parent, "c": child},
+            "CREATE (p)-[:CONTAINS {weight:1, order_index:$oi}]->(c)",
+            {"p": parent, "c": child, "oi": order_index},
         )
         return True
 
@@ -592,7 +606,7 @@ class GraphWriter:
             return
         ok = self._safe_execute(
             "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
-            "occurrence:$o, classes:''})",
+            "occurrence:$o, classes:'', truncated_fields:''})",
             {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )
         if ok or self._node_exists("Component", "name", name):

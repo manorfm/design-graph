@@ -190,9 +190,14 @@ async def run_pipeline(
 
     # ── Phase 6: State persistence ───────────────────────────────────────────
     comp_counter = Counter({c.name: c.occurrence for c in extracted_comps})
+    # Computed unconditionally (not just when show_diff/--diff is passed) so
+    # it can be persisted for get_build_diff — an MCP agent asking "what
+    # changed since I last looked" shouldn't depend on the CLI user having
+    # happened to pass --diff on their last build.
+    diff = compute_diff(prev_state, screens, comp_counter)
     save_build_state(state_path, build_new_state(
         sources.html_hash, screens, comp_counter,
-        source_path=html_path, database_path=db_path,
+        source_path=html_path, database_path=db_path, diff=diff,
     ))
     elapsed = time.monotonic() - t_start
 
@@ -215,7 +220,6 @@ async def run_pipeline(
     )
 
     if show_diff:
-        diff = compute_diff(prev_state, screens, comp_counter)
         _log_diff(diff)
 
     _reporter.build_completed(total_seconds=elapsed)

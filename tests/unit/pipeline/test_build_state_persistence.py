@@ -125,6 +125,38 @@ class TestSaveBuildState:
         state = load_build_state(path)
         assert state.html_hash == "second"
 
+    def test_roundtrip_preserves_last_diff(self, tmp_path):
+        from design_graph.core.models import BuildDiff
+        diff = BuildDiff(
+            is_first_build=False,
+            screens_added=["NewPage"], screens_removed=[],
+            comps_added=["NewBtn"], comps_removed=["OldBtn"],
+        )
+        original = BuildState(
+            html_hash="x", last_build="2025-01-01T00:00:00+00:00",
+            screens={}, components={}, last_diff=diff,
+        )
+        path = tmp_path / "state.json"
+        save_build_state(path, original)
+        restored = load_build_state(path)
+
+        assert restored.last_diff == diff
+
+    def test_none_last_diff_survives_roundtrip_as_none(self, tmp_path):
+        path = tmp_path / "state.json"
+        save_build_state(path, _minimal_state())
+        restored = load_build_state(path)
+        assert restored.last_diff is None
+
+    def test_legacy_state_file_without_last_diff_key_loads_as_none(self, tmp_path):
+        # A state.json written before this field existed — must not raise.
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps({
+            "html_hash": "x", "last_build": "", "screens": {}, "components": {},
+        }))
+        restored = load_build_state(path)
+        assert restored.last_diff is None
+
 
 # ── build_new_state ───────────────────────────────────────────────────────────
 
@@ -132,6 +164,17 @@ class TestBuildNewState:
     def test_stores_provided_html_hash(self):
         state = build_new_state("abc123", [], Counter())
         assert state.html_hash == "abc123"
+
+    def test_diff_defaults_to_none(self):
+        state = build_new_state("x", [], Counter())
+        assert state.last_diff is None
+
+    def test_diff_forwarded_when_provided(self):
+        from design_graph.core.models import BuildDiff
+        diff = BuildDiff(is_first_build=True, screens_added=["Home"],
+                          screens_removed=[], comps_added=[], comps_removed=[])
+        state = build_new_state("x", [], Counter(), diff=diff)
+        assert state.last_diff == diff
 
     def test_last_build_is_iso_utc_string(self):
         state = build_new_state("x", [], Counter())

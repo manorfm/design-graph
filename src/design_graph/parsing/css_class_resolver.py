@@ -14,7 +14,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from design_graph.core.models import StyleEntry
+from design_graph.core.models import StyleEntry, StyleState
 
 logger = logging.getLogger(__name__)
 
@@ -439,6 +439,18 @@ def extract_tag_pseudo_rules(css_text: str) -> dict[str, dict[str, list[CssRule]
     return result
 
 
+# Tailwind state-variant prefix (`hover:`, `focus:`) → the StyleState it
+# resolves to. Deliberately narrow: StyleState only models hover/focus today
+# (no theme or breakpoint axis), so a responsive/theme prefix like `md:` or
+# `dark:` is left unstripped — it then simply fails both map lookups below
+# and is skipped, same as any other unknown class, rather than being
+# incorrectly folded into an unconditional default style.
+_STATE_PREFIXES: dict[str, StyleState] = {
+    "hover": StyleState.HOVER,
+    "focus": StyleState.FOCUS,
+}
+
+
 def resolve_classes(
     class_string: str,
     rule_map: dict[str, list[CssRule]],
@@ -450,9 +462,12 @@ def resolve_classes(
     1. Custom rule_map entry (from parsed CSS) — takes priority
     2. Tailwind built-in fallback map
 
-    Returns [] for empty/whitespace class strings.
-    Each entry has state="default" and element="class:{class_name}".
-    Unknown classes that appear in neither map are silently skipped.
+    A `hover:`/`focus:` prefix (`hover:bg-red-500`) is stripped before
+    either lookup and resolves to a StyleEntry in that state instead of
+    "default" — the rest of the class name still has to match one of the
+    two maps on its own. Returns [] for empty/whitespace class strings.
+    Unknown classes (including any other prefixed variant, e.g. `md:`/
+    `dark:`) are silently skipped.
     """
     if not class_string or not class_string.strip():
         return []
@@ -465,24 +480,33 @@ def resolve_classes(
         if not cls:
             continue
 
+        state = StyleState.DEFAULT
+        lookup_cls = cls
+        if ":" in cls:
+            prefix, _, rest = cls.partition(":")
+            mapped_state = _STATE_PREFIXES.get(prefix)
+            if mapped_state is not None:
+                state = mapped_state
+                lookup_cls = rest
+
         # Priority 1: custom rule_map
-        custom_rules = rule_map.get(cls)
+        custom_rules = rule_map.get(lookup_cls)
         if custom_rules:
             for rule in custom_rules:
                 prop_key = f"{cls}:{rule.property}"
                 if prop_key not in seen_props:
                     seen_props.add(prop_key)
-                    entries.append(_make_style_entry(cls, rule.property, rule.value))
+                    entries.append(_make_style_entry(lookup_cls, rule.property, rule.value, state))
             continue
 
         # Priority 2: Tailwind built-in
-        builtin = _TAILWIND_BUILTINS.get(cls)
+        builtin = _TAILWIND_BUILTINS.get(lookup_cls)
         if builtin:
             for prop, val in builtin:
                 prop_key = f"{cls}:{prop}"
                 if prop_key not in seen_props:
                     seen_props.add(prop_key)
-                    entries.append(_make_style_entry(cls, prop, val))
+                    entries.append(_make_style_entry(lookup_cls, prop, val, state))
 
     logger.debug(
         "css_class_resolver: resolved %d classes → %d style entries",
@@ -494,6 +518,8 @@ def resolve_classes(
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
-def _make_style_entry(cls_name: str, prop: str, value: str) -> StyleEntry:
+def _make_style_entry(
+    cls_name: str, prop: str, value: str, state: StyleState = StyleState.DEFAULT,
+) -> StyleEntry:
     """Create a StyleEntry for a CSS class-resolved property."""
-    return StyleEntry.from_css_class(class_name=cls_name, property=prop, value=value)
+    return StyleEntry.from_css_class(class_name=cls_name, property=prop, value=value, state=state)

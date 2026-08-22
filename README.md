@@ -336,17 +336,19 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_screen_full` | Return everything needed to reconstruct a screen | `name`, `doc?` |
 | `get_screen_layout` | Return component layout profiles for a screen | `name`, `doc?` |
 | `get_section` | Return visual details for a section | `screen`, `section`, `doc?` |
-| `list_components` | List components, optionally filtered by semantic type | `comp_type?`, `doc?` |
+| `list_components` | List components, optionally filtered by semantic type (capped at 100 by default) | `comp_type?`, `limit?`, `doc?` |
 | `get_component` | Return JSX, styles, tokens, text, interactions and children | `name`, `doc?` |
 | `get_component_spec` | Return a reconstruction-oriented component specification | `name`, `doc?` |
+| `get_component_full` | Return a component plus every descendant (up to 3 levels via CONTAINS), each with its own styles, tokens, texts, interactions and props | `name`, `doc?` |
 | `get_component_props` | Return declared component props and defaults | `name`, `doc?` |
-| `get_component_children` | Return direct child components | `name`, `doc?` |
+| `get_component_children` | Return direct child components, in render order | `name`, `doc?` |
 | `get_component_interactions` | Return hover/focus effects and transitions | `name`, `doc?` |
 | `get_full_jsx` | Return unsanitized JSX | `name`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted | `category?`, `screen?`, `doc?` |
 | `find_token_usage` | Find components and screens using a token | `value`, `doc?` |
 | `search` | Search screens, components, tokens and text across prototypes | `query` |
 | `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |
+| `get_build_diff` | Return screens/components added or removed since the previous build | `doc?` |
 | `set_prototype` | Set or inspect the active prototype for the MCP session | `name?` |
 
 `get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category. Pass `screen` to scope the list to tokens that screen's own components actually use.
@@ -378,8 +380,8 @@ The `doc` value is the database filename without `.db`.
 - Screens, semantic sections and reusable components
 - Typed screen-to-screen and section-to-screen references without synthetic component shells
 - Consolidation of same-named source variants without dropping props, JSX, styles or child references
-- Component hierarchy, occurrence counts, declared props and defaults
-- Default, hover, focus and transition styles
+- Component hierarchy in sibling render order, occurrence counts, declared props and defaults
+- Default, hover, focus and transition styles, including hover/focus resolved from Tailwind state-variant classes (`hover:`, `focus:`)
 - Component and property-level token linkage
 - Color, spacing, typography, shadow, radius and CSS-variable tokens
 - UI text and semantic text types
@@ -387,7 +389,9 @@ The `doc` value is the database filename without `.db`.
 - Tailwind utility and custom CSS class resolution
 - Fuzzy component matching and Portuguese/English search aliases
 - Sanitized JSX markers for lists, conditionals and alternatives
-- Incremental builds, graph diffs, validation and JSON output for CI
+- Extraction-cap truncation surfaced as data on the affected component, not just a build log
+- External/library component references (e.g. icon imports) kept visible instead of silently dropped
+- Incremental builds, graph diffs (persisted for MCP, not just CLI), validation and JSON output for CI
 - AI-ready JSONL chunks and Markdown reports
 
 ## Graph schema
