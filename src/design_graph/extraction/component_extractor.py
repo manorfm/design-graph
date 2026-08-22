@@ -184,8 +184,9 @@ def extract_component(
     interactions: list[InteractionEntry] = []
     texts:        list[TextEntry]        = []
     classes:      list[str]              = []
-    child_refs:   set[str]               = set()
+    child_refs:   list[str]              = []  # first-appearance order, not alphabetical — see order_index (C30)
 
+    seen_child_refs:  set[str] = set()
     seen_style_ids:   set[str] = set()
     seen_inter_ids:   set[str] = set()
     seen_text_ids:    set[str] = set()
@@ -253,12 +254,24 @@ def extract_component(
     leaves = [(prop, _clean_style_value(val)) for prop, val in _handler_mutations(window, "onMouseLeave")]
     enters = [(prop, val) for prop, val in enters if val]
     leaves = [(prop, val) for prop, val in leaves if val]
+    # Pair by CSS property name, not list position: onMouseLeave doesn't
+    # always restore properties in the same order — or the same set — that
+    # onMouseEnter set them in. zip()ing the two lists positionally could
+    # cross-assign a from_val belonging to a different property, or
+    # silently drop enter mutations beyond leave's length. A property with
+    # no matching leave restoration gets from_val="" — same convention
+    # already used by from_focus_mutation for "no from_val known" — instead
+    # of a wrong value borrowed from an unrelated property.
+    leave_by_prop: dict[str, str] = {}
+    for prop, val in leaves:
+        leave_by_prop.setdefault(prop, val)
     trans_match = RE_TRANSITION.search(window)
     transition = trans_match.group(1).strip() if trans_match else "all 0.15s"
 
-    for (prop, to_val), (_, from_val) in zip(enters, leaves):
+    for prop, to_val in enters:
         if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
             break
+        from_val = leave_by_prop.get(prop, "")
         entry = InteractionEntry.create(
             element=boundary.name, trigger=InteractionTrigger.HOVER, css_prop=prop,
             from_val=from_val, to_val=to_val, transition=transition,
@@ -396,16 +409,27 @@ def extract_component(
                         seen_style_ids.add(entry.id)
                         styles.append(entry)
 
-    # Child component references — from JSX tags and from typed markers in jsx_snippet
+    # Child component references — from JSX tags and from typed markers in jsx_snippet.
+    # Order is first-appearance, not alphabetical: RE_JSX_TAG matches (the
+    # dominant source in real JSX) are collected fully before RE_COMP_REF and
+    # marker_refs, so it's a documented approximation of true source order,
+    # not a byte-exact reconstruction — the same class of approximation this
+    # heuristic pipeline already accepts elsewhere (see C24/T46 on spread
+    # merge order).
+    def _add_child_ref(ref: str) -> None:
+        if ref not in seen_child_refs:
+            seen_child_refs.add(ref)
+            child_refs.append(ref)
+
     for pattern in (RE_JSX_TAG, RE_COMP_REF):
         for m in pattern.finditer(window):
             ref = m.group(1)
             if ref not in REACT_INTERNALS and ref != boundary.name and len(ref) >= 3:
-                child_refs.add(ref)
+                _add_child_ref(ref)
     # Add components referenced inside conditional/list/ternary markers
     for ref in marker_refs:
         if ref not in REACT_INTERNALS and ref != boundary.name:
-            child_refs.add(ref)
+            _add_child_ref(ref)
 
     _cap = lambda count, limit: f"{count}{'[capped]' if count >= limit else ''}"
     logger.debug(
@@ -416,6 +440,19 @@ def extract_component(
         _cap(len(texts),         MAX_TEXTS_PER_COMPONENT),
         len(child_refs),
     )
+    # Surfaced to the graph (not just this debug log) as truncated_fields —
+    # an agent reading get_component()/get_component_spec() must be able to
+    # tell "this is everything" from "this is everything we kept up to the
+    # cap" instead of silently trusting a partial spec as complete.
+    truncated_fields = frozenset({
+        field_name for field_name, count, limit in (
+            ("styles",       len(styles),       MAX_STYLES_PER_COMPONENT),
+            ("interactions", len(interactions), MAX_INTERACTIONS_PER_COMPONENT),
+            ("texts",        len(texts),        MAX_TEXTS_PER_COMPONENT),
+            ("classes",      len(classes),      MAX_CLASSES_PER_COMPONENT),
+        )
+        if count >= limit
+    })
 
     props = extract_props_from_function_signature(js, boundary)
 
@@ -428,9 +465,10 @@ def extract_component(
         styles=styles,
         interactions=interactions,
         texts=texts,
-        child_refs=sorted(child_refs),
+        child_refs=child_refs,
         props=props,
         icons=icons,
+        truncated_fields=truncated_fields,
     )
 
 

@@ -68,7 +68,10 @@ def _load_readers(graph_dir: Path) -> list[tuple[str, GraphReader]]:
     for db_path in sorted(graph_dir.glob("*.db")):
         try:
             db = kuzu.Database(str(db_path), read_only=True)
-            readers.append((db_path.stem, GraphReader(kuzu.Connection(db))))
+            # Same <db>.state.json naming GraphDatabase.state_path uses
+            # (core/graph_catalog.py) — lets get_build_diff() find it.
+            state_path = db_path.parent / f"{db_path.name}.state.json"
+            readers.append((db_path.stem, GraphReader(kuzu.Connection(db), state_path=state_path)))
             sys.stderr.write(f"[design-graph] loaded: {db_path.name}\n")
         except Exception as exc:
             sys.stderr.write(f"[design-graph] failed to open {db_path.name}: {exc}\n")

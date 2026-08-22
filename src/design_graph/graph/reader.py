@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 import kuzu
 
@@ -30,8 +31,14 @@ logger = logging.getLogger(__name__)
 class GraphReader:
     """Read-only interface to a Kuzu design-graph database."""
 
-    def __init__(self, conn: kuzu.Connection) -> None:
+    def __init__(self, conn: kuzu.Connection, state_path: Path | None = None) -> None:
         self._conn = conn
+        # Optional: <database>.state.json for this same document, set by
+        # callers that know the db's filesystem path (the MCP server, which
+        # discovers readers by globbing *.db). Lets get_build_diff() answer
+        # "what changed since the last build" by reading the diff already
+        # persisted there, without comparing two Kuzu databases from scratch.
+        self._state_path = state_path
 
     # ── Screens ───────────────────────────────────────────────────────────────
 
@@ -122,7 +129,7 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes",
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, c.truncated_fields",
             {"n": resolved},
         )
         if not rows:
@@ -196,7 +203,7 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes",
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, c.truncated_fields",
             {"n": resolved},
         )
         if not rows:
@@ -275,10 +282,14 @@ class GraphReader:
         return bool(rows)
 
     def get_component_children(self, name: str) -> list[str]:
-        """Return names of components directly contained by this component (via CONTAINS)."""
+        """
+        Return names of components directly contained by this component
+        (via CONTAINS), in sibling render order (order_index) — the order
+        they actually appear in the source JSX, not alphabetical.
+        """
         rows = self._q(
-            "MATCH (p:Component {name:$n})-[:CONTAINS]->(c:Component) "
-            "RETURN c.name ORDER BY c.name",
+            "MATCH (p:Component {name:$n})-[r:CONTAINS]->(c:Component) "
+            "RETURN c.name ORDER BY r.order_index",
             {"n": name},
         )
         return [r["c.name"] for r in rows]
@@ -291,6 +302,161 @@ class GraphReader:
             {"n": name},
         )
         return [r["p.name"] for r in rows]
+
+    def get_component_full(self, name: str) -> dict | None:
+        """
+        Return the full component tree rooted at `name`: the resolved root
+        plus every descendant reachable via CONTAINS (3 levels deep — the
+        same depth already used throughout this file for screen-level
+        closures, a literal bound Kuzu requires on variable-length
+        patterns), each with its own styles/tokens/texts/interactions/props
+        and ordered children. One call to reconstruct a complex component
+        without cascading through get_component_children for every
+        grandchild. Returns None when the root isn't found.
+        """
+        resolved = self._fuzzy_find_component(name)
+        if resolved is None:
+            return None
+
+        descendant_rows = self._q(
+            "MATCH (root:Component {name:$n})-[:CONTAINS*1..3]->(c:Component) "
+            "RETURN DISTINCT c.name",
+            {"n": resolved},
+        )
+        names = [resolved] + [r["c.name"] for r in descendant_rows]
+
+        comp_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn}) "
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "c.truncated_fields "
+            "ORDER BY c.name",
+            {"names": names},
+        )
+        for row in comp_rows:
+            row["c.jsx_snippet"] = self._resolve_icons(row["c.jsx_snippet"] or "")
+
+        comp_style_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn})-[:HAS_STYLE]->(st:Style) "
+            "RETURN c.name AS comp_name, st.state AS state, "
+            "st.property AS property, st.value AS value "
+            "ORDER BY c.name, st.state, st.property",
+            {"names": names},
+        )
+        comp_token_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn})-[:USES_TOKEN]->(t:Token) "
+            "RETURN c.name AS comp_name, t.label AS label, t.value AS value, "
+            "t.category AS category ORDER BY c.name, t.category",
+            {"names": names},
+        )
+        comp_text_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn})-[:COMP_HAS_TEXT]->(t:UIText) "
+            "RETURN c.name AS comp_name, t.content AS content, t.text_type AS text_type "
+            "ORDER BY c.name, t.text_type",
+            {"names": names},
+        )
+        comp_inter_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn})-[:HAS_INTERACTION]->(i:Interaction) "
+            "RETURN c.name AS comp_name, i.trigger AS trigger, i.css_prop AS css_prop, "
+            "i.from_val AS from_val, i.to_val AS to_val, i.transition AS transition",
+            {"names": names},
+        )
+        comp_prop_rows = self._q(
+            "UNWIND $names AS cn "
+            "MATCH (c:Component {name:cn})-[:HAS_PROP]->(p:ComponentProp) "
+            "RETURN c.name AS comp_name, p.prop_name AS prop_name, p.default_value AS default_value "
+            "ORDER BY c.name, p.prop_name",
+            {"names": names},
+        )
+        # Children ordered by sibling render order (order_index), restricted
+        # to edges within this tree — a child outside the 3-level closure
+        # (deeper than we expanded) is still named here even though it isn't
+        # itself expanded, same "named but not inlined" trade-off
+        # get_screen_full already makes at its own depth limit.
+        edge_rows = self._q(
+            "UNWIND $names AS pn "
+            "MATCH (p:Component {name:pn})-[r:CONTAINS]->(c:Component) "
+            "RETURN p.name AS parent_name, c.name AS child_name "
+            "ORDER BY p.name, r.order_index",
+            {"names": names},
+        )
+
+        styles_by_comp: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
+        for r in comp_style_rows:
+            styles_by_comp[r["comp_name"]][r["state"]].append(
+                {"property": r["property"], "value": r["value"]}
+            )
+        tokens_by_comp: dict[str, list[dict]] = defaultdict(list)
+        for r in comp_token_rows:
+            tokens_by_comp[r["comp_name"]].append(
+                {"label": r["label"], "value": r["value"], "category": r["category"]}
+            )
+        texts_by_comp: dict[str, list[dict]] = defaultdict(list)
+        for r in comp_text_rows:
+            texts_by_comp[r["comp_name"]].append(
+                {"content": r["content"], "text_type": r["text_type"]}
+            )
+        interactions_by_comp: dict[str, list[dict]] = defaultdict(list)
+        for r in comp_inter_rows:
+            interactions_by_comp[r["comp_name"]].append({
+                "trigger": r["trigger"], "css_prop": r["css_prop"],
+                "from_val": r["from_val"], "to_val": r["to_val"], "transition": r["transition"],
+            })
+        props_by_comp: dict[str, list[dict]] = defaultdict(list)
+        for r in comp_prop_rows:
+            props_by_comp[r["comp_name"]].append(
+                {"prop_name": r["prop_name"], "default_value": r["default_value"]}
+            )
+        children_by_comp: dict[str, list[str]] = defaultdict(list)
+        for r in edge_rows:
+            children_by_comp[r["parent_name"]].append(r["child_name"])
+
+        components = []
+        for comp in comp_rows:
+            cname = comp["c.name"]
+            components.append({
+                "name":              cname,
+                "comp_type":         comp["c.comp_type"],
+                "jsx_snippet":       comp["c.jsx_snippet"] or "",
+                "occurrence":        comp["c.occurrence"],
+                "classes":           comp["c.classes"] or "",
+                "truncated_fields":  (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
+                "styles_by_state":   dict(styles_by_comp.get(cname, {})),
+                "tokens":            tokens_by_comp.get(cname, []),
+                "texts":             texts_by_comp.get(cname, []),
+                "interactions":      interactions_by_comp.get(cname, []),
+                "props":             props_by_comp.get(cname, []),
+                "children":          children_by_comp.get(cname, []),
+            })
+
+        return {"root": resolved, "components": components}
+
+    def get_build_diff(self) -> dict | None:
+        """
+        Return this document's most recent build diff — screens/components
+        added or removed relative to the build before it — read from its
+        <database>.state.json. This is the same diff `design-graph ... --diff`
+        would log, kept even when --diff wasn't passed on that build, so an
+        agent can ask "what changed since the last build" without comparing
+        two Kuzu databases from scratch.
+
+        Returns None when this reader wasn't given a state_path (e.g. built
+        directly in a test without one), the file doesn't exist, or it
+        predates this field.
+        """
+        if self._state_path is None or not self._state_path.exists():
+            return None
+        try:
+            data = json.loads(self._state_path.read_text(encoding="utf-8"))
+            diff = data.get("last_diff") if isinstance(data, dict) else None
+            return diff if isinstance(diff, dict) else None
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("reader: could not read build diff from %s: %s", self._state_path, exc)
+            return None
 
     def find_screens_using_comp_transitively(self, comp_name: str) -> list[str]:
         """
@@ -710,7 +876,8 @@ class GraphReader:
         comp_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(c:Component) "
-            "RETURN DISTINCT c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes "
+            "RETURN DISTINCT c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "c.truncated_fields "
             "ORDER BY c.name",
             {"n": resolved},
         )
@@ -784,13 +951,15 @@ class GraphReader:
         # Q11: Component children (CONTAINS) — one more hop past the closure
         # bound above, so every component in `comp_rows` reports its own
         # direct children, not just the screen's top-level components.
+        # Ordered by order_index (sibling render order), not child name —
+        # children_by_comp below preserves this as the list order.
         comp_children_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(parent:Component) "
             "WITH DISTINCT parent "
-            "MATCH (parent)-[:CONTAINS]->(child:Component) "
+            "MATCH (parent)-[r:CONTAINS]->(child:Component) "
             "RETURN parent.name AS parent_name, child.name AS child_name "
-            "ORDER BY parent.name, child.name",
+            "ORDER BY parent.name, r.order_index",
             {"n": resolved},
         )
 
@@ -1042,6 +1211,7 @@ def _assemble_screen_full(
             "jsx_snippet":    comp["c.jsx_snippet"] or "",
             "occurrence":     comp["c.occurrence"],
             "classes":        comp["c.classes"] or "",
+            "truncated_fields": (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
             "styles_by_state": {
                 state: entries
                 for state, entries in styles_by_comp.get(cname, {}).items()

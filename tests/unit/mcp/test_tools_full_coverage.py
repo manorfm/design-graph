@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.mcp.tools import ToolDispatcher
+from design_graph.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher, _truncated_fields_notice
 
 
 # ── Rich mock reader ──────────────────────────────────────────────────────────
@@ -482,6 +482,184 @@ class TestTruncationWarnings:
         d = ToolDispatcher([("proto", SmallReader())])
         result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
         assert "mais" not in result.lower()
+
+
+# ── truncated_fields: agent must know a cap was hit, not just a short list ───
+# ── (C28/T57 — distinct from _truncation_notice, which is about display-time ─
+# ── slicing; this is about extraction-time caps like MAX_STYLES_PER_COMPONENT) ─
+
+class _CappedExtractionReader:
+    def get_component(self, name):
+        return {
+            "c.name": "CappedComp", "c.comp_type": "card", "c.jsx_snippet": "<div/>",
+            "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "styles,texts",
+            "styles": [], "tokens": [], "texts": [], "interactions": [],
+            "screens_using": [], "children": [],
+        }
+
+    def get_component_spec(self, name):
+        return {
+            "c.name": "CappedComp", "c.comp_type": "card", "c.jsx_snippet": "",
+            "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "interactions",
+            "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
+            "children": [], "parents": [], "screens_using": [],
+        }
+
+    def get_screen_full(self, name):
+        return {
+            "name": "CappedScreen", "component_count": 1, "sections_count": 0,
+            "sections": [],
+            "components": [{
+                "name": "CappedComp", "comp_type": "card", "occurrence": 1,
+                "jsx_snippet": "", "classes": "", "truncated_fields": ["classes"],
+                "styles_by_state": {}, "tokens": [], "texts": [],
+                "interactions": [], "props": [], "children": [],
+            }],
+        }
+
+
+class _ManyComponentsReader:
+    """150 components — more than the default list_components page size."""
+
+    def list_components(self, comp_type=None):
+        return [
+            {"c.name": f"Comp{i:03d}", "c.comp_type": "card", "c.occurrence": 150 - i}
+            for i in range(150)
+        ]
+
+
+class TestListComponentsPagination:
+    def _dispatcher(self):
+        return ToolDispatcher([("proto", _ManyComponentsReader())])
+
+    def test_default_page_capped_at_100(self):
+        result = self._dispatcher().dispatch("list_components", {}, "")
+        shown = result.count("| Comp")
+        assert shown == 100
+
+    def test_default_page_shows_truncation_notice(self):
+        result = self._dispatcher().dispatch("list_components", {}, "")
+        assert "+50" in result and "limit=" in result
+
+    def test_explicit_limit_overrides_default(self):
+        result = self._dispatcher().dispatch("list_components", {"limit": 10}, "")
+        assert result.count("| Comp") == 10
+        assert "+140" in result
+
+    def test_limit_larger_than_total_shows_everything_without_notice(self):
+        result = self._dispatcher().dispatch("list_components", {"limit": 500}, "")
+        assert result.count("| Comp") == 150
+        assert "mais" not in result.lower()
+
+    def test_most_occurring_components_shown_first(self):
+        # reader.list_components is already sorted by occurrence DESC —
+        # the shown page must be the most-used components, not an arbitrary cut.
+        result = self._dispatcher().dispatch("list_components", {"limit": 3}, "")
+        assert "Comp000" in result
+        assert "Comp099" not in result
+
+
+class _BuildDiffReader:
+    def __init__(self, diff):
+        self._diff = diff
+
+    def get_build_diff(self):
+        return self._diff
+
+
+class TestGetBuildDiffTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_build_diff" in names
+
+    def test_no_state_path_reports_unavailable(self):
+        d = ToolDispatcher([("proto", _BuildDiffReader(None))])
+        result = d.dispatch("get_build_diff", {}, "")
+        assert "Nenhum diff" in result
+
+    def test_first_build_reports_no_prior_build(self):
+        d = ToolDispatcher([("proto", _BuildDiffReader({
+            "is_first_build": True, "screens_added": [], "screens_removed": [],
+            "comps_added": [], "comps_removed": [],
+        }))])
+        result = d.dispatch("get_build_diff", {}, "")
+        assert "Primeira build" in result
+
+    def test_no_changes_reports_nothing_changed(self):
+        d = ToolDispatcher([("proto", _BuildDiffReader({
+            "is_first_build": False, "screens_added": [], "screens_removed": [],
+            "comps_added": [], "comps_removed": [],
+        }))])
+        result = d.dispatch("get_build_diff", {}, "")
+        assert "Nenhuma mudança" in result
+
+    def test_real_diff_lists_all_four_categories(self):
+        d = ToolDispatcher([("proto", _BuildDiffReader({
+            "is_first_build": False,
+            "screens_added": ["NewPage"], "screens_removed": ["OldPage"],
+            "comps_added": ["NewBtn"], "comps_removed": ["OldBtn"],
+        }))])
+        result = d.dispatch("get_build_diff", {}, "")
+        assert "NewPage" in result and "OldPage" in result
+        assert "NewBtn" in result and "OldBtn" in result
+
+
+class TestTruncatedFieldsNoticeHelper:
+    def test_none_returns_none(self):
+        assert _truncated_fields_notice(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert _truncated_fields_notice("") is None
+
+    def test_empty_list_returns_none(self):
+        assert _truncated_fields_notice([]) is None
+
+    def test_string_input_lists_fields(self):
+        notice = _truncated_fields_notice("styles,texts")
+        assert "styles" in notice and "texts" in notice
+
+    def test_list_input_lists_fields(self):
+        notice = _truncated_fields_notice(["classes"])
+        assert "classes" in notice
+
+    def test_recoverable_via_suggests_get_full_jsx(self):
+        notice = _truncated_fields_notice("styles", recoverable_via="MyComp")
+        assert "get_full_jsx('MyComp')" in notice
+
+    def test_no_recoverable_via_omits_suggestion(self):
+        notice = _truncated_fields_notice("styles")
+        assert "get_full_jsx" not in notice
+
+
+class TestTruncatedFieldsNotice:
+    def _dispatcher(self):
+        return ToolDispatcher([("proto", _CappedExtractionReader())])
+
+    def test_get_component_shows_truncated_fields(self):
+        result = self._dispatcher().dispatch("get_component", {"name": "CappedComp"}, "")
+        assert "styles" in result and "texts" in result
+        assert "get_full_jsx" in result
+
+    def test_get_component_spec_shows_truncated_fields(self):
+        result = self._dispatcher().dispatch("get_component_spec", {"name": "CappedComp"}, "")
+        assert "interactions" in result
+        assert "get_full_jsx" in result
+
+    def test_get_screen_full_shows_truncated_fields(self):
+        result = self._dispatcher().dispatch("get_screen_full", {"name": "CappedScreen"}, "")
+        assert "classes" in result
+        assert "get_full_jsx" in result
+
+    def test_no_notice_when_nothing_truncated(self):
+        class CleanReader(_CappedExtractionReader):
+            def get_component(self, name):
+                d = super().get_component(name)
+                d["c.truncated_fields"] = ""
+                return d
+        result = ToolDispatcher([("proto", CleanReader())]).dispatch(
+            "get_component", {"name": "CappedComp"}, ""
+        )
+        assert "Extração truncada" not in result
 
 
 # ── JSX truncation: agent must know a snippet was cut, and whether it can ────

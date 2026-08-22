@@ -584,3 +584,124 @@ class TestTruncationLogging:
             extract_component(js, b, 1, {})
         cap_records = [r for r in caplog.records if "capped" in r.message.lower()]
         assert not cap_records
+
+
+# ── child_refs: first-appearance order, not alphabetical (C30/T63) ───────────
+
+class TestChildRefsOrder:
+    def test_preserves_jsx_appearance_order(self):
+        js = """
+        function Parent() {
+          return (
+            <div>
+              <Zebra />
+              <Alpha />
+              <Mango />
+            </div>
+          );
+        }
+        """
+        b = _boundary(js, "Parent")
+        comp = extract_component(js, b, 1, {})
+        assert comp.child_refs == ["Zebra", "Alpha", "Mango"]
+
+    def test_duplicate_reference_kept_only_at_first_position(self):
+        js = """
+        function Parent() {
+          return (
+            <div>
+              <Zebra />
+              <Alpha />
+              <Zebra />
+            </div>
+          );
+        }
+        """
+        b = _boundary(js, "Parent")
+        comp = extract_component(js, b, 1, {})
+        assert comp.child_refs == ["Zebra", "Alpha"]
+
+
+# ── hover enter/leave paired by property name, not list position (C29/T61) ───
+
+class TestHoverEnterLeavePairingByProperty:
+    def test_reordered_leave_still_pairs_correct_from_val(self):
+        # enter sets color then background; leave restores background then
+        # color — reversed order. Positional zip() would cross-assign the
+        # wrong from_val to each property.
+        js = """
+        function BtnTest() {
+          return <button
+            onMouseEnter={e => { e.target.style.color = 'red'; e.target.style.background = 'blue'; }}
+            onMouseLeave={e => { e.target.style.background = 'gray'; e.target.style.color = 'black'; }}
+          >Click</button>;
+        }
+        """
+        b = _boundary(js, "BtnTest")
+        comp = extract_component(js, b, 1, {})
+        by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
+        assert by_prop["color"] == ("black", "red")
+        assert by_prop["background"] == ("gray", "blue")
+
+    def test_enter_mutation_without_matching_leave_keeps_empty_from_val(self):
+        # enter sets 2 properties; leave only restores 1 — the unmatched
+        # enter mutation must still produce an interaction (to_val known),
+        # not be silently dropped by a shorter zip(), and must not borrow
+        # an unrelated property's from_val.
+        js = """
+        function BtnTest() {
+          return <button
+            onMouseEnter={e => { e.target.style.color = 'red'; e.target.style.transform = 'scale(1.05)'; }}
+            onMouseLeave={e => { e.target.style.color = 'black'; }}
+          >Click</button>;
+        }
+        """
+        b = _boundary(js, "BtnTest")
+        comp = extract_component(js, b, 1, {})
+        by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
+        assert by_prop["color"] == ("black", "red")
+        assert by_prop["transform"] == ("", "scale(1.05)")
+
+
+# ── truncated_fields: cap surfaced as data, not just a debug log (C28/T56) ────
+
+class TestTruncatedFields:
+    def test_styles_cap_recorded_in_truncated_fields(self):
+        limit = MAX_STYLES_PER_COMPONENT
+        js = _make_js_with_many_styles("BigComp", limit + 5)
+        b  = _boundary(js, "BigComp")
+        comp = extract_component(js, b, 1, {})
+        assert "styles" in comp.truncated_fields
+
+    def test_styles_within_limit_not_in_truncated_fields(self):
+        js = _make_js_with_many_styles("SmallComp", 2)
+        b  = _boundary(js, "SmallComp")
+        comp = extract_component(js, b, 1, {})
+        assert "styles" not in comp.truncated_fields
+
+    def test_classes_cap_recorded_in_truncated_fields(self):
+        many_classes = " ".join(f"cls{i}" for i in range(MAX_CLASSES_PER_COMPONENT + 5))
+        js = f'function ManyClasses() {{ return <div className="{many_classes}" />; }}'
+        b  = _boundary(js, "ManyClasses")
+        comp = extract_component(js, b, 1, {})
+        assert "classes" in comp.truncated_fields
+        assert "styles" not in comp.truncated_fields
+
+    def test_no_caps_hit_yields_empty_truncated_fields(self):
+        js = 'function Plain() { return <div className="a b" style={{color: "red"}} />; }'
+        b  = _boundary(js, "Plain")
+        comp = extract_component(js, b, 1, {})
+        assert comp.truncated_fields == frozenset()
+
+    def test_consolidate_unions_truncated_fields_across_variants(self):
+        from design_graph.core.models import ExtractedComponent
+        v1 = ExtractedComponent(
+            name="Dup", comp_type="component", jsx_snippet="<div/>",
+            occurrence=1, classes="", truncated_fields=frozenset({"styles"}),
+        )
+        v2 = ExtractedComponent(
+            name="Dup", comp_type="component", jsx_snippet="<div/>",
+            occurrence=1, classes="", truncated_fields=frozenset({"texts"}),
+        )
+        merged = ExtractedComponent.consolidate([v1, v2])
+        assert merged.truncated_fields == frozenset({"styles", "texts"})

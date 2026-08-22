@@ -223,6 +223,49 @@ class TestResolveClasses:
         assert len(ids) == len(set(ids))
 
 
+# ── hover:/focus: state variant prefixes (C29/T61) ───────────────────────────
+
+class TestResolveClassesStateVariants:
+    def test_hover_prefix_resolves_to_hover_state(self):
+        entries = resolve_classes("hover:flex", {})
+        assert entries
+        for e in entries:
+            assert e.state == "hover"
+            assert e.property == "display" and e.value == "flex"
+
+    def test_focus_prefix_resolves_to_focus_state(self):
+        entries = resolve_classes("focus:rounded-lg", {})
+        assert entries
+        for e in entries:
+            assert e.state == "focus"
+
+    def test_hover_prefix_works_against_custom_rule_map(self):
+        rule_map = {"btn": [CssRule(".btn", "backgroundColor", "#333")]}
+        entries = resolve_classes("hover:btn", rule_map)
+        assert entries
+        assert entries[0].state == "hover"
+        assert entries[0].value == "#333"
+
+    def test_default_and_hover_variant_of_same_class_both_kept(self):
+        entries = resolve_classes("flex hover:flex", {})
+        states = {e.state for e in entries}
+        assert states == {"default", "hover"}
+        # Distinct ids — one class/property/state combo must not collide
+        # with (and silently overwrite) the other in dedup/graph storage.
+        ids = [e.id for e in entries]
+        assert len(ids) == len(set(ids))
+
+    def test_unsupported_prefix_is_still_silently_skipped(self):
+        # dark:/md:/sm:/lg: have no StyleState axis — must not be folded
+        # into an unconditional default style, and must not raise.
+        entries = resolve_classes("dark:text-white md:flex", {})
+        assert entries == []
+
+    def test_unknown_class_after_hover_prefix_produces_no_entries(self):
+        entries = resolve_classes("hover:totally-unknown-xyz", {})
+        assert entries == []
+
+
 # ── Guardrail G1: parsing layer isolation ────────────────────────────────────
 
 # ── Tailwind numeric sizing classes ──────────────────────────────────────────

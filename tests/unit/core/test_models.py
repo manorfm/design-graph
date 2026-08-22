@@ -278,6 +278,22 @@ class TestStyleEntryCreate:
         assert entry.element == "class:flex"
         assert entry.state == StyleState.DEFAULT
 
+    def test_from_css_class_hover_state_seed_includes_state_name(self):
+        # C29/T61: hover:/focus: variants must not collide with the default-state id.
+        expected = "cls_" + hashlib.md5(b"flex:hover:display").hexdigest()[:8]
+        entry = StyleEntry.from_css_class(
+            class_name="flex", property="display", value="flex", state=StyleState.HOVER,
+        )
+        assert entry.id == expected
+        assert entry.state == StyleState.HOVER
+
+    def test_from_css_class_default_and_hover_ids_differ(self):
+        default_entry = StyleEntry.from_css_class(class_name="flex", property="display", value="flex")
+        hover_entry = StyleEntry.from_css_class(
+            class_name="flex", property="display", value="flex", state=StyleState.HOVER,
+        )
+        assert default_entry.id != hover_entry.id
+
     def test_for_section_matches_legacy_seed(self):
         expected = "sec_" + hashlib.md5(b"sec_abc123_padding").hexdigest()[:8]
         entry = StyleEntry.for_section(section_id="sec_abc123", property="padding", value="16px")
@@ -421,6 +437,36 @@ class TestIconAssetCreate:
     def test_str_renders_bracket_marker(self):
         icon = IconAsset.create("<svg><circle/></svg>")
         assert str(icon) == f"{{[icon:{icon.id}]}}"
+
+
+class TestExtractedComponentConsolidateChildOrder:
+    """C30/T64: order_index should come from the live (last) variant, not a
+    sorted union — order is meaningful data now, not just a dedup key."""
+
+    def _component(self, child_refs: list[str]) -> ExtractedComponent:
+        return ExtractedComponent(
+            name="Shared", comp_type=ComponentType.COMPONENT, jsx_snippet="<div/>",
+            occurrence=1, classes="", child_refs=child_refs,
+        )
+
+    def test_order_comes_from_last_variant(self):
+        earlier = self._component(["Alpha", "Beta"])
+        live = self._component(["Zebra", "Mango"])
+        comp = ExtractedComponent.consolidate([earlier, live])
+        # Live variant's own order first, then anything only the earlier
+        # (shadowed) variant referenced, appended after — union preserved,
+        # but the live variant's order takes precedence.
+        assert comp.child_refs == ["Zebra", "Mango", "Alpha", "Beta"]
+
+    def test_shared_children_are_not_duplicated(self):
+        earlier = self._component(["Alpha", "Beta"])
+        live = self._component(["Beta", "Alpha"])
+        comp = ExtractedComponent.consolidate([earlier, live])
+        assert comp.child_refs == ["Beta", "Alpha"]
+
+    def test_single_variant_keeps_its_own_order(self):
+        comp = ExtractedComponent.consolidate([self._component(["Zebra", "Alpha", "Mango"])])
+        assert comp.child_refs == ["Zebra", "Alpha", "Mango"]
 
 
 class TestExtractedComponentConsolidateMergesIcons:

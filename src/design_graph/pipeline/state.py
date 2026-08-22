@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from design_graph.core.models import BuildState, ExtractedScreen
+from design_graph.core.models import BuildDiff, BuildState, ExtractedScreen
 from design_graph.graph.diff import compute_screen_hash
 
 logger = logging.getLogger(__name__)
@@ -84,6 +84,7 @@ def load_build_state(state_path: Path) -> BuildState:
             source_path=data.get("source_path", ""),
             database_path=data.get("database_path", ""),
             schema_version=int(data.get("schema_version", 1)),
+            last_diff=_diff_from_payload(data.get("last_diff")),
         )
     except Exception as exc:
         logger.warning(
@@ -110,6 +111,7 @@ def save_build_state(state_path: Path, state: BuildState) -> None:
         "source_path": state.source_path,
         "database_path": state.database_path,
         "schema_version": state.schema_version,
+        "last_diff": _diff_to_payload(state.last_diff),
     }
     tmp_path = state_path.with_suffix(".tmp")
     tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -124,12 +126,19 @@ def build_new_state(
     comp_counts: Counter,
     source_path: Path | None = None,
     database_path: Path | None = None,
+    diff: BuildDiff | None = None,
 ) -> BuildState:
     """
     Construct a BuildState snapshot from the current extraction results.
 
     Stores the top 200 components by occurrence count — enough for diff
     reporting without unbounded growth on large prototypes.
+
+    diff: this build's own BuildDiff (relative to the state it replaces),
+    persisted so a later caller — the MCP get_build_diff tool, in
+    particular — can answer "what changed since the last build" by just
+    reading this file, without recomputing anything or comparing two
+    Kuzu databases from scratch.
     """
     return BuildState(
         html_hash=html_hash,
@@ -139,6 +148,7 @@ def build_new_state(
         source_path=str(source_path.resolve()) if source_path else "",
         database_path=str(database_path.resolve()) if database_path else "",
         schema_version=2,
+        last_diff=diff,
     )
 
 
@@ -146,3 +156,33 @@ def build_new_state(
 
 def _empty_build_state() -> BuildState:
     return BuildState(html_hash="", last_build="", screens={}, components={})
+
+
+def _diff_to_payload(diff: BuildDiff | None) -> dict | None:
+    if diff is None:
+        return None
+    return {
+        "is_first_build":  diff.is_first_build,
+        "screens_added":   diff.screens_added,
+        "screens_removed": diff.screens_removed,
+        "comps_added":     diff.comps_added,
+        "comps_removed":   diff.comps_removed,
+    }
+
+
+def _diff_from_payload(data) -> BuildDiff | None:
+    if not isinstance(data, dict):
+        return None
+    try:
+        return BuildDiff(
+            is_first_build=bool(data.get("is_first_build", False)),
+            screens_added=list(data.get("screens_added", [])),
+            screens_removed=list(data.get("screens_removed", [])),
+            comps_added=list(data.get("comps_added", [])),
+            comps_removed=list(data.get("comps_removed", [])),
+        )
+    except Exception:  # noqa: BLE001
+        # Malformed/legacy payload — no diff available is a safe default,
+        # same "treat as absent" fallback load_build_state already applies
+        # to the whole file being unreadable.
+        return None

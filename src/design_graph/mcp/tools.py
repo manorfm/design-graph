@@ -15,10 +15,48 @@ import logging
 
 from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
+from design_graph.extraction.component_extractor import extract_component
 from design_graph.graph.reader import GraphReader
 from design_graph.mcp.search import search
+from design_graph.parsing.js_parser import find_all_boundaries
 
 logger = logging.getLogger(__name__)
+
+# Default page size for list_components — the only listing tool that had no
+# cap at all (search/get_screen_full/get_component_spec already truncate).
+_DEFAULT_LIST_COMPONENTS_LIMIT = 100
+
+# Synthetic wrapper name for validate_component_implementation. Must be
+# plain PascalCase, no leading underscore — find_all_boundaries only
+# recognizes function names matching the same convention real React
+# component names use, exactly as it would for any bundle it parses.
+_VALIDATION_WRAPPER_NAME = "DesignGraphValidationCandidate"
+
+
+def _extract_validation_candidate(jsx_source: str):
+    """
+    Re-extract an agent-submitted JSX expression using the same
+    component_extractor.extract_component the build pipeline itself uses —
+    wrapped in a synthetic function declaration so find_all_boundaries can
+    locate it (extract_component has no entry point for bare JSX; a real
+    prototype bundle never contains one either).
+
+    No rule_map/tag_rule_map/palette is passed: those come from the whole
+    prototype's own stylesheet, which doesn't exist for a standalone
+    snippet. Concretely, this means className-resolved styles (custom CSS
+    classes and Tailwind color utilities) are NOT captured here even when
+    they would be in a real build — only inline style={{}} objects, JSX
+    child references, and text content are reliably extracted. Spread
+    references (style={{...shared}}) also resolve to nothing, for the same
+    "no whole-file context" reason component_extractor's own spread
+    resolution already documents.
+    """
+    synthetic_js = f"function {_VALIDATION_WRAPPER_NAME}() {{\n  return (\n{jsx_source}\n  );\n}}"
+    boundaries = find_all_boundaries(synthetic_js)
+    if not boundaries:
+        return None
+    return extract_component(synthetic_js, boundaries[0], 1, {})
+
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
@@ -27,6 +65,32 @@ def _truncation_notice(total: int, shown: int) -> str | None:
     if total > shown:
         return f"> ... +{total - shown} mais"
     return None
+
+
+def _truncated_fields_notice(
+    truncated_fields: str | list[str] | None,
+    recoverable_via: str | None = None,
+) -> str | None:
+    """
+    Blockquote warning when extraction hit a MAX_*_PER_COMPONENT cap for one
+    or more fields (styles/interactions/texts/classes) on this component.
+
+    Accepts either the raw comma-separated string stored on the Component
+    node (get_component/get_component_spec) or the already-split list shape
+    used by get_screen_full — same fact, two call sites with different
+    intermediate shapes. Without this, an agent reading a "complete-looking"
+    spec has no way to tell it was cut, not just short.
+    """
+    fields = (
+        [f for f in truncated_fields.split(",") if f]
+        if isinstance(truncated_fields, str)
+        else list(truncated_fields or [])
+    )
+    if not fields:
+        return None
+    field_list = ", ".join(fields)
+    suffix = f" Chame get_full_jsx('{recoverable_via}') para o JSX bruto." if recoverable_via else ""
+    return f"> ⚠ Extração truncada em: {field_list} — esta spec pode estar incompleta.{suffix}"
 
 
 class CappedJsx(str):
@@ -304,7 +368,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "description": (
             "Lists all components in the prototype, optionally filtered by semantic type. "
             f"Types: {', '.join(c.value for c in ComponentType)}. "
-            "Returns name, type and occurrence count sorted by frequency."
+            "Returns name, type and occurrence count sorted by frequency. "
+            f"Response is capped at {_DEFAULT_LIST_COMPONENTS_LIMIT} rows by default (most-used "
+            "first) — pass limit for a different page size, or comp_type to filter instead."
         ),
         "inputSchema": {
             "type": "object",
@@ -312,6 +378,10 @@ TOOL_DEFINITIONS: list[dict] = [
                 "comp_type": {
                     "type": "string",
                     "description": f"Filter by type: {'|'.join(c.value for c in ComponentType)}",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": f"Max rows to return. Default {_DEFAULT_LIST_COMPONENTS_LIMIT}.",
                 },
                 "doc": _doc_param(),
             },
@@ -333,6 +403,64 @@ TOOL_DEFINITIONS: list[dict] = [
                 "doc":  _doc_param(),
             },
             "required": ["name"],
+        },
+    },
+    {
+        "name": "get_component_full",
+        "description": (
+            "Returns the full component tree rooted at name: the component itself plus "
+            "every descendant reachable via CONTAINS (up to 3 levels deep), each with its "
+            "own styles, tokens, texts, interactions, props and children, in render order. "
+            "Use instead of get_component_spec + repeated get_component_children calls when "
+            "reconstructing one complex component in isolation (a modal, a form, a card with "
+            "nested widgets) — one call instead of cascading through every grandchild."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Root component name (partial name accepted)"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "get_build_diff",
+        "description": (
+            "Returns what changed in this prototype's most recent build relative to the "
+            "build before it: screens and components added or removed. Answers 'what "
+            "changed since I last looked' without re-reading the whole prototype. Reflects "
+            "the last time `design-graph <file.html>` was actually run, not live source changes."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "doc": _doc_param(),
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "validate_component_implementation",
+        "description": (
+            "Compares JSX you wrote against a component's stored spec (children, default-state "
+            "styles, texts) and reports discrepancies. Best-effort, not a full re-extraction: "
+            "it re-parses jsx_source in isolation, so it reliably catches missing/extra child "
+            "components and missing inline styles/texts, but CANNOT verify styles that came from "
+            "the prototype's own CSS classes or Tailwind color utilities (e.g. bg-blue-500) — "
+            "those require the original stylesheet, which isn't available for a standalone "
+            "snippet. Treat a clean report as 'no red flags found', not proof of a pixel-perfect "
+            "match. Pass jsx_source as the JSX expression only (what get_full_jsx returns), not "
+            "a full function declaration."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Component name to compare against (partial name accepted)"},
+                "jsx_source": {"type": "string", "description": "The JSX expression you implemented, e.g. '<button style={{color: \"red\"}}>OK</button>'"},
+                "doc": _doc_param(),
+            },
+            "required": ["name", "jsx_source"],
         },
     },
     {
@@ -484,8 +612,13 @@ class ToolDispatcher:
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
             "get_component_interactions": lambda: self.get_component_interactions(reader, name),
             "get_component_children":    lambda: self.get_component_children(reader, name),
-            "list_components":           lambda: self.list_components(reader, args.get("comp_type")),
+            "list_components":           lambda: self.list_components(reader, args.get("comp_type"), args.get("limit")),
             "get_component_spec":        lambda: self.get_component_spec(reader, name),
+            "get_component_full":        lambda: self.get_component_full(reader, name),
+            "get_build_diff":            lambda: self.get_build_diff(reader),
+            "validate_component_implementation": lambda: self.validate_component_implementation(
+                reader, name, args.get("jsx_source", ""),
+            ),
         }
 
         fn = dispatch_map.get(tool_name)
@@ -628,6 +761,9 @@ class ToolDispatcher:
                 cname = comp["name"]
                 lines.append(f"### {cname}")
                 lines.append(f"**Type**: {comp['comp_type']} | **Occurrences**: {comp['occurrence']}")
+                trunc_notice = _truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
+                if trunc_notice:
+                    lines.append(trunc_notice)
                 if comp["children"]:
                     lines.append(f"**Children**: {', '.join(comp['children'])}")
 
@@ -759,6 +895,9 @@ class ToolDispatcher:
             f"Tipo: **{comp.get('c.comp_type', '')}**  |  Ocorrências: {comp.get('c.occurrence', '')}",
             f"Usado em: {', '.join(comp.get('screens_using', [])) or 'não detectado'}",
         ]
+        trunc_notice = _truncated_fields_notice(comp.get("c.truncated_fields"), recoverable_via=cname)
+        if trunc_notice:
+            lines.append(trunc_notice)
         if comp.get("c.jsx_snippet"):
             jsx = CappedJsx(comp["c.jsx_snippet"], 4000)
             lines += ["", "## JSX", "```jsx", jsx, "```"]
@@ -909,20 +1048,32 @@ class ToolDispatcher:
             lines.append(f"- `{child}`")
         return "\n".join(lines)
 
-    def list_components(self, reader: GraphReader, comp_type: str | None) -> str:
+    def list_components(self, reader: GraphReader, comp_type: str | None, limit: int | None = None) -> str:
         comps = reader.list_components(comp_type)
         if not comps:
             if comp_type:
                 return f"Nenhum componente encontrado para o tipo '{comp_type}'."
             return "Nenhum componente encontrado."
 
+        # Unlike every other listing tool (search, get_screen_full,
+        # get_component_spec), this had no cap at all — a prototype with
+        # hundreds of components returned every row in one response,
+        # against the product's own point of reducing tokens in the
+        # agent's context. Already sorted by occurrence DESC (reader.list_components),
+        # so the shown slice is the most-used components, not an arbitrary cut.
+        effective_limit = limit if limit and limit > 0 else _DEFAULT_LIST_COMPONENTS_LIMIT
+        shown = comps[:effective_limit]
+
         header = f"## Componentes — tipo: {comp_type}" if comp_type else "## Componentes"
         lines = [header, f"({len(comps)} encontrados)\n",
                  "| Nome | Tipo | Ocorrências |",
                  "|------|------|-------------|"]
-        for c in comps:
+        for c in shown:
             lines.append(f"| {c['c.name']} | {c['c.comp_type']} | {c['c.occurrence']} |")
-        logger.debug("tools: list_components(type=%s) → %d rows", comp_type, len(comps))
+        notice = _truncation_notice(len(comps), len(shown))
+        if notice:
+            lines.append(notice + " (passe limit= para ver mais, ou comp_type= para filtrar)")
+        logger.debug("tools: list_components(type=%s) → %d/%d rows shown", comp_type, len(shown), len(comps))
         return "\n".join(lines)
 
     def get_component_spec(self, reader: GraphReader, name: str) -> str:
@@ -937,6 +1088,9 @@ class ToolDispatcher:
         ]
         if spec.get("screens_using"):
             lines.append(f"**Telas**: {', '.join(spec['screens_using'])}")
+        trunc_notice = _truncated_fields_notice(spec.get("c.truncated_fields"), recoverable_via=cname)
+        if trunc_notice:
+            lines.append(trunc_notice)
         if spec.get("parents") or spec.get("children"):
             lines.append("\n## Hierarquia")
             if spec["parents"]:
@@ -990,6 +1144,188 @@ class ToolDispatcher:
             if notice:
                 lines.append(notice)
         logger.debug("tools: get_component_spec(%s) — rendered", cname)
+        return "\n".join(lines)
+
+    def get_component_full(self, reader: GraphReader, name: str) -> str:
+        """
+        Render the root component plus every descendant (via CONTAINS, up
+        to 3 levels) as Markdown — one call to reconstruct a complex
+        component instead of cascading get_component_children per level.
+        """
+        full = reader.get_component_full(name)
+        if not full:
+            return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+
+        root_name = full["root"]
+        lines = [
+            f"# Árvore de componente: {root_name}",
+            f"**Componentes na árvore**: {len(full['components'])}\n",
+        ]
+        for comp in full["components"]:
+            cname = comp["name"]
+            marker = " (raiz)" if cname == root_name else ""
+            lines.append(f"## {cname}{marker}")
+            lines.append(f"**Tipo**: {comp['comp_type']} | **Ocorrências**: {comp['occurrence']}")
+            trunc_notice = _truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
+            if trunc_notice:
+                lines.append(trunc_notice)
+            if comp["children"]:
+                lines.append(f"**Filhos**: {', '.join(comp['children'])}")
+
+            if comp["props"]:
+                lines.append("\n#### Props")
+                lines.extend(_props_table_lines(comp["props"]))
+
+            any_styles = False
+            for state, raw_styles in sorted(comp["styles_by_state"].items()):
+                styles = _dedupe_styles_by_property(raw_styles)
+                if styles:
+                    any_styles = True
+                    lines.append(f"\n#### Estilos — {state}")
+                    lines.append("| Propriedade | Valor |")
+                    lines.append("|---|---|")
+                    for s in styles[:12]:
+                        lines.append(f"| {s['property']} | {s['value']} |")
+                    notice = _truncation_notice(len(styles), 12)
+                    if notice:
+                        lines.append(notice)
+            if not any_styles:
+                notice = StyleExtractionGap(comp["jsx_snippet"]).notice()
+                if notice:
+                    lines.append(f"\n{notice}")
+
+            if comp["tokens"]:
+                lines.append("\n#### Tokens")
+                for t in comp["tokens"]:
+                    lines.append(f"- **{t['label']}** = `{t['value']}` ({t['category']})")
+
+            if comp["interactions"]:
+                lines.append("\n#### Interações")
+                for i in comp["interactions"]:
+                    lines.append(
+                        f"- **{i['trigger']}**: `{i['css_prop']}` "
+                        f"`{i['from_val']}` → `{i['to_val']}` ({i['transition']})"
+                    )
+
+            if comp["texts"]:
+                lines.append("\n#### Textos")
+                for t in comp["texts"][:8]:
+                    lines.append(f'- "{t["content"]}" ({t["text_type"]})')
+                notice = _truncation_notice(len(comp["texts"]), 8)
+                if notice:
+                    lines.append(notice)
+
+            if comp["jsx_snippet"]:
+                jsx = CappedJsx(comp["jsx_snippet"], 2500)
+                lines.append("\n```jsx")
+                lines.append(jsx)
+                lines.append("```")
+                notice = jsx.notice(recoverable_via=cname)
+                if notice:
+                    lines.append(notice)
+            lines.append("")
+
+        logger.debug("tools: get_component_full(%s) — %d components", root_name, len(full["components"]))
+        return "\n".join(lines)
+
+    def get_build_diff(self, reader: GraphReader) -> str:
+        diff = reader.get_build_diff()
+        if diff is None:
+            return (
+                "Nenhum diff de build disponível para este documento "
+                "(protótipo carregado sem state.json associado, ou nunca reconstruído)."
+            )
+        if diff.get("is_first_build"):
+            return "Primeira build deste protótipo — não há build anterior para comparar."
+
+        screens_added   = diff.get("screens_added", [])
+        screens_removed = diff.get("screens_removed", [])
+        comps_added     = diff.get("comps_added", [])
+        comps_removed   = diff.get("comps_removed", [])
+        if not any((screens_added, screens_removed, comps_added, comps_removed)):
+            return "Nenhuma mudança de telas ou componentes desde a build anterior."
+
+        lines = ["# Diff da última build\n"]
+        if screens_added:
+            lines.append(f"**Telas adicionadas**: {', '.join(screens_added)}")
+        if screens_removed:
+            lines.append(f"**Telas removidas**: {', '.join(screens_removed)}")
+        if comps_added:
+            lines.append(f"**Componentes adicionados**: {', '.join(comps_added)}")
+        if comps_removed:
+            lines.append(f"**Componentes removidos**: {', '.join(comps_removed)}")
+        return "\n".join(lines)
+
+    def validate_component_implementation(
+        self, reader: GraphReader, name: str, jsx_source: str,
+    ) -> str:
+        if not jsx_source.strip():
+            return "jsx_source vazio — nada para comparar."
+
+        spec = reader.get_component_spec(name)
+        if not spec:
+            return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+        cname = spec["c.name"]
+
+        candidate = _extract_validation_candidate(jsx_source)
+        if candidate is None:
+            return (
+                "Não foi possível interpretar jsx_source como JSX válido "
+                "(passe a expressão JSX, ex.: o que get_full_jsx devolve, não uma "
+                "declaração de função completa)."
+            )
+
+        lines = [
+            f"# Validação: {cname}",
+            "> Best-effort: não verifica estilos vindos de classes CSS do protótipo "
+            "nem cores Tailwind (ex. bg-blue-500) — só estilos inline e utilitários "
+            "de layout têm cobertura confiável aqui. Um relatório limpo não é prova "
+            "de correspondência pixel-perfeita.\n",
+        ]
+
+        stored_children = set(spec.get("children", []))
+        candidate_children = set(candidate.child_refs)
+        missing_children = sorted(stored_children - candidate_children)
+        extra_children = sorted(candidate_children - stored_children)
+        if missing_children:
+            lines.append(f"⚠ **Filhos ausentes na implementação**: {', '.join(missing_children)}")
+        if extra_children:
+            lines.append(f"ℹ **Filhos novos (não estavam na spec original)**: {', '.join(extra_children)}")
+        if not missing_children and not extra_children and stored_children:
+            lines.append("✅ Filhos batem com a spec.")
+
+        stored_default = {
+            (s["property"], s["value"])
+            for s in spec.get("styles_by_state", {}).get("default", [])
+        }
+        candidate_default = {
+            (s.property, s.value) for s in candidate.styles if s.state == StyleState.DEFAULT
+        }
+        missing_styles = sorted(stored_default - candidate_default)
+        if missing_styles:
+            lines.append("\n⚠ **Estilos default ausentes na implementação** (property, value):")
+            for prop, val in missing_styles[:15]:
+                lines.append(f"- `{prop}`: `{val}`")
+            notice = _truncation_notice(len(missing_styles), 15)
+            if notice:
+                lines.append(notice)
+        elif stored_default:
+            lines.append("\n✅ Estilos default inline batem com a spec (dentro do que é verificável).")
+
+        stored_texts = {t["t.content"] for t in spec.get("texts", [])}
+        candidate_texts = {t.content for t in candidate.texts}
+        missing_texts = sorted(stored_texts - candidate_texts)
+        if missing_texts:
+            lines.append("\n⚠ **Textos ausentes na implementação**:")
+            for t in missing_texts[:10]:
+                lines.append(f'- "{t}"')
+            notice = _truncation_notice(len(missing_texts), 10)
+            if notice:
+                lines.append(notice)
+        elif stored_texts:
+            lines.append("\n✅ Textos batem com a spec.")
+
+        logger.debug("tools: validate_component_implementation(%s) — rendered", cname)
         return "\n".join(lines)
 
     # ── Private helpers ───────────────────────────────────────────────────────

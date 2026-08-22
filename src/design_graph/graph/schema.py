@@ -7,6 +7,10 @@ initialize_schema() is idempotent — calling it twice is safe.
 Schema changes:
   v2 — added CONTAINS relationship (Component → Component with weight property)
        added detection_method field to Section node
+  v7 — added truncated_fields to Component (comma-separated field names capped
+       during extraction, e.g. "styles,texts" — empty string when nothing was cut)
+  v8 — added order_index to CONTAINS (sibling render order — first-appearance
+       order in the source JSX, not alphabetical)
 """
 
 from __future__ import annotations
@@ -52,6 +56,7 @@ _NODE_TABLES: list[str] = [
         "  jsx_snippet STRING,"
         "  occurrence INT64,"
         "  classes STRING,"
+        "  truncated_fields STRING,"
         "  PRIMARY KEY(name)"
         ")"
     ),
@@ -127,7 +132,8 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",
     # v2: compositional hierarchy with occurrence weight
-    "CREATE REL TABLE CONTAINS(FROM Component TO Component, weight INT64)",
+    # v8: order_index — sibling render order among a parent's children
+    "CREATE REL TABLE CONTAINS(FROM Component TO Component, weight INT64, order_index INT64)",
     # v3: style-level token linkage — which CSS property resolves to which token
     "CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)",
     # v4: section container styles as proper graph nodes (replaces styles_json blob)
