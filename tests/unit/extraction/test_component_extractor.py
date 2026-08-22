@@ -13,6 +13,7 @@ from design_graph.extraction.component_extractor import (
     select_renderable_boundaries,
 )
 from design_graph.parsing.js_parser import find_all_boundaries
+from design_graph.parsing.palette_extractor import discover_prototype_palette
 from design_graph.parsing.token_extractor import build_token_map
 
 BTN_JS = """
@@ -481,6 +482,71 @@ class TestRootStyleSurvivesTemplateLiteralInSiblingBlock:
         assert background.value == "on ? color + '1e' : '#2e2e2e'"
         assert not background.value.rstrip().endswith("?")
 
+
+PALETTE_JS = """
+const C = {
+  bg: '#404040', card: '#2a2a2a', card2: '#333333', border: '#3a3a3a',
+  accent: '#FFB81C', muted: '#9ca3af',
+};
+function PricingPageV6() {
+    return (
+        <div style={{ background: C.bg, border: '1px solid gray' }}>
+            <span style={{ color: C.muted, fontSize: 12 }} />
+        </div>
+    )
+}
+"""
+
+
+class TestPaletteReferenceFoldedIntoStyleValue:
+    """
+    A style value written as a direct palette reference (`background:
+    C.bg`) previously survived extraction as the literal text "C.bg" —
+    useless for token matching, which requires StyleEntry.value to equal
+    a Token's literal hex exactly (writer.py: token_map.get(style.value)).
+    When the prototype's own palette is known, resolving the reference at
+    extraction time means every existing literal-value matching path
+    (USES_TOKEN, STYLE_USES_TOKEN) just works, unchanged.
+    """
+
+    def _palette(self):
+        return discover_prototype_palette(PALETTE_JS)
+
+    def test_direct_reference_resolved_to_literal_hex(self):
+        b = _boundary(PALETTE_JS, "PricingPageV6")
+        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        background = next(s for s in comp.styles if s.property == "background")
+        assert background.value == "#404040"
+
+    def test_resolution_applies_to_nested_elements_too(self):
+        b = _boundary(PALETTE_JS, "PricingPageV6")
+        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        color = next(s for s in comp.styles if s.property == "color")
+        assert color.value == "#9ca3af"
+
+    def test_non_palette_literal_values_are_left_alone(self):
+        b = _boundary(PALETTE_JS, "PricingPageV6")
+        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        border = next(s for s in comp.styles if s.property == "border")
+        assert border.value == "1px solid gray"
+
+    def test_no_palette_leaves_reference_unresolved(self):
+        # Backward-compatible default — palette is optional.
+        b = _boundary(PALETTE_JS, "PricingPageV6")
+        comp = extract_component(PALETTE_JS, b, 1, {})
+        background = next(s for s in comp.styles if s.property == "background")
+        assert background.value == "C.bg"
+
+    def test_resolved_value_now_links_to_its_token(self):
+        from design_graph.core.models import DesignToken
+
+        token = DesignToken(id="col_bg", category="color", label="bg", value="#404040", usage=5)
+        b = _boundary(PALETTE_JS, "PricingPageV6")
+        comp = extract_component(PALETTE_JS, b, 1, build_token_map([token]), palette=self._palette())
+        assert comp.name == "PricingPageV6"
+        background = next(s for s in comp.styles if s.property == "background")
+        assert background.value.lower() == token.value.lower()
+
     def test_hover_state_style_entry_recorded(self):
         b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
         comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})
@@ -597,6 +663,16 @@ class TestExtractAllComponents:
         assert {prop.prop_name for prop in component.props} == {"first", "second"}
         assert "First action" in component.jsx_snippet
         assert "Second action" in component.jsx_snippet
+
+    def test_palette_forwarded_to_every_component(self):
+        bounds = find_all_boundaries(PALETTE_JS)
+        comps = asyncio.run(extract_all_components(
+            PALETTE_JS, bounds, Counter(b.name for b in bounds), {},
+            palette=discover_prototype_palette(PALETTE_JS),
+        ))
+        pricing = next(c for c in comps if c.name == "PricingPageV6")
+        background = next(s for s in pricing.styles if s.property == "background")
+        assert background.value == "#404040"
 
     def test_duplicate_definitions_label_which_variant_actually_executes(self):
         # JS hoists `function Name(...)` declarations fully — a later

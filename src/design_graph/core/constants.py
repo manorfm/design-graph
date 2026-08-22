@@ -1,6 +1,12 @@
 """
-Shared constants: React internals to exclude, color semantic labels,
-and semantic keyword mappings for HTML component detection.
+Shared constants: React internals to exclude and semantic keyword
+mappings for HTML component detection.
+
+Color labels are not among these: a hardcoded hex→label table shared
+across every prototype this server ever loads would mislabel a color the
+instant a prototype's own palette gives that hex a different meaning than
+whichever prototype the table was written against (see
+parsing.palette_extractor — labels are derived per-prototype instead).
 """
 
 # React/JS built-in names that should never be treated as user components
@@ -21,22 +27,6 @@ MIN_COMPONENT_NAME_LENGTH = 3
 SKIP_COLORS: frozenset[str] = frozenset({
     "rgba(0,0,0,0)", "transparent", "#000", "#fff", "#000000", "#ffffff",
 })
-
-# Semantic labels for common design-system colors
-COLOR_SEMANTIC_LABELS: dict[str, str] = {
-    "#1a1a1a": "bg_base",       "#1f1f1f": "bg_deep",
-    "#2a2a2a": "bg_surface",    "#2e2e2e": "bg_elevated",
-    "#333333": "bg_muted",      "#333":    "bg_muted",
-    "#3a3a3a": "border_default","#404040": "bg_canvas",
-    "#444444": "bg_neutral",    "#444":    "bg_neutral",
-    "#ffb81c": "primary",       "#FFB81C": "primary",
-    "#f59e0b": "primary_dim",   "#22c55e": "success",
-    "#60a5fa": "info",          "#ef4444": "danger",
-    "#a78bfa": "premium",       "#9ca3af": "text_muted",
-    "#6b7280": "text_disabled", "#ffffff": "white",
-    "#fff":    "white",         "#000000": "black",
-    "#262626": "bg_darker",     "#1c1c1c": "bg_darkest",
-}
 
 # Minimum occurrences for a color to become a design token
 MIN_COLOR_OCCURRENCES = 2

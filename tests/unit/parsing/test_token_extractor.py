@@ -61,11 +61,26 @@ class TestExtractColors:
         values = {t.value for t in tokens}
         assert "#aabbcc" in values
 
-    def test_known_color_gets_semantic_label(self):
+    def test_color_matching_the_prototypes_own_palette_gets_its_key_as_label(self):
+        # The label comes from THIS prototype's own const C, not a fixed
+        # cross-prototype table — the same hex means something different
+        # in another prototype's palette (see PrototypePalette).
+        js = (
+            "const C = { accent: '#ffb81c', red: '#ef4444', bg: '#404040', card: '#2a2a2a' };\n"
+            + REPEATED_COLOR_JS
+        )
+        tokens = extract_tokens(_sources(js=js))
+        primary = next((t for t in tokens if t.value == "#ffb81c"), None)
+        assert primary is not None
+        assert primary.label == "accent"
+
+    def test_color_with_no_discoverable_palette_falls_back_to_hex_label(self):
+        # REPEATED_COLOR_JS declares no const palette object at all — a
+        # guessed label would be worse than none; the bare hex is honest.
         tokens = extract_tokens(_sources(js=REPEATED_COLOR_JS))
         primary = next((t for t in tokens if t.value == "#ffb81c"), None)
         assert primary is not None
-        assert primary.label == "primary"
+        assert primary.label == "#ffb81c"
 
     def test_unknown_color_uses_value_as_label(self):
         js = "color: '#1a2b3c'" * 3

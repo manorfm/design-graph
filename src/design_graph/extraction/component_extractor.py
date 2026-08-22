@@ -69,6 +69,7 @@ from design_graph.parsing.js_parser import (
     iter_style_object_blocks,
     parse_object_literal_props,
 )
+from design_graph.parsing.palette_extractor import PrototypePalette
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ def extract_component(
     token_map: dict[str, list[DesignToken]],
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
+    palette: PrototypePalette | None = None,
 ) -> ExtractedComponent:
     """
     Extract all data for one component in a single pass over its function body.
@@ -159,6 +161,12 @@ def extract_component(
     are resolved against bare tag+pseudo-class stylesheet rules (input:focus { ... })
     into additional StyleEntry objects — independent of rule_map, which is keyed by
     className and can't answer "does this element carry that class" from CSS alone.
+
+    palette: optional PrototypePalette from parsing.palette_extractor. When
+    provided, a style value written as a direct palette reference
+    (`background: C.bg`) is folded to its literal hex (`#404040`) before
+    being stored — the same value a literal `background: '#404040'` would
+    have produced, so existing exact-value token matching sees it too.
     """
     window = js[boundary.start : boundary.end]
 
@@ -186,10 +194,17 @@ def extract_component(
     def _add_literal_style(prop: str, raw_val: str) -> bool:
         """Validate + append one `prop: value` pair as a default-state
         StyleEntry; returns whether it was actually added (kept out of the
-        reserved-value skip list and not a duplicate)."""
+        reserved-value skip list and not a duplicate). A direct palette
+        reference (`C.bg`) is folded to its literal hex first, when the
+        prototype's palette is known — the same value a literal color
+        would have produced, so it's stored and matched identically."""
         val = raw_val.strip().rstrip(",").strip()
         if not val or val in ("true", "false", "null", "undefined", "inherit"):
             return False
+        if palette is not None:
+            resolved = palette.resolve_reference(val)
+            if resolved is not None:
+                val = resolved
         entry = StyleEntry.create(element=boundary.name, property=prop, value=val)
         if entry.id in seen_style_ids:
             return False
@@ -421,6 +436,7 @@ async def extract_all_components(
     concurrency: int = 8,
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
+    palette: PrototypePalette | None = None,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> list[ExtractedComponent]:
     """
@@ -430,6 +446,8 @@ async def extract_all_components(
     Each task produces an independent ExtractedComponent — no shared writes.
     rule_map: optional CSS class resolver map forwarded to each extract_component call.
     tag_rule_map: optional native-tag pseudo-class map, same forwarding.
+    palette: optional PrototypePalette forwarded to each extract_component call —
+        see extract_component's own docstring.
     on_component_extracted: optional callback(name, index, total) called once per
         completed extraction in the asyncio event loop — safe for non-thread-safe
         reporters since asyncio is single-threaded.
@@ -445,7 +463,8 @@ async def extract_all_components(
         async with semaphore:
             result = await asyncio.to_thread(
                 extract_component,
-                js, boundary, occurrences.get(boundary.name, 1), token_map, rule_map, tag_rule_map,
+                js, boundary, occurrences.get(boundary.name, 1), token_map,
+                rule_map, tag_rule_map, palette,
             )
         completed[0] += 1
         if on_component_extracted is not None:

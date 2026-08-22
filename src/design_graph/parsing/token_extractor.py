@@ -12,7 +12,6 @@ import re
 from collections import Counter, defaultdict
 
 from design_graph.core.constants import (
-    COLOR_SEMANTIC_LABELS,
     FONT_SIZE_MAX_PX,
     FONT_SIZE_MIN_PX,
     FONT_SIZE_SEMANTIC_LABELS,
@@ -45,6 +44,7 @@ from design_graph.core.patterns import (
     RE_PX_VALUE,
     RE_SPACING,
 )
+from design_graph.parsing.palette_extractor import PrototypePalette, discover_prototype_palette
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,9 @@ def extract_tokens(sources: RawSources) -> list[DesignToken]:
     Returns a list sorted by category ascending, then usage descending.
     """
     combined = sources.css + "\n" + sources.js
+    palette  = discover_prototype_palette(sources.js)
 
-    colors     = _extract_colors(combined)
+    colors     = _extract_colors(combined, palette)
     spacing    = _extract_spacing(combined)
     typography = _extract_typography(combined)
     shadows    = _extract_shadows(combined)
@@ -97,12 +98,24 @@ def _normalise_color(raw: str) -> str:
     return c
 
 
-def _color_label(color: str) -> str:
-    """Return a semantic label for known colors, or the hex value itself."""
-    return COLOR_SEMANTIC_LABELS.get(color, COLOR_SEMANTIC_LABELS.get(color.upper(), color))
+def _color_label(color: str, palette: PrototypePalette | None) -> str:
+    """
+    The name this prototype's own palette gives `color`, or the hex value
+    itself when no palette was found or it doesn't define this color.
+
+    A hardcoded cross-prototype label would be actively misleading here —
+    the same hex means something different in every prototype's own
+    palette (see PrototypePalette) — so the honest fallback is the value
+    itself, not a guess.
+    """
+    if palette is not None:
+        label = palette.label_for(color)
+        if label is not None:
+            return label
+    return color
 
 
-def _extract_colors(combined: str) -> list[DesignToken]:
+def _extract_colors(combined: str, palette: PrototypePalette | None = None) -> list[DesignToken]:
     raw_counts: Counter[str] = Counter(
         _normalise_color(m) for m in RE_COLOR.findall(combined)
     )
@@ -124,7 +137,7 @@ def _extract_colors(combined: str) -> list[DesignToken]:
         tokens.append(DesignToken(
             id=tid,
             category=TokenCategory.COLOR,
-            label=_color_label(color),
+            label=_color_label(color, palette),
             value=color,
             usage=count,
         ))
