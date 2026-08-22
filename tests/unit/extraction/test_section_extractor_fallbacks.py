@@ -17,6 +17,7 @@ from design_graph.core.models import ExtractedScreen, FunctionBoundary
 from design_graph.extraction.section_extractor import (
     _build_section,
     _detect_by_structure,
+    _find_balanced_div_end,
     extract_sections,
 )
 
@@ -99,7 +100,7 @@ class TestStructuralFallback:
         assert sections == []
 
     def test_no_closing_div_uses_fallback_end(self):
-        # Window without </div> — should use fallback div_end (m.start() + 4000)
+        # Window without </div> — should use the fixed-window fallback end
         window = "<div style={{padding: '24px'}}><span>Unclosed div content " + "x" * 100
 
         # Should not raise
@@ -124,6 +125,50 @@ class TestStructuralFallback:
         # Should not produce more sections than MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
         from design_graph.core.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
         assert len(sections) <= MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
+
+
+# ── _find_balanced_div_end: nested divs (C26/T50) ────────────────────────────
+
+class TestFindBalancedDivEnd:
+    def test_nested_div_does_not_cut_at_first_child_close(self):
+        window = (
+            "<div style={{padding: '24px'}}>"
+            "<div><span>child one</span></div>"
+            "<div><span>child two</span></div>"
+            "</div>TAIL"
+        )
+        div_start = window.index("<div")
+        end = _find_balanced_div_end(window, div_start)
+        # Must include both children and stop right after the outer </div>,
+        # not at the first child's closing tag.
+        assert window[div_start:end].endswith("</div>")
+        assert "child two" in window[div_start:end]
+        assert window[end:end + 4] == "TAIL"
+
+    def test_structural_fallback_captures_full_padded_container(self):
+        window = """
+        <div style={{padding: '24px'}}>
+          <h2>Section Title</h2>
+          <div className="row">
+            <BtnPrimary />
+          </div>
+          <SectionCard />
+        </div>
+        <div style={{padding: '32px'}}>
+          <h2>Another Section</h2>
+        </div>
+        """
+        sections = _detect_by_structure(window, "TestScreen")
+        assert len(sections) >= 1
+        # The first section's block must reach past the nested <div className="row">
+        # child all the way to SectionCard, not stop at the child's own </div>.
+        assert "SectionCard" in sections[0].jsx_snippet
+
+    def test_unbalanced_close_falls_back_to_fixed_window(self):
+        window = "<div style={{padding: '24px'}}>" + "x" * 50  # no </div> at all
+        div_start = window.index("<div")
+        end = _find_balanced_div_end(window, div_start)
+        assert end == len(window)
 
 
 # ── _build_section: placeholder texts ────────────────────────────────────────

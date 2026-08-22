@@ -400,6 +400,33 @@ class TestGetStats:
         assert stats["unresolved_components"] == 1
 
 
+class TestSafeExecuteWriteErrors:
+    def test_non_duplicate_error_is_counted(self, writer):
+        gw, _ = writer
+        assert gw._safe_execute("THIS IS NOT VALID CYPHER") is False
+        assert len(gw._write_errors) == 1
+
+    def test_duplicate_primary_key_is_not_counted(self, writer):
+        gw, _ = writer
+        token = DesignToken(id="dup", category="color", label="A", value="#aaa", usage=1)
+        gw.write_tokens([token])
+        gw.write_tokens([token])  # second insert hits the same primary key
+        assert gw._write_errors == []
+
+    def test_get_stats_reports_write_error_count(self, writer):
+        gw, _ = writer
+        gw._safe_execute("THIS IS NOT VALID CYPHER")
+        gw._safe_execute("ALSO NOT VALID CYPHER")
+        stats = gw.get_stats()
+        assert stats["write_errors"] == 2
+
+    def test_write_error_tracking_is_capped(self, writer):
+        gw, _ = writer
+        for _ in range(gw._MAX_TRACKED_WRITE_ERRORS + 10):
+            gw._safe_execute("THIS IS NOT VALID CYPHER")
+        assert len(gw._write_errors) == gw._MAX_TRACKED_WRITE_ERRORS
+
+
 # ── Reader tests ──────────────────────────────────────────────────────────────
 
 class TestListScreens:
@@ -454,6 +481,69 @@ class TestGetScreen:
         screen = populated_db.reader.get_screen("RestaurantsPage")
         assert "sections" in screen
         assert len(screen["sections"]) >= 1
+
+
+class TestComponentExists:
+    def test_true_for_existing_component(self, populated_db):
+        assert populated_db.reader.component_exists("BtnWithBadge") is True
+
+    def test_false_for_leaf_lookalike_that_does_not_exist(self, populated_db):
+        assert populated_db.reader.component_exists("TotallyUnknown") is False
+
+
+class TestFuzzyFastPath:
+    """C27/T52: an exact match must short-circuit before the full-scan fuzzy fallback."""
+
+    def test_exact_component_match_skips_full_scan(self, populated_db):
+        reader = populated_db.reader
+        calls = []
+        original = reader._q
+
+        def spy(cypher, params=None):
+            calls.append(cypher)
+            return original(cypher, params)
+
+        reader._q = spy
+        try:
+            resolved = reader._fuzzy_find_component("BtnWithBadge")
+        finally:
+            reader._q = original
+        assert resolved == "BtnWithBadge"
+        assert len(calls) == 1  # only the exact-match lookup, no full scan
+
+    def test_prefix_component_match_still_falls_back(self, populated_db):
+        reader = populated_db.reader
+        calls = []
+        original = reader._q
+
+        def spy(cypher, params=None):
+            calls.append(cypher)
+            return original(cypher, params)
+
+        reader._q = spy
+        try:
+            resolved = reader._fuzzy_find_component("BtnWithBadg")
+        finally:
+            reader._q = original
+        assert resolved == "BtnWithBadge"
+        assert len(calls) == 2  # exact-match miss, then full scan
+
+    def test_exact_screen_match_skips_full_scan(self, populated_db):
+        reader = populated_db.reader
+        calls = []
+        original = reader._q
+
+        def spy(cypher, params=None):
+            calls.append(cypher)
+            return original(cypher, params)
+
+        reader._q = spy
+        try:
+            resolved = reader._fuzzy_find_screen("RestaurantsPage")
+        finally:
+            reader._q = original
+        assert resolved == "RestaurantsPage"
+        assert len(calls) == 1
 
 
 @pytest.fixture

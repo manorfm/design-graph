@@ -21,7 +21,11 @@ import re
 
 from bs4 import BeautifulSoup
 
-from design_graph.core.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
+from design_graph.core.constants import (
+    JS_FUNCTION_FALLBACK_WINDOW,
+    JS_FUNCTION_SCAN_LIMIT,
+    MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK,
+)
 from design_graph.core.models import (
     DetectionMethod,
     ExtractedScreen,
@@ -132,6 +136,42 @@ def _detect_by_comments(window: str, screen_name: str) -> list[ExtractedSection]
 _PADDING_RE = re.compile(
     r'style=\{\{[^}]*(?:padding|margin)\s*:\s*["\']?(\d+)px'
 )
+_DIV_OPEN_RE = re.compile(r"<div\b")
+_DIV_CLOSE = "</div>"
+
+
+def _find_balanced_div_end(window: str, div_start: int) -> int:
+    """
+    Return the index just past the </div> that closes the <div at div_start,
+    counting nested <div>/</div> pairs instead of stopping at the first
+    </div> found anywhere after the match — a padded container almost
+    always has nested children, so an unbalanced find() cuts the section off
+    at the first child's closing tag instead of the container's own.
+
+    Not JS-string-aware (unlike find_matching_delimiter, which skips string/
+    template literals for JS brace matching) — "<div"/"</div>" appearing
+    inside a text string is rare enough in real prototypes that a plain
+    balanced scan is a proportionate fix for this structural fallback
+    heuristic. Falls back to a fixed window when no balanced close is found
+    within the scan limit (malformed/truncated snippet).
+    """
+    depth = 0
+    limit = min(len(window), div_start + JS_FUNCTION_SCAN_LIMIT)
+    pos = div_start
+    while pos < limit:
+        open_match = _DIV_OPEN_RE.search(window, pos, limit)
+        close_pos = window.find(_DIV_CLOSE, pos, limit)
+        if close_pos == -1:
+            break
+        if open_match and open_match.start() < close_pos:
+            depth += 1
+            pos = open_match.end()
+        else:
+            depth -= 1
+            pos = close_pos + len(_DIV_CLOSE)
+            if depth <= 0:
+                return pos
+    return min(div_start + JS_FUNCTION_FALLBACK_WINDOW, len(window))
 
 
 def _detect_by_structure(window: str, screen_name: str) -> list[ExtractedSection]:
@@ -150,12 +190,7 @@ def _detect_by_structure(window: str, screen_name: str) -> list[ExtractedSection
             # Capture the enclosing block: from the nearest '<div' before this match
             div_start = window.rfind("<div", 0, m.start())
             if div_start >= 0:
-                # Find rough end of this div (next closing </div> or 4000 chars)
-                div_end = window.find("</div>", m.start())
-                if div_end < 0:
-                    div_end = m.start() + 4_000
-                else:
-                    div_end += 6  # include </div>
+                div_end = _find_balanced_div_end(window, div_start)
                 candidate_positions.append((div_start, div_end))
 
     # De-duplicate heavily overlapping candidates

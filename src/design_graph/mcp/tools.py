@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 
+from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
 from design_graph.graph.reader import GraphReader
 from design_graph.mcp.search import search
@@ -198,8 +199,9 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "get_tokens",
         "description": (
-            "Returns design tokens (colors and spacing). "
-            "Always call before writing any color or spacing value. "
+            "Returns design tokens (color, spacing, typography, shadow, radius, "
+            "css_var). Always call before writing any color, spacing, typography, "
+            "shadow or radius value. "
             "Pass screen to scope the list to tokens that screen's own components "
             "actually use, instead of every token in the whole prototype ranked by "
             "overall frequency — the global list can't tell you which hex is that "
@@ -899,7 +901,9 @@ class ToolDispatcher:
     def get_component_children(self, reader: GraphReader, name: str) -> str:
         children = reader.get_component_children(name)
         if not children:
-            return f"'{name}' não possui filhos detectados (componente folha ou não encontrado)."
+            if not reader.component_exists(name):
+                return f"'{name}' não encontrado. Use search() para localizar."
+            return f"'{name}' é um componente folha — não possui filhos detectados."
         lines = [f"# Filhos de: {name}\n"]
         for child in children:
             lines.append(f"- `{child}`")
@@ -991,6 +995,15 @@ class ToolDispatcher:
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _find_reader(self, name: str) -> GraphReader | None:
+        try:
+            GraphDocumentName(name)
+        except ValueError:
+            # Malformed doc name (empty, "..", contains "/" or "\\") — same
+            # validation already applied to CLI --doc, reused here for
+            # defense in depth even though nothing today reconstructs a
+            # Path from this value. Falls through to the normal "not found"
+            # message rather than a raw ValueError.
+            return None
         for doc_name, reader in self._readers:
             if doc_name.lower() == name.lower():
                 return reader

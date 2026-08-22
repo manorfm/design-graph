@@ -72,8 +72,14 @@ def extract_dom_patterns(
             sig_counter[sig] += 1
             if sig not in sig_first_tag:
                 sig_first_tag[sig] = tag
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("extract_dom_patterns: traversal error: %s", exc)
+    except Exception:  # noqa: BLE001
+        # Broad on purpose: BeautifulSoup traversal over attacker-uncontrolled
+        # but occasionally malformed prototype HTML must never crash the
+        # pipeline. logger.exception (not .warning) keeps the full traceback
+        # so a real bug in our own signature logic is distinguishable, in
+        # the log, from a prototype that legitimately has no repeated
+        # structure — both still resolve to an empty result for the caller.
+        logger.exception("extract_dom_patterns: traversal error")
         return []
 
     patterns: list[DOMPattern] = []
@@ -119,8 +125,11 @@ def extract_semantic_sections(soup: BeautifulSoup) -> list[dict]:
                 "html": html_content,
                 "depth": len(list(tag.parents)),
             })
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("extract_semantic_sections: error: %s", exc)
+    except Exception:  # noqa: BLE001
+        # See extract_dom_patterns above for why this stays broad and returns
+        # []: logger.exception preserves the traceback so a real bug is
+        # distinguishable from a prototype with no semantic sections.
+        logger.exception("extract_semantic_sections: error")
         return []
 
     logger.debug("extract_semantic_sections: found %d sections", len(sections))

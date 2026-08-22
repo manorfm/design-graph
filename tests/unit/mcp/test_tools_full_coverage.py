@@ -379,6 +379,15 @@ class TestFindReaderSubstringMatch:
         reader, err = d.pick_reader(doc="app", active_doc="")
         assert reader is not None
 
+    def test_malformed_doc_name_falls_through_to_not_found(self):
+        # C27/T52: a doc name that GraphDocumentName would reject (path
+        # traversal shape) must not raise — it resolves to the same
+        # friendly "not found" message as any other unmatched name.
+        d = ToolDispatcher([("ipede-v7", RichMockReader())])
+        reader, err = d.pick_reader(doc="../etc/passwd", active_doc="")
+        assert reader is None
+        assert "not found" in err.lower()
+
 
 # ── Truncation warnings: agent must know when data was cut ────────────────────
 

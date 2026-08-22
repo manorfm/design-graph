@@ -324,6 +324,7 @@ def _run_build(argv: list[str]) -> None:
             "contains_rels":    stats.contains_rels,
             "component_props":  stats.component_props,
             "section_styles":   stats.section_styles,
+            "write_errors":     stats.write_errors,
             "duration_seconds": round(stats.duration_seconds, 3),
         }))
     elif not parsed.quiet:
@@ -565,5 +566,7 @@ def _print_build_summary(html_path: Path, db_path: Path, stats) -> None:
     print(f"  Icons:        {stats.icons:>4}")
     print(f"  Interactions: {stats.interactions:>4}    CONTAINS:   {stats.contains_rels:>4}")
     print(f"  Props:        {stats.component_props:>4}    SecStyles:  {stats.section_styles:>4}")
+    if stats.write_errors:
+        print(f"  ⚠ Write errors: {stats.write_errors} (rerun with --verbose for details)")
     print(f"  Built in {stats.duration_seconds:.2f}s")
     print(f"{'─' * w}")

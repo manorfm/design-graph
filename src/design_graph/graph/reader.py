@@ -269,6 +269,11 @@ class GraphReader:
         logger.debug("reader: get_component_props(%s) — %d props", resolved, len(rows))
         return rows
 
+    def component_exists(self, name: str) -> bool:
+        """Return whether a Component node with this exact name exists."""
+        rows = self._q("MATCH (c:Component {name:$n}) RETURN c.name", {"n": name})
+        return bool(rows)
+
     def get_component_children(self, name: str) -> list[str]:
         """Return names of components directly contained by this component (via CONTAINS)."""
         rows = self._q(
@@ -884,11 +889,20 @@ class GraphReader:
     # ── Fuzzy name resolution ─────────────────────────────────────────────────
 
     def _fuzzy_find_screen(self, hint: str) -> str | None:
+        # Fast path: most calls arrive with a name already exact (e.g. copied
+        # from list_screens) — a PK lookup avoids pulling every screen name
+        # into Python just to confirm what's already an exact match.
+        exact = self._q("MATCH (s:Screen {name:$n}) RETURN s.name", {"n": hint})
+        if exact:
+            return exact[0]["s.name"]
         all_screens = self._q("MATCH (s:Screen) RETURN s.name")
         names = [r["s.name"] for r in all_screens]
         return _fuzzy_match(hint, names)
 
     def _fuzzy_find_component(self, hint: str) -> str | None:
+        exact = self._q("MATCH (c:Component {name:$n}) RETURN c.name", {"n": hint})
+        if exact:
+            return exact[0]["c.name"]
         all_comps = self._q("MATCH (c:Component) RETURN c.name")
         names = [r["c.name"] for r in all_comps]
         return _fuzzy_match(hint, names)

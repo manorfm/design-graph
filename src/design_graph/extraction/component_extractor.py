@@ -228,7 +228,13 @@ def extract_component(
 
         already_resolved = {prop for prop, _ in local_props}
         for spread_name in RE_STYLE_SPREAD.findall(style_block):
-            spread_body = _find_const_object_body(js, spread_name)
+            # near_offset=boundary.end, not boundary.start: a same-named const
+            # declared *inside* this component's own body (the common local-
+            # scope pattern, as opposed to a module-level shared object) sits
+            # textually after boundary.start — using boundary.start here would
+            # wrongly exclude the component's own declaration as "not
+            # preceding" and fall through to an unrelated component's object.
+            spread_body = _find_const_object_body(js, spread_name, near_offset=boundary.end)
             if spread_body is None:
                 continue
             for prop, val in parse_object_literal_props(spread_body):
@@ -495,16 +501,30 @@ async def extract_all_components(
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
-def _find_const_object_body(js: str, name: str) -> str | None:
+def _find_const_object_body(js: str, name: str, near_offset: int = 0) -> str | None:
     """
     The inner text of `const <name> = { ... }`, or None if no such
     declaration exists in js. Searches the whole file, not just one
     component's window — shared style objects are normally declared once
     at module scope and referenced by spread from several components.
+
+    A minified/bundled file sometimes repeats a generic name (`style`,
+    `cardStyle`) as a *local* const inside more than one component's own
+    scope — always taking the first declaration in the file would then
+    resolve a component's spread against a completely unrelated
+    component's object. Among every declaration of `name`, the one closest
+    to (and at or before) near_offset — normally the spreading component's
+    own boundary.end, so a declaration local to that component's own body
+    is preferred over one belonging to an unrelated, later component — is
+    preferred, matching how JS scoping would actually resolve the
+    reference. Falls back to the first declaration in the file when none
+    precedes near_offset.
     """
-    decl = re.search(rf'\bconst\s+{re.escape(name)}\s*=\s*\{{', js)
-    if decl is None:
+    matches = list(re.finditer(rf'\bconst\s+{re.escape(name)}\s*=\s*\{{', js))
+    if not matches:
         return None
+    preceding = [m for m in matches if m.start() <= near_offset]
+    decl = preceding[-1] if preceding else matches[0]
     open_brace = decl.end() - 1
     region_end = find_matching_delimiter(js, open_brace, "{", "}")
     if region_end is None:

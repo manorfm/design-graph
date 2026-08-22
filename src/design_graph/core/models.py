@@ -714,4 +714,5 @@ class BuildStats:
     contains_rels: int = 0
     component_props: int = 0   # ComponentProp nodes from function signature extraction
     section_styles: int = 0    # SECTION_HAS_STYLE edges for section container styles
+    write_errors: int = 0      # Non-duplicate write failures during this build (should be 0)
     duration_seconds: float = 0.0

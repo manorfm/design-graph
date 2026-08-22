@@ -32,6 +32,9 @@ class MockReader:
             return ["Badge"]
         return []
 
+    def component_exists(self, name):
+        return name in ("BtnWithBadge", "SectionCard")
+
     def get_tokens(self, category=None, screen=None):
         return [{"t.label": "primary", "t.value": "#ffb81c",
                  "t.category": "color", "t.id": "col_1", "t.usage": 5}]
@@ -133,6 +136,20 @@ class TestDispatch:
         d = ToolDispatcher([("doc1", MockReader())])
         result = d.dispatch("get_component_children", {"name": "BtnWithBadge"}, "doc1")
         assert "Badge" in result
+
+    def test_get_component_children_leaf_component_message(self):
+        # Exists (component_exists=True) but has no children — distinct
+        # message from "not found" (C27/T53).
+        d = ToolDispatcher([("doc1", MockReader())])
+        result = d.dispatch("get_component_children", {"name": "SectionCard"}, "doc1")
+        assert "folha" in result
+        assert "não encontrado" not in result
+
+    def test_get_component_children_not_found_message(self):
+        d = ToolDispatcher([("doc1", MockReader())])
+        result = d.dispatch("get_component_children", {"name": "TotallyUnknown"}, "doc1")
+        assert "não encontrado" in result
+        assert "folha" not in result
 
     def test_search_cross_prototype(self):
         d = _dispatcher(2)
@@ -274,3 +291,12 @@ class TestMCPServer:
         result = server.dispatch_tool_call("set_prototype", {})
         assert isinstance(result.text, str)
         assert result.is_error is False
+
+    def test_set_prototype_malformed_name_falls_through_to_not_found(self):
+        # C27/T52: same defense-in-depth reuse of GraphDocumentName as
+        # _find_reader — must not raise, just report "not found".
+        server = self._server(2)
+        result = server.dispatch_tool_call("set_prototype", {"name": "../etc/passwd"})
+        assert result.is_error is False
+        assert "not found" in result.text.lower()
+        assert not server._active_doc

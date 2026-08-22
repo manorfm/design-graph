@@ -541,6 +541,30 @@ class TestStyleSpreadResolution:
         props = {s.property: s.value for s in comp.styles}
         assert props.get("color") == "red"
 
+    def test_ambiguous_shared_name_resolves_against_own_component(self):
+        # Same generic const name declared locally inside two different
+        # components (common in minified bundles) — each component's spread
+        # must resolve against its OWN declaration, not always the first one
+        # in the file (C26/T51).
+        js = """
+        function CardA() {
+            const cardStyle = { color: 'red' };
+            return <div style={{...cardStyle}} />;
+        }
+        function CardB() {
+            const cardStyle = { color: 'blue' };
+            return <div style={{...cardStyle}} />;
+        }
+        """
+        b_a = self._boundary("CardA", js)
+        b_b = self._boundary("CardB", js)
+        comp_a = extract_component(js, b_a, 1, {})
+        comp_b = extract_component(js, b_b, 1, {})
+        colors_a = [s.value for s in comp_a.styles if s.property == "color"]
+        colors_b = [s.value for s in comp_b.styles if s.property == "color"]
+        assert colors_a == ["red"]
+        assert colors_b == ["blue"]
+
 
 class TestTruncationLogging:
     def test_styles_cap_logged_at_debug_when_exceeded(self, caplog):

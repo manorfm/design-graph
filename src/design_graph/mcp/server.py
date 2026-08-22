@@ -178,6 +178,8 @@ class MCPServer:
         )
 
     def _set_prototype(self, name: str) -> str:
+        from design_graph.core.graph_catalog import GraphDocumentName
+
         if not name:
             if self._active_doc:
                 return f"Active prototype: '{self._active_doc}'"
@@ -186,11 +188,19 @@ class MCPServer:
             names = ", ".join(f"'{n}'" for n, _ in self._readers)
             return f"No active prototype set.\nAvailable: {names}"
 
-        for doc_name, _ in self._readers:
-            if doc_name.lower() == name.lower() or name.lower() in doc_name.lower():
-                self._active_doc = doc_name
-                sys.stderr.write(f"[design-graph] active prototype → '{doc_name}'\n")
-                return f"Active prototype set to '{doc_name}'."
+        try:
+            GraphDocumentName(name)
+        except ValueError:
+            # Malformed doc name — same validation already applied to CLI
+            # --doc, reused here for defense in depth. Falls through to the
+            # normal "not found" message below rather than a raw ValueError.
+            pass
+        else:
+            for doc_name, _ in self._readers:
+                if doc_name.lower() == name.lower() or name.lower() in doc_name.lower():
+                    self._active_doc = doc_name
+                    sys.stderr.write(f"[design-graph] active prototype → '{doc_name}'\n")
+                    return f"Active prototype set to '{doc_name}'."
 
         available = ", ".join(f"'{n}'" for n, _ in self._readers)
         return f"Prototype '{name}' not found.\nAvailable: {available}"
