@@ -42,6 +42,7 @@ from design_graph.graph.writer import GraphWriteSession
 from design_graph.parsing.css_class_resolver import extract_css_rules, extract_tag_pseudo_rules
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
+from design_graph.parsing.palette_extractor import discover_prototype_palette
 from design_graph.parsing.source_loader import load
 from design_graph.parsing.token_extractor import build_token_map, extract_tokens
 
@@ -246,6 +247,12 @@ async def extract_react(
     # one text source component/section extraction can never see.
     module_texts = extract_module_level_texts(sources.js, all_boundaries)
 
+    # The prototype's own color palette (const C = { bg: '#404040', ... }),
+    # if it has one — lets a style value written as a direct reference
+    # (`background: C.bg`) fold to its literal hex at extraction time, so
+    # it links to a Token exactly like a literal color would.
+    palette = discover_prototype_palette(sources.js)
+
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
     tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
@@ -263,7 +270,7 @@ async def extract_react(
     extracted_comps = await extract_all_components(
         sources.js, comp_bounds, occurrences, token_map,
         concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
-        on_component_extracted=on_component_extracted,
+        palette=palette, on_component_extracted=on_component_extracted,
     )
 
     screens = extract_screens(sources.js, all_boundaries)

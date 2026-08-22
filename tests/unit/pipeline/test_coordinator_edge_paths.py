@@ -247,6 +247,42 @@ class TestCoordinatorCallsReporter:
 # export reuses it directly — a screen boundary must never also be extracted
 # as a component, regardless of who calls this function.
 
+class TestExtractReactResolvesPaletteReferences:
+    """
+    End-to-end proof that the pieces wired in coordinator.extract_react —
+    palette_extractor.discover_prototype_palette, token_extractor's
+    palette-derived labels, component_extractor's reference folding —
+    actually connect: a style value written as `C.bg` and its Token both
+    come out pointing at the same literal hex, so writer.py's existing
+    exact-value USES_TOKEN match links them without any change there.
+    """
+
+    def test_component_style_and_token_agree_on_the_resolved_hex(self):
+        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.pipeline.coordinator import extract_react
+
+        js = """
+        const C = {
+          bg: '#404040', card: '#2a2a2a', card2: '#333333', border: '#3a3a3a',
+          accent: '#FFB81C', muted: '#9ca3af',
+        };
+        function PricingPageV6() {
+            return (<div style={{ background: C.bg, borderColor: '#404040' }} />);
+        }
+        """
+        sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        comps, _screens, _sections_map, tokens, _module_texts = asyncio.run(
+            extract_react(sources, concurrency=1)
+        )
+
+        pricing = next(c for c in comps if c.name == "PricingPageV6")
+        background = next(s for s in pricing.styles if s.property == "background")
+        assert background.value == "#404040"
+
+        bg_token = next(t for t in tokens if t.value == "#404040")
+        assert bg_token.label == "bg"
+
+
 class TestExtractReactScreenComponentSplit:
     def test_screen_boundary_excluded_from_extracted_components(self):
         from design_graph.core.models import RawSources, SourceFormat
