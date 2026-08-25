@@ -405,10 +405,25 @@ class GraphWriter:
         edge is written, and the reference is at least visible by name
         even with no markup/props known for it.
 
+        A child whose name matches an already-declared Screen is skipped
+        entirely instead — CONTAINS is typed Component→Component in the
+        schema, so "creating a shell" for such a name would actually create
+        a second, unrelated Component node that happens to share its name
+        with a real Screen (get_component_spec('RestaurantsPage') would
+        then "find" an empty shell instead of correctly reporting that name
+        as a screen, not a component). write_screen/write_component already
+        make this same distinction for their own component_refs via
+        _declared_screen_names — this is the same guard, applied here too
+        (found in C34 auditing an earlier session's C32 change, confirmed
+        against a real rebuild where screen names like DashboardPage showed
+        up as "unresolved components").
+
         Returns the number of new edges created.
         """
         created = 0
         for parent, child, order_index in self._pending_contains:
+            if child in self._declared_screen_names:
+                continue
             if child not in self._resolved_comp_names:
                 self._ensure_component_exists(child)
             if self._write_contains_edge(parent, child, order_index):

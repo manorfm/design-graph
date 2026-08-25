@@ -74,7 +74,16 @@ class TestApplyAliases:
     def test_substitutes_alias_with_target(self):
         refs = ["Badge", "Btn"]
         result = apply_aliases(refs, aliases={"Badge": "Pill"})
-        assert result == ["Btn", "Pill"]
+        assert result == ["Pill", "Btn"]
+
+    def test_preserves_original_appearance_order(self):
+        # C34: must not re-alphabetize — refs is render-order data (see
+        # component_extractor's own first-appearance ordering), and this
+        # runs unconditionally on every entity as soon as one alias exists
+        # anywhere in the bundle.
+        refs = ["Zebra", "Badge", "Alpha"]
+        result = apply_aliases(refs, aliases={"Badge": "Pill"})
+        assert result == ["Zebra", "Pill", "Alpha"]
 
     def test_no_op_when_no_refs_match_an_alias(self):
         refs = ["Btn", "Card"]

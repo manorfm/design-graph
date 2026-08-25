@@ -119,7 +119,7 @@ def extract_screens(
 
         screens.append(ExtractedScreen(
             name=boundary.name,
-            component_refs=sorted(component_refs),
+            component_refs=component_refs,
             sections_count=0,
             jsx_snippet=jsx_snippet,
             icons=icons,
@@ -149,17 +149,24 @@ def _extract_screen_jsx(js: str, boundary: FunctionBoundary) -> tuple[str, list]
     return sanitize_jsx(jsx_with_icon_refs), icons
 
 
-def _collect_component_refs(body: str, exclude: str) -> set[str]:
+def _collect_component_refs(body: str, exclude: str) -> list[str]:
     """
     Scan a function body and collect all PascalCase component references,
-    excluding React internals and the function's own name.
+    excluding React internals and the function's own name, in
+    first-appearance order (not alphabetical — same first-appearance
+    approximation extraction/component_extractor.py uses for a component's
+    own child_refs, so a screen's top-level component order is recoverable
+    without re-reading raw JSX, the same as C30 already gives a component's
+    own children).
     """
-    refs: set[str] = set()
+    seen: set[str] = set()
+    refs: list[str] = []
 
     for pattern in (RE_JSX_TAG, RE_JSX_CALL, RE_COMP_REF):
         for match in pattern.finditer(body):
             name = match.group(1)
-            if name not in REACT_INTERNALS and name != exclude and len(name) >= 3:
-                refs.add(name)
+            if name not in REACT_INTERNALS and name != exclude and len(name) >= 3 and name not in seen:
+                seen.add(name)
+                refs.append(name)
 
     return refs

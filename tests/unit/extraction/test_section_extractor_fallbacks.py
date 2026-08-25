@@ -129,6 +129,27 @@ class TestStructuralFallback:
 
 # ── _find_balanced_div_end: nested divs (C26/T50) ────────────────────────────
 
+class TestSectionComponentRefsOrder:
+    """C34: order is first-appearance in the JSX, not alphabetical — same
+    fix C30 already applied to a component's own child_refs."""
+
+    def test_preserves_jsx_appearance_order(self):
+        block = "<div><Zebra /><Alpha /><Mango /></div>"
+        section = _build_section(
+            block=block, sec_name="Test", screen_name="TestScreen",
+            detection_method="comment",
+        )
+        assert section.component_refs == ["Zebra", "Alpha", "Mango"]
+
+    def test_no_duplicates(self):
+        block = "<div><Zebra /><Alpha /><Zebra /></div>"
+        section = _build_section(
+            block=block, sec_name="Test", screen_name="TestScreen",
+            detection_method="comment",
+        )
+        assert section.component_refs == ["Zebra", "Alpha"]
+
+
 class TestFindBalancedDivEnd:
     def test_nested_div_does_not_cut_at_first_child_close(self):
         window = (

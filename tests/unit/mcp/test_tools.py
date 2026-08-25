@@ -346,6 +346,26 @@ class TestValidateComponentImplementationTool:
         assert "ausentes" in result.lower()
         assert "color" in result and "red" in result
 
+    def test_oversized_jsx_source_is_rejected_before_extraction(self):
+        # C34: jsx_source is agent-submitted text re-run through the same
+        # regex extractor used for a whole prototype bundle — must be
+        # bounded, unlike a local file whose size the project doesn't control.
+        from design_graph.mcp.tools import _MAX_VALIDATION_JSX_SOURCE_CHARS
+        oversized = "<div>" + ("x" * _MAX_VALIDATION_JSX_SOURCE_CHARS) + "</div>"
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "BtnPrimary", "jsx_source": oversized}, "doc1",
+        )
+        assert "muito grande" in result.lower()
+
+    def test_jsx_source_within_limit_is_processed_normally(self):
+        result = _dispatcher(1).dispatch(
+            "validate_component_implementation",
+            {"name": "BtnPrimary", "jsx_source": '<button style={{color: "red"}}>OK</button>'},
+            "doc1",
+        )
+        assert "muito grande" not in result.lower()
+
     def test_output_carries_best_effort_caveat(self):
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",

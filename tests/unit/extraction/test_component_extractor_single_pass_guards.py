@@ -643,6 +643,40 @@ class TestHoverEnterLeavePairingByProperty:
         assert by_prop["color"] == ("black", "red")
         assert by_prop["background"] == ("gray", "blue")
 
+    def test_repeated_property_in_leave_handler_uses_last_assignment(self):
+        # C34: the same property assigned twice in one onMouseLeave handler
+        # — real JS runs statements in order, so the LAST assignment is
+        # what actually takes effect; setdefault() (the original C29 fix)
+        # incorrectly kept the first one instead.
+        js = """
+        function BtnTest() {
+          return <button
+            onMouseEnter={e => { e.target.style.color = 'red'; }}
+            onMouseLeave={e => { e.target.style.color = 'gray'; e.target.style.color = 'black'; }}
+          >Click</button>;
+        }
+        """
+        b = _boundary(js, "BtnTest")
+        comp = extract_component(js, b, 1, {})
+        by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
+        assert by_prop["color"] == ("black", "red")
+
+    def test_repeated_property_in_enter_handler_uses_last_assignment(self):
+        js = """
+        function BtnTest() {
+          return <button
+            onMouseEnter={e => { e.target.style.color = 'orange'; e.target.style.color = 'red'; }}
+            onMouseLeave={e => { e.target.style.color = 'black'; }}
+          >Click</button>;
+        }
+        """
+        b = _boundary(js, "BtnTest")
+        comp = extract_component(js, b, 1, {})
+        by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
+        assert by_prop["color"] == ("black", "red")
+        # Only one interaction for `color` — not one per assignment.
+        assert len([i for i in comp.interactions if i.css_prop == "color"]) == 1
+
     def test_enter_mutation_without_matching_leave_keeps_empty_from_val(self):
         # enter sets 2 properties; leave only restores 1 — the unmatched
         # enter mutation must still produce an interaction (to_val known),

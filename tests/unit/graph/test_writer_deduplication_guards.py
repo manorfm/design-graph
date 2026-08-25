@@ -18,6 +18,7 @@ import pytest
 from design_graph.core.models import (
     DesignToken,
     ExtractedComponent,
+    ExtractedScreen,
     InteractionEntry,
     StyleEntry,
     TextEntry,
@@ -224,6 +225,26 @@ class TestUnresolvedChildBecomesShell:
         gw.flush_pending_contains()
         stats = gw.get_stats()
         assert stats["unresolved_components"] == 1
+
+    def test_child_matching_a_declared_screen_name_is_not_turned_into_a_shell(self, writer):
+        # C34: a component referencing a name that's actually a Screen (a
+        # false-positive JSX-tag match, or a stray nav reference) must not
+        # spawn a phantom same-named Component node — CONTAINS is typed
+        # Component->Component in the schema, so there's no legitimate edge
+        # to write here at all.
+        gw, conn = writer
+        gw.declare_screens([
+            ExtractedScreen(name="RestaurantsPage", component_refs=[], sections_count=0),
+        ])
+        gw.write_component(_comp("Sidebar", child_refs=["RestaurantsPage"]), {})
+        gw.flush_pending_contains()
+
+        result = conn.execute("MATCH (c:Component {name:'RestaurantsPage'}) RETURN count(c)")
+        assert result.get_next()[0] == 0
+        result = conn.execute(
+            "MATCH (:Component {name:'Sidebar'})-[r:CONTAINS]->() RETURN count(r)"
+        )
+        assert result.get_next()[0] == 0
 
     def test_locally_defined_child_is_not_marked_unresolved(self, writer):
         # Regression guard: a real, locally-extracted child must not be
