@@ -235,13 +235,16 @@ def _build_section(
             if val and val not in ("true", "false", "null", "undefined"):
                 styles[prop] = val
 
-    # Component references
-    comp_refs: set[str] = set()
+    # Component references — first-appearance order, not alphabetical (C34,
+    # same fix C30 already applied to a component's own child_refs).
+    seen_comp_refs: set[str] = set()
+    comp_refs: list[str] = []
     for pattern in (RE_JSX_TAG, RE_COMP_REF):
         for m in pattern.finditer(block):
             name = m.group(1)
-            if len(name) >= 3:
-                comp_refs.add(name)
+            if len(name) >= 3 and name not in seen_comp_refs:
+                seen_comp_refs.add(name)
+                comp_refs.append(name)
 
     # Texts
     texts: list[str] = []
@@ -262,7 +265,7 @@ def _build_section(
         screen=screen_name,
         name=sec_name,
         styles=styles,
-        component_refs=sorted(comp_refs),
+        component_refs=comp_refs,
         texts=texts,
         jsx_snippet=block[:3_000].strip(),
         detection_method=detection_method,

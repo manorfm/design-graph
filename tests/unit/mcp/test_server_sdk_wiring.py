@@ -53,6 +53,12 @@ class TestAgentInstructions:
     def test_covers_selecting_among_multiple_prototypes(self):
         assert "set_prototype" in _AGENT_INSTRUCTIONS
 
+    def test_covers_component_subtree_reconstruction(self):
+        assert "get_component_full" in _AGENT_INSTRUCTIONS
+
+    def test_covers_token_reuse_before_literal_values(self):
+        assert "get_tokens" in _AGENT_INSTRUCTIONS
+
 
 class TestBuildSdkServer:
     def _server(self):

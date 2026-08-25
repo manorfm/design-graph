@@ -26,6 +26,17 @@ logger = logging.getLogger(__name__)
 # cap at all (search/get_screen_full/get_component_spec already truncate).
 _DEFAULT_LIST_COMPONENTS_LIMIT = 100
 
+# validate_component_implementation re-runs the same regex-based extractor
+# used for a whole prototype bundle, but over agent-submitted text instead
+# of a local file — the one MCP tool whose input isn't bounded by "however
+# big this local prototype happens to be". A real component's stored
+# jsx_snippet is itself capped at MAX_JSX_SNIPPET_CHARS (8_000); this is a
+# generous multiple of that, not a tight fit, so it never rejects a
+# legitimate submission while still bounding the computational cost of an
+# oversized jsx_source (accidental or adversarial, e.g. an agent misled by
+# prompt injection inside the prototype's own HTML).
+_MAX_VALIDATION_JSX_SOURCE_CHARS = 20_000
+
 # Synthetic wrapper name for validate_component_implementation. Must be
 # plain PascalCase, no leading underscore — find_all_boundaries only
 # recognizes function names matching the same convention real React
@@ -451,7 +462,7 @@ TOOL_DEFINITIONS: list[dict] = [
             "those require the original stylesheet, which isn't available for a standalone "
             "snippet. Treat a clean report as 'no red flags found', not proof of a pixel-perfect "
             "match. Pass jsx_source as the JSX expression only (what get_full_jsx returns), not "
-            "a full function declaration."
+            f"a full function declaration, and under {_MAX_VALIDATION_JSX_SOURCE_CHARS} characters."
         ),
         "inputSchema": {
             "type": "object",
@@ -1261,6 +1272,12 @@ class ToolDispatcher:
     ) -> str:
         if not jsx_source.strip():
             return "jsx_source vazio — nada para comparar."
+        if len(jsx_source) > _MAX_VALIDATION_JSX_SOURCE_CHARS:
+            return (
+                f"jsx_source muito grande ({len(jsx_source)} caracteres, limite "
+                f"{_MAX_VALIDATION_JSX_SOURCE_CHARS}). Passe só a expressão JSX do "
+                f"componente, não o arquivo inteiro."
+            )
 
         spec = reader.get_component_spec(name)
         if not spec:

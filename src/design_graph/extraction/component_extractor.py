@@ -262,13 +262,26 @@ def extract_component(
     # no matching leave restoration gets from_val="" — same convention
     # already used by from_focus_mutation for "no from_val known" — instead
     # of a wrong value borrowed from an unrelated property.
+    #
+    # Both dicts assign unconditionally (not setdefault): JS runs a
+    # handler's statements in order, so if the same property is set twice
+    # in one handler, the LAST assignment is what actually takes effect at
+    # runtime — the first one is dead code and shouldn't win here (C34,
+    # found reviewing this same fix from an earlier session: setdefault
+    # kept the first occurrence, backwards from real JS semantics). Plain
+    # dict assignment still keeps each key at its first-seen position for
+    # iteration order, only the value changes on a later hit — order and
+    # correctness both fall out of the same loop.
+    enters_by_prop: dict[str, str] = {}
+    for prop, val in enters:
+        enters_by_prop[prop] = val
     leave_by_prop: dict[str, str] = {}
     for prop, val in leaves:
-        leave_by_prop.setdefault(prop, val)
+        leave_by_prop[prop] = val
     trans_match = RE_TRANSITION.search(window)
     transition = trans_match.group(1).strip() if trans_match else "all 0.15s"
 
-    for prop, to_val in enters:
+    for prop, to_val in enters_by_prop.items():
         if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
             break
         from_val = leave_by_prop.get(prop, "")

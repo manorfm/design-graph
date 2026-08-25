@@ -57,5 +57,23 @@ def extract_component_aliases(js: str, known_component_names: set[str]) -> dict[
 
 
 def apply_aliases(refs: list[str], aliases: dict[str, str]) -> list[str]:
-    """Replace each alias name in refs with its target, sorted and deduped."""
-    return sorted({aliases.get(ref, ref) for ref in refs})
+    """
+    Replace each alias name in refs with its target, deduped, preserving the
+    order refs already had (first occurrence wins on a collision — e.g. two
+    aliases resolving to the same target). Must not re-sort: refs is
+    render-order data (see extraction/component_extractor.py's own
+    first-appearance ordering), and this runs unconditionally on every
+    component/screen/section as soon as a bundle has even one alias
+    anywhere — silently re-alphabetizing here would erase that ordering for
+    every entity in the prototype, not just the ones actually aliased
+    (found in C34 auditing an earlier session's C30 change: this was
+    exactly why order looked alphabetical on aliased prototypes).
+    """
+    seen: set[str] = set()
+    resolved: list[str] = []
+    for ref in refs:
+        target = aliases.get(ref, ref)
+        if target not in seen:
+            seen.add(target)
+            resolved.append(target)
+    return resolved

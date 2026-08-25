@@ -153,6 +153,8 @@ design-graph prototype.html --name "Admin Panel"
 
 This produces `Admin Panel.db` inside the resolved graph directory.
 
+A build takes an exclusive lock on its target database. A second build started against the same database while one is already running (e.g. a watch script overlapping a manual build) fails fast with a clear error instead of corrupting the database. If a build reports non-zero `write_errors` in its summary or `--json` output, the graph may be missing nodes or edges — rerun with `--verbose` for details.
+
 ## Additional `design-graph` commands
 
 ### Export AI-ready chunks
@@ -349,9 +351,14 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `search` | Search screens, components, tokens and text across prototypes | `query` |
 | `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |
 | `get_build_diff` | Return screens/components added or removed since the previous build | `doc?` |
+| `validate_component_implementation` | Compare JSX you wrote against a component's stored spec (children, default-state styles, texts) and report discrepancies | `name`, `jsx_source`, `doc?` |
 | `set_prototype` | Set or inspect the active prototype for the MCP session | `name?` |
 
-`get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category. Pass `screen` to scope the list to tokens that screen's own components actually use.
+`get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category.
+
+`validate_component_implementation` is best-effort, not a full re-extraction: it reliably catches missing/extra child components and missing inline styles/texts, but cannot verify styles that came from the prototype's own CSS classes or Tailwind color utilities (e.g. `bg-blue-500`) — those require the original stylesheet, unavailable for a standalone snippet. Treat a clean report as "no red flags found", not proof of a pixel-perfect match. `jsx_source` is capped at 20,000 characters.
+
+A response that includes a `⚠ Extração truncada` notice means an extraction cap was hit for that component — the spec shown is incomplete for the listed fields. Call `get_full_jsx` for the raw, uncapped JSX before treating it as the full picture. Pass `screen` to scope the list to tokens that screen's own components actually use.
 
 ### Prototype selection
 
@@ -370,6 +377,14 @@ get_screen_full(name="HomePage", doc="admin")
 ```
 
 The `doc` value is the database filename without `.db`.
+
+### Agent skill for consuming projects
+
+[`docs/skills/design-graph-ui-context/SKILL.md`](./docs/skills/design-graph-ui-context/SKILL.md) is a self-contained, project-agnostic skill file: drop it into any frontend project's `.claude/skills/design-graph-ui-context/` to make an agent working there check design-graph for screen/component context before writing UI code, instead of reading the whole prototype HTML.
+
+```bash
+cp -r docs/skills/design-graph-ui-context /path/to/your-frontend-project/.claude/skills/
+```
 
 ## Extracted capabilities
 
@@ -391,7 +406,9 @@ The `doc` value is the database filename without `.db`.
 - Sanitized JSX markers for lists, conditionals and alternatives
 - Extraction-cap truncation surfaced as data on the affected component, not just a build log
 - External/library component references (e.g. icon imports) kept visible instead of silently dropped
-- Incremental builds, graph diffs (persisted for MCP, not just CLI), validation and JSON output for CI
+- Whole-subtree reconstruction of a single complex component (itself plus every descendant) in one call
+- Best-effort round-trip validation of agent-written JSX against a component's stored spec
+- Incremental builds, exclusive per-database write locks, graph diffs (persisted for MCP, not just CLI), validation and JSON output for CI
 - AI-ready JSONL chunks and Markdown reports
 
 ## Graph schema
@@ -447,7 +464,8 @@ src/design_graph/
 └── paths.py      # GRAPH_DIR, user config and XDG resolution
 
 tests/            # unit and integration tests
-docs/             # architecture specs, plans and change records
+docs/             # architecture specs, plans, change records and the
+                  # portable agent skill (docs/skills/)
 pyproject.toml    # package metadata and CLI entry points
 Makefile          # local workflow shortcuts
 schema.svg        # graph schema diagram

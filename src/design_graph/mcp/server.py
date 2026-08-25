@@ -230,7 +230,16 @@ _AGENT_INSTRUCTIONS = (
     "more than one prototype may be loaded. Call set_prototype(name=...) "
     "once at the start of the task to select the right one, instead of "
     "passing doc= on every call. Prefer get_screen_full to reconstruct a "
-    "full screen, or get_component_spec for a single component."
+    "full screen, get_component_spec for a single component, or "
+    "get_component_full for one component plus its whole subtree (a modal, "
+    "form or card with nested children) without cascading through "
+    "get_component_children per level. Always call get_tokens before "
+    "writing a literal color/spacing/typography/shadow/radius value — "
+    "reuse the token instead of inventing one. A response carrying a "
+    "'truncated' notice is incomplete for the fields it names; call "
+    "get_full_jsx for the raw source before treating it as complete. Never "
+    "read the prototype's raw HTML file directly when this server has it "
+    "loaded — that defeats the point of asking here instead."
 )
 
 

@@ -130,10 +130,17 @@ class TestExtractScreens:
             assert "Fragment" not in home.component_refs
             assert "React" not in home.component_refs
 
-    def test_component_refs_are_sorted(self):
+    def test_component_refs_preserve_jsx_appearance_order(self):
+        # C34: order is first-appearance in the JSX, not alphabetical — same
+        # fix C30 already applied to a component's own child_refs.
+        screens = self._screens(SCREENS_JS)
+        rest_page = next(s for s in screens if s.name == "RestaurantsPage")
+        assert rest_page.component_refs == ["SectionCard", "BtnPrimary", "ConfirmModal"]
+
+    def test_component_refs_have_no_duplicates(self):
         screens = self._screens(SCREENS_JS)
         for screen in screens:
-            assert screen.component_refs == sorted(screen.component_refs)
+            assert len(screen.component_refs) == len(set(screen.component_refs))
 
     def test_overlay_shell_is_extracted_as_a_screen_with_its_tab_refs(self):
         screens = self._screens(TestIsScreenRecognisesOverlayShellsByStructure.OVERLAY_JS)
