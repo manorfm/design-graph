@@ -1,6 +1,6 @@
 ---
 name: design-graph-ui-context
-description: Antes de criar, alterar, corrigir ou revisar uma tela, componente ou detalhe visual, consulte o servidor MCP design-graph para buscar o contexto exato (JSX, estilos por estado, tokens, props, hierarquia) em vez de reler o protótipo HTML inteiro ou adivinhar. Use sempre que a tarefa envolver UI e houver um protótipo rastreado pelo design-graph disponível — pular esta checagem quando a tarefa não tiver nenhuma relação com tela/componente/estilo.
+description: Antes de criar, alterar, atualizar, corrigir ou revisar uma tela, componente ou detalhe visual — inclusive quando o pedido for só "atualizar a tela/o frontend a partir do protótipo" — consulte o servidor MCP design-graph para buscar o contexto exato (JSX, estilos por estado, tokens, props, hierarquia) em vez de reler o protótipo HTML inteiro ou adivinhar. Qualquer menção a "protótipo" junto de UI já é sinal de usar este skill. Use sempre que a tarefa envolver UI e houver um protótipo rastreado pelo design-graph disponível — pular esta checagem quando a tarefa não tiver nenhuma relação com tela/componente/estilo/protótipo.
 ---
 
 # Contexto de UI via design-graph
@@ -13,10 +13,13 @@ um botão, uma seção ou uma tela inteira deveriam ficar. Use-o.
 
 ## Quando usar
 
-Qualquer tarefa que envolva construir, replicar, corrigir ou evoluir uma
-tela, um componente ou um detalhe visual que tenha correspondência num
-protótipo já processado. Se a tarefa não tem nada a ver com UI, ignore este
-skill e siga normalmente.
+Qualquer tarefa que envolva construir, replicar, corrigir, **atualizar** ou
+evoluir uma tela, um componente ou um detalhe visual que tenha
+correspondência num protótipo já processado — incluindo pedidos formulados
+como "atualizar a tela X a partir do protótipo", "atualizar o frontend com
+base no protótipo" ou "sincronizar com o protótipo", mesmo sem a palavra
+"implementar"/"construir" aparecer. Se a tarefa não tem nada a ver com UI ou
+protótipo, ignore este skill e siga normalmente.
 
 ## Passo 0 — o servidor está disponível?
 
@@ -115,6 +118,7 @@ para obter exatamente o que a tarefa precisa, nada mais.
 
 ---
 
-*Este arquivo é genérico e pode ser copiado para `.claude/skills/` de
-qualquer outro projeto que consuma protótipos via design-graph — não
-referencia nenhum protótipo ou projeto específico.*
+*Este conteúdo é genérico e não referencia nenhum protótipo ou projeto
+específico. Configure-o em qualquer projeto frontend com
+`design-graph init [PATH]` (Claude Code, Cursor, Codex CLI, Antigravity ou
+Kiro) — ver `design-graph init --help`.*

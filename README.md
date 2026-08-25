@@ -221,6 +221,30 @@ design-graph db prune
 
 `db prune` removes per-database state files whose database no longer exists and interrupted build directories older than one hour. Use `--dry-run` to inspect the plan without deleting anything. Stop MCP or other processes holding the database before removal.
 
+### Configure the UI-context skill in a consuming project
+
+`design-graph` ships a project-agnostic agent skill — a set of instructions that makes an agent working on a frontend project check design-graph for screen/component context before writing UI code, instead of reading the whole prototype HTML. Configure it for one or more AI coding tools with:
+
+```bash
+cd /path/to/your-frontend-project
+design-graph init                          # interactive: pick tools from a menu
+design-graph init --tool claude,cursor     # non-interactive: install for specific tools
+design-graph init --tool all               # install for every supported tool
+design-graph init --force                  # overwrite a copy you edited by hand
+```
+
+Each tool gets its own native format and location, adapted from a single canonical source so the five copies can't drift out of sync with each other:
+
+| Tool | File | Format |
+|---|---|---|
+| Claude Code | `.claude/skills/design-graph-ui-context/SKILL.md` | `name`/`description` frontmatter, loaded when relevant to the task |
+| Cursor | `.cursor/rules/design-graph-ui-context.mdc` | `description`/`globs`/`alwaysApply` frontmatter, loaded when relevant |
+| Codex CLI | `AGENTS.md` (project root) | Plain Markdown, always loaded — appended inside a marked section, never overwrites the rest of the file |
+| Google Antigravity | `.agents/rules/design-graph-ui-context.md` | Plain Markdown, always loaded |
+| Kiro | `.kiro/steering/design-graph-ui-context.md` | `inclusion: always` frontmatter, always loaded |
+
+`design-graph init` never silently overwrites a copy you've customized — it refuses with a clear message unless `--force` is passed. Re-running it with no changes is a no-op.
+
 Run `design-graph <command> --help` for the complete options of a command.
 
 ## Graph directory configuration
@@ -378,13 +402,6 @@ get_screen_full(name="HomePage", doc="admin")
 
 The `doc` value is the database filename without `.db`.
 
-### Agent skill for consuming projects
-
-[`docs/skills/design-graph-ui-context/SKILL.md`](./docs/skills/design-graph-ui-context/SKILL.md) is a self-contained, project-agnostic skill file: drop it into any frontend project's `.claude/skills/design-graph-ui-context/` to make an agent working there check design-graph for screen/component context before writing UI code, instead of reading the whole prototype HTML.
-
-```bash
-cp -r docs/skills/design-graph-ui-context /path/to/your-frontend-project/.claude/skills/
-```
 
 ## Extracted capabilities
 
@@ -454,18 +471,18 @@ Developer-oriented targets include `install-hooks`, `version` and `push`. Run `m
 
 ```text
 src/design_graph/
-├── cli/          # build, query, status, validation and reports
+├── cli/          # build, query, status, validation, reports and init
 ├── core/         # shared models, constants and patterns
 ├── extraction/   # components, props, screens, sections and chunks
 ├── graph/        # Kuzu schema, writer, reader and diff
 ├── mcp/          # stdio server, tool schemas and search
 ├── parsing/      # source, HTML/JS, CSS classes and token extraction
 ├── pipeline/     # orchestration, progress and incremental state
+├── resources/    # packaged agent skill (see `design-graph init`)
 └── paths.py      # GRAPH_DIR, user config and XDG resolution
 
 tests/            # unit and integration tests
-docs/             # architecture specs, plans, change records and the
-                  # portable agent skill (docs/skills/)
+docs/             # architecture specs, plans and change records
 pyproject.toml    # package metadata and CLI entry points
 Makefile          # local workflow shortcuts
 schema.svg        # graph schema diagram
