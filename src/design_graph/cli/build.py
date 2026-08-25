@@ -21,6 +21,8 @@ Commands:
   design-graph report --name <name>             override prototype name in report
   design-graph report --no-tokens               exclude design token table
   design-graph report --jsx                     include JSX snippets in report
+  design-graph init [path]                       configure the UI-context skill for an AI coding tool (interactive)
+  design-graph init [path] --tool claude,cursor  configure it for specific tools without prompting
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import resolve_icon_markers
 from design_graph.paths import default_db_for
 from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
+from design_graph.cli.init import InitCliArgs, parse_init_args
 
 
 # ── Typed argument containers ─────────────────────────────────────────────────
@@ -238,6 +241,8 @@ def main() -> None:
         _run_report(args[1:])
     elif args and args[0] == "db":
         _run_database(args[1:])
+    elif args and args[0] == "init":
+        _run_init(args[1:])
     else:
         _run_build(args)
 
@@ -344,7 +349,9 @@ def _print_main_help() -> None:
             "  status    Show database health and last build information\n"
             "  validate  Validate database integrity (supports JSON output)\n"
             "  report    Generate a Markdown prototype report\n"
-            "  db        List, inspect and select graph databases\n\n"
+            "  db        List, inspect and select graph databases\n"
+            "  init      Configure the UI-context agent skill for Claude Code, Cursor,\n"
+            "            Codex CLI, Antigravity or Kiro (interactive without --tool)\n\n"
             "build options:\n"
             "  --db PATH    Write to a custom database path\n"
             "  --name NAME  Write to <name>.db under the graph directory\n"
@@ -544,6 +551,13 @@ def _select_graph(db_path: Path | None, document: str | None):
 def _run_database(argv: list[str]) -> None:
     from design_graph.cli.databases import run_database_command
     exit_code = run_database_command(parse_database_args(argv))
+    if exit_code:
+        raise SystemExit(exit_code)
+
+
+def _run_init(argv: list[str]) -> None:
+    from design_graph.cli.init import run_init_command
+    exit_code = run_init_command(parse_init_args(argv))
     if exit_code:
         raise SystemExit(exit_code)
 

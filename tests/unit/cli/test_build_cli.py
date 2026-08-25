@@ -197,7 +197,7 @@ class TestMainHelp:
                 main()
         assert exc.value.code == 0
         output = capsys.readouterr().out
-        for command in ("chunk", "status", "validate", "report", "db"):
+        for command in ("chunk", "status", "validate", "report", "db", "init"):
             assert command in output
         for option in ("--db", "--name", "--diff", "--force", "--verbose", "--quiet", "--json"):
             assert option in output
