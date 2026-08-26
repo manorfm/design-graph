@@ -233,6 +233,8 @@ design-graph init --tool all               # install for every supported tool
 design-graph init --force                  # overwrite a copy you edited by hand
 ```
 
+Without `--tool`, the interactive prompt uses a real arrow-key/checkbox menu when [`questionary`](https://pypi.org/project/questionary/) is installed (`pip install design-graph[interactive]` or `pipx inject design-graph questionary`) and stdin/stdout are a real terminal; otherwise it falls back to a plain numbered text prompt — both work the same from a script or CI as long as `--tool` is passed, since neither path runs then.
+
 Each tool gets its own native format and location, adapted from a single canonical source so the five copies can't drift out of sync with each other:
 
 | Tool | File | Format |
