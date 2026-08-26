@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -141,8 +142,18 @@ TARGETS: tuple[SkillTarget, ...] = (
 _TARGETS_BY_KEY = {t.key: t for t in TARGETS}
 
 
-def run_init_command(args: InitCliArgs, prompt: Callable[[str], str] = input) -> int:
-    tools = args.tools if args.tools is not None else _prompt_for_tools(prompt)
+def run_init_command(
+    args: InitCliArgs,
+    prompt: Callable[[str], str] = input,
+    checkbox: Callable[[], tuple[str, ...] | None] | None = None,
+) -> int:
+    if args.tools is not None:
+        tools: tuple[str, ...] | None = args.tools
+    else:
+        picker = checkbox if checkbox is not None else _interactive_checkbox_picker
+        tools = picker()
+        if tools is None:  # questionary unavailable/not a real TTY — plain-text fallback
+            tools = _prompt_for_tools(prompt)
     if tools is None:  # prompt failed (non-interactive stdin) and no --tool given
         print(
             "error: no tools selected and input is not interactive. "
@@ -169,6 +180,43 @@ def run_init_command(args: InitCliArgs, prompt: Callable[[str], str] = input) ->
         if not ok:
             exit_code = 1
     return exit_code
+
+
+def _interactive_checkbox_picker() -> tuple[str, ...] | None:
+    """
+    True arrow-key/space-to-toggle multi-select, via the optional
+    `questionary` dependency (`pip install design-graph[interactive]`).
+
+    Returns None — not a real answer, a "not available here" signal — so
+    the caller falls back to the always-available plain-text numbered
+    prompt (_prompt_for_tools). That happens whenever either condition
+    isn't met:
+      - stdin/stdout aren't a real interactive terminal (a script, CI, or
+        any piped input) — a raw-mode checkbox UI has nothing to attach to.
+      - `questionary` isn't installed — it's an optional extra, not a hard
+        dependency of the base package, so its absence is expected, not an
+        error.
+    A hint is printed (once) only in the second case, where a human is
+    actually at the keyboard and could plausibly want it — never for a
+    non-interactive stdin, where it would just be log noise.
+    """
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return None
+    try:
+        import questionary
+    except ImportError:
+        print("Dica: instale `design-graph[interactive]` para escolher com um menu de setas.\n")
+        return None
+
+    choices = [
+        questionary.Choice(title=f"{t.label} ({t.relative_path})", value=t.key)
+        for t in TARGETS
+    ]
+    selected = questionary.checkbox(
+        "Quais ferramentas você usa neste projeto? (espaço para marcar, enter para confirmar)",
+        choices=choices,
+    ).ask()
+    return () if selected is None else tuple(selected)  # None == Ctrl-C / cancelled
 
 
 def _prompt_for_tools(prompt: Callable[[str], str]) -> tuple[str, ...] | None:

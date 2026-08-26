@@ -26,6 +26,9 @@ dev = [
     "pytest>=7",
     "pytest-cov>=4",
 ]
+interactive = [
+    "questionary>=2.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

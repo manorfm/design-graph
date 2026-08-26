@@ -5,6 +5,7 @@ import pytest
 from design_graph.cli.init import (
     InitCliArgs,
     TARGETS,
+    _interactive_checkbox_picker,
     parse_init_args,
     run_init_command,
 )
@@ -177,3 +178,80 @@ class TestRunInitCommandInteractivePrompt:
         code = run_init_command(InitCliArgs(target=tmp_path, tools=None), prompt=_raise_eof)
         assert code == 1
         assert "--tool" in capsys.readouterr().out
+
+
+class TestRunInitCommandCheckboxPicker:
+    """The optional arrow-key/checkbox menu (design-graph[interactive]) is
+    tried before the plain-text numbered prompt, via dependency injection —
+    no real TTY or `questionary` install needed to test the wiring."""
+
+    def test_checkbox_result_is_used_without_falling_back_to_prompt(self, tmp_path):
+        def _prompt_should_not_be_called(_: str) -> str:
+            raise AssertionError("text prompt must not run when checkbox answered")
+
+        code = run_init_command(
+            InitCliArgs(target=tmp_path, tools=None),
+            prompt=_prompt_should_not_be_called,
+            checkbox=lambda: ("claude", "codex"),
+        )
+        assert code == 0
+        assert (tmp_path / ".claude" / "skills" / "design-graph-ui-context" / "SKILL.md").exists()
+        assert (tmp_path / "AGENTS.md").exists()
+        assert not (tmp_path / ".cursor").exists()
+
+    def test_checkbox_empty_selection_installs_nothing(self, tmp_path, capsys):
+        code = run_init_command(
+            InitCliArgs(target=tmp_path, tools=None), checkbox=lambda: (),
+        )
+        assert code == 0
+        assert "Nothing selected" in capsys.readouterr().out
+
+    def test_checkbox_none_falls_back_to_text_prompt(self, tmp_path):
+        code = run_init_command(
+            InitCliArgs(target=tmp_path, tools=None),
+            prompt=lambda _: "1",
+            checkbox=lambda: None,
+        )
+        assert code == 0
+        assert (tmp_path / ".claude" / "skills" / "design-graph-ui-context" / "SKILL.md").exists()
+
+    def test_explicit_tool_flag_skips_checkbox_entirely(self, tmp_path):
+        def _checkbox_should_not_run() -> tuple[str, ...] | None:
+            raise AssertionError("checkbox must not run when --tool was passed")
+
+        code = run_init_command(
+            InitCliArgs(target=tmp_path, tools=("claude",)),
+            checkbox=_checkbox_should_not_run,
+        )
+        assert code == 0
+
+
+class TestInteractiveCheckboxPickerAvailability:
+    def test_returns_none_when_stdin_is_not_a_tty(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+        assert _interactive_checkbox_picker() is None
+
+    def test_returns_none_when_stdout_is_not_a_tty(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+        assert _interactive_checkbox_picker() is None
+
+    def test_returns_none_and_hints_when_questionary_is_not_installed(
+        self, monkeypatch, capsys,
+    ):
+        import builtins
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+        real_import = builtins.__import__
+
+        def _blocked_import(name, *args, **kwargs):
+            if name == "questionary":
+                raise ImportError("no module named questionary")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _blocked_import)
+
+        assert _interactive_checkbox_picker() is None
+        assert "design-graph[interactive]" in capsys.readouterr().out
