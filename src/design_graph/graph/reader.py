@@ -138,7 +138,12 @@ class GraphReader:
         comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
 
         styles       = self._q(
+            # media != '' rows are @media-scoped variants (C35) — this tool
+            # doesn't distinguish them from the unconditional default, so it
+            # excludes them rather than silently presenting one as the other
+            # (get_component_spec is the one place that surfaces them, labeled).
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
+            "WHERE s.media = '' "
             "RETURN s.state, s.property, s.value ORDER BY s.state, s.property",
             {"n": resolved},
         )
@@ -348,8 +353,11 @@ class GraphReader:
             row["c.jsx_snippet"] = self._resolve_icons(row["c.jsx_snippet"] or "")
 
         comp_style_rows = self._q(
+            # media = '' guard: see get_component's identical comment (C35) —
+            # this tool doesn't partition responsive styles out either.
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn})-[:HAS_STYLE]->(st:Style) "
+            "WHERE st.media = '' "
             "RETURN c.name AS comp_name, st.state AS state, "
             "st.property AS property, st.value AS value "
             "ORDER BY c.name, st.state, st.property",
@@ -573,7 +581,9 @@ class GraphReader:
         if not resolved:
             return []
         return self._q(
+            # media = '' guard: see get_component's identical comment (C35).
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
+            "WHERE s.media = '' "
             "OPTIONAL MATCH (s)-[:STYLE_USES_TOKEN]->(t:Token) "
             "RETURN s.state, s.property, s.value, "
             "       t.label AS token_label, t.value AS token_value, "
@@ -902,10 +912,16 @@ class GraphReader:
         # via multiple CONTAINS paths must be deduped *before* joining its
         # styles, or the join itself would duplicate rows.
         comp_style_rows = self._q(
+            # media = '' guard: see get_component's identical comment (C35) —
+            # this feeds layout_by_comp below via plain dict assignment
+            # (last-row-wins), so a leaked responsive row could silently
+            # replace the true default width/padding/etc. depending on scan
+            # order, not on which one is actually unconditional.
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:HAS_STYLE]->(st:Style) "
+            "WHERE st.media = '' "
             "RETURN c.name AS comp_name, st.state AS state, "
             "       st.property AS property, st.value AS value "
             "ORDER BY c.name, st.state, st.property",
@@ -1008,8 +1024,12 @@ class GraphReader:
             return None
 
         style_rows = self._q(
+            # media = '' guard (C35): layout_props below is a plain dict
+            # keyed by property — a leaked responsive row would silently
+            # replace the true default value, last-row-wins, unrelated to
+            # which one is actually unconditional.
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
-            "WHERE s.state = 'default' "
+            "WHERE s.state = 'default' AND s.media = '' "
             "RETURN s.property, s.value",
             {"n": resolved},
         )
@@ -1045,9 +1065,10 @@ class GraphReader:
             return []
 
         style_rows = self._q(
+            # media = '' guard: same reasoning as get_component_layout_profile (C35).
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(c:Component)"
             "-[:HAS_STYLE]->(st:Style) "
-            "WHERE st.state = 'default' "
+            "WHERE st.state = 'default' AND st.media = '' "
             "RETURN c.name AS comp_name, st.property AS prop, st.value AS val",
             {"n": resolved},
         )

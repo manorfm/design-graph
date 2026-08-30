@@ -91,6 +91,24 @@ def rich_graph(tmp_path_factory):
     )
     gw.write_component(btn, tm)
 
+    # C35 — a component with both an unconditional and an @media-scoped
+    # style for the same property, to verify every reader method other than
+    # get_component_spec excludes the responsive one instead of mixing it
+    # into "default" (see TestMediaScopedStylesExcludedElsewhere below).
+    responsive_card = ExtractedComponent(
+        name="ResponsiveCard", comp_type="card",
+        jsx_snippet="<div className=\"card\">Card</div>",
+        occurrence=1, classes="card",
+        styles=[
+            StyleEntry(id="st_resp_default", element="ResponsiveCard", state="default",
+                       property="width", value="200px", media=None),
+            StyleEntry(id="st_resp_media", element="ResponsiveCard", state="default",
+                       property="width", value="100%", media="(max-width:600px)"),
+        ],
+        interactions=[], texts=[], child_refs=[],
+    )
+    gw.write_component(responsive_card, tm)
+
     section = ExtractedSection(
         id="sec_hdr", screen="RestaurantsPage", name="Header",
         styles={"padding": "16px"}, component_refs=["BtnPrimary"],
@@ -99,7 +117,7 @@ def rich_graph(tmp_path_factory):
     )
     screen = ExtractedScreen(
         name="RestaurantsPage",
-        component_refs=["BtnPrimary", "CartItem"],
+        component_refs=["BtnPrimary", "CartItem", "ResponsiveCard"],
         sections_count=1,
     )
     gw.write_screen(screen, [section], tm)
@@ -397,6 +415,62 @@ class TestGetStylesWithTokens:
             assert "c.name" in c
             assert "c.comp_type" in c
             assert "c.occurrence" in c
+
+
+# ── @media-scoped styles excluded from every tool except get_component_spec
+# (C35/T79 — P3: T78 gave Style rows a `media` column, and every reader
+# method below was querying Style without knowing about it, so a
+# responsive value leaked in as if it were an ordinary default. Regression
+# fixture: ResponsiveCard has width=200px unconditional, width=100% only
+# under (max-width:600px) — see rich_graph above.) ───────────────────────────
+
+class TestMediaScopedStylesExcludedElsewhere:
+    def test_get_component_excludes_responsive_style(self, rich_graph):
+        comp = rich_graph.reader.get_component("ResponsiveCard")
+        widths = {s["s.value"] for s in comp["styles"] if s["s.property"] == "width"}
+        assert widths == {"200px"}
+
+    def test_get_component_full_excludes_responsive_style(self, rich_graph):
+        full = rich_graph.reader.get_component_full("ResponsiveCard")
+        card = next(c for c in full["components"] if c["name"] == "ResponsiveCard")
+        widths = {
+            s["value"] for entries in card["styles_by_state"].values() for s in entries
+            if s["property"] == "width"
+        }
+        assert widths == {"200px"}
+
+    def test_get_styles_with_tokens_excludes_responsive_style(self, rich_graph):
+        rows = rich_graph.reader.get_styles_with_tokens("ResponsiveCard")
+        widths = {r["s.value"] for r in rows if r["s.property"] == "width"}
+        assert widths == {"200px"}
+
+    def test_get_screen_full_excludes_responsive_style(self, rich_graph):
+        full = rich_graph.reader.get_screen_full("RestaurantsPage")
+        card = next(c for c in full["components"] if c["name"] == "ResponsiveCard")
+        widths = {
+            s["value"] for entries in card["styles_by_state"].values() for s in entries
+            if s["property"] == "width"
+        }
+        assert widths == {"200px"}
+
+    def test_get_component_layout_profile_excludes_responsive_style(self, rich_graph):
+        profile = rich_graph.reader.get_component_layout_profile("ResponsiveCard")
+        assert profile["width"] == "200px"
+
+    def test_get_screen_layout_excludes_responsive_style(self, rich_graph):
+        layouts = rich_graph.reader.get_screen_layout("RestaurantsPage")
+        card = next(p for p in layouts if p["component_name"] == "ResponsiveCard")
+        assert card["width"] == "200px"
+
+    def test_get_component_spec_still_surfaces_the_responsive_style(self, rich_graph):
+        # The one deliberate exception (T78) — same component, same data,
+        # but through the tool that's supposed to show it, labeled by
+        # condition instead of silently dropped or mixed in.
+        spec = rich_graph.reader.get_component_spec("ResponsiveCard")
+        assert spec["styles_by_state"]["default"] == [{"property": "width", "value": "200px"}]
+        assert spec["responsive_styles_by_media"]["(max-width:600px)"] == [
+            {"property": "width", "value": "100%"}
+        ]
 
 
 # ── get_component_spec (C08) ──────────────────────────────────────────────────

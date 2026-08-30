@@ -404,7 +404,11 @@ TOOL_DEFINITIONS: list[dict] = [
         "description": (
             "Returns the complete spec of a component structured for screen reconstruction: "
             "styles grouped by state (default/hover/focus), design tokens, texts, interactions, "
-            "parent/child hierarchy, and which screens use it. "
+            "parent/child hierarchy, and which screens use it. If any of the component's classes "
+            "carry an @media-scoped override, those values appear in a separate 'Estilos "
+            "responsivos' section labeled with their raw condition — never mixed into the "
+            "default styles above. This is the only tool that surfaces @media data; all other "
+            "style-reading tools only ever return the unconditional value. "
             "Use instead of get_component when building or reproducing UI."
         ),
         "inputSchema": {

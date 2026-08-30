@@ -97,12 +97,43 @@ formato seria o certo" — `toToggle v2.2.html` é essa evidência: 7 media
 queries reais, formato consistente (`min-width`/`max-width` em px,
 combinações com `and`, e o caso não dimensional `hover:none`).
 
+### P3 — T78 reabriu a classe de bug de P1 em seis outras tools (descoberto pós-implementação)
+
+Depois de T78 implementado, `Style` passou a ter linhas com `media` não-vazio
+persistidas no grafo. `get_component_spec` foi a única query atualizada para
+particionar por `media` — as outras seis leitoras de `Style` em `reader.py`
+continuaram com `RETURN s.state, s.property, s.value` sem filtro, então
+passaram a devolver as linhas responsivas misturadas ao invés de nunca as
+verem (comportamento pré-T78). Confirmado com evidência real: reconstruindo
+`toToggle v2.2.html` e chamando `get_component_full('AppList')`, a seção
+"Estilos — default" do componente `AppList` mostrava `font-size | 25px |
+14px | 13.5px | 21px | 13px` — o `21px`/`13px` são os valores de `@media
+(max-width:600px)` de `.page-title`, apresentados como se fossem variantes
+default legítimas (igual a duas classes diferentes declarando a mesma
+propriedade), sem qualquer indicação de que são condicionais.
+
+Dois casos, dois efeitos diferentes:
+
+- **`get_component`, `get_component_full`, `get_styles_with_tokens`,
+  `get_screen_full`** — sem filtro de `state` nenhum: a linha responsiva
+  aparece na lista, ambígua com qualquer outra fonte legítima de múltiplos
+  valores para a mesma propriedade (children diferentes, por exemplo).
+- **`get_component_layout_profile`, `get_screen_layout`** — já filtravam
+  `WHERE state = 'default'`, mas `state` e `media` são eixos ortogonais
+  (uma linha responsiva também tem `state='default'`); o resultado alimenta
+  um dict Python indexado só por `property` (`layout_props[prop] = value`,
+  `layout_by_comp[comp][prop] = value`) — **mesma classe de bug que P1**,
+  um nível acima: o valor responsivo pode sobrescrever o default de verdade
+  dependendo da ordem de retorno do Cypher, não de qual é realmente
+  incondicional.
+
 ## Solução proposta
 
 | Task | Problema | Camada |
 |---|---|---|
 | T77 | P1 | `parsing/css_class_resolver.py` |
 | T78 | P2 | `parsing/css_class_resolver.py`, `core/models.py`, `mcp/tools.py` |
+| T79 | P3 | `graph/reader.py` |
 
 **T77** — nova função `_strip_media_blocks(css_text: str) -> tuple[str,
 list[tuple[str, str]]]` em `css_class_resolver.py`: varre `css_text`
@@ -162,6 +193,17 @@ vira um subtítulo (`` **`@media (max-width:600px)`** ``) com sua própria
 tabela property/value, para deixar explícito que aquele valor não é o
 default.
 
+**T79** — cada uma das seis queries de P3 ganha `WHERE ... media = ''` (ou
+`AND ... media = ''` nas duas que já filtravam `state`). Nenhuma dessas
+seis tools foi desenhada para mostrar dado condicional — a correção as
+mantém devolvendo exatamente o que devolviam antes de T78 existir;
+`get_component_spec` continua sendo o único lugar que expõe `@media`,
+agora deliberadamente. Também documentado na descrição da tool
+`get_component_spec` (`mcp/tools.py`, `TOOL_DEFINITIONS`) exposta ao
+agente via MCP — o texto que o agente lê antes de decidir qual tool
+chamar agora menciona a seção "Estilos responsivos" e deixa explícito que
+nenhuma outra tool de estilo devolve dado condicional.
+
 ## Cobertura de testes exigida
 
 - **T77**: `TestStripMediaBlocks` — bloco `@media` simples; bloco com `and`
@@ -189,6 +231,15 @@ default.
   `extract_component`) — estilo responsivo aparece ao lado do default;
   `responsive_rule_map=None` não produz nenhuma entrada com `media`
   setado.
+- **T79**: `TestMediaScopedStylesExcludedElsewhere`
+  (`tests/unit/graph/test_reader_advanced_queries.py`) — fixture
+  `ResponsiveCard` com `width=200px` incondicional e `width=100%` só sob
+  `(max-width:600px)`; uma verificação por uma das seis tools de P3
+  (`get_component`, `get_component_full`, `get_styles_with_tokens`,
+  `get_screen_full`, `get_component_layout_profile`, `get_screen_layout`)
+  confirmando que só `200px` aparece; mais uma verificação de controle
+  (`get_component_spec` continua mostrando as duas, cada uma no lugar
+  certo) — prova que a correção exclui sem também quebrar T78.
 
 Suíte completa (`pytest tests/unit/ -q`, `pytest tests/integration/ -q`) sem
 regressão e guardrails (`pytest tests/test_architecture_guardrails.py -q`)
