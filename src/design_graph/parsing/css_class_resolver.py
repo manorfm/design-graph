@@ -53,6 +53,50 @@ _RE_SELECTOR_BLOCK = re.compile(r'([^{}]+)\{([^{}]*)\}', re.MULTILINE)
 # a compound selector) and nothing after (no descendant combinator).
 _RE_TAG_PSEUDO_SELECTOR = re.compile(r'\A([a-z][a-z0-9]*):([a-z-]+)\Z')
 
+# The `@media (...)` (or `@media (...) and (...)`) prefix of a media block,
+# up to (not including) its opening brace.
+_RE_MEDIA_START = re.compile(r'@media\s*[^{]*\{')
+
+
+def _strip_media_blocks(css_text: str) -> str:
+    """
+    Remove every `@media { ... }` block (condition and body) from css_text,
+    leaving only unconditional (always-active) rules behind.
+
+    Without this, a class or tag:pseudo selector declared both at top level
+    and again inside an `@media` block collides in extract_css_rules /
+    extract_tag_pseudo_rules (both key their result dict by name and let the
+    later match win) — whichever declaration appears later in the source
+    text silently overwrites the unconditional one, even though media
+    queries are conditional on viewport, not on source position. See C35
+    spec for a real-world case (`.page-title` in a bundled prototype loses
+    two of its three declared properties, and its font-size is replaced by
+    the ≤600px value, because that media block happens to sit after the
+    real default rule in the file).
+
+    Brace-depth counting (not a flat regex) because a media block's body
+    contains its own nested `{ ... }` rule blocks — a naive `[^{}]*` body
+    match would stop at the first nested `}`, well before the block
+    actually ends.
+    """
+    result: list[str] = []
+    pos = 0
+    for m in _RE_MEDIA_START.finditer(css_text):
+        if m.start() < pos:
+            continue  # inside a media block already consumed by a previous match
+        result.append(css_text[pos:m.start()])
+        depth = 1
+        i = m.end()
+        while i < len(css_text) and depth > 0:
+            if css_text[i] == "{":
+                depth += 1
+            elif css_text[i] == "}":
+                depth -= 1
+            i += 1
+        pos = i  # skip past the matched @media block entirely, braces included
+    result.append(css_text[pos:])
+    return "".join(result)
+
 
 # ── Tailwind numeric class generator ─────────────────────────────────────────
 #
@@ -374,9 +418,13 @@ def extract_css_rules(css_text: str) -> dict[str, list[CssRule]]:
     Only simple class selectors (.classname { property: value; }) are captured.
     Pseudo-classes (:hover, :focus), element selectors (div), and ID selectors (#id)
     are deliberately ignored — they cannot be resolved from className strings.
+    `@media` blocks are stripped before parsing (see _strip_media_blocks) so a
+    viewport-conditional declaration never overwrites the unconditional one.
     """
     if not css_text or not css_text.strip():
         return {}
+
+    css_text = _strip_media_blocks(css_text)
 
     result: dict[str, list[CssRule]] = {}
     try:
@@ -412,9 +460,16 @@ def extract_tag_pseudo_rules(css_text: str) -> dict[str, dict[str, list[CssRule]
     (`.btn:hover`), an id (`#field:focus`), a descendant combinator
     (`div input:focus`), or a plain element selector with no pseudo-class
     (`input`) — is left for its own, unrelated resolution path (or none).
+
+    `@media` blocks are stripped before parsing (see _strip_media_blocks),
+    same reasoning as extract_css_rules — otherwise a bare tag:pseudo rule
+    nested inside a media block would collide with its unconditional
+    counterpart.
     """
     if not css_text or not css_text.strip():
         return {}
+
+    css_text = _strip_media_blocks(css_text)
 
     result: dict[str, dict[str, list[CssRule]]] = {}
     try:

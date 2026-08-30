@@ -61,6 +61,33 @@ levantadas após análise de eficiência para uso por agentes de IA.
 
 ---
 
+## Changes de auditoria e correção (C23–C35)
+
+| Change | Título | Status | Tasks | Impacto |
+|--------|--------|--------|-------|---------|
+| [C23](C23-agent-context-fidelity/) | Fidelidade de contexto do MCP para agentes de IA | ✅ Done | T37–T43 | Fecha gaps encontrados numa auditoria real de sessão de agente (ver `audit/mcp-gap-analysis-item-basic-tab.md`) |
+| [C24](C24-css-style-resolution-completeness/) | Completude da resolução de estilo (CSS embutido + spread) | ✅ Done | T44–T46 | Extrai `<style>` embutido no `inner_html` do bundle + resolve spreads (`...base, override`) |
+| [C25](C25-write-integrity/) | Integridade de escrita (lock de build + erros de escrita visíveis) | ✅ Done | T47–T48 | Evita builds concorrentes corromperem a mesma DB; erros de escrita deixam de ser engolidos |
+| [C26](C26-parsing-correctness/) | Correções de bugs de parsing (except genérico, div não-balanceado, spread ambíguo) | ✅ Done | T49–T51 | Três bugs de parsing corrigidos após revisão linha a linha |
+| [C27](C27-reader-mcp-quick-wins/) | Reader/MCP: ganhos rápidos | ✅ Done | T52–T55 | Melhorias pontuais de ergonomia de leitura via MCP |
+| [C28](C28-truncation-as-data/) | Truncamento como dado, não log | ✅ Done | T56–T60 | `truncated_fields` vira campo estruturado no grafo em vez de só aparecer em log — agente consegue detectar truncamento sem grep de log |
+| [C29](C29-hover-focus-states/) | Estados hover/focus completos (Tailwind + correção de pareamento) | ✅ Done | T61–T62 | `StyleState` ganha resolução de prefixo `hover:`/`focus:`; corrige bug de pareamento `enter`/`leave` via `zip()` |
+| [C30](C30-render-order/) | Ordem de renderização (`order_index`) | ✅ Done | T63–T66 | `child_refs`/`component_refs` preservam ordem real de aparição no JSX em vez de alfabetizar |
+| [C31](C31-mcp-api-expansion/) | Expansão da API MCP (`get_component_full`, paginação, `get_build_diff`) | ✅ Done | T67–T69 | Novas tools de leitura para reduzir round-trips do agente |
+| [C32](C32-library-icons/) | Referências externas permanentemente não resolvidas (re-escopado de "ícones de biblioteca") | ✅ Done | T70 | Evita `Component` fantasma para nomes que nunca resolvem (ícones de biblioteca externa) |
+| [C33](C33-round-trip-validation/) | Validação round-trip (spike + implementação) | ✅ Done | T71 | `design-graph validate` confirma que o grafo reflete o HTML de origem sem perda silenciosa |
+| [C34](C34-post-audit-fixes/) | Correções de uma segunda rodada de auditoria (C25–C33) | ✅ Done | T72–T76 | 5 bugs achados numa segunda auditoria crítica do código de C25–C33, dois deles críticos (reordenação alfabética desfazendo C30; `Component` fantasma com nome de `Screen`) |
+| [C35](C35-media-query-css-scoping/) | Parsing: `@media` corrompe a resolução de classe CSS | 🟡 Parcial — T77 Done, T78 proposto | T77–T78 | Crítico — `extract_css_rules`/`extract_tag_pseudo_rules` absorviam regras de dentro de `@media` como se fossem incondicionais, sobrescrevendo o valor default real (evidência: `.page-title` em `toToggle v2.2.html` perdia 2 de 3 propriedades e retornava o valor de viewport ≤600px como se fosse o padrão). T77 (correção) implementado e verificado ponta a ponta contra o grafo reconstruído; T78 (expor estilos responsivos via `get_component_spec`) requer mudança de schema do grafo (`Style` + `reader.py` + `mcp/tools.py`) e ficou fora desta rodada |
+
+> C23 nasceu de uma investigação real de sessão de agente, não de análise de
+> código a priori — mesmo padrão de origem do C35. C34 é uma segunda rodada
+> de auditoria sobre C25–C33, não um change de feature. C35 é o mesmo tipo
+> de achado: relato externo ("design-graph não expõe media queries")
+> verificado contra o código e transformado em bug real (não a feature que
+> o relato original presumia estar faltando).
+
+---
+
 ## Estrutura de cada change
 
 ```

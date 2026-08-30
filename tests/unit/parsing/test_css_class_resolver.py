@@ -15,6 +15,7 @@ import pytest
 
 from design_graph.parsing.css_class_resolver import (
     CssRule,
+    _strip_media_blocks,
     extract_css_rules,
     extract_tag_pseudo_rules,
     resolve_classes,
@@ -92,6 +93,89 @@ class TestExtractCssRules:
         css = ".bg-primary { background-color: #ffb81c; }"
         rules = extract_css_rules(css)
         assert "bg-primary" in rules
+
+
+# ── _strip_media_blocks / @media scoping — C35/T77 ────────────────────────────
+#
+# extract_css_rules and extract_tag_pseudo_rules key their result dict by
+# class/tag name and let the later regex match win. Without stripping
+# @media first, a viewport-conditional declaration appearing later in the
+# source text silently overwrites the unconditional one — see spec C35 for
+# the real-world case (`.page-title` in a bundled prototype).
+
+class TestStripMediaBlocks:
+    def test_no_media_is_noop(self):
+        css = ".btn { color: red; }"
+        assert _strip_media_blocks(css) == css
+
+    def test_simple_media_block_removed(self):
+        css = ".btn { color: red; } @media (max-width:600px) { .btn { color: blue; } }"
+        stripped = _strip_media_blocks(css)
+        assert "@media" not in stripped
+        assert "blue" not in stripped
+        assert "color: red" in stripped
+
+    def test_compound_condition_media_block_removed(self):
+        css = "@media (min-width:1180px) and (max-width:1599px) { .btn { color: blue; } } .btn { color: red; }"
+        stripped = _strip_media_blocks(css)
+        assert "@media" not in stripped
+        assert "blue" not in stripped
+        assert "color: red" in stripped
+
+    def test_non_dimensional_media_condition_removed(self):
+        css = "@media (hover:none) { .btn { cursor: default; } }"
+        assert _strip_media_blocks(css) == ""
+
+    def test_multiple_media_blocks_all_removed(self):
+        css = (
+            "@media (max-width:600px) { .a { color: red; } } "
+            ".mid { color: green; } "
+            "@media (min-width:1600px) { .b { color: blue; } }"
+        )
+        stripped = _strip_media_blocks(css)
+        assert "@media" not in stripped
+        assert "red" not in stripped
+        assert "blue" not in stripped
+        assert "green" in stripped
+
+    def test_nested_braces_inside_media_block_do_not_truncate_removal(self):
+        # A naive `[^{}]*` body match would stop at the first nested `}`
+        # (after `color: blue`), leaving the rest of the block — including
+        # its closing brace — behind as stray, unbalanced text.
+        css = "@media (max-width:600px) { .a { color: blue; } .b { color: green; } } .c { color: red; }"
+        stripped = _strip_media_blocks(css).strip()
+        assert stripped == ".c { color: red; }"
+
+
+class TestExtractCssRulesIgnoresMedia:
+    def test_default_rule_survives_later_media_override(self):
+        # Real shape from toToggle v2.2.html: unconditional rule first,
+        # a narrower @media rule for the same class later in the file.
+        css = (
+            ".page-title { font-size: 25px; font-weight: 600; letter-spacing: -0.025em; } "
+            "@media (max-width:600px) { .page-title { font-size: 21px; } }"
+        )
+        rules = extract_css_rules(css)
+        props = {r.property: r.value for r in rules["page-title"]}
+        assert props["font-size"] == "25px"
+        assert props["font-weight"] == "600"
+        assert props["letter-spacing"] == "-0.025em"
+
+    def test_media_only_class_produces_no_default_rule(self):
+        css = "@media (max-width:600px) { .mobile-only { display: block; } }"
+        rules = extract_css_rules(css)
+        assert "mobile-only" not in rules
+
+
+class TestExtractTagPseudoRulesIgnoresMedia:
+    def test_default_rule_survives_later_media_override(self):
+        css = (
+            "input:focus { outline: none; border-color: black; } "
+            "@media (max-width:600px) { input:focus { border-color: blue; } }"
+        )
+        rules = extract_tag_pseudo_rules(css)
+        props = {r.property: r.value for r in rules["input"]["focus"]}
+        assert props["border-color"] == "black"
 
 
 # ── extract_tag_pseudo_rules — C24/T45 ────────────────────────────────────────
