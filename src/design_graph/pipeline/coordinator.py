@@ -39,7 +39,11 @@ from design_graph.extraction.section_extractor import extract_sections, extract_
 from design_graph.graph.diff import compute_diff
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 from design_graph.graph.writer import GraphWriteSession
-from design_graph.parsing.css_class_resolver import extract_css_rules, extract_tag_pseudo_rules
+from design_graph.parsing.css_class_resolver import (
+    extract_css_rules,
+    extract_responsive_css_rules,
+    extract_tag_pseudo_rules,
+)
 from design_graph.parsing.format_detector import PLAIN_HTML
 from design_graph.parsing.js_parser import find_all_boundaries
 from design_graph.parsing.palette_extractor import discover_prototype_palette
@@ -268,6 +272,7 @@ async def extract_react(
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
     tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
+    responsive_rule_map = extract_responsive_css_rules(sources.css) if sources.css else {}
     visual_bounds = select_renderable_boundaries(sources.js, all_boundaries)
     screen_flags  = [is_screen(b.name, sources.js[b.start:b.end]) for b in visual_bounds]
     screen_bounds = [b for b, is_scr in zip(visual_bounds, screen_flags) if is_scr]
@@ -275,13 +280,15 @@ async def extract_react(
     occurrences   = Counter(b.name for b in all_boundaries)
 
     logger.info(
-        "pipeline: resolved %d CSS class rules, %d tag pseudo-class rules from stylesheet",
-        len(rule_map), len(tag_rule_map),
+        "pipeline: resolved %d CSS class rules, %d tag pseudo-class rules, "
+        "%d responsive (@media) class rules from stylesheet",
+        len(rule_map), len(tag_rule_map), len(responsive_rule_map),
     )
 
     extracted_comps = await extract_all_components(
         sources.js, comp_bounds, occurrences, token_map,
         concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
+        responsive_rule_map=responsive_rule_map,
         palette=palette, on_component_extracted=on_component_extracted,
     )
 

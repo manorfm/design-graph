@@ -313,9 +313,9 @@ class GraphWriter:
                 continue
             self._inserted_style_ids.add(style.id)
             self._safe_execute(
-                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl})",
+                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
                 {"id": style.id, "el": style.element, "st": style.state,
-                 "pr": style.property, "vl": style.value},
+                 "pr": style.property, "vl": style.value, "md": style.media or ""},
             )
             self._safe_execute(
                 "MATCH (c:Component {name:$cn}),(s:Style {id:$sid}) CREATE (c)-[:HAS_STYLE]->(s)",
@@ -554,9 +554,9 @@ class GraphWriter:
                 continue
             self._inserted_style_ids.add(style.id)
             self._safe_execute(
-                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl})",
+                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
                 {"id": style.id, "el": style.element, "st": style.state,
-                 "pr": style.property, "vl": style.value},
+                 "pr": style.property, "vl": style.value, "md": style.media or ""},
             )
             self._safe_execute(
                 "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "

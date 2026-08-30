@@ -145,6 +145,7 @@ def extract_component(
     token_map: dict[str, list[DesignToken]],
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
+    responsive_rule_map: dict[str, list[CssRule]] | None = None,
     palette: PrototypePalette | None = None,
 ) -> ExtractedComponent:
     """
@@ -161,6 +162,11 @@ def extract_component(
     are resolved against bare tag+pseudo-class stylesheet rules (input:focus { ... })
     into additional StyleEntry objects — independent of rule_map, which is keyed by
     className and can't answer "does this element carry that class" from CSS alone.
+
+    responsive_rule_map: optional map from css_class_resolver.extract_responsive_css_rules().
+    When provided, className strings additionally resolve against @media-scoped rules —
+    each producing a StyleEntry with `media` set to its raw condition, alongside (not
+    replacing) whatever rule_map/Tailwind already resolved for the same class (C35).
 
     palette: optional PrototypePalette from parsing.palette_extractor. When
     provided, a style value written as a direct palette reference
@@ -388,7 +394,7 @@ def extract_component(
     # Resolve CSS class names → additional StyleEntry objects
     if rule_map is not None and classes:
         class_string = " ".join(classes)
-        class_styles = resolve_classes(class_string, rule_map)
+        class_styles = resolve_classes(class_string, rule_map, responsive_rule_map)
         remaining_capacity = MAX_STYLES_PER_COMPONENT - len(styles)
         if remaining_capacity > 0:
             for cs in class_styles[:remaining_capacity]:
@@ -493,6 +499,7 @@ async def extract_all_components(
     concurrency: int = 8,
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
+    responsive_rule_map: dict[str, list[CssRule]] | None = None,
     palette: PrototypePalette | None = None,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> list[ExtractedComponent]:
@@ -503,6 +510,7 @@ async def extract_all_components(
     Each task produces an independent ExtractedComponent — no shared writes.
     rule_map: optional CSS class resolver map forwarded to each extract_component call.
     tag_rule_map: optional native-tag pseudo-class map, same forwarding.
+    responsive_rule_map: optional @media-scoped class rule map, same forwarding.
     palette: optional PrototypePalette forwarded to each extract_component call —
         see extract_component's own docstring.
     on_component_extracted: optional callback(name, index, total) called once per
@@ -521,7 +529,7 @@ async def extract_all_components(
             result = await asyncio.to_thread(
                 extract_component,
                 js, boundary, occurrences.get(boundary.name, 1), token_map,
-                rule_map, tag_rule_map, palette,
+                rule_map, tag_rule_map, responsive_rule_map, palette,
             )
         completed[0] += 1
         if on_component_extracted is not None:

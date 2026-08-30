@@ -27,6 +27,11 @@ class CssRule:
     selector: str   # e.g. ".flex"
     property: str   # e.g. "display"
     value: str      # e.g. "flex"
+    # Raw @media condition this rule came from (e.g. "(max-width:600px)"),
+    # or None for an unconditional (top-level) rule. Set only by
+    # extract_responsive_css_rules — extract_css_rules/extract_tag_pseudo_rules
+    # only ever see the stripped, unconditional CSS (see _strip_media_blocks).
+    media: str | None = None
 
 
 # ── Regex ─────────────────────────────────────────────────────────────────────
@@ -58,10 +63,13 @@ _RE_TAG_PSEUDO_SELECTOR = re.compile(r'\A([a-z][a-z0-9]*):([a-z-]+)\Z')
 _RE_MEDIA_START = re.compile(r'@media\s*[^{]*\{')
 
 
-def _strip_media_blocks(css_text: str) -> str:
+def _strip_media_blocks(css_text: str) -> tuple[str, list[tuple[str, str]]]:
     """
     Remove every `@media { ... }` block (condition and body) from css_text,
-    leaving only unconditional (always-active) rules behind.
+    leaving only unconditional (always-active) rules behind. Also returns
+    each removed block as (condition, body) — condition is the raw text
+    between `@media` and `{` (e.g. "(max-width:600px)"), body is everything
+    between the block's outer braces.
 
     Without this, a class or tag:pseudo selector declared both at top level
     and again inside an `@media` block collides in extract_css_rules /
@@ -79,23 +87,28 @@ def _strip_media_blocks(css_text: str) -> str:
     match would stop at the first nested `}`, well before the block
     actually ends.
     """
-    result: list[str] = []
+    stripped: list[str] = []
+    blocks: list[tuple[str, str]] = []
     pos = 0
     for m in _RE_MEDIA_START.finditer(css_text):
         if m.start() < pos:
             continue  # inside a media block already consumed by a previous match
-        result.append(css_text[pos:m.start()])
+        stripped.append(css_text[pos:m.start()])
+        condition = css_text[m.start() + len("@media"):m.end() - 1].strip()
         depth = 1
         i = m.end()
+        body_start = i
         while i < len(css_text) and depth > 0:
             if css_text[i] == "{":
                 depth += 1
             elif css_text[i] == "}":
                 depth -= 1
             i += 1
+        body_end = i - 1 if depth == 0 else i  # exclude the block's own closing brace
+        blocks.append((condition, css_text[body_start:body_end]))
         pos = i  # skip past the matched @media block entirely, braces included
-    result.append(css_text[pos:])
-    return "".join(result)
+    stripped.append(css_text[pos:])
+    return "".join(stripped), blocks
 
 
 # ── Tailwind numeric class generator ─────────────────────────────────────────
@@ -411,6 +424,30 @@ _TAILWIND_BUILTINS = {**_build_tailwind_numeric_entries(), **_TAILWIND_BUILTINS}
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def _parse_simple_class_blocks(css_text: str, media: str | None = None) -> dict[str, list[CssRule]]:
+    """
+    Shared body of extract_css_rules: parse `.classname { property: value; }`
+    blocks out of already-unconditional CSS text (no `@media` inside it).
+
+    media: tagged onto every CssRule produced — None for the default
+    (unconditional) pass, the raw condition string for a pass over one
+    @media block's body (see extract_responsive_css_rules).
+    """
+    result: dict[str, list[CssRule]] = {}
+    for m in _RE_SIMPLE_CLASS_BLOCK.finditer(css_text):
+        cls_name = m.group(1)
+        body = m.group(2)
+        rules: list[CssRule] = []
+        for pm in _RE_CSS_PROPERTY.finditer(body):
+            prop = pm.group(1).strip()
+            val  = pm.group(2).strip()
+            if prop and val:
+                rules.append(CssRule(f".{cls_name}", prop, val, media=media))
+        if rules:
+            result[cls_name] = rules
+    return result
+
+
 def extract_css_rules(css_text: str) -> dict[str, list[CssRule]]:
     """
     Parse CSS text and return a map of class_name → [CssRule].
@@ -419,30 +456,56 @@ def extract_css_rules(css_text: str) -> dict[str, list[CssRule]]:
     Pseudo-classes (:hover, :focus), element selectors (div), and ID selectors (#id)
     are deliberately ignored — they cannot be resolved from className strings.
     `@media` blocks are stripped before parsing (see _strip_media_blocks) so a
-    viewport-conditional declaration never overwrites the unconditional one.
+    viewport-conditional declaration never overwrites the unconditional one —
+    see extract_responsive_css_rules to get those back, tagged with their
+    condition instead of merged into this unconditional map.
     """
     if not css_text or not css_text.strip():
         return {}
 
-    css_text = _strip_media_blocks(css_text)
+    unconditional, _blocks = _strip_media_blocks(css_text)
+
+    try:
+        result = _parse_simple_class_blocks(unconditional)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("css_class_resolver: failed to parse CSS — %s", exc)
+        result = {}
+
+    logger.debug("css_class_resolver: extracted %d class rules from CSS", len(result))
+    return result
+
+
+def extract_responsive_css_rules(css_text: str) -> dict[str, list[CssRule]]:
+    """
+    Parse CSS text and return a map of class_name → [CssRule] for rules that
+    only apply inside an `@media` block — the counterpart extract_css_rules
+    deliberately drops (see its docstring). Each CssRule.media carries the
+    raw condition it came from (e.g. "(max-width:600px)"); the same class
+    appearing under two different conditions gets one CssRule per condition,
+    never overwritten.
+
+    Kept separate from extract_css_rules' map by design (not merged with a
+    media key added after the fact) — a caller has to opt in to responsive
+    styles explicitly, so the existing default-only callers of
+    extract_css_rules are unaffected.
+    """
+    if not css_text or not css_text.strip():
+        return {}
+
+    _unconditional, blocks = _strip_media_blocks(css_text)
 
     result: dict[str, list[CssRule]] = {}
     try:
-        for m in _RE_SIMPLE_CLASS_BLOCK.finditer(css_text):
-            cls_name = m.group(1)
-            body = m.group(2)
-            rules: list[CssRule] = []
-            for pm in _RE_CSS_PROPERTY.finditer(body):
-                prop = pm.group(1).strip()
-                val  = pm.group(2).strip()
-                if prop and val:
-                    rules.append(CssRule(f".{cls_name}", prop, val))
-            if rules:
-                result[cls_name] = rules
+        for condition, body in blocks:
+            for cls_name, rules in _parse_simple_class_blocks(body, media=condition).items():
+                result.setdefault(cls_name, []).extend(rules)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("css_class_resolver: failed to parse CSS — %s", exc)
+        logger.warning("css_class_resolver: failed to parse responsive CSS — %s", exc)
 
-    logger.debug("css_class_resolver: extracted %d class rules from CSS", len(result))
+    logger.debug(
+        "css_class_resolver: extracted responsive rules for %d classes across %d @media blocks",
+        len(result), len(blocks),
+    )
     return result
 
 
@@ -469,7 +532,7 @@ def extract_tag_pseudo_rules(css_text: str) -> dict[str, dict[str, list[CssRule]
     if not css_text or not css_text.strip():
         return {}
 
-    css_text = _strip_media_blocks(css_text)
+    css_text, _blocks = _strip_media_blocks(css_text)
 
     result: dict[str, dict[str, list[CssRule]]] = {}
     try:
@@ -509,6 +572,7 @@ _STATE_PREFIXES: dict[str, StyleState] = {
 def resolve_classes(
     class_string: str,
     rule_map: dict[str, list[CssRule]],
+    responsive_rule_map: dict[str, list[CssRule]] | None = None,
 ) -> list[StyleEntry]:
     """
     Resolve a className string into StyleEntry objects.
@@ -523,6 +587,13 @@ def resolve_classes(
     two maps on its own. Returns [] for empty/whitespace class strings.
     Unknown classes (including any other prefixed variant, e.g. `md:`/
     `dark:`) are silently skipped.
+
+    responsive_rule_map: optional map from extract_responsive_css_rules().
+    When provided, an *unprefixed* class (no `hover:`/`focus:`) additionally
+    produces one StyleEntry per (property, @media condition) it has a
+    responsive rule for — independent of whether rule_map/Tailwind matched
+    the same class, since a class can be both unconditionally and
+    responsively styled at once (see C35).
     """
     if not class_string or not class_string.strip():
         return []
@@ -546,22 +617,36 @@ def resolve_classes(
 
         # Priority 1: custom rule_map
         custom_rules = rule_map.get(lookup_cls)
+        matched_custom = False
         if custom_rules:
+            matched_custom = True
             for rule in custom_rules:
                 prop_key = f"{cls}:{rule.property}"
                 if prop_key not in seen_props:
                     seen_props.add(prop_key)
                     entries.append(_make_style_entry(lookup_cls, rule.property, rule.value, state))
-            continue
 
-        # Priority 2: Tailwind built-in
-        builtin = _TAILWIND_BUILTINS.get(lookup_cls)
-        if builtin:
-            for prop, val in builtin:
-                prop_key = f"{cls}:{prop}"
+        # Priority 2: Tailwind built-in (only when rule_map didn't match)
+        if not matched_custom:
+            builtin = _TAILWIND_BUILTINS.get(lookup_cls)
+            if builtin:
+                for prop, val in builtin:
+                    prop_key = f"{cls}:{prop}"
+                    if prop_key not in seen_props:
+                        seen_props.add(prop_key)
+                        entries.append(_make_style_entry(lookup_cls, prop, val, state))
+
+        # Responsive: only for unprefixed classes — no evidence of a
+        # combined hover+media pattern to resolve correctly (see C35 spec,
+        # "Fora de escopo").
+        if responsive_rule_map is not None and state == StyleState.DEFAULT:
+            for rule in responsive_rule_map.get(lookup_cls, []):
+                prop_key = f"{cls}:{rule.media}:{rule.property}"
                 if prop_key not in seen_props:
                     seen_props.add(prop_key)
-                    entries.append(_make_style_entry(lookup_cls, prop, val, state))
+                    entries.append(
+                        _make_style_entry(lookup_cls, rule.property, rule.value, state, media=rule.media)
+                    )
 
     logger.debug(
         "css_class_resolver: resolved %d classes → %d style entries",
@@ -575,6 +660,7 @@ def resolve_classes(
 
 def _make_style_entry(
     cls_name: str, prop: str, value: str, state: StyleState = StyleState.DEFAULT,
+    media: str | None = None,
 ) -> StyleEntry:
     """Create a StyleEntry for a CSS class-resolved property."""
-    return StyleEntry.from_css_class(class_name=cls_name, property=prop, value=value, state=state)
+    return StyleEntry.from_css_class(class_name=cls_name, property=prop, value=value, state=state, media=media)

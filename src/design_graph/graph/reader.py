@@ -213,13 +213,23 @@ class GraphReader:
 
         raw_styles = self._q(
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
-            "RETURN s.state, s.property, s.value ORDER BY s.state, s.property",
+            "RETURN s.state, s.property, s.value, s.media ORDER BY s.state, s.property",
             {"n": resolved},
         )
+        # `media` (C35) is orthogonal to `state`: an unconditional style
+        # (media="") buckets by state as before; a viewport-conditional one
+        # buckets separately by its raw @media condition, never mixed into
+        # styles_by_state — mixing them would let a ≤600px-only value read
+        # as if it were the component's actual default.
         styles_by_state: dict[str, list[dict]] = {}
+        responsive_styles_by_media: dict[str, list[dict]] = {}
         for s in raw_styles:
-            bucket = styles_by_state.setdefault(s["s.state"], [])
-            bucket.append({"property": s["s.property"], "value": s["s.value"]})
+            entry = {"property": s["s.property"], "value": s["s.value"]}
+            media = s.get("s.media") or ""
+            if media:
+                responsive_styles_by_media.setdefault(media, []).append(entry)
+            else:
+                styles_by_state.setdefault(s["s.state"], []).append(entry)
 
         tokens = self._q(
             "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
@@ -246,6 +256,7 @@ class GraphReader:
         return {
             **comp,
             "styles_by_state": styles_by_state,
+            "responsive_styles_by_media": responsive_styles_by_media,
             "tokens":          tokens,
             "texts":           texts[:15],
             "interactions":    interactions,

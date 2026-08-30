@@ -434,6 +434,39 @@ class TestCssClassResolutionInExtractor:
         assert len(comp.styles) <= MAX_STYLES_PER_COMPONENT
 
 
+# ── Responsive (@media) class rule resolution (C35/T78) ───────────────────────
+#
+# responsive_rule_map (css_class_resolver.extract_responsive_css_rules) is
+# forwarded the same way as rule_map, but produces StyleEntry objects with
+# `media` set instead of replacing/overwriting the unconditional ones.
+
+class TestResponsiveClassResolutionInExtractor:
+    def _boundary(self, name: str, js: str) -> FunctionBoundary:
+        bounds = find_all_boundaries(js)
+        return next(b for b in bounds if b.name == name)
+
+    def test_responsive_style_added_alongside_default(self):
+        js = 'function Title() { return <h1 className="page-title" />; }'
+        b = self._boundary("Title", js)
+        rule_map = {"page-title": [CssRule(".page-title", "font-size", "25px")]}
+        responsive_rule_map = {
+            "page-title": [CssRule(".page-title", "font-size", "21px", media="(max-width:600px)")],
+        }
+        comp = extract_component(
+            js, b, 1, {}, rule_map=rule_map, responsive_rule_map=responsive_rule_map,
+        )
+        by_media = {s.media: s.value for s in comp.styles if s.property == "font-size"}
+        assert by_media[None] == "25px"
+        assert by_media["(max-width:600px)"] == "21px"
+
+    def test_no_responsive_styles_when_map_is_none(self):
+        js = 'function Title() { return <h1 className="page-title" />; }'
+        b = self._boundary("Title", js)
+        rule_map = {"page-title": [CssRule(".page-title", "font-size", "25px")]}
+        comp = extract_component(js, b, 1, {}, rule_map=rule_map, responsive_rule_map=None)
+        assert all(s.media is None for s in comp.styles)
+
+
 # ── Native-tag pseudo-class CSS resolution (C24/T45) ──────────────────────────
 #
 # input:focus { ... } is resolved by which native HTML tag the component
