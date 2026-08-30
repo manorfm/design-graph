@@ -2,10 +2,12 @@
 
 ## Objetivo
 
-Fechar P1 (obrigatório) e P2 (feature) de `spec.md` sem regredir C01–C34,
-mantendo as guardrails de arquitetura. Ambos implementados nesta rodada —
-T77 primeiro (isolado, testado e verificado sozinho), T78 depois, sobre a
-base já corrigida por T77.
+Fechar P1 (obrigatório), P2 (feature) e P3 (bug reaberto pelo próprio P2)
+de `spec.md` sem regredir C01–C34, mantendo as guardrails de arquitetura.
+Todos implementados nesta rodada, em sequência: T77 isolado e verificado
+sozinho, T78 sobre a base corrigida por T77, T79 depois de T78 expor —
+via evidência real, não revisão especulativa — que seis outras tools de
+leitura reabriam a classe de bug de P1 num nível diferente.
 
 ## Critério de aceite
 
@@ -28,6 +30,8 @@ T77  parsing/css_class_resolver.py                                     — obrig
 T78  parsing/css_class_resolver.py + core/models.py + graph/schema.py +
      graph/writer.py + graph/reader.py + extraction/component_extractor.py +
      pipeline/coordinator.py + mcp/tools.py                            — depende de T77
+T79  graph/reader.py                                                   — depende de T78, descoberto após exercitar
+                                                                            get_component_full contra o grafo real
 ```
 
 ## Validação end-to-end — executada em 2026-08-30
@@ -118,6 +122,53 @@ Regressão em `iPede Manager v21.2.html` (`/tmp/c35-t78-ipede.db`, sem
 `@media`): stats idênticos ao baseline pós-T77/pós-C34 (comps=182,
 unresolved=6, tokens=86, sections=64, contains=419, styles=4131) — T78
 também é no-op nesse protótipo, como esperado.
+
+### T79 — descoberta pós-T78 e correção, verificada contra o grafo real
+
+Ao exercitar `get_component_full('AppList')` (não só `get_component_spec`,
+já coberto acima) contra `/tmp/c35-t78-totoggle.db`, o componente-raiz
+`AppList` renderizava `#### Estilos — default` misturando o valor
+incondicional de `.page-title`/`.page-desc` com o de
+`@media (max-width:600px)`. Reproduzindo a query exata de antes de T79
+(sem filtro de `media`) direto contra essa DB para confirmar sem depender
+de memória:
+
+```cypher
+MATCH (c:Component {name:'AppList'})-[:HAS_STYLE]->(st:Style)
+WHERE st.property = 'font-size'
+RETURN st.state, st.property, st.value ORDER BY st.state, st.property
+```
+```
+→ ['25px', '21px', '14px', '13px', '13.5px']
+```
+
+`21px` (`.page-title` sob `(max-width:600px)`) e `13px` (`.page-desc`,
+mesma condição) apareceriam junto de `25px`/`14px`/`13.5px` (os três
+valores incondicionais reais) na tabela renderizada — indistinguíveis de
+qualquer outra fonte legítima de múltiplos valores para a mesma
+propriedade.
+
+Após T79 (rebuild em `/tmp/c35-t78-fix-totoggle.db`, mesmas stats: 53
+components, 869 styles — a correção é só nas queries de leitura, não na
+escrita):
+
+```
+get_component_full('AppList') → #### Estilos — default → font-size: 25px | 14px | 13.5px
+```
+
+`21px`/`13px` não aparecem mais — igual ao que `get_component_spec` já
+mostrava corretamente desde T78. `TestMediaScopedStylesExcludedElsewhere`
+(7 testes, `tests/unit/graph/test_reader_advanced_queries.py`) fixa esse
+comportamento para as seis tools afetadas mais um teste de controle
+confirmando que `get_component_spec` continua sendo a exceção deliberada.
+
+Descrição da tool `get_component_spec` em `TOOL_DEFINITIONS`
+(`mcp/tools.py`) também atualizada — o texto que um agente lê antes de
+decidir qual tool chamar agora menciona a seção "Estilos responsivos" e
+deixa explícito que nenhuma outra tool de estilo devolve dado condicional
+(pergunta que motivou T79 nesta sessão: "o agente sabe que pode buscar
+esse tipo de informação?" — antes da correção, não; a resposta a essa
+pergunta é o motivo pelo qual T79 existe).
 
 ## Regressão
 
