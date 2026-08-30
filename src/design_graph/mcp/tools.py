@@ -1123,6 +1123,22 @@ class ToolDispatcher:
             notice = StyleExtractionGap(spec.get("c.jsx_snippet", "")).notice()
             if notice:
                 lines.append(f"\n{notice}")
+        if spec.get("responsive_styles_by_media"):
+            lines.append("\n## Estilos responsivos")
+            lines.append(
+                "Valores abaixo só se aplicam sob a condição `@media` indicada — "
+                "não confundir com o valor default acima."
+            )
+            for media, raw_styles in spec["responsive_styles_by_media"].items():
+                styles = _dedupe_styles_by_property(raw_styles)
+                lines.append(f"\n**`@media {media}`**")
+                lines.append("| Propriedade | Valor |")
+                lines.append("|---|---|")
+                for s in styles[:12]:
+                    lines.append(f"| {s['property']} | {s['value']} |")
+                notice = _truncation_notice(len(styles), 12)
+                if notice:
+                    lines.append(notice)
         if spec.get("tokens"):
             lines.append("\n## Tokens")
             lines.append("| Label | Valor | Categoria |")

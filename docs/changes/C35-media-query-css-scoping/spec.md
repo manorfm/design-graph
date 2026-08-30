@@ -121,20 +121,46 @@ Guardrail: `_strip_media_blocks` não interpreta a condição da media query
 string crua entre `@media` e `{`, mesma disciplina de "não inventar
 categoria sem padrão confirmado" já aplicada em C24 a `styled-components`.
 
-**T78** (proposto; pode ser adiado para change separado se T77 sozinho já
-for aceito como suficiente para esta rodada) — `CssRule` ganha campo
-opcional `media: str | None = None`; `extract_css_rules` roda uma segunda
-vez sobre cada `(condicao, corpo)` de T77, atribuindo `media=condicao` às
-regras resultantes, guardadas num `dict[str, list[CssRule]]` separado
-(`responsive_rule_map`) — nunca misturado ao `rule_map` default, para não
-reabrir P1 por outra via. `StyleEntry.from_css_class` ganha parâmetro
-`media: str | None = None`; quando presente, o `id` inclui a condição no
-seed (mesmo padrão de `state` em C29) para não colidir com a entrada
-default da mesma classe/propriedade. Exposição: `get_component_spec`
-(`mcp/tools.py:1090`) ganha uma seção "Estilos responsivos" opcional,
-listada só quando o componente resolve alguma classe com entrada em
-`responsive_rule_map` — nenhuma tool nova, reaproveita a tool existente
-mais consultada para estilo de componente.
+**T78** (implementado) — `CssRule` ganha campo opcional `media: str | None
+= None`. Nova função `extract_responsive_css_rules(css_text)` reaproveita
+o corpo de cada `(condicao, corpo)` que `_strip_media_blocks` já isola
+(fatorado em `_parse_simple_class_blocks`, compartilhado com
+`extract_css_rules`), atribuindo `media=condicao` às regras resultantes,
+guardadas num `dict[str, list[CssRule]]` separado (`responsive_rule_map`)
+— nunca misturado ao `rule_map` default, para não reabrir P1 por outra
+via. `StyleEntry.from_css_class` ganha parâmetro `media: str | None =
+None`; quando presente, o `id` inclui a condição no seed (mesmo padrão de
+`state` em C29) para não colidir com a entrada default da mesma
+classe/propriedade — byte-compatibilidade do seed default confirmada por
+teste (`test_from_css_class_matches_legacy_seed` continua passando sem
+alteração).
+
+`resolve_classes` ganha parâmetro opcional `responsive_rule_map`: uma
+classe *sem* prefixo `hover:`/`focus:` que tenha entrada nesse mapa produz
+um `StyleEntry` adicional por `(propriedade, condição)`, ao lado de — não
+em vez de — qualquer entrada default já resolvida por `rule_map`/Tailwind
+para a mesma classe. `responsive_rule_map` é roteado pela mesma cadeia de
+`rule_map`/`tag_rule_map`: `pipeline/coordinator.py` →
+`extract_all_components` → `extract_component`.
+
+Persistência: `graph/schema.py` — tabela `Style` ganha coluna `media
+STRING` (`""` quando incondicional, nunca `NULL`, mesma convenção de
+`Component.truncated_fields`). `graph/writer.py` — as duas criações de nó
+`Style` (`_write_component`/`_write_section_styles`) passam `media:
+style.media or ""`. `graph/reader.py` — `get_component_spec` inclui
+`s.media` no `RETURN` e particiona por `media`: entradas com `media=""`
+continuam em `styles_by_state` como antes; entradas com `media` não-vazio
+vão para um dict novo, `responsive_styles_by_media` (chave = condição
+crua), nunca misturado ao primeiro — mistura reabriria exatamente o bug
+de P1 num nível acima (grafo em vez de parsing).
+
+Exposição: `get_component_spec` (`mcp/tools.py:1090`) ganha uma seção "##
+Estilos responsivos" opcional, renderizada só quando
+`responsive_styles_by_media` não é vazio — nenhuma tool nova, reaproveita
+a tool existente mais consultada para estilo de componente. Cada condição
+vira um subtítulo (`` **`@media (max-width:600px)`** ``) com sua própria
+tabela property/value, para deixar explícito que aquele valor não é o
+default.
 
 ## Cobertura de testes exigida
 
@@ -149,10 +175,20 @@ mais consultada para estilo de componente.
   fixture minimizado, não o arquivo de 1.5MB inteiro).
   `TestExtractTagPseudoRulesIgnoresMedia` — mesmo caso para seletor
   `tag:pseudo` dentro de `@media`.
-- **T78** (se implementado): `TestResponsiveRuleMapSeparateFromDefault` —
-  classe com regra default e regra responsiva não colidem em `rule_map`;
-  `test_from_css_class_media_seed_differs_from_default` (mesmo padrão de
-  `test_from_css_class_hover_state_seed_includes_state_name` de C29).
+- **T78**: `TestExtractResponsiveCssRules` — classe só dentro de `@media`
+  aparece com sua condição; classe só default fica ausente do mapa
+  responsivo; mesma classe sob duas condições diferentes mantém as duas,
+  sem colisão; `extract_css_rules` não é afetado pela existência da
+  função irmã (regressão explícita). `TestResolveClassesResponsive` —
+  classe sem prefixo com entrada em `responsive_rule_map` produz entrada
+  adicional; entrada default e responsiva coexistem (não se sobrescrevem);
+  classe com prefixo `hover:`/`focus:` não consulta o mapa responsivo
+  (sem evidência do padrão combinado — ver "Fora de escopo");
+  `resolve_classes` sem `responsive_rule_map` continua funcionando
+  (backward-compat). `TestResponsiveClassResolutionInExtractor` (nível
+  `extract_component`) — estilo responsivo aparece ao lado do default;
+  `responsive_rule_map=None` não produz nenhuma entrada com `media`
+  setado.
 
 Suíte completa (`pytest tests/unit/ -q`, `pytest tests/integration/ -q`) sem
 regressão e guardrails (`pytest tests/test_architecture_guardrails.py -q`)

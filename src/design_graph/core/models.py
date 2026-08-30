@@ -372,6 +372,11 @@ class StyleEntry:
     state: StyleState
     property: str        # camelCase CSS property, e.g. "backgroundColor"
     value: str
+    # Raw @media condition this rule is scoped to (e.g. "(max-width:600px)"),
+    # or None when the rule is unconditional. Orthogonal to `state`: state is
+    # an interaction axis (hover/focus), media is a viewport axis — C29 kept
+    # them deliberately separate rather than folding breakpoint into state.
+    media: str | None = None
 
     @classmethod
     def create(
@@ -385,15 +390,19 @@ class StyleEntry:
 
     @classmethod
     def from_css_class(
-        cls, class_name: str, property: str, value: str, state: StyleState = StyleState.DEFAULT,
+        cls, class_name: str, property: str, value: str,
+        state: StyleState = StyleState.DEFAULT, media: str | None = None,
     ) -> "StyleEntry":
-        seed = (
-            f"{class_name}:{property}" if state == StyleState.DEFAULT
-            else f"{class_name}:{state}:{property}"
-        )
+        parts = [class_name]
+        if state != StyleState.DEFAULT:
+            parts.append(str(state))
+        if media is not None:
+            parts.append(media)
+        parts.append(property)
+        seed = ":".join(parts)
         return cls(
             id=EntityId.derive("cls", seed),
-            element=f"class:{class_name}", state=state, property=property, value=value,
+            element=f"class:{class_name}", state=state, property=property, value=value, media=media,
         )
 
     @classmethod

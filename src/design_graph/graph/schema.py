@@ -94,6 +94,7 @@ _NODE_TABLES: list[str] = [
         "  state STRING,"
         "  property STRING,"
         "  value STRING,"
+        "  media STRING,"  # raw @media condition (e.g. "(max-width:600px)"), "" when unconditional — C35
         "  PRIMARY KEY(id)"
         ")"
     ),

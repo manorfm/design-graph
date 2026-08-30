@@ -17,6 +17,7 @@ from design_graph.parsing.css_class_resolver import (
     CssRule,
     _strip_media_blocks,
     extract_css_rules,
+    extract_responsive_css_rules,
     extract_tag_pseudo_rules,
     resolve_classes,
 )
@@ -106,25 +107,34 @@ class TestExtractCssRules:
 class TestStripMediaBlocks:
     def test_no_media_is_noop(self):
         css = ".btn { color: red; }"
-        assert _strip_media_blocks(css) == css
+        stripped, blocks = _strip_media_blocks(css)
+        assert stripped == css
+        assert blocks == []
 
     def test_simple_media_block_removed(self):
         css = ".btn { color: red; } @media (max-width:600px) { .btn { color: blue; } }"
-        stripped = _strip_media_blocks(css)
+        stripped, blocks = _strip_media_blocks(css)
         assert "@media" not in stripped
         assert "blue" not in stripped
         assert "color: red" in stripped
+        assert len(blocks) == 1
+        condition, body = blocks[0]
+        assert condition == "(max-width:600px)"
+        assert "color: blue" in body
 
     def test_compound_condition_media_block_removed(self):
         css = "@media (min-width:1180px) and (max-width:1599px) { .btn { color: blue; } } .btn { color: red; }"
-        stripped = _strip_media_blocks(css)
+        stripped, blocks = _strip_media_blocks(css)
         assert "@media" not in stripped
         assert "blue" not in stripped
         assert "color: red" in stripped
+        assert blocks[0][0] == "(min-width:1180px) and (max-width:1599px)"
 
     def test_non_dimensional_media_condition_removed(self):
         css = "@media (hover:none) { .btn { cursor: default; } }"
-        assert _strip_media_blocks(css) == ""
+        stripped, blocks = _strip_media_blocks(css)
+        assert stripped == ""
+        assert blocks[0][0] == "(hover:none)"
 
     def test_multiple_media_blocks_all_removed(self):
         css = (
@@ -132,19 +142,22 @@ class TestStripMediaBlocks:
             ".mid { color: green; } "
             "@media (min-width:1600px) { .b { color: blue; } }"
         )
-        stripped = _strip_media_blocks(css)
+        stripped, blocks = _strip_media_blocks(css)
         assert "@media" not in stripped
         assert "red" not in stripped
         assert "blue" not in stripped
         assert "green" in stripped
+        assert len(blocks) == 2
 
     def test_nested_braces_inside_media_block_do_not_truncate_removal(self):
         # A naive `[^{}]*` body match would stop at the first nested `}`
         # (after `color: blue`), leaving the rest of the block — including
         # its closing brace — behind as stray, unbalanced text.
         css = "@media (max-width:600px) { .a { color: blue; } .b { color: green; } } .c { color: red; }"
-        stripped = _strip_media_blocks(css).strip()
-        assert stripped == ".c { color: red; }"
+        stripped, blocks = _strip_media_blocks(css)
+        assert stripped.strip() == ".c { color: red; }"
+        assert "color: blue" in blocks[0][1]
+        assert "color: green" in blocks[0][1]
 
 
 class TestExtractCssRulesIgnoresMedia:
@@ -165,6 +178,78 @@ class TestExtractCssRulesIgnoresMedia:
         css = "@media (max-width:600px) { .mobile-only { display: block; } }"
         rules = extract_css_rules(css)
         assert "mobile-only" not in rules
+
+
+class TestExtractResponsiveCssRules:
+    """C35/T78 — the counterpart to extract_css_rules: rules that only
+    apply inside @media, kept in their own map instead of being dropped."""
+
+    def test_media_only_class_captured_with_condition(self):
+        css = "@media (max-width:600px) { .mobile-only { display: block; } }"
+        rules = extract_responsive_css_rules(css)
+        assert "mobile-only" in rules
+        rule = rules["mobile-only"][0]
+        assert rule.property == "display"
+        assert rule.value == "block"
+        assert rule.media == "(max-width:600px)"
+
+    def test_default_only_class_absent(self):
+        css = ".btn { color: red; }"
+        assert extract_responsive_css_rules(css) == {}
+
+    def test_same_class_under_two_conditions_both_kept(self):
+        css = (
+            "@media (max-width:600px) { .page-title { font-size: 21px; } } "
+            "@media (min-width:1600px) { .page-title { font-size: 28px; } }"
+        )
+        rules = extract_responsive_css_rules(css)
+        by_condition = {r.media: r.value for r in rules["page-title"]}
+        assert by_condition["(max-width:600px)"] == "21px"
+        assert by_condition["(min-width:1600px)"] == "28px"
+
+    def test_empty_css_returns_empty_dict(self):
+        assert extract_responsive_css_rules("") == {}
+
+    def test_does_not_mutate_extract_css_rules_result(self):
+        # Regression guard: extract_css_rules must stay unaffected by the
+        # existence of extract_responsive_css_rules — same input, default
+        # map still excludes the media-only class.
+        css = (
+            ".page-title { font-size: 25px; } "
+            "@media (max-width:600px) { .page-title { font-size: 21px; } }"
+        )
+        default_rules = extract_css_rules(css)
+        assert {r.value for r in default_rules["page-title"]} == {"25px"}
+
+
+class TestResolveClassesResponsive:
+    def test_unprefixed_class_gets_responsive_entry(self):
+        responsive_map = {"page-title": [CssRule(".page-title", "font-size", "21px", media="(max-width:600px)")]}
+        entries = resolve_classes("page-title", rule_map={}, responsive_rule_map=responsive_map)
+        assert len(entries) == 1
+        assert entries[0].media == "(max-width:600px)"
+        assert entries[0].value == "21px"
+
+    def test_default_and_responsive_entries_coexist(self):
+        rule_map = {"page-title": [CssRule(".page-title", "font-size", "25px")]}
+        responsive_map = {"page-title": [CssRule(".page-title", "font-size", "21px", media="(max-width:600px)")]}
+        entries = resolve_classes("page-title", rule_map=rule_map, responsive_rule_map=responsive_map)
+        by_media = {e.media: e.value for e in entries}
+        assert by_media[None] == "25px"
+        assert by_media["(max-width:600px)"] == "21px"
+
+    def test_hover_prefixed_class_does_not_get_responsive_entry(self):
+        # No evidence of a combined hover+media pattern to resolve correctly
+        # — see C35 spec, "Fora de escopo".
+        responsive_map = {"bg-red-500": [CssRule(".bg-red-500", "background", "red", media="(max-width:600px)")]}
+        entries = resolve_classes("hover:bg-red-500", rule_map={}, responsive_rule_map=responsive_map)
+        assert entries == []
+
+    def test_no_responsive_map_is_backward_compatible(self):
+        rule_map = {"btn": [CssRule(".btn", "display", "flex")]}
+        entries = resolve_classes("btn", rule_map=rule_map)
+        assert len(entries) == 1
+        assert entries[0].media is None
 
 
 class TestExtractTagPseudoRulesIgnoresMedia:
