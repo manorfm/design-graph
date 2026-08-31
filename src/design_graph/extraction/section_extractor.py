@@ -4,9 +4,11 @@ Detect named visual sections within a screen.
 Detection strategy cascade — first that yields quality sections wins:
   1. JSX comment markers: {/* ── Name ── */}       (React / bundled_react)
   2. Structural fallback: <div> blocks with substantial padding/margin
-  3. Semantic fallback: HTML5 elements (nav/header/main/section/footer) (plain_html)
+  3. Inline-list fallback: x.map((item) => <lowercaseTag ...>...) — a list
+     row that was never factored into its own named component
+  4. Semantic fallback: HTML5 elements (nav/header/main/section/footer) (plain_html)
 
-Strategy 3 is triggered via extract_sections_for_plain_html() which accepts
+Strategy 4 is triggered via extract_sections_for_plain_html() which accepts
 a BeautifulSoup object instead of a raw JS string.
 
 Quality threshold: a section must have >= 1 component ref, OR >= 2 texts,
@@ -31,11 +33,20 @@ from design_graph.core.models import (
     ExtractedScreen,
     ExtractedSection,
     FunctionBoundary,
+    StyleState,
 )
+from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
 from design_graph.parsing.html_parser import extract_semantic_sections
-from design_graph.parsing.js_parser import iter_style_object_blocks, parse_object_literal_props
+from design_graph.parsing.js_parser import (
+    find_matching_delimiter,
+    iter_style_object_blocks,
+    parse_object_literal_props,
+)
 from design_graph.core.patterns import (
+    RE_CLASS_NAME,
     RE_COMP_REF,
+    RE_JSX_RAW_LIST_HEAD,
+    RE_JSX_ROW_CLASS_NAME,
     RE_JSX_TAG,
     RE_PLACEHOLDER,
     RE_SECTION_COMMENT,
@@ -52,18 +63,30 @@ def extract_sections(
     js: str,
     screen: ExtractedScreen,
     boundary: FunctionBoundary,
+    rule_map: dict[str, list[CssRule]] | None = None,
 ) -> list[ExtractedSection]:
     """
     Extract named sections from a screen's return block.
-    Tries comment detection first, falls back to structural detection.
-    Returns an empty list if nothing qualifies.
+    Tries comment detection, then structural detection, then inline-list
+    detection, in that order. Returns an empty list if nothing qualifies.
+
+    rule_map: optional CSS class resolver map from
+    css_class_resolver.extract_css_rules(). When provided, a section's
+    className strings resolve into additional default-state styles —
+    the same resolution extract_component already applies, needed here
+    because this prototype convention styles containers via CSS classes,
+    not inline style={{}} objects. Only unconditional (non-@media) rules
+    are resolved: ExtractedSection.styles is a flat dict with no media
+    axis, so folding a viewport-conditional value in would silently
+    conflate it with the unconditional one (the exact bug C35 fixed for
+    components by keeping them apart via StyleEntry.media).
     """
     if boundary.end <= boundary.start:
         return []
 
     window = js[boundary.start : boundary.end]
 
-    sections = _detect_by_comments(window, screen.name)
+    sections = _detect_by_comments(window, screen.name, rule_map)
     if sections:
         logger.debug(
             "section_extractor: %s → %d sections via comments",
@@ -71,10 +94,18 @@ def extract_sections(
         )
         return _apply_quality_filter(sections)
 
-    sections = _detect_by_structure(window, screen.name)
+    sections = _detect_by_structure(window, screen.name, rule_map)
     if sections:
         logger.debug(
             "section_extractor: %s → %d sections via structural fallback",
+            screen.name, len(sections),
+        )
+        return _apply_quality_filter(sections)
+
+    sections = _detect_by_list_markup(window, screen.name, rule_map)
+    if sections:
+        logger.debug(
+            "section_extractor: %s → %d sections via inline-list fallback",
             screen.name, len(sections),
         )
         return _apply_quality_filter(sections)
@@ -107,7 +138,9 @@ def _section_label(raw_comment_text: str) -> str:
     return label
 
 
-def _detect_by_comments(window: str, screen_name: str) -> list[ExtractedSection]:
+def _detect_by_comments(
+    window: str, screen_name: str, rule_map: dict[str, list[CssRule]] | None = None,
+) -> list[ExtractedSection]:
     comment_positions = [
         (m.start(), m.end(), _section_label(m.group(1)))
         for m in RE_SECTION_COMMENT.finditer(window)
@@ -126,6 +159,7 @@ def _detect_by_comments(window: str, screen_name: str) -> list[ExtractedSection]
             sec_name=sec_name,
             screen_name=screen_name,
             detection_method=DetectionMethod.COMMENT,
+            rule_map=rule_map,
         ))
 
     return sections
@@ -174,7 +208,9 @@ def _find_balanced_div_end(window: str, div_start: int) -> int:
     return min(div_start + JS_FUNCTION_FALLBACK_WINDOW, len(window))
 
 
-def _detect_by_structure(window: str, screen_name: str) -> list[ExtractedSection]:
+def _detect_by_structure(
+    window: str, screen_name: str, rule_map: dict[str, list[CssRule]] | None = None,
+) -> list[ExtractedSection]:
     """
     Find <div> blocks with padding >= threshold as section separators.
     Returns at most MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK sections.
@@ -215,25 +251,116 @@ def _detect_by_structure(window: str, screen_name: str) -> list[ExtractedSection
             sec_name=sec_name,
             screen_name=screen_name,
             detection_method=DetectionMethod.STRUCTURAL,
+            rule_map=rule_map,
         ))
+
+    return sections
+
+
+# ── Strategy 3: Inline-list fallback (raw-markup .map() rows) ────────────────
+
+def _list_row_label(block: str, fallback_index: int) -> str:
+    """
+    A human-readable name for a raw-markup list row, derived from its own
+    root className (e.g. "audit-item" -> "Audit item"). Falls back to a
+    positional label when the row carries no static className, mirroring
+    _detect_by_structure's own "Section{i+1}" fallback for the same reason:
+    a name is still needed even when the markup gives none.
+    """
+    match = RE_JSX_ROW_CLASS_NAME.search(block)
+    if not match:
+        return f"List{fallback_index + 1}"
+    words = match.group(1).replace("_", "-").split("-")
+    return " ".join([words[0].capitalize(), *words[1:]])
+
+
+def _detect_by_list_markup(
+    window: str, screen_name: str, rule_map: dict[str, list[CssRule]] | None = None,
+) -> list[ExtractedSection]:
+    """
+    Find `x.map((item[, i]) => (<lowercaseTag ...>` — a list row rendered as
+    raw JSX markup that was never factored into its own named component
+    (contrast RE_JSX_LIST_HEAD, which only matches a `<Component` call and is
+    handled by jsx_sanitizer instead). Each match becomes its own Section,
+    bounded to its own `{...}` expression via find_matching_delimiter — the
+    same balanced scan jsx_sanitizer relies on to bound `{[list:Component]}`
+    markers. Reuses MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK as its own cap —
+    same purpose (bound a fallback strategy's output), no reason for a
+    second constant.
+    """
+    sections: list[ExtractedSection] = []
+    cursor = 0
+    for match in RE_JSX_RAW_LIST_HEAD.finditer(window):
+        if match.start() < cursor:
+            continue  # nested inside a .map() this same pass already claimed
+        if len(sections) >= MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK:
+            break
+        region_end = find_matching_delimiter(window, match.start(), "{", "}")
+        if region_end is None:
+            continue  # unbalanced — leave the raw text untouched rather than guess
+        block = window[match.start():region_end]
+        sections.append(_build_section(
+            block=block,
+            sec_name=_list_row_label(block, fallback_index=len(sections)),
+            screen_name=screen_name,
+            detection_method=DetectionMethod.LIST_ITEM,
+            rule_map=rule_map,
+        ))
+        cursor = region_end
 
     return sections
 
 
 # ── Section builder ───────────────────────────────────────────────────────────
 
+def _resolve_section_class_styles(
+    block: str, rule_map: dict[str, list[CssRule]] | None,
+) -> dict[str, str]:
+    """
+    Default-state styles resolved from this section's own className strings,
+    the same way extract_component resolves a component's classes — needed
+    because a prototype styling containers via CSS classes (not inline
+    style={{}}) would otherwise leave a Section with structure but no real
+    visual styling. Returns {} when rule_map is None (caller opted out) or
+    the block carries no static className. Hover/focus-state class variants
+    (`hover:bg-red-500`) are skipped: ExtractedSection.styles has no state
+    axis to put them in.
+    """
+    if rule_map is None:
+        return {}
+    seen_classes: set[str] = set()
+    classes: list[str] = []
+    for m in RE_CLASS_NAME.finditer(block):
+        for cls in m.group(1).split():
+            if cls not in seen_classes:
+                seen_classes.add(cls)
+                classes.append(cls)
+    if not classes:
+        return {}
+    return {
+        entry.property: entry.value
+        for entry in resolve_classes(" ".join(classes), rule_map)
+        if entry.state == StyleState.DEFAULT
+    }
+
+
 def _build_section(
     block: str,
     sec_name: str,
     screen_name: str,
     detection_method: DetectionMethod,
+    rule_map: dict[str, list[CssRule]] | None = None,
 ) -> ExtractedSection:
-    # Styles
+    # Styles — literal style={{}} objects take precedence over a class-
+    # resolved value for the same property, same precedence rule
+    # extract_component applies to its own style/spread merge.
     styles: dict[str, str] = {}
     for style_block in iter_style_object_blocks(block):
         for prop, val in parse_object_literal_props(style_block):
             if val and val not in ("true", "false", "null", "undefined"):
                 styles[prop] = val
+    for prop, val in _resolve_section_class_styles(block, rule_map).items():
+        styles.setdefault(prop, val)
 
     # Component references — first-appearance order, not alphabetical (C34,
     # same fix C30 already applied to a component's own child_refs).
@@ -286,7 +413,7 @@ def _apply_quality_filter(sections: list[ExtractedSection]) -> list[ExtractedSec
     return [s for s in sections if _qualifies(s)]
 
 
-# ── Strategy 3: Semantic detection (plain HTML) ───────────────────────────────
+# ── Strategy 4: Semantic detection (plain HTML) ───────────────────────────────
 
 def extract_sections_for_plain_html(
     soup: BeautifulSoup,

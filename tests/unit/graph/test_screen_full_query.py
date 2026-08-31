@@ -148,6 +148,17 @@ class TestGetScreenFullMetadata:
         assert result is not None
         assert result["name"] == "HomeScreen"
 
+    def test_returns_screen_own_jsx_snippet_key(self, full_screen_graph):
+        """
+        The screen's own root JSX (the shell around its sections/components)
+        must be reachable from get_screen_full itself — not only via a
+        separate get_full_jsx call — so a renderer can tell whether a screen
+        with zero Sections and zero Components genuinely has nothing of its
+        own, or has real markup no detection strategy could anchor on.
+        """
+        result = full_screen_graph.get_screen_full("HomeScreen")
+        assert "jsx_snippet" in result
+
 
 # ── Sections ──────────────────────────────────────────────────────────────────
 
@@ -299,6 +310,39 @@ class TestGetScreenFullQueryEfficiency:
             f"Expected ≤13 queries (O(1)), got {call_count}. "
             "Likely regressed to per-component queries."
         )
+
+
+# ── Screen with no Sections/Components but real own JSX ──────────────────────
+#
+# A screen whose own markup never anchors a Section (no comment marker, no
+# padding-styled div, no raw-markup .map()) and references no Component
+# still has real content — get_screen_full must still surface it via the
+# screen's own jsx_snippet, the only place left it could possibly be.
+
+@pytest.fixture(scope="module")
+def undecomposed_screen_graph(tmp_path_factory):
+    tmp  = tmp_path_factory.mktemp("undecomposed_screen")
+    db   = kuzu.Database(str(tmp / "undecomposed.db"))
+    conn = kuzu.Connection(db)
+    initialize_schema(conn)
+    gw   = GraphWriter(conn)
+    gw.write_tokens([])
+
+    screen = ExtractedScreen(
+        name="BareScreen", component_refs=[], sections_count=0,
+        jsx_snippet='<div className="bare"><span className="bare-title">Hello</span></div>',
+    )
+    gw.write_screen(screen, [], {})
+
+    return GraphReader(conn)
+
+
+class TestGetScreenFullOwnJsxSnippetForUndecomposedScreen:
+    def test_screen_jsx_snippet_present_despite_no_sections_or_components(self, undecomposed_screen_graph):
+        result = undecomposed_screen_graph.get_screen_full("BareScreen")
+        assert result["sections"] == []
+        assert result["components"] == []
+        assert "bare-title" in result["jsx_snippet"]
 
 
 # ── Nested components (CONTAINS closure, not just direct USES_COMPONENT) ─────

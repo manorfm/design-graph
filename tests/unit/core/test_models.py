@@ -136,7 +136,9 @@ class TestSourceFormat:
 
 class TestDetectionMethod:
     def test_members(self):
-        assert {m.value for m in DetectionMethod} == {"comment", "structural", "semantic"}
+        assert {m.value for m in DetectionMethod} == {
+            "comment", "structural", "semantic", "list_item",
+        }
 
     def test_dead_member_removed(self):
         assert not hasattr(DetectionMethod, "NONE")

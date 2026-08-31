@@ -161,6 +161,35 @@ def _props_table_lines(props: list[dict]) -> list[str]:
     return lines
 
 
+_MIN_JSX_LENGTH_FOR_SCREEN_STRUCTURE_GAP = 200
+
+
+class ScreenStructureGap:
+    """
+    True when a screen's own JSX is non-trivial but the section/component
+    extraction cascade produced nothing to show it — no comment marker, no
+    padding-styled div, and no raw-markup list gave section_extractor
+    anything to anchor a Section on, and the screen references no Component
+    either. Only meaningful where Sections and Components are already known
+    to be empty for this screen — get_screen_full checks that before
+    constructing this, the same call-site pattern StyleExtractionGap uses.
+    """
+
+    __slots__ = ("exists",)
+
+    def __init__(self, jsx_snippet: str) -> None:
+        self.exists = len(jsx_snippet or "") >= _MIN_JSX_LENGTH_FOR_SCREEN_STRUCTURE_GAP
+
+    def notice(self, recoverable_via: str) -> str | None:
+        if not self.exists:
+            return None
+        return (
+            f"> ⚠ Nenhuma estrutura extraída para '{recoverable_via}' — containers, "
+            f"classes, textos e ícones condicionais podem estar invisíveis aqui. "
+            f"Chame get_full_jsx('{recoverable_via}') para o JSX bruto."
+        )
+
+
 class StyleExtractionGap:
     """
     True when a component's JSX declares inline styles but the graph has no
@@ -738,6 +767,14 @@ class ToolDispatcher:
             f"**Components**: {spec['component_count']}  |  **Sections**: {spec['sections_count']}",
             "",
         ]
+
+        if not spec["sections"] and not spec["components"]:
+            gap_notice = ScreenStructureGap(spec.get("jsx_snippet", "")).notice(
+                recoverable_via=spec["name"]
+            )
+            if gap_notice:
+                lines.append(gap_notice)
+                lines.append("")
 
         # ── Sections ──────────────────────────────────────────────────────────
         if spec["sections"]:

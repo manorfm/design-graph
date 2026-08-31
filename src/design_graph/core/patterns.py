@@ -259,11 +259,47 @@ RE_LONG_TERNARY = re.compile(r'\{[^{}]{300,}\}')
 # expression's real end — corrupting the match and leaking raw JSX into the
 # replacement. Balanced scanning has no such failure mode.
 
-# {items.map(item => <Component ... />)}  or  {items.map((item) => <Component/>)}
+# Arrow-function parameter list shape shared by every ".map(...) => ..." head
+# pattern below: a bare identifier (`item =>`) or a single parenthesized
+# argument list with no parens of its own (`(item) =>`, `(item, i) =>`,
+# `([a, b]) =>`, `({a, b}) =>`) — a map callback's own parameter list is
+# never more than one level deep, so this never needs a full balanced scan.
+_MAP_CALLBACK_PARAMS = r'(?:\([^()]{0,80}\)|[A-Za-z_$][\w$]{0,40})'
+
+# {items.map(item => <Component ... />)}  or  {items.map((item, i) => (<Component/>))}
+#
+# The trailing `\(?\s*` only *optionally* skips a single wrapping `(` before
+# the tag (multi-line JSX is almost always written `=> (\n  <Component/>\n)`)
+# — it does not also match that wrap's closing `)`. An earlier version tried
+# to consume the whole `(...)` pair with `(?:\([^)]*\)|\s*)?`, but that
+# alternative could never actually contribute to a match: by the time
+# `[^)]*\)` finished consuming through to ITS OWN closing paren, the `<` this
+# pattern still needs to find next was already behind the cursor. The
+# wrapper's closing paren doesn't need matching here anyway — the caller
+# locates the expression's true end separately, via a balanced `{...}` scan
+# from the leading `{` (parsing.js_parser.find_matching_delimiter).
 RE_JSX_LIST_HEAD = re.compile(
-    r'\{[^{}<>]{0,80}\.map\([^)]{0,120}\s*=>\s*(?:\([^)]*\)|\s*)?<([A-Z][A-Za-z0-9]+)',
+    rf'\{{[^{{}}<>]{{0,80}}\.map\(\s*{_MAP_CALLBACK_PARAMS}\s*=>\s*\(?\s*<([A-Z][A-Za-z0-9]+)',
     re.DOTALL,
 )
+
+# {items.map(item => <div ...>...)}  or  {items.map((item, i) => (<div ...>...))}
+# Same shape as RE_JSX_LIST_HEAD, but the row was never factored into a named
+# component — the callback returns raw markup (lowercase root tag) directly.
+# jsx_sanitizer deliberately leaves this alone (see RE_JSX_MARKUP_*_HEAD above:
+# raw markup is the only copy of its own visual detail), which also means
+# section_extractor's comment/structural strategies are the only place left
+# that could ever turn it into structured data — this pattern is what lets a
+# third, last-resort strategy find it.
+RE_JSX_RAW_LIST_HEAD = re.compile(
+    rf'\{{[^{{}}<>]{{0,80}}\.map\(\s*{_MAP_CALLBACK_PARAMS}\s*=>\s*\(?\s*<([a-z][a-zA-Z0-9]*)',
+    re.DOTALL,
+)
+
+# First className="..." literal found right after a matched row's opening
+# tag — used only to derive a human-readable section name (e.g. "audit-item"
+# -> "Audit item"), never for style resolution (that's RE_CLASS_NAME's job).
+RE_JSX_ROW_CLASS_NAME = re.compile(r'className\s*=\s*"([a-zA-Z][a-zA-Z0-9_-]*)')
 
 # {condition && <Component ... />}
 # Note: avoid && inside [] to prevent FutureWarning (set intersection) in Python 3.12+
