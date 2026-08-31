@@ -855,12 +855,13 @@ class GraphReader:
         # Q1: Screen metadata
         screen_rows = self._q(
             "MATCH (s:Screen {name:$n}) "
-            "RETURN s.name, s.component_count, s.sections_count",
+            "RETURN s.name, s.component_count, s.sections_count, s.jsx_snippet",
             {"n": resolved},
         )
         if not screen_rows:
             return None
         s = screen_rows[0]
+        s["s.jsx_snippet"] = self._resolve_icons(s["s.jsx_snippet"] or "")
 
         # Q2: All sections
         section_rows = self._q(
@@ -1264,6 +1265,7 @@ def _assemble_screen_full(
         "name":            screen_meta["s.name"],
         "component_count": screen_meta["s.component_count"],
         "sections_count":  screen_meta["s.sections_count"],
+        "jsx_snippet":     screen_meta.get("s.jsx_snippet") or "",
         "sections":        sections,
         "components":      components,
         "layout_profiles": layout_profiles,

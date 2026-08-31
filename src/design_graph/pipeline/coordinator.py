@@ -315,7 +315,9 @@ async def extract_react(
         if not boundary:
             return screen.name, []
         async with sem:
-            secs = await asyncio.to_thread(extract_sections, sources.js, screen, boundary)
+            secs = await asyncio.to_thread(
+                extract_sections, sources.js, screen, boundary, rule_map,
+            )
             return screen.name, secs
 
     section_pairs = await asyncio.gather(*[_extract_sections_for(s) for s in screens])

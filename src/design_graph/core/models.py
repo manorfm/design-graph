@@ -139,6 +139,7 @@ class DetectionMethod(StrEnum):
     COMMENT = "comment"
     STRUCTURAL = "structural"
     SEMANTIC = "semantic"
+    LIST_ITEM = "list_item"
 
 
 class ChunkLevel(StrEnum):

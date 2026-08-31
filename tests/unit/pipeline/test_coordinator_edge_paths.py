@@ -330,6 +330,42 @@ class TestExtractReactScreenComponentSplit:
         assert "CompTab" in editor.component_refs
 
 
+class TestExtractReactSectionsResolveCssClasses:
+    """
+    HistoryView-style screens style their sections' containers via CSS
+    classes, never inline style={{}} — extract_react must forward the
+    stylesheet's rule_map into extract_sections so a Section built from a
+    raw-markup `.map()` row (section_extractor's inline-list fallback)
+    carries real resolved styles, not just structure.
+    """
+
+    def test_list_item_section_carries_css_class_resolved_style(self):
+        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.pipeline.coordinator import extract_react
+
+        js = """
+        function HistoryView() {
+            return (
+                <div className="audit">
+                    {items.map((e, i) => (
+                        <div className="audit-item" key={e.id}>
+                            <Icon name="history" size={15} />
+                        </div>
+                    ))}
+                </div>
+            )
+        }
+        """
+        css = ".audit-item { display: flex; padding: 12px; }"
+        sources = RawSources(js=js, css=css, inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        _comps, _screens, sections_map, _tokens, _module_texts = asyncio.run(
+            extract_react(sources, concurrency=1)
+        )
+        history_sections = sections_map["HistoryView"]
+        audit_item = next(s for s in history_sections if "Icon" in s.component_refs)
+        assert audit_item.styles.get("display") == "flex"
+
+
 # ── extract_react: component alias resolution ──────────────────────────────
 #
 # Some prototypes rename a component and keep the old name as a plain

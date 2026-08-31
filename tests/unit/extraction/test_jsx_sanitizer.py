@@ -78,6 +78,36 @@ class TestListWithNestedBraceProp:
         assert result == "{[list:CartItem]}"
 
 
+class TestListHeadHandlesRealisticCallbackShapes:
+    """
+    RE_JSX_LIST_HEAD's old `(?:\\([^)]*\\)|\\s*)?` tail — meant to optionally
+    skip a wrapping `(` before the component tag — could never actually
+    succeed: `\\([^)]*\\)` demands its OWN matching `)` before the pattern's
+    next required token (a literal `<`), so by the time that alternative
+    finished consuming the wrap, the `<` it needed was already behind it.
+    Only the unwrapped shape (`=> <Component/>`) ever matched in practice.
+    Multi-line JSX almost always wraps the return in parens
+    (`=> (\\n  <Component/>\\n)`), and a two-arg callback (`(item, i) =>`,
+    the `.map` index parameter) never matched at all — both real shapes in
+    the HistoryView-style prototypes this collapsing exists for.
+    """
+
+    def test_wrapped_arrow_body_still_collapses(self):
+        jsx = "{items.map(item => (\n  <CartItem key={item.id} />\n))}"
+        result = sanitize_jsx(jsx)
+        assert result == "{[list:CartItem]}"
+
+    def test_two_param_callback_with_wrapped_body_still_collapses(self):
+        jsx = "{items.map((item, i) => (\n  <CartItem key={i} />\n))}"
+        result = sanitize_jsx(jsx)
+        assert result == "{[list:CartItem]}"
+
+    def test_destructured_param_with_wrapped_body_still_collapses(self):
+        jsx = "{pairs.map(([k, label]) => (\n  <Chip key={k} label={label} />\n))}"
+        result = sanitize_jsx(jsx)
+        assert result == "{[list:Chip]}"
+
+
 class TestRawMarkupConditionalSurvivesRegardlessOfLength:
     def test_short_raw_markup_conditional_preserved(self):
         jsx = (
