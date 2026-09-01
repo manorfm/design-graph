@@ -309,14 +309,7 @@ class GraphWriter:
 
         # Styles
         for style in comp.styles:
-            if style.id in self._inserted_style_ids:
-                continue
-            self._inserted_style_ids.add(style.id)
-            self._safe_execute(
-                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
-                {"id": style.id, "el": style.element, "st": style.state,
-                 "pr": style.property, "vl": style.value, "md": style.media or ""},
-            )
+            self._write_style_node_once(style)
             self._safe_execute(
                 "MATCH (c:Component {name:$cn}),(s:Style {id:$sid}) CREATE (c)-[:HAS_STYLE]->(s)",
                 {"cn": comp.name, "sid": style.id},
@@ -506,7 +499,7 @@ class GraphWriter:
                 "CREATE (s)-[:HAS_SECTION]->(sec)",
                 {"sn": screen.name, "sid": section.id},
             )
-            self._write_section_styles(section.id, section.styles)
+            self._write_section_styles(section.id, section.styles, section.element_styles)
             self._write_section_texts(section.id, section.texts)
             for comp_name in section.component_refs:
                 if comp_name in self._declared_screen_names:
@@ -540,24 +533,49 @@ class GraphWriter:
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    def _write_section_styles(self, section_id: str, styles: dict) -> None:
+    def _write_style_node_once(self, style: StyleEntry) -> None:
         """
-        Write section container CSS properties as Style nodes linked via SECTION_HAS_STYLE.
+        Insert a Style node exactly once, no matter how many different
+        owners (components, sections) reference the same one — a shared
+        CSS class resolves to the same StyleEntry id everywhere it's used
+        (StyleEntry.from_css_class's seed is class+property+value, not the
+        owner). The caller is responsible for creating its own ownership
+        edge (HAS_STYLE/SECTION_HAS_STYLE) regardless of whether the node
+        already existed — skipping the edge here, not just the node, used
+        to make every owner after the first silently lose the relationship
+        (see docs/changes/C36).
+        """
+        if style.id in self._inserted_style_ids:
+            return
+        self._inserted_style_ids.add(style.id)
+        self._safe_execute(
+            "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
+            {"id": style.id, "el": style.element, "st": style.state,
+             "pr": style.property, "vl": style.value, "md": style.media or ""},
+        )
 
-        Each property in the styles dict becomes one Style node with state='default'
-        and element=section_id. This replaces the opaque styles_json blob as the
-        canonical query target for section layout and visual properties.
+    def _write_section_styles(
+        self, section_id: str, literal_styles: dict, element_styles: list[StyleEntry],
+    ) -> None:
         """
-        for prop, value in styles.items():
-            style = StyleEntry.for_section(section_id=section_id, property=prop, value=str(value))
-            if style.id in self._inserted_style_ids:
-                continue
-            self._inserted_style_ids.add(style.id)
-            self._safe_execute(
-                "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
-                {"id": style.id, "el": style.element, "st": style.state,
-                 "pr": style.property, "vl": style.value, "md": style.media or ""},
-            )
+        Write section container styles as Style nodes linked via SECTION_HAS_STYLE.
+
+        `literal_styles` are property→value pairs from inline style={{}}
+        objects found in the section's markup — no selector identity, so
+        each is attributed to the section as a whole via StyleEntry.
+        for_section. `element_styles` are CSS-class-resolved StyleEntry
+        objects that already carry their real selector (element=
+        "class:<name>") from resolve_classes() — written as-is, never
+        re-wrapped, so a per-class query (find_styles_by_class) can find
+        them regardless of which section happened to reference them.
+        """
+        entries = [
+            StyleEntry.for_section(section_id=section_id, property=prop, value=str(value))
+            for prop, value in literal_styles.items()
+        ]
+        entries.extend(element_styles)
+        for style in entries:
+            self._write_style_node_once(style)
             self._safe_execute(
                 "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "
                 "CREATE (sec)-[:SECTION_HAS_STYLE]->(s)",

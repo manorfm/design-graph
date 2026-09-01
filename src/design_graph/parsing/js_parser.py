@@ -269,18 +269,52 @@ def find_function_end(js: str, fn_start: int) -> int:
     return function_end
 
 
-def extract_return_block(js: str, fn_start: int, fn_end: int) -> str:
+def extract_return_block(
+    js: str, fn_start: int, fn_end: int, body_start: int | None = None,
+) -> str:
     """
     Within the function body [fn_start, fn_end], locate the return statement
     and extract the content between the outer parentheses.
 
     Handles both 'return (' and 'return(' forms.
     Returns an empty string when no return statement is found.
+
+    body_start (optional): index of the function's own opening '{' (as in
+    FunctionBoundary.body_start). When given and the function has a brace
+    body, every top-level `return` statement — one brace-depth inside the
+    function's own body, e.g. a bare `if (cond) return <X/>;` guard clause —
+    is extracted, not just the first one a regex happens to match. A
+    component with guard-clause early returns before its main render
+    (`if (!user) return <Login/>; if (x) return <X/>; return <Main/>;`)
+    previously lost every branch but the first, silently discarding
+    whichever one actually renders the screen's real content (see
+    docs/changes/C36). Two or more branches are concatenated, each preceded
+    by a `{[return_branch:N]}` marker — `{[return_branch:default]}` for the
+    last one, treated as the main/default render, matching the common
+    `if (guard) return X; ... return <Main/>` idiom. A guard whose return
+    sits inside its own block (`if (cond) { return X; }`) is one brace
+    deeper and is not detected as a separate branch — same documented
+    limitation C21 already accepts for JSX-internal conditionals.
+    Omitting body_start (every call site written before this parameter
+    existed) keeps the original first-match-only behavior unchanged.
     """
     if not js or fn_start >= fn_end:
         return ""
 
     window = js[fn_start:fn_end]
+
+    if body_start is not None:
+        body_offset = body_start - fn_start
+        if 0 <= body_offset < len(window) and window[body_offset] == "{":
+            branches = _top_level_return_expressions(window, body_offset)
+            if len(branches) > 1:
+                return "\n".join(
+                    f"{{[return_branch:{'default' if i == len(branches) - 1 else i + 1}]}}\n{jsx}"
+                    for i, jsx in enumerate(branches)
+                )
+            if branches:
+                return branches[0]
+            return ""
 
     visual_return = RE_VISUAL_RETURN.search(window)
     selected_return = visual_return or re.search(r"\breturn\s*\(", window)
@@ -302,6 +336,58 @@ def extract_return_block(js: str, fn_start: int, fn_end: int) -> str:
             return window[expression_start + 1:expression_end - 1].strip()
     expression_end = scanner.expression_end(expression_start)
     return window[expression_start:expression_end].strip()
+
+
+_RE_BRACE_OR_RETURN = re.compile(r"[{}]|\breturn\b")
+
+
+def _top_level_return_expressions(window: str, body_start: int) -> list[str]:
+    """
+    Return the expression text of every `return` statement sitting exactly
+    one brace-depth inside window[body_start] (the function's own opening
+    '{') — a guard clause like `if (cond) return <X/>;` lives at that depth,
+    a callback's own `return` (`useEffect(() => { return cleanup; })`) does
+    not, since the callback's own '{' pushes the depth one level deeper.
+
+    Reuses JavaScriptLexicalView's string/comment-aware matching rather than
+    re-implementing it, so a `return` or brace inside a string/comment is
+    correctly ignored exactly like everywhere else in this module.
+    """
+    scanner = JavaScriptFunctionScanner(window)
+    body_end = scanner._matching_delimiter(body_start, "{", "}")
+    if body_end is None:
+        body_end = len(window)
+
+    lexical_view = JavaScriptLexicalView.analyze(window)
+    depth = 0
+    branches: list[str] = []
+    for match in lexical_view.executable_matches(_RE_BRACE_OR_RETURN):
+        pos = match.start()
+        if pos < body_start:
+            continue
+        if pos >= body_end:
+            break
+        token = match.group()
+        if token == "{":
+            depth += 1
+            continue
+        if token == "}":
+            depth -= 1
+            continue
+        if depth != 1:
+            continue  # a return nested deeper than the function's own body
+        expr_start = match.end()
+        while expr_start < body_end and window[expr_start].isspace():
+            expr_start += 1
+        if expr_start < body_end and window[expr_start] == "(":
+            expr_end = scanner._matching_delimiter(expr_start, "(", ")")
+            jsx = window[expr_start + 1:expr_end - 1].strip() if expr_end is not None else ""
+        else:
+            expr_end = scanner.expression_end(expr_start)
+            jsx = window[expr_start:expr_end].strip()
+        if jsx:
+            branches.append(jsx)
+    return branches
 
 
 def _raw_boundaries(js: str, name_pattern: re.Pattern) -> list[FunctionBoundary]:

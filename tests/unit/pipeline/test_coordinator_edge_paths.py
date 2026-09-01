@@ -336,7 +336,9 @@ class TestExtractReactSectionsResolveCssClasses:
     classes, never inline style={{}} — extract_react must forward the
     stylesheet's rule_map into extract_sections so a Section built from a
     raw-markup `.map()` row (section_extractor's inline-list fallback)
-    carries real resolved styles, not just structure.
+    carries real resolved styles, not just structure. Class-resolved styles
+    live in element_styles (attributed per selector), not the flat `styles`
+    dict — see docs/changes/C36.
     """
 
     def test_list_item_section_carries_css_class_resolved_style(self):
@@ -363,7 +365,9 @@ class TestExtractReactSectionsResolveCssClasses:
         )
         history_sections = sections_map["HistoryView"]
         audit_item = next(s for s in history_sections if "Icon" in s.component_refs)
-        assert audit_item.styles.get("display") == "flex"
+        resolved = {(e.property, e.value) for e in audit_item.element_styles if e.element == "class:audit-item"}
+        assert ("display", "flex") in resolved
+        assert ("padding", "12px") in resolved
 
 
 # ── extract_react: component alias resolution ──────────────────────────────

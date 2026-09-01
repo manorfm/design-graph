@@ -158,8 +158,8 @@ class TestGetScreenLayout:
         assert flex["display"] == "flex"
         assert flex["flex_direction"] == "column"
 
-    def test_uses_single_join_query_not_n_plus_one(self, layout_graph, monkeypatch):
-        """get_screen_layout must call _q at most 2 times (one for comps, one for styles)."""
+    def test_uses_a_bounded_number_of_queries_not_n_plus_one(self, layout_graph, monkeypatch):
+        """get_screen_layout must not scale its query count with component/section count."""
         call_count = 0
         original_q = layout_graph._q
 
@@ -170,7 +170,8 @@ class TestGetScreenLayout:
 
         monkeypatch.setattr(layout_graph, "_q", counting_q)
         layout_graph.get_screen_layout("DashboardPage")
-        assert call_count <= 3  # screen fuzzy + comp query + style join (not N per component)
+        # screen fuzzy + comp query + comp style join + section style join (C36) — not N per component/section
+        assert call_count <= 4
 
     def test_fuzzy_screen_resolution_works(self, layout_graph):
         profiles = layout_graph.get_screen_layout("Dashboard")  # partial name
@@ -205,6 +206,55 @@ class TestBuildLayoutProfileHelper:
         assert profile["padding_top"] == "8px"
         assert profile["padding_bottom"] == "16px"
         assert profile["padding"] is None
+
+
+# ── get_screen_layout covers sections, not just components ──────────────────
+
+@pytest.fixture(scope="module")
+def section_only_layout_graph(tmp_path_factory):
+    """
+    A screen whose only styled markup is an inline list-item Section (never
+    factored into a named Component, e.g. HistoryView's "Audit item" row) —
+    get_screen_layout used to query Screen-[:USES_COMPONENT]->Component
+    exclusively, so a screen like this returned an empty profile list even
+    though its Section carries real display/flex-direction styles in the
+    graph (see docs/changes/C36).
+    """
+    tmp  = tmp_path_factory.mktemp("section_layout")
+    db   = kuzu.Database(str(tmp / "sec_layout.db"))
+    conn = kuzu.Connection(db)
+    initialize_schema(conn)
+    gw = GraphWriter(conn)
+    gw.write_tokens([])
+
+    screen = ExtractedScreen(name="HistoryView", component_refs=[], sections_count=0)
+    section = ExtractedSection(
+        id="sec_audit", screen="HistoryView", name="Audit item",
+        styles={}, component_refs=[], texts=[], jsx_snippet="",
+        detection_method="list_item",
+        element_styles=[
+            StyleEntry.from_css_class("audit-item", "display", "grid"),
+            StyleEntry.from_css_class("audit-rail", "flexDirection", "column"),
+        ],
+    )
+    gw.write_screen(screen, [section], {})
+
+    return GraphReader(conn)
+
+
+class TestGetScreenLayoutCoversSections:
+    def test_section_selector_appears_in_screen_layout(self, section_only_layout_graph):
+        profiles = section_only_layout_graph.get_screen_layout("HistoryView")
+        names = {p["component_name"] for p in profiles}
+        assert any("audit-item" in n for n in names)
+        assert any("audit-rail" in n for n in names)
+
+    def test_section_layout_values_are_correct(self, section_only_layout_graph):
+        profiles = section_only_layout_graph.get_screen_layout("HistoryView")
+        audit_item = next(p for p in profiles if "audit-item" in p["component_name"])
+        assert audit_item["display"] == "grid"
+        audit_rail = next(p for p in profiles if "audit-rail" in p["component_name"])
+        assert audit_rail["flex_direction"] == "column"
 
 
 class TestBuildLayoutProfileHidesDecorativeDimensions:

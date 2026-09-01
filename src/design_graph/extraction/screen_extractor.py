@@ -142,7 +142,7 @@ def _extract_screen_jsx(js: str, boundary: FunctionBoundary) -> tuple[str, list]
     sanitizer and every downstream reader only ever see the short marker),
     then sanitize_jsx collapses dynamic expressions.
     """
-    jsx_raw = extract_return_block(js, boundary.start, boundary.end)
+    jsx_raw = extract_return_block(js, boundary.start, boundary.end, body_start=boundary.body_start)
     if not jsx_raw:
         return "", []
     jsx_with_icon_refs, icons = extract_icons(jsx_raw)

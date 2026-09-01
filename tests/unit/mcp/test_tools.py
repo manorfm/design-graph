@@ -42,13 +42,26 @@ class MockReader:
     def list_texts(self):
         return []
 
+    def list_shared_style_classes(self):
+        return []
+
     def get_interactions(self, name): return []
     def get_full_jsx(self, name): return "<div>full jsx</div>"
     def get_impact(self, name):
         return {"found": True, "type": "card", "screens": ["RestaurantsPage"],
                 "sections": [], "tokens_used": []}
     def find_token_usage(self, value): return []
-    def get_section(self, screen, section): return None
+    def get_section(self, screen, section):
+        if section == "Ghost":
+            return None
+        return {
+            "id": "sec1", "name": "Header", "detection_method": "comment",
+            "styles_by_element": {
+                ".audit-item": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(10)],
+                ".audit-dot": [{"property": "display", "value": "flex"}],
+            },
+            "component_refs": [], "texts": [], "jsx_snippet": "",
+        }
     def count_nodes(self): return {}
     def find_screens_using_comp_transitively(self, name): return []
     def get_component_parents(self, name): return []
@@ -63,8 +76,18 @@ class MockReader:
         return comps
 
     def get_component_spec(self, name):
-        if "Ghost" in name or "Nonexistent" in name:
+        if "Ghost" in name or "Nonexistent" in name or name == "page-title":
             return None
+        if name == "ManyStylesComp":
+            return {
+                "c.name": name, "c.comp_type": "card",
+                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {
+                    "default": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
+                },
+                "tokens": [], "texts": [], "interactions": [],
+                "children": [], "parents": [], "screens_using": [],
+            }
         return {
             "c.name": name, "c.comp_type": "button",
             "c.jsx_snippet": "<button/>", "c.occurrence": 5, "c.classes": "",
@@ -72,6 +95,19 @@ class MockReader:
             "tokens": [], "texts": [], "interactions": [],
             "children": [], "parents": [], "screens_using": ["RestaurantsPage"],
         }
+
+    def find_styles_by_class(self, class_name):
+        if class_name == "page-title":
+            return [
+                {"property": "font-size", "value": "25px"},
+                {"property": "font-weight", "value": "600"},
+            ]
+        return []
+
+    def find_class_owners(self, class_name):
+        if class_name == "page-title":
+            return {"components": [], "sections": [{"screen": "Applications", "section": "Header"}]}
+        return {"components": [], "sections": []}
 
     def get_component_full(self, name):
         if "Ghost" in name or "Nonexistent" in name:
@@ -193,6 +229,8 @@ class _WeakMatchOnlyReader:
     def list_texts(self):
         return [{"t.id": "t1", "t.content": "Alertas operacionais", "t.source": "InventoryOverview"}]
 
+    def list_shared_style_classes(self): return []
+
 
 class TestSearchWeakMatchWarning:
     def test_partial_only_results_carry_an_explicit_warning(self):
@@ -252,6 +290,87 @@ class TestGetComponentSpecTool:
     def test_output_contains_style_section(self):
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
         assert "default" in result.lower() or "estilo" in result.lower() or "style" in result.lower()
+
+
+class TestGetComponentSpecFallsBackToSharedCssClass:
+    """
+    A CSS class reused across screens but never factored into a named React
+    component (e.g. `.page-title`) used to be a dead end: get_component_spec
+    said "not found" with no other avenue. When normal component resolution
+    finds nothing, falling back to find_styles_by_class surfaces the same
+    facts a real component spec would (styles, "used in") — clearly labeled
+    as a CSS class, not a component (see docs/changes/C36 P3).
+    """
+
+    def test_falls_back_to_shared_class_when_no_component_matches(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        assert "font-size" in result
+        assert "25px" in result
+
+    def test_labeled_as_css_class_not_component(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        assert "classe css" in result.lower() or "css class" in result.lower()
+
+    def test_reports_screen_using_the_class(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        assert "Applications" in result
+
+    def test_real_component_match_never_falls_back(self):
+        """A genuine component hit must win outright — the class fallback
+        only runs when component resolution finds literally nothing."""
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        assert "classe css" not in result.lower()
+
+    def test_unknown_name_that_is_also_not_a_class_stays_not_found(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "GhostComp"}, "doc1")
+        assert "not found" in result.lower() or "ghostcomp" in result.lower()
+
+
+class TestGetFullStylesTool:
+    """
+    get_full_jsx has no style equivalent — get_section/get_screen_full/
+    get_component_spec all truncate their style tables (`+N mais`) with no
+    way to recover what was cut. get_full_styles renders the reader's
+    already-complete data (the cap is a display-layer slice, not a query
+    limit) without slicing it (see docs/changes/C36).
+    """
+
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_full_styles" in names
+
+    def test_section_styles_are_not_truncated(self):
+        result = _dispatcher(1).dispatch(
+            "get_full_styles", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        )
+        assert "prop9" in result  # 10th entry — beyond any display cap
+        assert "mais" not in result.lower()
+
+    def test_section_styles_grouped_by_selector(self):
+        result = _dispatcher(1).dispatch(
+            "get_full_styles", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        )
+        assert ".audit-item" in result
+        assert ".audit-dot" in result
+
+    def test_unknown_section_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch(
+            "get_full_styles", {"screen": "HistoryView", "section": "Ghost"}, "doc1",
+        )
+        assert "não encontrada" in result.lower() or "not found" in result.lower()
+
+    def test_component_styles_are_not_truncated(self):
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ManyStylesComp"}, "doc1")
+        assert "prop14" in result  # 15th entry — beyond the 12-item display cap
+        assert "mais" not in result.lower()
+
+    def test_unknown_component_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "GhostComp"}, "doc1")
+        assert "não encontrado" in result.lower() or "not found" in result.lower()
+
+    def test_neither_name_nor_screen_section_given(self):
+        result = _dispatcher(1).dispatch("get_full_styles", {}, "doc1")
+        assert "name" in result.lower() or "screen" in result.lower()
 
 
 class TestGetComponentFullTool:
@@ -381,7 +500,7 @@ class TestToolDefinitions:
         expected = {
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full_jsx", "get_component_interactions",
+            "get_full_jsx", "get_full_styles", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
             "get_component_full", "set_prototype",
         }

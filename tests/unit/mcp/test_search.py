@@ -141,6 +141,9 @@ class _StubReader:
     def list_texts(self):
         return []
 
+    def list_shared_style_classes(self):
+        return []
+
 
 class TestSearchCoversAllComponents:
     """search() must find every component, not only the 5 in top_components."""
@@ -198,6 +201,9 @@ class _StubReaderWithTexts:
              "t.source": "HomePage", "t.element": "h1"},
         ]
 
+    def list_shared_style_classes(self):
+        return []
+
 
 class TestMultiWordQueryTokenization:
     """
@@ -241,6 +247,9 @@ class _StubReaderForCoverage:
     def list_texts(self):
         return []
 
+    def list_shared_style_classes(self):
+        return []
+
 
 class TestCoverageRanking:
     def test_result_matching_more_query_words_ranks_first(self):
@@ -265,6 +274,9 @@ class _StubReaderForPartialMatch:
 
     def list_texts(self):
         return [{"t.id": "t1", "t.content": "Alertas operacionais", "t.source": "InventoryOverview"}]
+
+    def list_shared_style_classes(self):
+        return []
 
 
 class TestWordCoverageExposedOnResult:
@@ -310,6 +322,47 @@ class TestSearchHasNoRegexInjectionSurface:
         import design_graph.mcp.search as search_module
         source = inspect.getsource(search_module)
         assert "import re" not in source
+
+
+class _StubReaderWithSharedClasses:
+    def list_screens(self):
+        return []
+
+    def list_components(self, comp_type=None):
+        return []
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return []
+
+    def list_shared_style_classes(self):
+        return ["page-title", "chip"]
+
+
+class TestSearchCoversSharedCssClasses:
+    """
+    A CSS class reused across screens but never factored into a named React
+    component (`.page-title`, `.chip`) used to be invisible to search() —
+    _search_reader only ever scanned Screen/Component/Token/UIText, never a
+    class name with no Component node of its own (see docs/changes/C36 P3).
+    """
+
+    def _run(self, query: str) -> list[SearchResult]:
+        return search([("proto", _StubReaderWithSharedClasses())], query)
+
+    def test_finds_shared_class_by_exact_name(self):
+        results = self._run("page-title")
+        assert any(r.type == "CssClass" and r.name == "page-title" for r in results)
+
+    def test_finds_shared_class_by_prefix(self):
+        results = self._run("page")
+        assert any(r.type == "CssClass" and r.name == "page-title" for r in results)
+
+    def test_no_match_returns_no_cssclass_results(self):
+        results = self._run("xyz-not-present")
+        assert not any(r.type == "CssClass" for r in results)
 
 
 class TestSearchCoversUIText:

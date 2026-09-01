@@ -180,7 +180,7 @@ def extract_component(
     # Icons are pulled out before sanitize_jsx so the sanitizer — and every
     # downstream consumer of jsx_snippet — only ever sees the short marker,
     # never the raw SVG source.
-    jsx_raw = extract_return_block(js, boundary.start, boundary.end)
+    jsx_raw = extract_return_block(js, boundary.start, boundary.end, body_start=boundary.body_start)
     jsx_with_icon_refs, icons = extract_icons(jsx_raw) if jsx_raw else ("", [])
     jsx_snippet = sanitize_jsx(jsx_with_icon_refs) if jsx_with_icon_refs else ""
     marker_refs = _extract_marker_refs(jsx_snippet)

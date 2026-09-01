@@ -646,22 +646,31 @@ class ExtractedSection:
     id: EntityId
     screen: str
     name: str
-    styles: dict          # prop → value
+    styles: dict          # prop → value, from this section's own literal style={{}} objects —
+                           # no selector identity (a literal style block isn't textually tied to
+                           # which nested element it belongs to), attributed to the section as a
+                           # whole. Class-resolved styles live in element_styles instead (C36):
+                           # unlike a literal style object, a className carries its own selector,
+                           # so folding it into this flat dict would collide two different
+                           # elements' same-named property into one slot.
     component_refs: list[str]
     texts: list[str]
     jsx_snippet: str
     detection_method: DetectionMethod
+    element_styles: list[StyleEntry] = field(default_factory=list)  # CSS-class-resolved, one entry per (selector, property) — see `styles` above
 
     @classmethod
     def create(
         cls, screen: str, name: str, styles: dict, component_refs: list[str],
         texts: list[str], jsx_snippet: str, detection_method: DetectionMethod,
+        element_styles: list[StyleEntry] | None = None,
     ) -> "ExtractedSection":
         """Comment or structural detection — id keyed by (screen, name)."""
         return cls(
             id=EntityId.derive("sec", f"{screen}_{name}"),
             screen=screen, name=name, styles=styles, component_refs=component_refs,
             texts=texts, jsx_snippet=jsx_snippet, detection_method=detection_method,
+            element_styles=element_styles or [],
         )
 
     @classmethod
