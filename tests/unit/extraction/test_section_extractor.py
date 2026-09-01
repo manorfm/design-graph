@@ -119,6 +119,81 @@ class TestStructuralFallback:
         assert len(sections) <= 8
 
 
+PAGE_HEAD_VIA_CSS_CLASS_JS = """
+function UsersView() {
+    return (
+        <div className="page">
+            <div className="page-head">
+                <div className="h">
+                    <div className="page-title">Usuários</div>
+                    <div className="page-desc">Contas de acesso.</div>
+                </div>
+                <button className="btn btn-primary" onClick={onNew}><Icon name="plus" size={16} /> Criar usuário</button>
+            </div>
+            {visible.map(u => (
+                <UserRow key={u.id} user={u} />
+            ))}
+        </div>
+    )
+}
+"""
+
+
+class TestStructuralFallbackResolvesCssClassPadding:
+    """
+    A prototype convention that styles containers exclusively via CSS
+    classes (never inline style={{}}) — confirmed real case: toToggle's
+    UsersView, whose `.page`/`.page-head` carry real padding/margin only in
+    the stylesheet — used to be invisible to the structural fallback, which
+    only ever recognized a literal `style={{padding: Npx}}`. A screen like
+    this had no comment markers (Strategy 1) and its only `.map()` produces
+    an already-named component (`UserRow`, not a raw lowercase tag, so
+    Strategy 3 doesn't apply either), landing on "0 sections" despite real,
+    substantial chrome. Reproduces docs/changes/C37.
+    """
+
+    def test_css_resolved_padding_qualifies_as_a_section(self):
+        rule_map = {
+            "page": [CssRule(".page", "padding", "26px var(--pad) 60px")],
+            "page-head": [CssRule(".page-head", "margin-bottom", "26px")],
+        }
+        boundary = _boundary(PAGE_HEAD_VIA_CSS_CLASS_JS, "UsersView")
+        sections = extract_sections(
+            PAGE_HEAD_VIA_CSS_CLASS_JS, _screen("UsersView"), boundary, rule_map=rule_map,
+        )
+        assert len(sections) >= 1
+
+    def test_page_head_styles_are_captured_once_section_exists(self):
+        """
+        The whole point of detecting the section: once it exists, its own
+        CSS-class-resolved styles (previously unreachable because nothing
+        held them) become real element_styles — same mechanism P1/C36
+        already fixed for a section, now finally reached for this screen.
+        """
+        rule_map = {
+            "page": [CssRule(".page", "padding", "26px var(--pad) 60px")],
+            "page-head": [CssRule(".page-head", "margin-bottom", "26px")],
+        }
+        boundary = _boundary(PAGE_HEAD_VIA_CSS_CLASS_JS, "UsersView")
+        sections = extract_sections(
+            PAGE_HEAD_VIA_CSS_CLASS_JS, _screen("UsersView"), boundary, rule_map=rule_map,
+        )
+        all_elements = {e.element for s in sections for e in s.element_styles}
+        assert "class:page-head" in all_elements or "class:page" in all_elements
+
+    def test_below_threshold_css_padding_does_not_qualify(self):
+        rule_map = {"snug": [CssRule(".snug", "padding", "4px")]}
+        js = '''function TinyPage() { return (<div className="snug"><span>x</span></div>) }'''
+        boundary = _boundary(js, "TinyPage")
+        sections = extract_sections(js, _screen("TinyPage"), boundary, rule_map=rule_map)
+        assert sections == []
+
+    def test_no_rule_map_does_not_crash_and_finds_nothing_new(self):
+        boundary = _boundary(PAGE_HEAD_VIA_CSS_CLASS_JS, "UsersView")
+        sections = extract_sections(PAGE_HEAD_VIA_CSS_CLASS_JS, _screen("UsersView"), boundary)
+        assert sections == []
+
+
 class TestQualityFilter:
     def test_empty_section_not_created(self):
         js = """

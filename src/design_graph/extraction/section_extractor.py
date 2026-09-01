@@ -173,7 +173,16 @@ _PADDING_RE = re.compile(
     r'style=\{\{[^}]*(?:padding|margin)\s*:\s*["\']?(\d+)px'
 )
 _DIV_OPEN_RE = re.compile(r"<div\b")
+_DIV_CLASS_RE = re.compile(r'<div\b[^>]*\bclassName=(["\'])([^"\']+)\1')
+_PX_TOKEN_RE = re.compile(r'(\d+)px')
 _DIV_CLOSE = "</div>"
+
+
+def _max_px(value: str) -> int:
+    """Largest `Npx` token in a CSS value — handles a shorthand like
+    `26px var(--pad) 60px` where more than one side has its own length."""
+    tokens = _PX_TOKEN_RE.findall(value)
+    return max((int(t) for t in tokens), default=0)
 
 
 def _find_balanced_div_end(window: str, div_start: int) -> int:
@@ -210,15 +219,9 @@ def _find_balanced_div_end(window: str, div_start: int) -> int:
     return min(div_start + JS_FUNCTION_FALLBACK_WINDOW, len(window))
 
 
-def _detect_by_structure(
-    window: str, screen_name: str, rule_map: dict[str, list[CssRule]] | None = None,
-) -> list[ExtractedSection]:
-    """
-    Find <div> blocks with padding >= threshold as section separators.
-    Returns at most MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK sections.
-    """
-    candidate_positions: list[tuple[int, int]] = []
-
+def _literal_padding_candidates(window: str) -> list[tuple[int, int]]:
+    """<div> blocks with a literal `style={{padding|margin: Npx}}` >= threshold."""
+    candidates: list[tuple[int, int]] = []
     for m in _PADDING_RE.finditer(window):
         try:
             px = int(m.group(1))
@@ -228,8 +231,54 @@ def _detect_by_structure(
             # Capture the enclosing block: from the nearest '<div' before this match
             div_start = window.rfind("<div", 0, m.start())
             if div_start >= 0:
-                div_end = _find_balanced_div_end(window, div_start)
-                candidate_positions.append((div_start, div_end))
+                candidates.append((div_start, _find_balanced_div_end(window, div_start)))
+    return candidates
+
+
+def _resolved_class_padding_candidates(
+    window: str, rule_map: dict[str, list[CssRule]] | None,
+) -> list[tuple[int, int]]:
+    """
+    <div className="..."> blocks whose CSS-class-resolved padding/margin
+    meets the structural threshold.
+
+    A prototype convention that styles containers exclusively via CSS
+    classes (never inline style={{}}) is invisible to
+    _literal_padding_candidates no matter how much padding the class
+    actually carries — confirmed real case: toToggle's `.page`/`.page-head`
+    have real padding/margin only in the stylesheet, so a screen like
+    UsersView (no section comments, and its only `.map()` already produces
+    a named component, so Strategy 3 doesn't apply either) landed on zero
+    sections despite substantial real chrome (see docs/changes/C37).
+    """
+    if rule_map is None:
+        return []
+    candidates: list[tuple[int, int]] = []
+    for m in _DIV_CLASS_RE.finditer(window):
+        entries = resolve_classes(m.group(2), rule_map)
+        qualifies = any(
+            entry.state == StyleState.DEFAULT
+            and entry.property.startswith(("padding", "margin"))
+            and _max_px(entry.value) >= _STRUCTURAL_PADDING_THRESHOLD
+            for entry in entries
+        )
+        if qualifies:
+            candidates.append((m.start(), _find_balanced_div_end(window, m.start())))
+    return candidates
+
+
+def _detect_by_structure(
+    window: str, screen_name: str, rule_map: dict[str, list[CssRule]] | None = None,
+) -> list[ExtractedSection]:
+    """
+    Find <div> blocks with padding >= threshold (literal or CSS-class-
+    resolved) as section separators.
+    Returns at most MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK sections.
+    """
+    candidate_positions = sorted(
+        _literal_padding_candidates(window) + _resolved_class_padding_candidates(window, rule_map),
+        key=lambda pair: pair[0],
+    )
 
     # De-duplicate heavily overlapping candidates
     unique: list[tuple[int, int]] = []
