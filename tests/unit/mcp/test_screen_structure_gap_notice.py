@@ -57,7 +57,7 @@ class _DecomposedScreenReader:
             "jsx_snippet": _SUBSTANTIAL_JSX,
             "sections": [{
                 "id": "s1", "name": "Hero", "detection_method": "comment",
-                "styles": {}, "component_refs": [], "texts": [], "jsx_snippet": "",
+                "styles_by_element": {}, "component_refs": [], "texts": [], "jsx_snippet": "",
             }],
             "components": [],
         }

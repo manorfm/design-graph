@@ -177,7 +177,8 @@ class TestGetScreenFullSections:
     def test_section_includes_styles(self, full_screen_graph):
         result = full_screen_graph.get_screen_full("HomeScreen")
         hero   = next(s for s in result["sections"] if s["name"] == "HeroSection")
-        assert hero["styles"].get("padding") == "32px"
+        own_styles = hero["styles_by_element"]["(estilo da seção)"]
+        assert {"property": "padding", "value": "32px"} in own_styles
 
     def test_section_includes_texts(self, full_screen_graph):
         result = full_screen_graph.get_screen_full("HomeScreen")

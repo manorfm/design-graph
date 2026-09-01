@@ -513,13 +513,17 @@ class GraphReader:
         sec = rows[0]
         section_id = sec["sec.id"]
 
-        # Canonical styles come from graph nodes (SECTION_HAS_STYLE);
-        # fall back to styles_json blob for older graphs that lack the relationship.
+        # Canonical styles come from graph nodes (SECTION_HAS_STYLE), grouped
+        # by selector; fall back to styles_json blob (unattributed, one
+        # group) for older graphs that lack the relationship.
         graph_styles = self.get_section_styles(section_id)
         if graph_styles:
-            styles = {s["property"]: s["value"] for s in graph_styles}
+            styles_by_element = _group_section_styles(section_id, graph_styles)
         else:
-            styles = json.loads(sec["sec.styles_json"] or "{}")
+            legacy = json.loads(sec["sec.styles_json"] or "{}")
+            styles_by_element = {_LEGACY_STYLE_GROUP_LABEL: [
+                {"property": prop, "value": value} for prop, value in legacy.items()
+            ]} if legacy else {}
 
         # Canonical texts come from UIText nodes (SECTION_HAS_TEXT);
         # fall back to texts_json blob for backward compatibility.
@@ -530,13 +534,13 @@ class GraphReader:
             texts = json.loads(sec["sec.texts_json"] or "[]")
 
         return {
-            "id":               section_id,
-            "name":             sec["sec.name"],
-            "detection_method": sec["sec.detection_method"],
-            "styles":           styles,
-            "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
-            "texts":            texts,
-            "jsx_snippet":      self._resolve_icons(sec["sec.jsx_snippet"] or ""),
+            "id":                section_id,
+            "name":              sec["sec.name"],
+            "detection_method":  sec["sec.detection_method"],
+            "styles_by_element": styles_by_element,
+            "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
+            "texts":             texts,
+            "jsx_snippet":       self._resolve_icons(sec["sec.jsx_snippet"] or ""),
         }
 
     def get_section_texts(self, section_id: str) -> list[dict]:
@@ -554,18 +558,91 @@ class GraphReader:
 
     def get_section_styles(self, section_id: str) -> list[dict]:
         """
-        Return style property/value pairs for a section container via SECTION_HAS_STYLE.
+        Return style property/value/element rows for a section container via
+        SECTION_HAS_STYLE.
 
-        Each dict has keys: property, value.
+        Each dict has keys: element, property, value. `element` is either
+        the section_id itself (a literal style={{}} object, with no
+        selector identity of its own — see ExtractedSection.styles) or
+        "class:<name>" (a CSS-class-resolved style, one row per selector —
+        see ExtractedSection.element_styles). Group by `element` to render
+        or reason about styles per selector instead of one flattened bag
+        (see docs/changes/C36).
+
         Returns an empty list when the section has no container styles or doesn't exist.
         """
-        rows = self._q(
+        return self._q(
             "MATCH (sec:Section {id:$sid})-[:SECTION_HAS_STYLE]->(s:Style) "
-            "RETURN s.property AS property, s.value AS value "
-            "ORDER BY s.property",
+            "RETURN s.element AS element, s.property AS property, s.value AS value "
+            "ORDER BY s.element, s.property",
             {"sid": section_id},
         )
-        return rows
+
+    # ── Shared CSS classes (no named Component required) ────────────────────────
+
+    def find_styles_by_class(self, class_name: str) -> list[dict]:
+        """
+        Return every default-state style resolved for a CSS class, whether
+        or not that class was ever factored into a named Component.
+
+        A shared class (`.page-title`, `.chip`, `.audit-dot`) styled inline
+        in several screens without ever becoming a React component is
+        completely invisible to get_component_spec/search — both only ever
+        look up Component nodes by name. Since C36 P1, every class-resolved
+        Style already carries element="class:<name>" no matter which
+        Component or Section resolved it, and is shared (same node, one
+        edge per owner) across every owner — this queries that fact
+        directly, without needing to already know an owner.
+
+        Each dict has keys: property, value. Returns [] when the class was
+        never resolved anywhere in this prototype.
+        """
+        return self._q(
+            # ORDER BY references the RETURN alias, not s.property — Kuzu's
+            # binder drops the match variable out of scope after DISTINCT.
+            "MATCH (s:Style) WHERE s.element = $el AND s.state = 'default' AND s.media = '' "
+            "RETURN DISTINCT s.property AS property, s.value AS value "
+            "ORDER BY property",
+            {"el": f"class:{class_name}"},
+        )
+
+    def list_shared_style_classes(self) -> list[str]:
+        """
+        Return every distinct CSS class name that resolved to at least one
+        Style in this prototype — the search() source for a class with no
+        Component node of its own (see docs/changes/C36 P3).
+        """
+        rows = self._q(
+            "MATCH (s:Style) WHERE s.element STARTS WITH 'class:' "
+            "RETURN DISTINCT s.element AS element ORDER BY element",
+        )
+        return [row["element"].removeprefix("class:") for row in rows]
+
+    def find_class_owners(self, class_name: str) -> dict:
+        """
+        Return which Components and (screen, section) pairs resolved a
+        given CSS class — the "screens_using" equivalent for a shared class
+        that has no Component node of its own to hang that fact off of.
+
+        Result: {"components": [name, ...], "sections": [{"screen":, "section":}, ...]}.
+        """
+        element = f"class:{class_name}"
+        comp_rows = self._q(
+            # ORDER BY references the RETURN alias — see find_styles_by_class.
+            "MATCH (c:Component)-[:HAS_STYLE]->(st:Style) WHERE st.element = $el "
+            "RETURN DISTINCT c.name AS name ORDER BY name",
+            {"el": element},
+        )
+        sec_rows = self._q(
+            "MATCH (s:Screen)-[:HAS_SECTION]->(sec:Section)-[:SECTION_HAS_STYLE]->(st:Style) "
+            "WHERE st.element = $el "
+            "RETURN DISTINCT s.name AS screen, sec.name AS section ORDER BY screen, section",
+            {"el": element},
+        )
+        return {
+            "components": [r["name"] for r in comp_rows],
+            "sections": [{"screen": r["screen"], "section": r["section"]} for r in sec_rows],
+        }
 
     # ── Tokens ────────────────────────────────────────────────────────────────
 
@@ -877,7 +954,8 @@ class GraphReader:
         sec_style_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
             "-[:SECTION_HAS_STYLE]->(st:Style) "
-            "RETURN sec.id AS section_id, st.property AS property, st.value AS value",
+            "RETURN sec.id AS section_id, st.element AS element, "
+            "       st.property AS property, st.value AS value",
             {"n": resolved},
         )
 
@@ -1047,10 +1125,25 @@ class GraphReader:
 
     def get_screen_layout(self, screen_name: str) -> list[dict]:
         """
-        Return a LayoutProfile dict for every component used directly by a screen.
+        Return a LayoutProfile dict for every component used directly by a
+        screen, plus one per (section, selector) that has its own real
+        layout styles.
 
-        Uses 2 queries (one for component names, one JOIN for all styles) so the
-        call cost is O(1) database round-trips regardless of how many components
+        A screen whose list item was never factored into a named Component
+        (e.g. HistoryView's "Audit item" row, styled entirely via
+        className) used to be invisible here — this only ever queried
+        Screen-[:USES_COMPONENT]->Component, never Section (see
+        docs/changes/C36). A section with no layout-relevant style of its
+        own contributes no entry (unlike a styleless Component, which still
+        gets an all-None profile — screens always carry
+        `component_refs` for other reasons, so listing every one of them
+        costs nothing extra; there's no equivalent free list of "every
+        section" here, so only sections that actually resolved a layout
+        property are worth a round trip).
+
+        Uses at most 4 queries (screen resolution, component names, one
+        JOIN for component styles, one JOIN for section styles) — O(1)
+        database round trips regardless of how many components/sections
         the screen has.
         """
         resolved = self._fuzzy_find_screen(screen_name)
@@ -1062,8 +1155,6 @@ class GraphReader:
             "RETURN c.name ORDER BY c.name",
             {"n": resolved},
         )
-        if not comp_rows:
-            return []
 
         style_rows = self._q(
             # media = '' guard: same reasoning as get_component_layout_profile (C35).
@@ -1072,21 +1163,48 @@ class GraphReader:
             "WHERE st.state = 'default' AND st.media = '' "
             "RETURN c.name AS comp_name, st.property AS prop, st.value AS val",
             {"n": resolved},
-        )
+        ) if comp_rows else []
 
         by_comp: dict[str, dict[str, str]] = defaultdict(dict)
         for row in style_rows:
             if row["prop"] in LAYOUT_CSS_PROPERTIES:
                 by_comp[row["comp_name"]][row["prop"]] = row["val"]
 
-        logger.debug(
-            "reader: get_screen_layout(%s) — %d components, %d with layout styles",
-            resolved, len(comp_rows), len(by_comp),
-        )
-        return [
+        component_profiles = [
             _build_layout_profile(row["c.name"], by_comp.get(row["c.name"], {}))
             for row in comp_rows
         ]
+
+        sec_style_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
+            "-[:SECTION_HAS_STYLE]->(st:Style) "
+            "WHERE st.media = '' "
+            "RETURN sec.name AS section_name, st.element AS element, "
+            "       st.property AS prop, st.value AS val",
+            {"n": resolved},
+        )
+
+        by_section_selector: dict[str, dict[str, str]] = defaultdict(dict)
+        selector_labels: dict[str, str] = {}
+        for row in sec_style_rows:
+            if row["prop"] not in LAYOUT_CSS_PROPERTIES:
+                continue
+            selector = f".{row['element'].removeprefix('class:')}" if row["element"].startswith("class:") else "(estilo da seção)"
+            key = f"{row['section_name']}::{selector}"
+            selector_labels[key] = f"{row['section_name']} — {selector}"
+            by_section_selector[key][row["prop"]] = row["val"]
+
+        section_profiles = [
+            _build_layout_profile(selector_labels[key], props)
+            for key, props in by_section_selector.items()
+        ]
+
+        logger.debug(
+            "reader: get_screen_layout(%s) — %d components, %d with layout styles, "
+            "%d section selectors with layout styles",
+            resolved, len(comp_rows), len(by_comp), len(section_profiles),
+        )
+        return component_profiles + section_profiles
 
     # ── Fuzzy name resolution ─────────────────────────────────────────────────
 
@@ -1147,6 +1265,33 @@ class GraphReader:
             return []
 
 
+# Group label for a section's own container styles (element == the section's
+# id — a literal style={{}} object with no selector identity of its own) and
+# for legacy graphs whose styles_json blob predates per-selector attribution.
+_LEGACY_STYLE_GROUP_LABEL = "(estilo da seção)"
+
+
+def _group_section_styles(section_id: str, rows: list[dict]) -> dict[str, list[dict]]:
+    """
+    Group get_section_styles() rows by selector for presentation.
+
+    `element == section_id` (a literal style={{}} object, or a legacy row
+    with no selector info) groups under _LEGACY_STYLE_GROUP_LABEL;
+    "class:<name>" groups under ".<name>" — one property/value list per CSS
+    class actually resolved for this section, instead of every selector's
+    properties flattened into one bag (see docs/changes/C36).
+    """
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        element = row["element"]
+        label = (
+            f".{element.removeprefix('class:')}" if element.startswith("class:")
+            else _LEGACY_STYLE_GROUP_LABEL
+        )
+        groups[label].append({"property": row["property"], "value": row["value"]})
+    return dict(groups)
+
+
 def _assemble_screen_full(
     *,
     screen_meta: dict,
@@ -1169,9 +1314,9 @@ def _assemble_screen_full(
     and to separate data assembly from query concerns.
     """
     # ── Section data ──────────────────────────────────────────────────────────
-    sec_styles_by_id: dict[str, dict[str, str]] = defaultdict(dict)
+    sec_style_rows_by_id: dict[str, list[dict]] = defaultdict(list)
     for r in sec_style_rows:
-        sec_styles_by_id[r["section_id"]][r["property"]] = r["value"]
+        sec_style_rows_by_id[r["section_id"]].append(r)
 
     sec_texts_by_id: dict[str, list[str]] = defaultdict(list)
     for r in sec_text_rows:
@@ -1179,18 +1324,26 @@ def _assemble_screen_full(
 
     sections = []
     for sec in section_rows:
-        sid    = sec["sec.id"]
-        # Canonical source: graph nodes; fallback: JSON blob for older graphs
-        styles = sec_styles_by_id.get(sid) or json.loads(sec["sec.styles_json"] or "{}")
-        texts  = sec_texts_by_id.get(sid)  or json.loads(sec["sec.texts_json"]  or "[]")
+        sid = sec["sec.id"]
+        # Canonical source: graph nodes, grouped by selector; fallback: JSON
+        # blob (unattributed, one group) for older graphs
+        graph_rows = sec_style_rows_by_id.get(sid)
+        if graph_rows:
+            styles_by_element = _group_section_styles(sid, graph_rows)
+        else:
+            legacy = json.loads(sec["sec.styles_json"] or "{}")
+            styles_by_element = {_LEGACY_STYLE_GROUP_LABEL: [
+                {"property": prop, "value": value} for prop, value in legacy.items()
+            ]} if legacy else {}
+        texts = sec_texts_by_id.get(sid) or json.loads(sec["sec.texts_json"] or "[]")
         sections.append({
-            "id":               sid,
-            "name":             sec["sec.name"],
-            "detection_method": sec["sec.detection_method"],
-            "styles":           dict(styles),
-            "component_refs":   json.loads(sec["sec.components_json"] or "[]"),
-            "texts":            list(texts),
-            "jsx_snippet":      sec["sec.jsx_snippet"] or "",
+            "id":                sid,
+            "name":              sec["sec.name"],
+            "detection_method":  sec["sec.detection_method"],
+            "styles_by_element": styles_by_element,
+            "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
+            "texts":             list(texts),
+            "jsx_snippet":       sec["sec.jsx_snippet"] or "",
         })
 
     # ── Component data ────────────────────────────────────────────────────────

@@ -50,7 +50,12 @@ class RichMockReader:
             return {
                 "id": "sec_hdr", "name": "Header",
                 "detection_method": "comment",
-                "styles": {"padding": "16px", "margin": "8px"},
+                "styles_by_element": {
+                    "(estilo da seção)": [
+                        {"property": "padding", "value": "16px"},
+                        {"property": "margin", "value": "8px"},
+                    ],
+                },
                 "component_refs": ["BtnPrimary"],
                 "texts": ["Restaurantes"],
                 "jsx_snippet": "<div>header jsx</div>",
@@ -395,7 +400,9 @@ class _OverflowReader:
     """Returns more items than the display limits in every collection."""
 
     _TEXTS_9  = [f"Text item {i}" for i in range(9)]
-    _STYLES_9 = {f"prop{i}": f"val{i}" for i in range(9)}
+    _STYLES_9_BY_ELEMENT = {
+        "(estilo da seção)": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(9)],
+    }
     _TEXTS_16 = [{"t.content": f"Word {i}", "t.text_type": "label", "t.element": "span"}
                  for i in range(16)]
     _STYLES_15_BY_STATE = {
@@ -411,7 +418,7 @@ class _OverflowReader:
     def get_section(self, screen, section_hint):
         return {
             "id": "sec_x", "name": "BigSection", "detection_method": "comment",
-            "styles": self._STYLES_9,
+            "styles_by_element": self._STYLES_9_BY_ELEMENT,
             "component_refs": ["BtnPrimary"],
             "texts": self._TEXTS_9,
             "jsx_snippet": "",
@@ -476,7 +483,7 @@ class TestTruncationWarnings:
             def get_section(self, screen, section_hint):
                 return {
                     "id": "s", "name": "Small", "detection_method": "comment",
-                    "styles": {"padding": "4px"},
+                    "styles_by_element": {"(estilo da seção)": [{"property": "padding", "value": "4px"}]},
                     "component_refs": [], "texts": ["Hello"], "jsx_snippet": "",
                 }
         d = ToolDispatcher([("proto", SmallReader())])
@@ -673,7 +680,7 @@ class _JsxOverflowReader:
     def get_section(self, screen, section_hint):
         return {
             "id": "sec_x", "name": "BigSection", "detection_method": "comment",
-            "styles": {}, "component_refs": [], "texts": [],
+            "styles_by_element": {}, "component_refs": [], "texts": [],
             "jsx_snippet": self._LONG_JSX,
         }
 
@@ -682,7 +689,7 @@ class _JsxOverflowReader:
             "name": "BigScreen", "component_count": 1, "sections_count": 1,
             "sections": [{
                 "name": "BigSection", "detection_method": "comment",
-                "styles": {}, "component_refs": [], "texts": [],
+                "styles_by_element": {}, "component_refs": [], "texts": [],
                 "jsx_snippet": self._LONG_JSX,
             }],
             "components": [{

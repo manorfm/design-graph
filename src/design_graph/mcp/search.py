@@ -185,4 +185,12 @@ def _search_reader(
                 id=text.get("t.id", content), doc=doc_name, score=s,
             ))
 
+    for class_name in reader.list_shared_style_classes():
+        s = score_match(class_name, term)
+        if s > 0:
+            results.append(SearchResult(
+                type="CssClass", name=class_name, detail="classe CSS compartilhada",
+                id=f"class:{class_name}", doc=doc_name, score=s,
+            ))
+
     return results

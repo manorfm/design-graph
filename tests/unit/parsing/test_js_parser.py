@@ -147,6 +147,91 @@ class TestExtractReturnBlock:
         assert extract_return_block("", 0, 0) == ""
 
 
+class TestExtractReturnBlockMultipleGuardClauses:
+    """
+    A component with early-return guard clauses before its main render
+    (`if (!user) return <Login/>; if (x) return <X/>; return <Main/>;`) used
+    to lose every branch except whichever `return` the regex matched first
+    — textually the FIRST guard, not the branch that actually renders the
+    screen's real content. Reproduces the `App` root-component bug from
+    docs/changes/C36 (get_full_jsx("App") returned only one early return).
+
+    body_start is required to opt into this path — omitting it (as every
+    pre-existing call above does) keeps the old single-match behavior
+    unchanged.
+    """
+
+    def test_single_top_level_return_is_unlabeled(self):
+        js = "function Foo() { return (<div>hello</div>); }"
+        body_start = js.index("{")
+
+        result = extract_return_block(js, 0, len(js), body_start=body_start)
+
+        assert result == "<div>hello</div>"
+
+    def test_captures_every_guard_clause_and_the_default_branch(self):
+        js = (
+            "function App() {\n"
+            "  if (!user) return <Login/>;\n"
+            "  if (firstLogin) return <FirstLoginScreen/>;\n"
+            "  return <MainLayout>real content</MainLayout>;\n"
+            "}"
+        )
+        body_start = js.index("{")
+
+        result = extract_return_block(js, 0, len(js), body_start=body_start)
+
+        assert "<Login/>" in result
+        assert "<FirstLoginScreen/>" in result
+        assert "<MainLayout>real content</MainLayout>" in result
+
+    def test_last_branch_is_labeled_default(self):
+        js = (
+            "function App() {\n"
+            "  if (!user) return <Login/>;\n"
+            "  return <MainLayout/>;\n"
+            "}"
+        )
+        body_start = js.index("{")
+
+        result = extract_return_block(js, 0, len(js), body_start=body_start)
+
+        assert "{[return_branch:1]}" in result
+        assert "{[return_branch:default]}" in result
+        default_marker = result.index("{[return_branch:default]}")
+        assert result.index("<MainLayout/>") > default_marker
+
+    def test_return_nested_inside_its_own_block_is_not_treated_as_top_level(self):
+        """Documented limitation: `if (cond) { return X; }` sits one brace
+        deeper than a bare `if (cond) return X;` guard, so it is not
+        captured as a separate branch — only the un-braced idiom is."""
+        js = (
+            "function App() {\n"
+            "  if (loading) { return <Spinner/>; }\n"
+            "  return <MainLayout/>;\n"
+            "}"
+        )
+        body_start = js.index("{")
+
+        result = extract_return_block(js, 0, len(js), body_start=body_start)
+
+        assert "<MainLayout/>" in result
+        assert "return_branch" not in result  # single top-level return found
+
+    def test_omitting_body_start_keeps_first_match_only_for_backward_compat(self):
+        js = (
+            "function App() {\n"
+            "  if (!user) return <Login/>;\n"
+            "  return <MainLayout/>;\n"
+            "}"
+        )
+
+        result = extract_return_block(js, 0, len(js))
+
+        assert "<Login/>" in result
+        assert "<MainLayout/>" not in result
+
+
 class TestFindFunctionBoundaries:
     JS = """
     function BtnPrimary() { return <div/>; }

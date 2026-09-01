@@ -4,6 +4,7 @@ import pytest
 
 from design_graph.core.models import ExtractedScreen
 from design_graph.extraction.section_extractor import extract_sections
+from design_graph.parsing.css_class_resolver import CssRule
 from design_graph.parsing.js_parser import find_all_boundaries
 
 WITH_COMMENTS_JS = """
@@ -239,3 +240,61 @@ class TestSectionStyleSurvivesTemplateLiteral:
         header = next(s for s in sections if "header" in s.name.lower())
         assert header.styles.get("padding") == "24px"
         assert header.styles.get("border") == "`1px solid ${C.border2}`"
+
+
+AUDIT_ITEM_WITH_NESTED_CLASSES_JS = """
+function HistoryView() {
+    return (
+        <div>
+            {/* ── Audit item ── */}
+            <div className="audit-item">
+                <div className="audit-dot"><Icon name="history" /></div>
+            </div>
+        </div>
+    )
+}
+"""
+
+
+class TestSectionElementStyleAttribution:
+    """
+    A section styled entirely via CSS classes (no literal style={{}}
+    objects) used to have every class's resolved properties flattened into
+    one dict keyed only by property name — two classes contributing the
+    SAME property (e.g. .audit-item{display:grid} and .audit-dot{display:
+    flex}) collided, last-one-wins, with no way to tell which selector a
+    surviving value came from. Reproduces the real "Audit item" bug from
+    docs/changes/C36 (get_section("HistoryView", "Audit item") mixing
+    .audit-item/.audit-rail/.audit-dot properties into one flat array).
+    """
+
+    def test_two_classes_with_same_property_both_survive_attributed(self):
+        rule_map = {
+            "audit-item": [
+                CssRule(".audit-item", "display", "grid"),
+                CssRule(".audit-item", "gap", "5px"),
+            ],
+            "audit-dot": [CssRule(".audit-dot", "display", "flex")],
+        }
+        boundary = _boundary(AUDIT_ITEM_WITH_NESTED_CLASSES_JS, name="HistoryView")
+        sections = extract_sections(
+            AUDIT_ITEM_WITH_NESTED_CLASSES_JS, _screen("HistoryView"), boundary,
+            rule_map=rule_map,
+        )
+        section = next(s for s in sections if "audit" in s.name.lower())
+
+        by_element: dict[str, set[tuple[str, str]]] = {}
+        for entry in section.element_styles:
+            by_element.setdefault(entry.element, set()).add((entry.property, entry.value))
+
+        assert ("display", "grid") in by_element["class:audit-item"]
+        assert ("gap", "5px") in by_element["class:audit-item"]
+        assert by_element["class:audit-dot"] == {("display", "flex")}
+
+    def test_no_rule_map_yields_no_element_styles(self):
+        boundary = _boundary(AUDIT_ITEM_WITH_NESTED_CLASSES_JS, name="HistoryView")
+        sections = extract_sections(
+            AUDIT_ITEM_WITH_NESTED_CLASSES_JS, _screen("HistoryView"), boundary,
+        )
+        section = next(s for s in sections if "audit" in s.name.lower())
+        assert section.element_styles == []

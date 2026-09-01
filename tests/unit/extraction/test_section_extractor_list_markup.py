@@ -166,7 +166,10 @@ class TestInlineListMarkupResolvesCssClasses:
     (`.audit-item { ... }`), not inline `style={{}}`. Without resolving
     className against the stylesheet the same way extract_component already
     does, the new section would carry structure (refs, JSX) but none of the
-    real visual styling.
+    real visual styling. Class-resolved styles land in element_styles,
+    attributed to their own selector (element="class:<name>") — not the
+    flat `styles` dict, which only ever holds literal style={{}} values
+    (see docs/changes/C36).
     """
 
     def test_class_based_styles_resolved_when_rule_map_provided(self):
@@ -179,9 +182,15 @@ class TestInlineListMarkupResolvesCssClasses:
             HISTORY_VIEW_JS, _screen("HistoryView"), boundary, rule_map=rule_map,
         )
         audit_section = next(s for s in sections if "Icon" in s.component_refs)
-        assert audit_section.styles.get("display") == "flex"
+        resolved = {(e.property, e.value) for e in audit_section.element_styles}
+        assert ("display", "flex") in resolved
 
-    def test_inline_style_wins_over_resolved_class_for_same_property(self):
+    def test_inline_style_and_resolved_class_coexist_without_collision(self):
+        """
+        A literal style={{}} on the same element a class also styles no
+        longer competes for one flat slot — the two live in separate,
+        independently attributed structures, so both survive intact.
+        """
         js = """
         function StyledRows() {
             return (
@@ -200,9 +209,12 @@ class TestInlineListMarkupResolvesCssClasses:
         sections = extract_sections(js, _screen("StyledRows"), boundary, rule_map=rule_map)
         audit_section = next(s for s in sections if "Icon" in s.component_refs)
         assert audit_section.styles.get("display") == "grid"
+        resolved = {(e.property, e.value) for e in audit_section.element_styles}
+        assert ("display", "flex") in resolved
 
     def test_no_class_styles_added_when_rule_map_is_none(self):
         boundary = _boundary(HISTORY_VIEW_JS, "HistoryView")
         sections = extract_sections(HISTORY_VIEW_JS, _screen("HistoryView"), boundary, rule_map=None)
         audit_section = next(s for s in sections if "Icon" in s.component_refs)
         assert "display" not in audit_section.styles
+        assert audit_section.element_styles == []

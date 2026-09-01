@@ -92,6 +92,43 @@ class TestDuplicateStyleGuard:
         assert result.get_next()[0] == 1
 
 
+class TestSharedStyleEdgeNotSkipped:
+    """
+    A CSS class shared by two different components has a deterministic
+    Style id independent of which component uses it (StyleEntry.
+    from_css_class's seed is class+property+value, not the owner). The
+    HAS_STYLE edge used to be created only for whichever component wrote
+    the Style node first — write_component's dedup guard skipped the whole
+    per-style block (node AND edge) via `continue` once the node already
+    existed, so the second/third/... owner silently lost the relationship
+    entirely. Reproduces the real bug from docs/changes/C36.
+    """
+
+    def test_second_component_still_gets_the_edge(self, writer):
+        gw, conn = writer
+        shared = StyleEntry.from_css_class("chip", "color", "red")
+        gw.write_component(_comp("FirstUser", styles=[shared]), {})
+        gw.write_component(_comp("SecondUser", styles=[shared]), {})
+
+        result = conn.execute(
+            "MATCH (c:Component)-[:HAS_STYLE]->(s:Style {id:$id}) RETURN c.name",
+            {"id": shared.id},
+        )
+        names = set()
+        while result.has_next():
+            names.add(result.get_next()[0])
+        assert names == {"FirstUser", "SecondUser"}
+
+    def test_style_node_still_written_exactly_once(self, writer):
+        gw, conn = writer
+        shared = StyleEntry.from_css_class("chip", "color", "red")
+        gw.write_component(_comp("FirstUser", styles=[shared]), {})
+        gw.write_component(_comp("SecondUser", styles=[shared]), {})
+
+        result = conn.execute("MATCH (s:Style {id:$id}) RETURN count(s)", {"id": shared.id})
+        assert result.get_next()[0] == 1
+
+
 # ── Duplicate interaction deduplication ──────────────────────────────────────
 
 class TestDuplicateInteractionGuard:

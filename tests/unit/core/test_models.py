@@ -402,6 +402,27 @@ class TestExtractedSectionCreate:
         assert section.id == expected
         assert section.detection_method == DetectionMethod.SEMANTIC
 
+    def test_element_styles_defaults_to_empty_list(self):
+        section = ExtractedSection.create(
+            screen="HomeScreen", name="Header", styles={}, component_refs=[],
+            texts=[], jsx_snippet="", detection_method=DetectionMethod.COMMENT,
+        )
+        assert section.element_styles == []
+
+    def test_element_styles_preserves_per_selector_entries(self):
+        entries = [
+            StyleEntry.from_css_class("audit-item", "display", "grid"),
+            StyleEntry.from_css_class("audit-dot", "display", "flex"),
+        ]
+        section = ExtractedSection.create(
+            screen="HistoryView", name="Audit item", styles={}, component_refs=[],
+            texts=[], jsx_snippet="", detection_method=DetectionMethod.LIST_ITEM,
+            element_styles=entries,
+        )
+        assert section.element_styles == entries
+        elements = {entry.element for entry in section.element_styles}
+        assert elements == {"class:audit-item", "class:audit-dot"}
+
 
 class TestExtractedComponentConsolidateSingleVariant:
     def _component(self, jsx: str) -> ExtractedComponent:

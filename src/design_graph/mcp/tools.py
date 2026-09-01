@@ -71,11 +71,23 @@ def _extract_validation_candidate(jsx_source: str):
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
-def _truncation_notice(total: int, shown: int) -> str | None:
-    """Return a Markdown blockquote notice when a list was cut, else None."""
-    if total > shown:
-        return f"> ... +{total - shown} mais"
-    return None
+def _truncation_notice(total: int, shown: int, recoverable_via: str | None = None) -> str | None:
+    """
+    Return a Markdown blockquote notice when a list was cut, else None.
+
+    recoverable_via: when a real escape hatch exists for what got cut (only
+    styles do today, via get_full_styles), the exact call to make — same
+    "never truncate without naming the way back" convention already used by
+    _truncated_fields_notice and CappedJsx.notice for jsx_snippet/component
+    truncation. None (every non-style caller) keeps the notice as it was
+    before this parameter existed.
+    """
+    if total <= shown:
+        return None
+    notice = f"> ... +{total - shown} mais"
+    if recoverable_via:
+        notice += f" — chame `get_full_styles({recoverable_via})` para a lista completa"
+    return notice
 
 
 def _truncated_fields_notice(
@@ -237,6 +249,31 @@ def _dedupe_styles_by_property(styles: list[dict]) -> list[dict]:
     ]
 
 
+_SECTION_STYLE_GROUP_CAP = 8
+
+
+def _section_style_group_lines(
+    styles_by_element: dict[str, list[dict]], recoverable_via: str,
+) -> list[str]:
+    """
+    Render a section's styles_by_element as Markdown, one sub-list per CSS
+    selector — the section-level counterpart to get_component_spec's
+    "Styles — {state}" grouping, grouped by selector instead of state (see
+    docs/changes/C36: a flat property list gave no way to tell which of a
+    section's several nested selectors a given value belonged to).
+    """
+    lines: list[str] = []
+    for selector, raw_styles in sorted(styles_by_element.items()):
+        styles = _dedupe_styles_by_property(raw_styles)
+        lines.append(f"- **{selector}**")
+        for s in styles[:_SECTION_STYLE_GROUP_CAP]:
+            lines.append(f"  - `{s['property']}`: `{s['value']}`")
+        notice = _truncation_notice(len(styles), _SECTION_STYLE_GROUP_CAP, recoverable_via=recoverable_via)
+        if notice:
+            lines.append(f"  {notice}")
+    return lines
+
+
 # ── Tool schema definitions (MCP protocol) ────────────────────────────────────
 
 def _doc_param() -> dict:
@@ -374,6 +411,19 @@ TOOL_DEFINITIONS: list[dict] = [
                 "doc":  _doc_param(),
             },
             "required": ["name"],
+        },
+    },
+    {
+        "name": "get_full_styles",
+        "description": "Returns a component's or a screen section's complete style list, without the display cap other tools apply ('+N mais'). The get_full_jsx equivalent for styles. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec truncated a style table.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name":    {"type": "string", "description": "Component name (mutually exclusive with screen/section)"},
+                "screen":  {"type": "string", "description": "Screen name (use together with section)"},
+                "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
+                "doc":     _doc_param(),
+            },
         },
     },
     {
@@ -654,6 +704,7 @@ class ToolDispatcher:
             "find_token_usage":          lambda: self.find_token_usage(reader, args.get("value", "")),
             "impact":                    lambda: self.impact(reader, name),
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
+            "get_full_styles":           lambda: self.get_full_styles(reader, name, args.get("screen", ""), args.get("section", "")),
             "get_component_interactions": lambda: self.get_component_interactions(reader, name),
             "get_component_children":    lambda: self.get_component_children(reader, name),
             "list_components":           lambda: self.list_components(reader, args.get("comp_type"), args.get("limit")),
@@ -784,12 +835,11 @@ class ToolDispatcher:
                 lines.append(f"*Detection*: {sec['detection_method']}")
                 if sec["component_refs"]:
                     lines.append(f"**Components**: {', '.join(sec['component_refs'])}")
-                if sec["styles"]:
-                    style_pairs = [f"`{p}`: `{v}`" for p, v in list(sec["styles"].items())[:8]]
-                    lines.append(f"**Styles**: {' | '.join(style_pairs)}")
-                    notice = _truncation_notice(len(sec["styles"]), 8)
-                    if notice:
-                        lines.append(notice)
+                if sec["styles_by_element"]:
+                    lines.append("**Styles**:")
+                    lines.extend(_section_style_group_lines(
+                        sec["styles_by_element"], recoverable_via=f'screen="{spec["name"]}", section="{sec["name"]}"',
+                    ))
                 if sec["texts"]:
                     for t in sec["texts"][:6]:
                         lines.append(f'- "{t}"')
@@ -907,14 +957,11 @@ class ToolDispatcher:
         if not sec:
             return f"Seção '{section}' não encontrada em '{screen}'."
         lines = [f"# Seção: {sec['name']}  (em {screen})", ""]
-        if sec["styles"]:
-            styles_items = list(sec["styles"].items())
+        if sec["styles_by_element"]:
             lines.append("## Estilos")
-            for prop, val in styles_items[:6]:
-                lines.append(f"- `{prop}`: `{val}`")
-            notice = _truncation_notice(len(styles_items), 6)
-            if notice:
-                lines.append(notice)
+            lines.extend(_section_style_group_lines(
+                sec["styles_by_element"], recoverable_via=f'screen="{screen}", section="{sec["name"]}"',
+            ))
         if sec["component_refs"]:
             lines.append("\n## Componentes")
             for comp in sec["component_refs"]:
@@ -1054,6 +1101,50 @@ class ToolDispatcher:
                 lines.append(f"- {c}")
         return "\n".join(lines)
 
+    def get_full_styles(self, reader: GraphReader, name: str, screen: str, section: str) -> str:
+        """
+        Uncapped style list — the get_full_jsx equivalent for styles.
+
+        The reader already returns every style row; get_section/
+        get_screen_full/get_component_spec only ever slice it for display
+        ("+N mais" with no way back). This renders the same reader data
+        without the slice — no new query, just no truncation (see
+        docs/changes/C36).
+        """
+        if screen and section:
+            sec = reader.get_section(screen, section)
+            if not sec:
+                return f"Seção '{section}' não encontrada em '{screen}'."
+            if not sec["styles_by_element"]:
+                return f"Nenhum estilo encontrado para a seção '{sec['name']}'."
+            lines = [f"# Estilos completos: {sec['name']} (em {screen})\n"]
+            for selector, raw_styles in sorted(sec["styles_by_element"].items()):
+                lines.append(f"## {selector}")
+                lines.append("| Propriedade | Valor |")
+                lines.append("|---|---|")
+                for s in _dedupe_styles_by_property(raw_styles):
+                    lines.append(f"| {s['property']} | {s['value']} |")
+                lines.append("")
+            return "\n".join(lines)
+
+        if name:
+            spec = reader.get_component_spec(name)
+            if not spec:
+                return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+            if not spec.get("styles_by_state"):
+                return f"Nenhum estilo encontrado para o componente '{spec['c.name']}'."
+            lines = [f"# Estilos completos: {spec['c.name']}\n"]
+            for state, raw_styles in sorted(spec["styles_by_state"].items()):
+                lines.append(f"## Estado: {state}")
+                lines.append("| Propriedade | Valor |")
+                lines.append("|---|---|")
+                for s in _dedupe_styles_by_property(raw_styles):
+                    lines.append(f"| {s['property']} | {s['value']} |")
+                lines.append("")
+            return "\n".join(lines)
+
+        return "Informe `name` (componente) ou `screen` + `section` (seção)."
+
     def get_full_jsx(self, reader: GraphReader, name: str) -> str:
         raw = reader.get_full_jsx(name)
         if not raw:
@@ -1128,9 +1219,37 @@ class ToolDispatcher:
         logger.debug("tools: list_components(type=%s) → %d/%d rows shown", comp_type, len(shown), len(comps))
         return "\n".join(lines)
 
+    def _render_shared_css_class_spec(
+        self, reader: GraphReader, class_name: str, styles: list[dict],
+    ) -> str:
+        """
+        Render a CSS class that was never factored into a named React
+        component (e.g. `.page-title`, `.chip`, `.audit-dot` — shared by
+        several screens' own inline markup) as a spec, clearly labeled as a
+        class rather than a component so it's never mistaken for one (see
+        docs/changes/C36 P3).
+        """
+        owners = reader.find_class_owners(class_name)
+        lines = [
+            f"# Spec: .{class_name}",
+            "**Tipo**: classe CSS (não é um componente React nomeado)",
+        ]
+        used_in = [*owners["components"], *(f'{o["screen"]} / {o["section"]}' for o in owners["sections"])]
+        if used_in:
+            lines.append(f"**Usado em**: {', '.join(used_in)}")
+        lines.append("\n## Estilos")
+        lines.append("| Propriedade | Valor |")
+        lines.append("|---|---|")
+        for s in styles:
+            lines.append(f"| {s['property']} | {s['value']} |")
+        return "\n".join(lines)
+
     def get_component_spec(self, reader: GraphReader, name: str) -> str:
         spec = reader.get_component_spec(name)
         if not spec:
+            class_styles = reader.find_styles_by_class(name)
+            if class_styles:
+                return self._render_shared_css_class_spec(reader, name, class_styles)
             return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
 
         cname = spec["c.name"]

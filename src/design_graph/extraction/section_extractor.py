@@ -33,6 +33,7 @@ from design_graph.core.models import (
     ExtractedScreen,
     ExtractedSection,
     FunctionBoundary,
+    StyleEntry,
     StyleState,
 )
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
@@ -72,14 +73,15 @@ def extract_sections(
 
     rule_map: optional CSS class resolver map from
     css_class_resolver.extract_css_rules(). When provided, a section's
-    className strings resolve into additional default-state styles —
-    the same resolution extract_component already applies, needed here
-    because this prototype convention styles containers via CSS classes,
-    not inline style={{}} objects. Only unconditional (non-@media) rules
-    are resolved: ExtractedSection.styles is a flat dict with no media
-    axis, so folding a viewport-conditional value in would silently
-    conflate it with the unconditional one (the exact bug C35 fixed for
-    components by keeping them apart via StyleEntry.media).
+    className strings resolve into additional default-state styles, kept
+    in ExtractedSection.element_styles (one entry per selector) — the same
+    resolution extract_component already applies, needed here because this
+    prototype convention styles containers via CSS classes, not inline
+    style={{}} objects. Only unconditional (non-@media) rules are resolved:
+    StyleEntry has no media axis populated here, so folding a viewport-
+    conditional value in would silently conflate it with the unconditional
+    one (the exact bug C35 fixed for components by keeping them apart via
+    StyleEntry.media).
     """
     if boundary.end <= boundary.start:
         return []
@@ -313,21 +315,31 @@ def _detect_by_list_markup(
 
 # ── Section builder ───────────────────────────────────────────────────────────
 
-def _resolve_section_class_styles(
+def _resolve_section_element_styles(
     block: str, rule_map: dict[str, list[CssRule]] | None,
-) -> dict[str, str]:
+) -> list[StyleEntry]:
     """
-    Default-state styles resolved from this section's own className strings,
-    the same way extract_component resolves a component's classes — needed
-    because a prototype styling containers via CSS classes (not inline
-    style={{}}) would otherwise leave a Section with structure but no real
-    visual styling. Returns {} when rule_map is None (caller opted out) or
-    the block carries no static className. Hover/focus-state class variants
-    (`hover:bg-red-500`) are skipped: ExtractedSection.styles has no state
-    axis to put them in.
+    Default-state styles resolved from every className string found anywhere
+    in this section's block, the same way extract_component resolves a
+    component's classes — needed because a prototype styling containers via
+    CSS classes (not inline style={{}}) would otherwise leave a Section with
+    structure but no real visual styling.
+
+    Unlike a literal style={{}} object (which carries no selector identity —
+    see ExtractedSection.styles), a className string IS the selector, and
+    resolve_classes() already tags each StyleEntry with it (element=
+    "class:<name>") — that attribution is preserved here, not collapsed into
+    a flat dict, so two different classes contributing the same CSS property
+    (e.g. .audit-item{display:grid} and .audit-dot{display:flex}) survive as
+    two distinct entries instead of one silently overwriting the other (see
+    docs/changes/C36).
+
+    Returns [] when rule_map is None (caller opted out) or the block carries
+    no static className. Hover/focus-state class variants (`hover:bg-red-
+    500`) are skipped: a section has no rendered "state" to put them in.
     """
     if rule_map is None:
-        return {}
+        return []
     seen_classes: set[str] = set()
     classes: list[str] = []
     for m in RE_CLASS_NAME.finditer(block):
@@ -336,12 +348,11 @@ def _resolve_section_class_styles(
                 seen_classes.add(cls)
                 classes.append(cls)
     if not classes:
-        return {}
-    return {
-        entry.property: entry.value
-        for entry in resolve_classes(" ".join(classes), rule_map)
+        return []
+    return [
+        entry for entry in resolve_classes(" ".join(classes), rule_map)
         if entry.state == StyleState.DEFAULT
-    }
+    ]
 
 
 def _build_section(
@@ -351,16 +362,15 @@ def _build_section(
     detection_method: DetectionMethod,
     rule_map: dict[str, list[CssRule]] | None = None,
 ) -> ExtractedSection:
-    # Styles — literal style={{}} objects take precedence over a class-
-    # resolved value for the same property, same precedence rule
-    # extract_component applies to its own style/spread merge.
+    # Literal style={{}} objects — no selector identity, attributed to the
+    # section as a whole (see ExtractedSection.styles). CSS-class-resolved
+    # styles go in element_styles instead, one entry per selector (C36).
     styles: dict[str, str] = {}
     for style_block in iter_style_object_blocks(block):
         for prop, val in parse_object_literal_props(style_block):
             if val and val not in ("true", "false", "null", "undefined"):
                 styles[prop] = val
-    for prop, val in _resolve_section_class_styles(block, rule_map).items():
-        styles.setdefault(prop, val)
+    element_styles = _resolve_section_element_styles(block, rule_map)
 
     # Component references — first-appearance order, not alphabetical (C34,
     # same fix C30 already applied to a component's own child_refs).
@@ -396,6 +406,7 @@ def _build_section(
         texts=texts,
         jsx_snippet=block[:3_000].strip(),
         detection_method=detection_method,
+        element_styles=element_styles,
     )
 
 
@@ -405,7 +416,7 @@ def _qualifies(section: ExtractedSection) -> bool:
     return (
         len(section.component_refs) >= 1
         or len(section.texts) >= 2
-        or len(section.styles) >= 3
+        or len(section.styles) + len(section.element_styles) >= 3
     )
 
 

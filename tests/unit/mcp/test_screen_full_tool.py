@@ -28,7 +28,12 @@ def _make_screen_full_spec() -> dict:
                 "id":               "sec1",
                 "name":             "HeroSection",
                 "detection_method": "comment",
-                "styles":           {"padding": "32px", "backgroundColor": "#000"},
+                "styles_by_element": {
+                    "(estilo da seção)": [
+                        {"property": "padding", "value": "32px"},
+                        {"property": "backgroundColor", "value": "#000"},
+                    ],
+                },
                 "component_refs":   ["TopNav"],
                 "texts":            ["Welcome", "Get started"],
                 "jsx_snippet":      "<section>Hero</section>",

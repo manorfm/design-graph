@@ -132,5 +132,5 @@ class TestReaderGetSectionStyles:
         reader = GraphReader(section_graph)
         section = reader.get_section("LandingPage", "Header")
         assert section is not None
-        styles = section.get("styles", {})
-        assert styles.get("padding") == "24px"
+        own_styles = section["styles_by_element"]["(estilo da seção)"]
+        assert {"property": "padding", "value": "24px"} in own_styles
