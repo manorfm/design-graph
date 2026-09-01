@@ -412,7 +412,7 @@ The `doc` value is the database filename without `.db`.
 - Visual-function filtering that excludes non-rendering React/Babel runtime internals
 - Lexical function scanning that handles destructured parameters, strings, templates and comments
 - Semantic screen roles that keep forms, tabs, sections and modals as components unless they are true navigation surfaces
-- Screens, semantic sections and reusable components
+- Screens, semantic sections and reusable components — a section is detected from a padding/margin-heavy container whether that padding comes from an inline `style={{}}` or only from a CSS class the container's own stylesheet resolves
 - Typed screen-to-screen and section-to-screen references without synthetic component shells
 - Consolidation of same-named source variants without dropping props, JSX, styles or child references
 - Component hierarchy in sibling render order, occurrence counts, declared props and defaults

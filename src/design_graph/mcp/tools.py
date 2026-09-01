@@ -1130,7 +1130,15 @@ class ToolDispatcher:
         if name:
             spec = reader.get_component_spec(name)
             if not spec:
-                return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+                # Same fallback get_component_spec applies (C36 P3) — a
+                # shared CSS class with no named component must resolve
+                # here too, not just through the other tool.
+                class_styles = reader.find_styles_by_class(name)
+                if not class_styles:
+                    return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+                lines = [f"# Estilos completos: .{name}\n", "| Propriedade | Valor |", "|---|---|"]
+                lines.extend(f"| {s['property']} | {s['value']} |" for s in class_styles)
+                return "\n".join(lines)
             if not spec.get("styles_by_state"):
                 return f"Nenhum estilo encontrado para o componente '{spec['c.name']}'."
             lines = [f"# Estilos completos: {spec['c.name']}\n"]

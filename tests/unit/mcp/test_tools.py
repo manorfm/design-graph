@@ -364,6 +364,17 @@ class TestGetFullStylesTool:
         assert "prop14" in result  # 15th entry — beyond the 12-item display cap
         assert "mais" not in result.lower()
 
+    def test_falls_back_to_shared_css_class_when_no_component_matches(self):
+        """
+        get_component_spec("page-title") falls back to find_styles_by_class
+        when no component matches — get_full_styles(name="page-title") must
+        do the same, or a class-only lookup silently works through one tool
+        and not its "full" counterpart (reported gap, docs/changes/C37).
+        """
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "page-title"}, "doc1")
+        assert "font-size" in result
+        assert "25px" in result
+
     def test_unknown_component_returns_not_found_message(self):
         result = _dispatcher(1).dispatch("get_full_styles", {"name": "GhostComp"}, "doc1")
         assert "não encontrado" in result.lower() or "not found" in result.lower()

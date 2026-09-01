@@ -79,14 +79,16 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | [C34](C34-post-audit-fixes/) | Correções de uma segunda rodada de auditoria (C25–C33) | ✅ Done | T72–T76 | 5 bugs achados numa segunda auditoria crítica do código de C25–C33, dois deles críticos (reordenação alfabética desfazendo C30; `Component` fantasma com nome de `Screen`) |
 | [C35](C35-media-query-css-scoping/) | Parsing: `@media` corrompe a resolução de classe CSS | ✅ Done | T77–T79 | Crítico — `extract_css_rules`/`extract_tag_pseudo_rules` absorviam regras de dentro de `@media` como se fossem incondicionais, sobrescrevendo o valor default real (evidência: `.page-title` em `toToggle v2.2.html` perdia 2 de 3 propriedades e retornava o valor de viewport ≤600px como se fosse o padrão). T77 corrige a corrupção; T78 expõe as regras responsivas separadamente — nova coluna `media` em `Style`, seção "Estilos responsivos" em `get_component_spec`, descrição da tool atualizada para o agente saber que ela existe. T79 (descoberto ao exercitar `get_component_full` contra o grafo real, não por revisão especulativa) fecha 6 outras tools (`get_component`, `get_component_full`, `get_styles_with_tokens`, `get_screen_full`, `get_component_layout_profile`, `get_screen_layout`) que o próprio T78 tinha reaberto para a mesma classe de bug de P1, um nível acima |
 | [C36](C36-mcp-style-attribution-and-discoverability/) | MCP: atribuição de estilo por seletor + descoberta de classe CSS compartilhada | ✅ Done | T80–T84 | Crítico — relato externo (`toToggle`, seção "Audit item") verificado contra o grafo real: `get_section`/`get_screen_full` achatavam estilos de seletores diferentes num único array (`.audit-item`/`.audit-rail`/`.audit-dot` misturados); `GraphWriter` pulava a edge `HAS_STYLE`/`SECTION_HAS_STYLE` (não só o nó) para qualquer classe CSS compartilhada por ≥2 donos; `get_full_jsx("App")` devolvia só o primeiro `return` de um componente com guard clauses, descartando o branch que renderiza a UI principal; `get_screen_layout` nunca cobria `Section`; classes CSS sem componente React nomeado (`page-title`, `chip`) eram invisíveis a `search`/`get_component_spec`. T80 corrige múltiplos `return` (parsing); T81 corrige atribuição por seletor + a edge perdida (fundação); T82 adiciona `get_full_styles` (escape hatch, sem truncamento); T83 estende `get_screen_layout` a seções; T84 adiciona `find_styles_by_class`/`find_class_owners`/`list_shared_style_classes` |
+| [C37](C37-structural-detection-css-resolved-padding/) | Extraction: detecção estrutural passa a considerar padding/margin resolvido por classe CSS | ✅ Done | — | Crítico — mesmo agente externo, testando C36 contra `UsersView`: `get_screen("UsersView")` devolvia "Seções: 0" mesmo a tela tendo `.page`/`.page-head`/`.page-title`/`.page-desc` reais, porque `_detect_by_structure` só reconhecia `style={{padding:Npx}}` literal — nunca um valor que só existe na stylesheet via `className` (confirmado: `.page{padding:26px...}`, `.page-head{margin-bottom:26px}` no CSS real do `toToggle`, nenhum inline). Nova fonte de candidato (`_resolved_class_padding_candidates`) resolve `<div className>` via `resolve_classes` e qualifica pelo mesmo limiar de 16px. Corrigido junto: `get_full_styles(name=X)` não tinha o fallback de classe CSS que `get_component_spec` já tinha desde C36 P3 |
 
 > C23 nasceu de uma investigação real de sessão de agente, não de análise de
-> código a priori — mesmo padrão de origem do C35 e do C36. C34 é uma
-> segunda rodada de auditoria sobre C25–C33, não um change de feature. C35 e
-> C36 são o mesmo tipo de achado: relato externo verificado contra o código
-> e transformado em bug real (C35: "design-graph não expõe media queries";
-> C36: "estilos de HistoryView vêm misturados e classes compartilhadas
-> nunca são encontradas").
+> código a priori — mesmo padrão de origem do C35, C36 e C37. C34 é uma
+> segunda rodada de auditoria sobre C25–C33, não um change de feature. C35,
+> C36 e C37 são o mesmo tipo de achado: relato externo verificado contra o
+> código e transformado em bug real (C35: "design-graph não expõe media
+> queries"; C36: "estilos de HistoryView vêm misturados e classes
+> compartilhadas nunca são encontradas"; C37: achado ao testar C36 numa
+> segunda tela do mesmo prototype — "UsersView continua com 0 seções").
 
 ---
 
