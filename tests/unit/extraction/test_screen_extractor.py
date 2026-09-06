@@ -36,6 +36,30 @@ class TestIsScreen:
         assert is_screen(name) == expected
 
 
+class TestIsScreenRecognisesRootComponentByName:
+    """
+    "App" is the near-universal name React tooling and tutorials give the
+    root component (create-react-app, Vite's React template, ...) — the one
+    whose main return renders the entire authenticated shell (sidebar/
+    topbar/routing). It carries no Page/View/Screen suffix of its own, so
+    ScreenIdentity's suffix table alone never recognised it, making that
+    shell permanently unreachable via list_screens/get_section (see
+    docs/investigation/design-graph-findings.md, Achado 3).
+    """
+
+    def test_app_is_a_screen(self):
+        assert is_screen("App") is True
+
+    def test_app_role_is_root(self):
+        assert ScreenIdentity.classify("App").role == ScreenRole.ROOT
+
+    def test_unrelated_component_named_appcard_is_untouched(self):
+        # Exact-name match only — must not become a suffix/prefix rule that
+        # reopens unrelated names like "AppCard" or "MiniApp".
+        assert is_screen("AppCard") is False
+        assert is_screen("MiniApp") is False
+
+
 class TestIsScreenRecognisesOverlayShellsByStructure:
     """
     ScreenIdentity's suffix table deliberately excludes Tab/Panel/Modal/...

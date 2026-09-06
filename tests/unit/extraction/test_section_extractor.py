@@ -92,6 +92,32 @@ class TestCommentBasedSections:
         for sec in sections:
             assert sec.screen == "RestaurantsPage"
 
+    def test_react_internals_excluded_from_component_refs(self):
+        # component_extractor.py and screen_extractor.py already exclude
+        # REACT_INTERNALS (Fragment, Suspense, ...) from the refs they
+        # collect — section_extractor's own comp_refs collection was the one
+        # site missing that check, letting a bare <Fragment> wrapper inside
+        # a section's markup end up written to the graph as if it were a
+        # real, but never-defined, child component (docs/changes/C38).
+        js = """
+        function RestaurantsPage() {
+            return (
+                <div>
+                    {/* ── Header ── */}
+                    <Fragment>
+                        <BtnFilter />
+                    </Fragment>
+                </div>
+            )
+        }
+        """
+        boundary = _boundary(js)
+        sections = extract_sections(js, _screen(), boundary)
+        header = next((s for s in sections if "header" in s.name.lower()), None)
+        assert header is not None
+        assert "BtnFilter" in header.component_refs
+        assert "Fragment" not in header.component_refs
+
 
 class TestStructuralFallback:
     def test_fallback_triggers_when_no_comments(self):

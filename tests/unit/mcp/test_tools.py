@@ -60,7 +60,7 @@ class MockReader:
                 ".audit-item": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(10)],
                 ".audit-dot": [{"property": "display", "value": "flex"}],
             },
-            "component_refs": [], "texts": [], "jsx_snippet": "",
+            "component_refs": [], "texts": [f"text{i}" for i in range(10)], "jsx_snippet": "",
         }
     def count_nodes(self): return {}
     def find_screens_using_comp_transitively(self, name): return []
@@ -88,6 +88,15 @@ class MockReader:
                 "tokens": [], "texts": [], "interactions": [],
                 "children": [], "parents": [], "screens_using": [],
             }
+        if name == "ManyTextsComp":
+            return {
+                "c.name": name, "c.comp_type": "card",
+                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {},
+                "tokens": [], "interactions": [],
+                "texts": [{"t.content": f"text{i}", "t.text_type": "label"} for i in range(10)],
+                "children": [], "parents": [], "screens_using": [],
+            }
         return {
             "c.name": name, "c.comp_type": "button",
             "c.jsx_snippet": "<button/>", "c.occurrence": 5, "c.classes": "",
@@ -112,6 +121,10 @@ class MockReader:
     def get_component_full(self, name):
         if "Ghost" in name or "Nonexistent" in name:
             return None
+        root_texts = (
+            [{"content": f"text{i}", "text_type": "label"} for i in range(10)]
+            if name == "ManyTextsComp" else []
+        )
         return {
             "root": name,
             "components": [
@@ -119,7 +132,7 @@ class MockReader:
                     "name": name, "comp_type": "card", "jsx_snippet": "<div/>",
                     "occurrence": 2, "classes": "", "truncated_fields": [],
                     "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
-                    "tokens": [], "texts": [], "interactions": [], "props": [],
+                    "tokens": [], "texts": root_texts, "interactions": [], "props": [],
                     "children": ["Badge"],
                 },
                 {
@@ -382,6 +395,65 @@ class TestGetFullStylesTool:
     def test_neither_name_nor_screen_section_given(self):
         result = _dispatcher(1).dispatch("get_full_styles", {}, "doc1")
         assert "name" in result.lower() or "screen" in result.lower()
+
+
+class TestGetFullTextsTool:
+    """
+    get_section/get_screen_full/get_component_spec/get_component_full all
+    truncate their text list ("+N mais") with no way to recover what was
+    cut — the same gap C36 already closed for styles via get_full_styles.
+    get_full_texts mirrors that fix for texts (docs/changes/C38).
+    """
+
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_full_texts" in names
+
+    def test_section_texts_are_not_truncated(self):
+        result = _dispatcher(1).dispatch(
+            "get_full_texts", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        )
+        assert "text9" in result  # 10th entry — beyond any display cap
+        assert "mais" not in result.lower()
+
+    def test_unknown_section_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch(
+            "get_full_texts", {"screen": "HistoryView", "section": "Ghost"}, "doc1",
+        )
+        assert "não encontrada" in result.lower() or "not found" in result.lower()
+
+    def test_component_texts_are_not_truncated(self):
+        result = _dispatcher(1).dispatch("get_full_texts", {"name": "ManyTextsComp"}, "doc1")
+        assert "text9" in result  # 10th entry — beyond the 8-item display cap
+        assert "mais" not in result.lower()
+
+    def test_unknown_component_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch("get_full_texts", {"name": "GhostComp"}, "doc1")
+        assert "não encontrado" in result.lower() or "not found" in result.lower()
+
+    def test_neither_name_nor_screen_section_given(self):
+        result = _dispatcher(1).dispatch("get_full_texts", {}, "doc1")
+        assert "name" in result.lower() or "screen" in result.lower()
+
+
+class TestTruncationNoticesPointToFullTools:
+    """
+    A truncated list is only actually recoverable if its notice names the
+    exact call to make — a bare "+N mais" with no pointer is what Achado 2
+    (docs/investigation/design-graph-findings.md) flagged as misleading.
+    """
+
+    def test_component_spec_texts_point_to_get_full_texts(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyTextsComp"}, "doc1")
+        assert "get_full_texts(ManyTextsComp)" in result
+
+    def test_component_spec_styles_point_to_get_full_styles(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyStylesComp"}, "doc1")
+        assert "get_full_styles(ManyStylesComp)" in result
+
+    def test_component_full_texts_point_to_get_full_texts(self):
+        result = _dispatcher(1).dispatch("get_component_full", {"name": "ManyTextsComp"}, "doc1")
+        assert "get_full_texts(ManyTextsComp)" in result
 
 
 class TestGetComponentFullTool:
