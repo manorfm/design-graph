@@ -41,7 +41,20 @@ class ScreenRole(StrEnum):
     PAGE = "page"
     VIEW = "view"
     DETAIL = "detail"
+    ROOT = "root"
     COMPONENT = "component"
+
+
+# The conventional name for a React app's root component (create-react-app,
+# Vite's React template, and virtually every tutorial/boilerplate use this
+# exact name). It never matches ScreenIdentity's suffix table — a root
+# shell has no "Page"/"View"/"Screen" suffix of its own — yet it's the one
+# component whose main return renders the entire authenticated app (sidebar/
+# topbar/routing), making it the single most useful screen to reconstruct
+# first. Without this, it stayed permanently unreachable via list_screens/
+# get_section, forcing the raw prototype export to be decoded by hand to see
+# it at all (see docs/investigation/design-graph-findings.md, Achado 3).
+_ROOT_COMPONENT_NAME = "App"
 
 
 @dataclass(frozen=True)
@@ -53,6 +66,8 @@ class ScreenIdentity:
 
     @classmethod
     def classify(cls, name: str) -> "ScreenIdentity":
+        if name == _ROOT_COMPONENT_NAME:
+            return cls(name=name, role=ScreenRole.ROOT)
         if name.endswith("Form") and name.startswith(("Login", "SignIn", "SignUp", "Register", "Auth")):
             return cls(name=name, role=ScreenRole.PAGE)
         suffix_roles = (

@@ -71,22 +71,30 @@ def _extract_validation_candidate(jsx_source: str):
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
-def _truncation_notice(total: int, shown: int, recoverable_via: str | None = None) -> str | None:
+def _truncation_notice(
+    total: int, shown: int, recoverable_via: str | None = None, tool: str = "get_full_styles",
+) -> str | None:
     """
     Return a Markdown blockquote notice when a list was cut, else None.
 
-    recoverable_via: when a real escape hatch exists for what got cut (only
-    styles do today, via get_full_styles), the exact call to make — same
-    "never truncate without naming the way back" convention already used by
+    recoverable_via: when a real escape hatch exists for what got cut
+    (styles via get_full_styles, texts via get_full_texts — see
+    docs/changes/C36 and C38), the exact call to make — same "never
+    truncate without naming the way back" convention already used by
     _truncated_fields_notice and CappedJsx.notice for jsx_snippet/component
-    truncation. None (every non-style caller) keeps the notice as it was
-    before this parameter existed.
+    truncation. None (a caller with no escape hatch at all) keeps the
+    notice as it was before this parameter existed.
+
+    tool: which uncapped tool recovers this particular list — callers pass
+    "get_full_texts" for text tables, default "get_full_styles" for style
+    tables, so the same helper serves both without duplicating this
+    formatting.
     """
     if total <= shown:
         return None
     notice = f"> ... +{total - shown} mais"
     if recoverable_via:
-        notice += f" — chame `get_full_styles({recoverable_via})` para a lista completa"
+        notice += f" — chame `{tool}({recoverable_via})` para a lista completa"
     return notice
 
 
@@ -427,6 +435,19 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_full_texts",
+        "description": "Returns a component's or a screen section's complete text list, without the display cap other tools apply ('+N mais'). The get_full_styles equivalent for texts. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec/get_component_full truncated a text list.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name":    {"type": "string", "description": "Component name (mutually exclusive with screen/section)"},
+                "screen":  {"type": "string", "description": "Screen name (use together with section)"},
+                "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
+                "doc":     _doc_param(),
+            },
+        },
+    },
+    {
         "name": "get_component_interactions",
         "description": "Returns hover/focus interaction effects for a component.",
         "inputSchema": {
@@ -610,8 +631,12 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "set_prototype",
         "description": (
-            "Set the active prototype for this session. "
+            "Set the active prototype for this MCP connection. "
             "All subsequent calls without doc= will use this prototype. "
+            "The selection lives on the server connection, not the task: it resets "
+            "whenever the MCP connection restarts (e.g. a '/mcp' reconnect), even mid-task. "
+            "If 'Multiple prototypes loaded...' reappears after already selecting one, "
+            "call this again rather than assuming the earlier call still holds. "
             "Call with no arguments to check the current selection."
         ),
         "inputSchema": {
@@ -705,6 +730,7 @@ class ToolDispatcher:
             "impact":                    lambda: self.impact(reader, name),
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
             "get_full_styles":           lambda: self.get_full_styles(reader, name, args.get("screen", ""), args.get("section", "")),
+            "get_full_texts":            lambda: self.get_full_texts(reader, name, args.get("screen", ""), args.get("section", "")),
             "get_component_interactions": lambda: self.get_component_interactions(reader, name),
             "get_component_children":    lambda: self.get_component_children(reader, name),
             "list_components":           lambda: self.list_components(reader, args.get("comp_type"), args.get("limit")),
@@ -843,7 +869,10 @@ class ToolDispatcher:
                 if sec["texts"]:
                     for t in sec["texts"][:6]:
                         lines.append(f'- "{t}"')
-                    notice = _truncation_notice(len(sec["texts"]), 6)
+                    notice = _truncation_notice(
+                        len(sec["texts"]), 6,
+                        recoverable_via=f'screen="{spec["name"]}", section="{sec["name"]}"', tool="get_full_texts",
+                    )
                     if notice:
                         lines.append(notice)
                 if sec["jsx_snippet"]:
@@ -883,7 +912,7 @@ class ToolDispatcher:
                         lines.append("|---|---|")
                         for s in state_styles[:12]:
                             lines.append(f"| {s['property']} | {s['value']} |")
-                        notice = _truncation_notice(len(state_styles), 12)
+                        notice = _truncation_notice(len(state_styles), 12, recoverable_via=cname)
                         if notice:
                             lines.append(notice)
                 if not any_styles:
@@ -910,7 +939,7 @@ class ToolDispatcher:
                     lines.append("\n#### Texts")
                     for t in comp["texts"][:8]:
                         lines.append(f'- "{t["content"]}" ({t["text_type"]})')
-                    notice = _truncation_notice(len(comp["texts"]), 8)
+                    notice = _truncation_notice(len(comp["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
                     if notice:
                         lines.append(notice)
 
@@ -970,7 +999,10 @@ class ToolDispatcher:
             lines.append("\n## Textos")
             for t in sec["texts"][:8]:
                 lines.append(f'- "{t}"')
-            notice = _truncation_notice(len(sec["texts"]), 8)
+            notice = _truncation_notice(
+                len(sec["texts"]), 8,
+                recoverable_via=f'screen="{screen}", section="{sec["name"]}"', tool="get_full_texts",
+            )
             if notice:
                 lines.append(notice)
         if sec["jsx_snippet"]:
@@ -1153,6 +1185,41 @@ class ToolDispatcher:
 
         return "Informe `name` (componente) ou `screen` + `section` (seção)."
 
+    def get_full_texts(self, reader: GraphReader, name: str, screen: str, section: str) -> str:
+        """
+        Uncapped text list — the get_full_styles equivalent for texts.
+
+        get_section/get_screen_full/get_component_spec/get_component_full
+        all slice their text list for display ("+N mais" with no way back)
+        even though the reader already returns every text row up to the
+        extraction-time cap (MAX_TEXTS_PER_COMPONENT). Renders that same
+        data without the display slice — no new query, just no truncation
+        (mirrors get_full_styles's C36 fix; see docs/changes/C38).
+        """
+        if screen and section:
+            sec = reader.get_section(screen, section)
+            if not sec:
+                return f"Seção '{section}' não encontrada em '{screen}'."
+            if not sec["texts"]:
+                return f"Nenhum texto encontrado para a seção '{sec['name']}'."
+            lines = [f"# Textos completos: {sec['name']} (em {screen})\n"]
+            lines.extend(f'- "{t}"' for t in sec["texts"])
+            return "\n".join(lines)
+
+        if name:
+            spec = reader.get_component_spec(name)
+            if not spec:
+                return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+            if not spec.get("texts"):
+                return f"Nenhum texto encontrado para o componente '{spec['c.name']}'."
+            lines = [f"# Textos completos: {spec['c.name']}\n"]
+            lines.extend(
+                f'- "{t.get("t.content")}" ({t.get("t.text_type")})' for t in spec["texts"]
+            )
+            return "\n".join(lines)
+
+        return "Informe `name` (componente) ou `screen` + `section` (seção)."
+
     def get_full_jsx(self, reader: GraphReader, name: str) -> str:
         raw = reader.get_full_jsx(name)
         if not raw:
@@ -1284,7 +1351,7 @@ class ToolDispatcher:
                 lines.append("|---|---|")
                 for s in styles[:12]:
                     lines.append(f"| {s['property']} | {s['value']} |")
-                notice = _truncation_notice(len(styles), 12)
+                notice = _truncation_notice(len(styles), 12, recoverable_via=cname)
                 if notice:
                     lines.append(notice)
         else:
@@ -1317,7 +1384,7 @@ class ToolDispatcher:
             lines.append("\n## Textos")
             for t in spec["texts"][:8]:
                 lines.append(f'- "{t.get("t.content")}" ({t.get("t.text_type")})')
-            notice = _truncation_notice(len(spec["texts"]), 8)
+            notice = _truncation_notice(len(spec["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
             if notice:
                 lines.append(notice)
         if spec.get("interactions"):
@@ -1381,7 +1448,7 @@ class ToolDispatcher:
                     lines.append("|---|---|")
                     for s in styles[:12]:
                         lines.append(f"| {s['property']} | {s['value']} |")
-                    notice = _truncation_notice(len(styles), 12)
+                    notice = _truncation_notice(len(styles), 12, recoverable_via=cname)
                     if notice:
                         lines.append(notice)
             if not any_styles:
@@ -1406,7 +1473,7 @@ class ToolDispatcher:
                 lines.append("\n#### Textos")
                 for t in comp["texts"][:8]:
                     lines.append(f'- "{t["content"]}" ({t["text_type"]})')
-                notice = _truncation_notice(len(comp["texts"]), 8)
+                notice = _truncation_notice(len(comp["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
                 if notice:
                     lines.append(notice)
 
@@ -1507,7 +1574,7 @@ class ToolDispatcher:
             lines.append("\n⚠ **Estilos default ausentes na implementação** (property, value):")
             for prop, val in missing_styles[:15]:
                 lines.append(f"- `{prop}`: `{val}`")
-            notice = _truncation_notice(len(missing_styles), 15)
+            notice = _truncation_notice(len(missing_styles), 15, recoverable_via=cname)
             if notice:
                 lines.append(notice)
         elif stored_default:
@@ -1520,7 +1587,7 @@ class ToolDispatcher:
             lines.append("\n⚠ **Textos ausentes na implementação**:")
             for t in missing_texts[:10]:
                 lines.append(f'- "{t}"')
-            notice = _truncation_notice(len(missing_texts), 10)
+            notice = _truncation_notice(len(missing_texts), 10, recoverable_via=cname, tool="get_full_texts")
             if notice:
                 lines.append(notice)
         elif stored_texts:

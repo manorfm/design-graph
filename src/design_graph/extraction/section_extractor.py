@@ -27,6 +27,7 @@ from design_graph.core.constants import (
     JS_FUNCTION_FALLBACK_WINDOW,
     JS_FUNCTION_SCAN_LIMIT,
     MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK,
+    REACT_INTERNALS,
 )
 from design_graph.core.models import (
     DetectionMethod,
@@ -423,12 +424,19 @@ def _build_section(
 
     # Component references — first-appearance order, not alphabetical (C34,
     # same fix C30 already applied to a component's own child_refs).
+    # REACT_INTERNALS excluded here the same way component_extractor.py and
+    # screen_extractor.py already exclude it from their own ref collection
+    # (e.g. a bare <Fragment>/<React.Fragment> wrapper in the section's own
+    # markup) — this was the one ref-collection site missing the check,
+    # letting "Fragment" through as if it were a real child component and
+    # surface later as a permanent "unresolved" shell node in the graph
+    # (docs/changes/C38).
     seen_comp_refs: set[str] = set()
     comp_refs: list[str] = []
     for pattern in (RE_JSX_TAG, RE_COMP_REF):
         for m in pattern.finditer(block):
             name = m.group(1)
-            if len(name) >= 3 and name not in seen_comp_refs:
+            if name not in REACT_INTERNALS and len(name) >= 3 and name not in seen_comp_refs:
                 seen_comp_refs.add(name)
                 comp_refs.append(name)
 
