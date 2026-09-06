@@ -26,6 +26,36 @@ from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_VISUAL_R
 logger = logging.getLogger(__name__)
 
 
+def _can_open_quote(source: str, index: int) -> bool:
+    """
+    Whether source[index] (a quote character) can plausibly start a real JS
+    string/template literal, as opposed to being a bare apostrophe sitting
+    inside plain JSX text content — an English contraction or possessive
+    like "app's", "don't", "it's" is extremely common in prototype copy and
+    is not a string delimiter at all, since JSX children text is not a JS
+    expression. A genuine string literal never opens directly after an
+    identifier character (`foo'bar'` is not valid JS), so requiring a
+    non-word character (or start-of-source) immediately before the quote
+    tells the two apart without a full JSX-aware tokenizer. Backticks are
+    exempt: tagged templates (`` styled.div`...` ``) legitimately open right
+    after an identifier, and are common in these prototypes.
+
+    Without this guard, one stray apostrophe desyncs the naive open/close
+    quote pairing for the rest of the (multi-megabyte, multi-file-
+    concatenated) source: everything after it alternates between being
+    wrongly swallowed as "inside a string" and wrongly treated as "outside
+    one", silently corrupting boundary/brace detection for every component
+    that follows — however unrelated in file or complexity (see the
+    toToggle investigation this fix responds to).
+    """
+    if source[index] == "`":
+        return True
+    if index == 0:
+        return True
+    prev = source[index - 1]
+    return not (prev.isalnum() or prev in "_$")
+
+
 @dataclass(frozen=True)
 class JavaScriptLexicalView:
     """Classify source positions so declarations inside text are not parsed as code."""
@@ -40,7 +70,7 @@ class JavaScriptLexicalView:
         while index < len(source):
             char = source[index]
             following = source[index + 1] if index + 1 < len(source) else ""
-            if char in {'"', "'", "`"}:
+            if char in {'"', "'", "`"} and _can_open_quote(source, index):
                 end = cls._quoted_end(source, index, char)
                 ranges.append((index, end))
                 index = end
@@ -167,7 +197,7 @@ class JavaScriptFunctionScanner:
                 block_comment = True
                 index += 2
                 continue
-            if char in {'"', "'", "`"}:
+            if char in {'"', "'", "`"} and _can_open_quote(self.source, index):
                 quote = char
             elif char in depths:
                 depths[char] += 1
@@ -227,7 +257,7 @@ class JavaScriptFunctionScanner:
                 block_comment = True
                 index += 2
                 continue
-            if char in {'"', "'", "`"}:
+            if char in {'"', "'", "`"} and _can_open_quote(self.source, index):
                 quote = char
                 index += 1
                 continue
@@ -528,7 +558,7 @@ def split_top_level(text: str, separator: str = ",") -> list[str]:
             elif char == quote:
                 quote = None
             continue
-        if char in "\"'`":
+        if char in "\"'`" and _can_open_quote(text, index):
             quote = char
         elif char in depth:
             depth[char] += 1

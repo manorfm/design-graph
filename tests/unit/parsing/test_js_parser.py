@@ -74,6 +74,27 @@ class TestFindFunctionEnd:
         assert js[:end].endswith("}")
         assert "Restaurants" in js[:end]
 
+    def test_apostrophe_in_own_jsx_text_does_not_truncate_to_fallback(self):
+        """
+        A plain English contraction/possessive inside JSX children text (not
+        a JS string, e.g. "the app's Service key tab") was previously misread
+        by the naive quote tracker as opening a string literal, desyncing
+        brace counting for the rest of the function and forcing it to fall
+        back to a fixed-size truncated window instead of the real closing
+        brace — see the toToggle investigation this test responds to.
+        """
+        js = (
+            "function OnboardingModal() {\n"
+            "  return (\n"
+            "    <span>You can generate it later from the app's Service key tab</span>\n"
+            "  );\n"
+            "} after"
+        )
+
+        end = find_function_end(js, 0)
+
+        assert "after" in js[end:]
+
     def test_braces_inside_literals_and_comments_do_not_close_function(self):
         js = '''function Card({ value = { nested: true } }) {
             const text = "}";
@@ -310,6 +331,28 @@ class TestFindAllBoundaries:
         names = [boundary.name for boundary in find_all_boundaries(js)]
 
         assert names == ["RealPage"]
+
+    def test_apostrophe_in_jsx_text_does_not_swallow_following_component(self):
+        """
+        Same underlying bug as
+        TestFindFunctionEnd.test_apostrophe_in_own_jsx_text_does_not_truncate_to_fallback,
+        but manifesting through the other code path: the stray apostrophe
+        sits *before* a sibling's declaration rather than inside the current
+        function's own body, so the sibling's `function Name(` match itself
+        gets classified as "inside a string" and never becomes a boundary at
+        all — reproduces the toToggle CommandPalette/ActivityView/etc. failures.
+        """
+        js = '''
+        function Hint() {
+          return (<span>You can generate it later from the app's Service key tab</span>);
+        }
+        function CommandPalette() { return (<div>search</div>); }
+        '''
+
+        names = [boundary.name for boundary in find_all_boundaries(js)]
+
+        assert "Hint" in names
+        assert "CommandPalette" in names
 
 
 class TestArrowFunctionComponents:
