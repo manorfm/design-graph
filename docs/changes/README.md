@@ -83,20 +83,22 @@ levantadas após análise de eficiência para uso por agentes de IA.
 | [C38](C38-mcp-text-recovery-and-root-screen/) | MCP: `get_full_texts` sem corte + componente raiz (`App`) reconhecido como tela | ✅ Done | T85–T87 | Alto — dois relatos externos (`toToggle v2.6`, monorepo `toToggles`) verificados contra o grafo real: textos truncados (`get_component_spec`, `get_screen_full`, `get_section`, `get_component_full`, `validate_component_implementation`) não tinham escape hatch sem corte, ao contrário de estilos desde C36; 4 dos 5 call sites de truncamento de ESTILO que já existiam também não apontavam para `get_full_styles`; `App` (nome convencional do componente raiz React) nunca era classificado como tela por não ter sufixo `Page`/`View`/`Screen`/etc., deixando a shell inteira (sidebar/topbar/roteamento) permanentemente inacessível via `list_screens`/`get_section`; `set_prototype` descrito como "por sessão" quando na verdade é por conexão MCP, resetando silenciosamente em reconexões. T85 adiciona `get_full_texts` + `recoverable_via` consistente; T86 adiciona `ScreenRole.ROOT` para `App`; T87 corrige o wording de `set_prototype`/`_AGENT_INSTRUCTIONS` |
 | [C39](C39-referenced-module-data/) | Extraction+MCP: dado de módulo referenciado por nome (ícones/badges) anexado ao componente + textos de objeto + `skipped_entries` visível | ✅ Done | T88–T94 | Alto — pedido explícito de outro agente, sem heurística de "isso é ícone/vem de tal lib" (heurística já rejeitada em C32): um componente como `Icon`, cujo corpo faz `ICONS[name]`, tinha o call site (`<Icon name="lock"/>`) capturado com fidelidade total mas o path SVG real ficava preso num `const ICONS` de módulo, invisível a toda extração — agente reconstruindo a UI não tinha como reusar o ícone exato, só inventar um equivalente. Verificado contra `toToggle v2.6` real: `Icon`→`ICONS` (39 paths) e `RoleBadge`→`ROLE_META` (bg/color/label por role) confirmados. Achado colateral: `module_text_extractor.py` só cobria array de objetos (`DETAIL_TABS`-style), não objeto direto (`ROLE_META`-style) — `UITexts` foi de 440 para 492 depois da correção. T88 extrai a varredura de `const` de módulo pra `js_parser.py` (base compartilhada); T89 estende textos a objetos; T90 novo `module_data_extractor.py`; T91 fia em `component_extractor`/`coordinator`; T92 schema v9 + writer + reader; T93 nova tool `get_component_data` + renderização em 4 tools existentes; T94 persiste `skipped_entries` (antes só logado, nunca queryable) e o expõe em `get_build_diff`. Achado colateral (corrigido em seguida por C40): comentário de linha (`// custom below`) gruda na chave do par seguinte em `iter_object_literal_pairs`/`split_top_level` — bug pré-existente nessas duas funções compartilhadas, só exposto agora porque `get_component_data` é o primeiro consumidor a devolver uma chave bruta a um agente |
 | [C40](C40-object-literal-comment-stripping/) | Parsing: comentário de linha/bloco deixa de grudar na chave seguinte de um objeto | ✅ Done | T95 | Médio — achado colateral de C39, corrigido a pedido do usuário na sequência: `get_component_data("Icon")` contra o `toToggle v2.6` real devolvia a chave `"// custom below\n  key"` em vez de `"key"`, porque `split_top_level` nunca removia `//`/`/* */` antes de dividir por vírgula. T95 adiciona `_strip_comments` (reaproveita `JavaScriptLexicalView.analyze` já existente — distingue comentário de string real, então uma URL como `"https://exemplo.com"` nunca é confundida com comentário), chamada uma vez no início de `split_top_level` — corrige os três consumidores (`parse_object_literal_props`, `module_text_extractor.py`, `module_data_extractor.py`) de uma vez, sem mudar assinatura pública |
+| [C41](C41-responsive-styles-full-escape-hatch/) | MCP: `get_full_styles` passa a cobrir estilos responsivos (`@media`) | ✅ Done | T96 | Médio — levantado numa auditoria de status pós-C38/C39: `get_component_spec` é a única tool que expõe "Estilos responsivos", mas trunca cada condição em 12 linhas sem `recoverable_via`, e `get_full_styles` (o escape hatch de estilo desde C36) nunca renderizava esse dado, embora o reader já o devolvesse sem corte. Achado colateral no mesmo T96: `get_full_styles(name=X)` checava só `styles_by_state` antes de reportar "Nenhum estilo encontrado" — um componente só com estilo `@media` (sem default) dava falso negativo. T96 adiciona `recoverable_via` na notícia de `get_component_spec` e uma seção "Estilos responsivos" sem corte em `get_full_styles`, agrupada por condição, nunca misturada com o valor default (mesma separação C35). Verificado contra `WelcomeStep` no `toToggle v2.6` real: as duas condições `@media` aparecem completas |
 
 > C23 nasceu de uma investigação real de sessão de agente, não de análise de
-> código a priori — mesmo padrão de origem do C35, C36, C37, C38, C39 e
-> C40. C34 é uma segunda rodada de auditoria sobre C25–C33, não um change
-> de feature. C35–C40 são o mesmo tipo de achado: relato externo verificado
-> contra o código e transformado em bug real (C35: "design-graph não expõe
-> media queries"; C36: "estilos de HistoryView vêm misturados e classes
-> compartilhadas nunca são encontradas"; C37: achado ao testar C36 numa
-> segunda tela do mesmo prototype — "UsersView continua com 0 seções"; C38:
-> "textos não têm escape hatch sem corte, e o componente raiz `App`
-> nunca aparece como tela"; C39: "o path SVG real de um ícone usado por
-> nome fica preso num `const` de módulo, sem heurística de biblioteca
-> disponível para recuperá-lo"; C40: achado colateral de C39 — "a chave de
-> um par `key: valor` sai com um comentário de linha grudado na frente").
+> código a priori — mesmo padrão de origem do C35–C41. C34 é uma segunda
+> rodada de auditoria sobre C25–C33, não um change de feature. C35–C41 são
+> o mesmo tipo de achado: relato externo verificado contra o código e
+> transformado em bug real (C35: "design-graph não expõe media queries";
+> C36: "estilos de HistoryView vêm misturados e classes compartilhadas
+> nunca são encontradas"; C37: achado ao testar C36 numa segunda tela do
+> mesmo prototype — "UsersView continua com 0 seções"; C38: "textos não têm
+> escape hatch sem corte, e o componente raiz `App` nunca aparece como
+> tela"; C39: "o path SVG real de um ícone usado por nome fica preso num
+> `const` de módulo, sem heurística de biblioteca disponível para
+> recuperá-lo"; C40: achado colateral de C39 — "a chave de um par `key:
+> valor` sai com um comentário de linha grudado na frente"; C41: "estilos
+> `@media` não têm escape hatch sem corte, ao contrário dos demais").
 
 ---
 

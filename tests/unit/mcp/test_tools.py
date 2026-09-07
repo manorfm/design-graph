@@ -105,6 +105,28 @@ class MockReader:
                 "children": [], "parents": [], "screens_using": [],
                 "referenced_data": {"ICONS": {"lock": "M21 2l-2 2", "trash": "M3 6h18"}},
             }
+        if name == "ResponsiveOnlyComp":
+            return {
+                "c.name": name, "c.comp_type": "card",
+                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {},
+                "responsive_styles_by_media": {
+                    "(max-width: 600px)": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
+                },
+                "tokens": [], "texts": [], "interactions": [],
+                "children": [], "parents": [], "screens_using": [],
+            }
+        if name == "MixedResponsiveComp":
+            return {
+                "c.name": name, "c.comp_type": "card",
+                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
+                "responsive_styles_by_media": {
+                    "(max-width: 600px)": [{"property": "color", "value": "blue"}],
+                },
+                "tokens": [], "texts": [], "interactions": [],
+                "children": [], "parents": [], "screens_using": [],
+            }
         if name == "ManyRefDataComp":
             return {
                 "c.name": name, "c.comp_type": "component",
@@ -393,6 +415,29 @@ class TestGetFullStylesTool:
         assert "prop14" in result  # 15th entry — beyond the 12-item display cap
         assert "mais" not in result.lower()
 
+    def test_responsive_styles_are_not_truncated(self):
+        """
+        get_component_spec's own "Estilos responsivos" section truncates
+        each @media condition's table at 12 rows with no way back —
+        get_full_styles is the only escape hatch, and previously didn't
+        render @media data at all (docs/changes/C41).
+        """
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ResponsiveOnlyComp"}, "doc1")
+        assert "prop14" in result  # 15th entry — beyond the 12-item display cap
+        assert "mais" not in result.lower()
+        assert "(max-width: 600px)" in result
+
+    def test_component_with_only_responsive_styles_is_not_reported_as_styleless(self):
+        # Previously: styles_by_state empty -> "Nenhum estilo encontrado",
+        # even when the component has real @media-scoped styles.
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ResponsiveOnlyComp"}, "doc1")
+        assert "nenhum estilo encontrado" not in result.lower()
+
+    def test_default_and_responsive_styles_both_shown_without_mixing(self):
+        result = _dispatcher(1).dispatch("get_full_styles", {"name": "MixedResponsiveComp"}, "doc1")
+        assert "Estado: default" in result
+        assert "@media (max-width: 600px)" in result
+
     def test_falls_back_to_shared_css_class_when_no_component_matches(self):
         """
         get_component_spec("page-title") falls back to find_styles_by_class
@@ -470,6 +515,10 @@ class TestTruncationNoticesPointToFullTools:
     def test_component_full_texts_point_to_get_full_texts(self):
         result = _dispatcher(1).dispatch("get_component_full", {"name": "ManyTextsComp"}, "doc1")
         assert "get_full_texts(ManyTextsComp)" in result
+
+    def test_component_spec_responsive_styles_point_to_get_full_styles(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ResponsiveOnlyComp"}, "doc1")
+        assert "get_full_styles(ResponsiveOnlyComp)" in result
 
 
 class TestReferencedDataInComponentSpec:
