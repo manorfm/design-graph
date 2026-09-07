@@ -220,6 +220,72 @@ class TestStructuralFallbackResolvesCssClassPadding:
         assert sections == []
 
 
+APP_SHELL_JS = """
+function App() {
+    return (
+        <div className="shell">
+            <aside className={"sidebar" + (navOpen ? " open" : "")}>
+                <button className="nav-item"><Icon name="apps" /> Applications</button>
+                <button className="nav-item"><Icon name="users" /> Users</button>
+                <button className="nav-item"><Icon name="teams" /> Teams</button>
+            </aside>
+            <div className="topbar" style={{padding: '16px'}}>
+                <button className="btn btn-icon"><Icon name="menu" /></button>
+                <span className="brand">toToggle</span>
+            </div>
+            <main>
+                <AppList apps={apps} />
+            </main>
+        </div>
+    )
+}
+"""
+
+
+class TestSemanticChromeTagsAsSections:
+    """
+    A real prototype's sidebar/topbar is routinely <aside>/<nav>/<header>/
+    <footer>, not a padded <div> — those tags had no candidate path at all
+    before this change, and the region's own className (even written as a
+    template expression, e.g. `{"sidebar" + (open ? " open" : "")}`) is a
+    far more reliable name than "the first text found inside it". Real
+    case this reproduces: toToggle's own `App` shell (docs/changes/C42).
+    """
+
+    def test_aside_is_detected_as_a_section_without_any_padding(self):
+        boundary = _boundary(APP_SHELL_JS, "App")
+        sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
+        assert any(s.name == "Sidebar" for s in sections)
+
+    def test_aside_named_from_template_expression_classname(self):
+        boundary = _boundary(APP_SHELL_JS, "App")
+        sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
+        sidebar = next(s for s in sections if s.name == "Sidebar")
+        assert "Applications" in sidebar.jsx_snippet
+
+    def test_div_with_classname_is_named_from_classname_not_first_text(self):
+        # <div className="topbar" ...> — text-based naming would have
+        # picked up "Menu" (the first button's own label), not "Topbar".
+        boundary = _boundary(APP_SHELL_JS, "App")
+        sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
+        assert any(s.name == "Topbar" for s in sections)
+        assert not any(s.name == "Menu" for s in sections)
+
+    def test_main_tag_is_not_treated_as_semantic_chrome(self):
+        # <main> is deliberately out of scope (docs/changes/C42) — must not
+        # become its own section just because it's inside App's shell.
+        boundary = _boundary(APP_SHELL_JS, "App")
+        sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
+        assert not any(s.jsx_snippet.strip().startswith("<main") for s in sections)
+
+    def test_screen_with_no_semantic_chrome_tags_is_unaffected(self):
+        # No <aside>/<nav>/<header>/<footer> anywhere — same result as
+        # before this change existed.
+        boundary = _boundary(WITHOUT_COMMENTS_JS, "RestaurantsPage")
+        sections = extract_sections(WITHOUT_COMMENTS_JS, _screen("RestaurantsPage"), boundary)
+        assert len(sections) >= 1
+
+
 class TestQualityFilter:
     def test_empty_section_not_created(self):
         js = """

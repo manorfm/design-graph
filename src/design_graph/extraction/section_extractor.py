@@ -168,7 +168,7 @@ def _detect_by_comments(
     return sections
 
 
-# ── Strategy 2: Structural fallback (padding-heavy divs) ──────────────────────
+# ── Strategy 2: Structural fallback (padding-heavy divs + semantic chrome tags) ─
 
 _PADDING_RE = re.compile(
     r'style=\{\{[^}]*(?:padding|margin)\s*:\s*["\']?(\d+)px'
@@ -178,6 +178,29 @@ _DIV_CLASS_RE = re.compile(r'<div\b[^>]*\bclassName=(["\'])([^"\']+)\1')
 _PX_TOKEN_RE = re.compile(r'(\d+)px')
 _DIV_CLOSE = "</div>"
 
+# HTML5 tags that are page chrome by convention regardless of their own
+# padding (unlike a bare <div>, which needs a real padding signal to avoid
+# every container qualifying — see _literal_padding_candidates below).
+# <main>/<section> are deliberately left out for now: both are common as
+# thin, purely structural wrappers with no distinctive region of their
+# own, and <section> risks matching almost every screen body outright —
+# left as a narrower future rule if real evidence shows up (docs/changes/C42).
+_SEMANTIC_CHROME_TAGS = ("aside", "nav", "header", "footer")
+_TAG_OPEN_PATTERNS: dict[str, re.Pattern] = {
+    tag: re.compile(rf"<{tag}\b") for tag in ("div", *_SEMANTIC_CHROME_TAGS)
+}
+_RE_SEMANTIC_TAG_OPEN = re.compile(r"<(" + "|".join(_SEMANTIC_CHROME_TAGS) + r")\b")
+
+# A section's own root-tag className, tolerant of both a literal
+# (`className="sidebar"`) and the leading literal of a template
+# expression (`className={"sidebar" + (open ? " open" : "")}`) — the
+# `\{?` makes the opening brace optional. Only the first class token is
+# captured (mirrors _list_row_label's own convention below): the region's
+# own identity, not every modifier class next to it.
+_RE_ROOT_TAG_CLASS_NAME = re.compile(
+    r'\A<[A-Za-z][\w.]*\b[^>]*\bclassName=\{?(["\'])([a-zA-Z][a-zA-Z0-9_-]*)'
+)
+
 
 def _max_px(value: str) -> int:
     """Largest `Npx` token in a CSS value — handles a shorthand like
@@ -186,27 +209,34 @@ def _max_px(value: str) -> int:
     return max((int(t) for t in tokens), default=0)
 
 
-def _find_balanced_div_end(window: str, div_start: int) -> int:
+def _find_balanced_tag_end(window: str, tag: str, start: int) -> int:
     """
-    Return the index just past the </div> that closes the <div at div_start,
-    counting nested <div>/</div> pairs instead of stopping at the first
-    </div> found anywhere after the match — a padded container almost
-    always has nested children, so an unbalanced find() cuts the section off
-    at the first child's closing tag instead of the container's own.
+    Return the index just past the closing tag that matches the opening
+    tag at `start`, counting nested same-tag pairs instead of stopping at
+    the first closing tag found anywhere after it — a padded/semantic
+    container almost always has nested children, so an unbalanced find()
+    cuts the section off at the first child's closing tag instead of the
+    container's own.
+
+    Generalizes what was originally div-only balanced scanning (see
+    _find_balanced_div_end) to any tag, needed once <aside>/<nav>/<header>/
+    <footer> became candidates in their own right (docs/changes/C42).
 
     Not JS-string-aware (unlike find_matching_delimiter, which skips string/
-    template literals for JS brace matching) — "<div"/"</div>" appearing
+    template literals for JS brace matching) — "<tag"/"</tag>" appearing
     inside a text string is rare enough in real prototypes that a plain
     balanced scan is a proportionate fix for this structural fallback
     heuristic. Falls back to a fixed window when no balanced close is found
     within the scan limit (malformed/truncated snippet).
     """
+    open_re = _TAG_OPEN_PATTERNS[tag]
+    close = f"</{tag}>"
     depth = 0
-    limit = min(len(window), div_start + JS_FUNCTION_SCAN_LIMIT)
-    pos = div_start
+    limit = min(len(window), start + JS_FUNCTION_SCAN_LIMIT)
+    pos = start
     while pos < limit:
-        open_match = _DIV_OPEN_RE.search(window, pos, limit)
-        close_pos = window.find(_DIV_CLOSE, pos, limit)
+        open_match = open_re.search(window, pos, limit)
+        close_pos = window.find(close, pos, limit)
         if close_pos == -1:
             break
         if open_match and open_match.start() < close_pos:
@@ -214,10 +244,51 @@ def _find_balanced_div_end(window: str, div_start: int) -> int:
             pos = open_match.end()
         else:
             depth -= 1
-            pos = close_pos + len(_DIV_CLOSE)
+            pos = close_pos + len(close)
             if depth <= 0:
                 return pos
-    return min(div_start + JS_FUNCTION_FALLBACK_WINDOW, len(window))
+    return min(start + JS_FUNCTION_FALLBACK_WINDOW, len(window))
+
+
+def _find_balanced_div_end(window: str, div_start: int) -> int:
+    return _find_balanced_tag_end(window, "div", div_start)
+
+
+def _semantic_chrome_candidates(window: str) -> list[tuple[int, int]]:
+    """
+    <aside>/<nav>/<header>/<footer> blocks, unconditionally — a real
+    prototype's sidebar/topbar/footer is routinely one of these tags with
+    no padding of its own to gate on (layout usually comes from a parent
+    flex/grid container instead), so the padding threshold every <div>
+    candidate needs would silently exclude exactly the regions an agent is
+    most likely to be asked to update by name ("update the sidebar"). Real
+    case: toToggle's own sidebar is `<aside className={"sidebar" + ...}>`
+    with no padding literal or CSS-resolved padding of its own at all
+    (docs/changes/C42).
+    """
+    candidates: list[tuple[int, int]] = []
+    for m in _RE_SEMANTIC_TAG_OPEN.finditer(window):
+        candidates.append((m.start(), _find_balanced_tag_end(window, m.group(1), m.start())))
+    return candidates
+
+
+def _class_based_name(block: str) -> str | None:
+    """
+    A human-readable name derived from the section's own root tag's
+    className — e.g. `<aside className="sidebar">` -> "Sidebar",
+    `<div className={"topbar" + ...}>` -> "Topbar". Preferred over the
+    first visible UI text in the block (see _detect_by_structure): a
+    className is the developer's own literal name for the region, while
+    the first text found is often just whatever happens to render first
+    inside it (a nav item's own label, not "sidebar" itself) — the
+    difference between a section an agent can find by asking for "the
+    sidebar" and one it can only find by trial and error (docs/changes/C42).
+    """
+    match = _RE_ROOT_TAG_CLASS_NAME.match(block)
+    if not match:
+        return None
+    words = match.group(2).replace("_", "-").split("-")
+    return " ".join([words[0].capitalize(), *words[1:]])
 
 
 def _literal_padding_candidates(window: str) -> list[tuple[int, int]]:
@@ -273,11 +344,14 @@ def _detect_by_structure(
 ) -> list[ExtractedSection]:
     """
     Find <div> blocks with padding >= threshold (literal or CSS-class-
-    resolved) as section separators.
+    resolved), plus <aside>/<nav>/<header>/<footer> blocks unconditionally
+    (docs/changes/C42), as section separators.
     Returns at most MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK sections.
     """
     candidate_positions = sorted(
-        _literal_padding_candidates(window) + _resolved_class_padding_candidates(window, rule_map),
+        _literal_padding_candidates(window)
+        + _resolved_class_padding_candidates(window, rule_map)
+        + _semantic_chrome_candidates(window),
         key=lambda pair: pair[0],
     )
 
@@ -292,12 +366,15 @@ def _detect_by_structure(
     sections: list[ExtractedSection] = []
     for i, (start, end) in enumerate(unique):
         block = window[start:end]
-        # Use first UI text as section name
+        # Name preference: the region's own className (the developer's
+        # literal name for it) > the first visible UI text inside it >
+        # a positional fallback — see _class_based_name.
         texts_in_block = [m.group(1).strip() for m in RE_UI_STRING.finditer(block)]
-        sec_name = next(
+        text_name = next(
             (t for t in texts_in_block if len(t) > 3 and not t.startswith("#")),
-            f"Section{i + 1}",
+            None,
         )
+        sec_name = _class_based_name(block) or text_name or f"Section{i + 1}"
         sections.append(_build_section(
             block=block,
             sec_name=sec_name,
