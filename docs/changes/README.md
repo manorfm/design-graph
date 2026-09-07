@@ -11,6 +11,7 @@ levantadas após análise de eficiência para uso por agentes de IA.
 - [Spec 00 — Overview](../spec/00-overview.md)
 - [Plan 00 — Estratégia de migração](../plan/00-migration-strategy.md)
 - [Backlog geral](../tasks/backlog.md)
+- [Roadmap v2.x — motor de extração baseado em AST (tree-sitter)](../roadmap/v2-ast-based-extraction.md) — proposta, não iniciada; não é um `docs/changes/CXX`
 
 ---
 
