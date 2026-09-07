@@ -104,3 +104,62 @@ class TestExtractModuleLevelTexts:
         # 'Ok' is too short (TextEntry.is_plausible_content) to be real copy.
         js = "const SHORT_LABELS = [{ key: 'a', label: 'Ok' }];"
         assert self._texts(js) == []
+
+
+ROLE_META_JS = """
+const ROLE_META = {
+  root:  { bg: "var(--accent-soft)", color: "var(--accent)", label: "Root"  },
+  admin: { bg: "var(--warn-soft)",   color: "var(--warn)",   label: "Admin" },
+};
+
+function RoleBadge({ role }) {
+  const meta = ROLE_META[role];
+  return <span style={{ background: meta.bg }}>{meta.label}</span>;
+}
+"""
+
+
+class TestExtractModuleLevelTextsFromPlainObjects:
+    """
+    The same shared-config convention DETAIL_TABS-style arrays cover, just
+    keyed by an identifier (a role, a status) instead of positioned in a
+    list — `const ROLE_META = { root: { label: 'Root', ... }, ... }`. Real
+    example confirmed in the `toToggle` reference prototype (docs/changes/C39).
+    """
+
+    def _texts(self, js: str):
+        bounds = find_all_boundaries(js)
+        return extract_module_level_texts(js, bounds)
+
+    def test_finds_label_nested_one_level_deep(self):
+        contents = {t.content for t in self._texts(ROLE_META_JS)}
+        assert "Root" in contents
+        assert "Admin" in contents
+
+    def test_label_classified_as_label_type(self):
+        texts = self._texts(ROLE_META_JS)
+        root = next(t for t in texts if t.content == "Root")
+        assert root.text_type == TextType.LABEL
+
+    def test_source_is_the_constant_name(self):
+        texts = self._texts(ROLE_META_JS)
+        assert all(t.source == "ROLE_META" for t in texts)
+
+    def test_role_key_itself_not_extracted_as_text(self):
+        # 'root'/'admin' are identifiers (unquoted object keys), never
+        # candidate string literals to begin with.
+        contents = {t.content for t in self._texts(ROLE_META_JS)}
+        assert "root" not in contents
+        assert "admin" not in contents
+
+    def test_flat_object_without_nesting_is_also_covered(self):
+        js = 'const STATUS_LABELS = { active: "Active", disabled: "Disabled account" };'
+        texts = self._texts(js)
+        contents = {t.content for t in texts}
+        assert "Active" in contents
+        assert "Disabled account" in contents
+        assert all(t.source == "STATUS_LABELS" for t in texts)
+
+    def test_empty_object_yields_no_texts(self):
+        js = "const EMPTY_META = {};"
+        assert self._texts(js) == []

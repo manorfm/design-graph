@@ -374,11 +374,12 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_full_jsx` | Return unsanitized JSX | `name`, `doc?` |
 | `get_full_styles` | Return a component's or a screen section's complete style list, with no display cap — the `get_full_jsx` equivalent for styles | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_full_texts` | Return a component's or a screen section's complete text list, with no display cap — the `get_full_styles` equivalent for texts | `name?` (component) or `screen?` + `section?`, `doc?` |
+| `get_component_data` | Return the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path table indexed as `ICONS[name]`) — reuse these exact values instead of substituting an equivalent icon/asset | `name`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted | `category?`, `screen?`, `doc?` |
 | `find_token_usage` | Find components and screens using a token | `value`, `doc?` |
 | `search` | Search screens, components, tokens, text and shared CSS classes across prototypes | `query` |
 | `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |
-| `get_build_diff` | Return screens/components added or removed since the previous build | `doc?` |
+| `get_build_diff` | Return screens/components added or removed since the previous build, plus a warning when any bundle entry failed to decode and was dropped from that build | `doc?` |
 | `validate_component_implementation` | Compare JSX you wrote against a component's stored spec (children, default-state styles, texts) and report discrepancies | `name`, `jsx_source`, `doc?` |
 | `set_prototype` | Set or inspect the active prototype for this MCP connection — resets on a connection restart (e.g. a client `/mcp` reconnect), even mid-task | `name?` |
 
@@ -386,7 +387,9 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 
 `validate_component_implementation` is best-effort, not a full re-extraction: it reliably catches missing/extra child components and missing inline styles/texts, but cannot verify styles that came from the prototype's own CSS classes or Tailwind color utilities (e.g. `bg-blue-500`) — those require the original stylesheet, unavailable for a standalone snippet. Treat a clean report as "no red flags found", not proof of a pixel-perfect match. `jsx_source` is capped at 20,000 characters.
 
-A response that includes a `⚠ Extração truncada` notice means an extraction cap was hit for that component — the spec shown is incomplete for the listed fields. Call `get_full_jsx` for the raw, uncapped JSX before treating it as the full picture. A style or text table that ends in a `+N mais` notice is a display-time cut, not missing data, and always names the call that recovers the rest — `get_full_styles` for styles, `get_full_texts` for texts. Pass `screen` to scope the list to tokens that screen's own components actually use.
+A response that includes a `⚠ Extração truncada` notice means an extraction cap was hit for that component — the spec shown is incomplete for the listed fields. Call `get_full_jsx` for the raw, uncapped JSX before treating it as the full picture. A style, text or "Dados referenciados" table that ends in a `+N mais` notice is a display-time cut, not missing data, and always names the call that recovers the rest — `get_full_styles` for styles, `get_full_texts` for texts, `get_component_data` for referenced module-level data. Pass `screen` to scope the list to tokens that screen's own components actually use.
+
+A component's spec can include a "Dados referenciados" ("Referenced data") section: the literal content of any module-level constant its own body references by name — e.g. an icon-name -> SVG-path table indexed as `ICONS[name]`, or a role-key -> badge metadata table. Reuse those exact values when reimplementing a component instead of substituting a different icon or asset — see `get_component_data` above.
 
 ### Prototype selection
 

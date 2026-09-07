@@ -282,6 +282,48 @@ def _section_style_group_lines(
     return lines
 
 
+# Generous relative to styles(12)/texts(8): these tables are pure data (an
+# icon-name -> SVG-path map, a role -> badge-metadata map), usually a dozen
+# to a few dozen entries, and completeness is the whole point of capturing
+# them at all — see docs/changes/C39.
+_REFERENCED_DATA_ENTRY_CAP = 30
+
+
+def _render_referenced_data_value(value: object) -> str:
+    """A referenced-constant's own value, rendered for one Markdown line —
+    a bare string as-is (the common case: an SVG path, a CSS value), a
+    dict/list as compact JSON (the ROLE_META-shaped nested case)."""
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+
+
+def _referenced_data_lines(referenced_data: dict[str, object], recoverable_via: str) -> list[str]:
+    """
+    Render a component's referenced_data (module-level constants it
+    references by name — see extraction/module_data_extractor.py) as
+    Markdown, one sub-list per constant name, same truncation-notice
+    convention every other capped table here already uses.
+    """
+    lines: list[str] = []
+    for const_name, entries in sorted(referenced_data.items()):
+        if not isinstance(entries, dict):
+            # A referenced array (e.g. DETAIL_TABS-shaped) has no natural
+            # "key" per entry — render positionally instead of forcing a
+            # dict-only shape on every caller.
+            items = list(enumerate(entries))
+        else:
+            items = list(entries.items())
+        lines.append(f"- **{const_name}**")
+        for key, value in items[:_REFERENCED_DATA_ENTRY_CAP]:
+            lines.append(f"  - `{key}`: `{_render_referenced_data_value(value)}`")
+        notice = _truncation_notice(
+            len(items), _REFERENCED_DATA_ENTRY_CAP,
+            recoverable_via=recoverable_via, tool="get_component_data",
+        )
+        if notice:
+            lines.append(f"  {notice}")
+    return lines
+
+
 # ── Tool schema definitions (MCP protocol) ────────────────────────────────────
 
 def _doc_param() -> dict:
@@ -445,6 +487,18 @@ TOOL_DEFINITIONS: list[dict] = [
                 "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
                 "doc":     _doc_param(),
             },
+        },
+    },
+    {
+        "name": "get_component_data",
+        "description": "Returns the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path lookup table indexed as ICONS[name], or a role-key -> badge metadata table) — the exact same data the prototype itself renders from, not a substitute. Use this before inventing an icon/asset for a component whose spec showed a 'Dados referenciados' section, or when that section was truncated ('+N mais').",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Component name"},
+                "doc":  _doc_param(),
+            },
+            "required": ["name"],
         },
     },
     {
@@ -731,6 +785,7 @@ class ToolDispatcher:
             "get_full_jsx":              lambda: self.get_full_jsx(reader, name),
             "get_full_styles":           lambda: self.get_full_styles(reader, name, args.get("screen", ""), args.get("section", "")),
             "get_full_texts":            lambda: self.get_full_texts(reader, name, args.get("screen", ""), args.get("section", "")),
+            "get_component_data":        lambda: self.get_component_data(reader, name),
             "get_component_interactions": lambda: self.get_component_interactions(reader, name),
             "get_component_children":    lambda: self.get_component_children(reader, name),
             "list_components":           lambda: self.list_components(reader, args.get("comp_type"), args.get("limit")),
@@ -943,6 +998,10 @@ class ToolDispatcher:
                     if notice:
                         lines.append(notice)
 
+                if comp.get("referenced_data"):
+                    lines.append("\n#### Referenced data")
+                    lines.extend(_referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
+
                 if comp["jsx_snippet"]:
                     jsx = CappedJsx(comp["jsx_snippet"], 2500)
                     lines.append("\n```jsx")
@@ -1055,6 +1114,9 @@ class ToolDispatcher:
                 lines.append(f"- **{t.get('t.label')}** = `{t.get('t.value')}` ({t.get('t.category')})")
         if comp.get("children"):
             lines.append(f"\n## Componentes filhos\n{', '.join(comp['children'])}")
+        if comp.get("referenced_data"):
+            lines.append("\n## Dados referenciados")
+            lines.extend(_referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
         return "\n".join(lines)
 
     def get_tokens(self, reader: GraphReader, category: str | None, screen: str | None = None) -> str:
@@ -1219,6 +1281,35 @@ class ToolDispatcher:
             return "\n".join(lines)
 
         return "Informe `name` (componente) ou `screen` + `section` (seção)."
+
+    def get_component_data(self, reader: GraphReader, name: str) -> str:
+        """
+        Uncapped referenced-module-data — the get_full_styles/get_full_texts
+        equivalent for a component's referenced_data (see
+        extraction/module_data_extractor.py, docs/changes/C39).
+
+        get_component_spec/get_component/get_component_full/get_screen_full
+        all slice each referenced constant's own entries for display
+        ("+N mais" with no way back) even though the reader already returns
+        every entry. Renders that same data without the slice — no new
+        query, just no truncation.
+        """
+        spec = reader.get_component_spec(name)
+        if not spec:
+            return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+        referenced_data = spec.get("referenced_data") or {}
+        if not referenced_data:
+            return (
+                f"Nenhum dado referenciado encontrado para o componente '{spec['c.name']}' "
+                "(nenhuma constante de módulo é referenciada pelo nome no corpo dele)."
+            )
+        lines = [f"# Dados referenciados completos: {spec['c.name']}\n"]
+        for const_name, entries in sorted(referenced_data.items()):
+            items = list(entries.items()) if isinstance(entries, dict) else list(enumerate(entries))
+            lines.append(f"## {const_name}")
+            lines.extend(f"- `{key}`: `{_render_referenced_data_value(value)}`" for key, value in items)
+            lines.append("")
+        return "\n".join(lines)
 
     def get_full_jsx(self, reader: GraphReader, name: str) -> str:
         raw = reader.get_full_jsx(name)
@@ -1397,6 +1488,15 @@ class ToolDispatcher:
         if spec.get("props"):
             lines.append("\n## Props")
             lines.extend(_props_table_lines(spec["props"]))
+        if spec.get("referenced_data"):
+            lines.append("\n## Dados referenciados")
+            lines.append(
+                "> Constantes do módulo (fora de qualquer função) que o corpo deste "
+                "componente referencia pelo nome — ex.: um mapa nome-do-ícone → path "
+                "SVG indexado como `ICONS[name]`. Use os mesmos valores ao reimplementar, "
+                "em vez de outro ícone/dado equivalente."
+            )
+            lines.extend(_referenced_data_lines(spec["referenced_data"], recoverable_via=cname))
         if spec.get("c.jsx_snippet"):
             jsx = CappedJsx(spec["c.jsx_snippet"], 3000)
             lines.append("\n## JSX\n```jsx")
@@ -1477,6 +1577,10 @@ class ToolDispatcher:
                 if notice:
                     lines.append(notice)
 
+            if comp.get("referenced_data"):
+                lines.append("\n#### Dados referenciados")
+                lines.extend(_referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
+
             if comp["jsx_snippet"]:
                 jsx = CappedJsx(comp["jsx_snippet"], 2500)
                 lines.append("\n```jsx")
@@ -1497,17 +1601,31 @@ class ToolDispatcher:
                 "Nenhum diff de build disponível para este documento "
                 "(protótipo carregado sem state.json associado, ou nunca reconstruído)."
             )
+
+        # Surfaced regardless of which message below fires — a build can
+        # skip bundle entries on its very first run, or on a run with no
+        # screen/component changes, and this was previously visible only in
+        # a stderr log line during `design-graph <file>` (source_loader.py),
+        # never through any MCP tool (docs/changes/C39).
+        skipped = diff.get("skipped_entries", 0)
+        skipped_notice = (
+            f"⚠ {skipped} entrada(s) do bundle do protótipo falharam ao decodificar nesta "
+            "build e foram descartadas — a extração está incompleta para o(s) arquivo(s)-fonte "
+            "afetado(s). Rode `design-graph --verbose <proto.html>` para ver quais.\n\n"
+            if skipped else ""
+        )
+
         if diff.get("is_first_build"):
-            return "Primeira build deste protótipo — não há build anterior para comparar."
+            return skipped_notice + "Primeira build deste protótipo — não há build anterior para comparar."
 
         screens_added   = diff.get("screens_added", [])
         screens_removed = diff.get("screens_removed", [])
         comps_added     = diff.get("comps_added", [])
         comps_removed   = diff.get("comps_removed", [])
         if not any((screens_added, screens_removed, comps_added, comps_removed)):
-            return "Nenhuma mudança de telas ou componentes desde a build anterior."
+            return skipped_notice + "Nenhuma mudança de telas ou componentes desde a build anterior."
 
-        lines = ["# Diff da última build\n"]
+        lines = [skipped_notice + "# Diff da última build\n"]
         if screens_added:
             lines.append(f"**Telas adicionadas**: {', '.join(screens_added)}")
         if screens_removed:

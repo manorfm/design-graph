@@ -9,6 +9,7 @@ from design_graph.parsing.js_parser import (
     find_all_boundaries,
     find_function_boundaries,
     find_function_end,
+    find_module_level_constants,
     is_quoted_string_literal,
     iter_object_literal_pairs,
     iter_style_object_blocks,
@@ -622,3 +623,41 @@ class TestIterObjectLiteralPairs:
         pairs = list(iter_object_literal_pairs("label: 'Cardápio & Preço', icon: Icon.card"))
         assert ("label", "'Cardápio & Preço'") in pairs
         assert ("icon", "Icon.card") in pairs
+
+
+class TestFindModuleLevelConstants:
+    """
+    Shared detection pass reused by module_text_extractor.py (UI copy from
+    an array of object literals) and component_extractor.py (arbitrary data
+    a component references by name, e.g. an icon-name -> SVG-path lookup
+    table) — one scan, so both agree on what "module level" means.
+    """
+
+    def test_finds_object_literal_constant(self):
+        js = 'const ICONS = { lock: "M21 2l-2 2", trash: "M3 6h18" };'
+        consts = find_module_level_constants(js, [])
+        assert consts["ICONS"] == '{ lock: "M21 2l-2 2", trash: "M3 6h18" }'
+
+    def test_finds_array_literal_constant(self):
+        js = 'const TABS = [{ key: "a", label: "A" }, { key: "b", label: "B" }];'
+        consts = find_module_level_constants(js, [])
+        assert consts["TABS"].startswith("[") and consts["TABS"].endswith("]")
+
+    def test_excludes_declaration_inside_a_function_boundary(self):
+        js = "function Icon() { const LOCAL = { a: 1 }; return null; }"
+        boundary = next(b for b in find_all_boundaries(js) if b.name == "Icon")
+        consts = find_module_level_constants(js, [boundary])
+        assert "LOCAL" not in consts
+
+    def test_lowercase_or_camel_case_name_is_not_a_module_constant(self):
+        js = "const tabs = [1, 2, 3];"
+        assert find_module_level_constants(js, []) == {}
+
+    def test_repeated_declaration_keeps_last_occurrence(self):
+        js = 'const ICONS = { a: "1" }; const ICONS = { b: "2" };'
+        consts = find_module_level_constants(js, [])
+        assert consts["ICONS"] == '{ b: "2" }'
+
+    def test_no_module_level_constants_returns_empty_dict(self):
+        js = "function App() { return null; }"
+        assert find_module_level_constants(js, []) == {}

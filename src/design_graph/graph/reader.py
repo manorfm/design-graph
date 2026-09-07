@@ -129,13 +129,15 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, c.truncated_fields",
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "c.truncated_fields, c.referenced_data_json",
             {"n": resolved},
         )
         if not rows:
             return None
         comp = rows[0]
         comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
+        comp["referenced_data"] = json.loads(comp.get("c.referenced_data_json") or "{}")
 
         styles       = self._q(
             # media != '' rows are @media-scoped variants (C35) — this tool
@@ -208,13 +210,15 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, c.truncated_fields",
+            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "c.truncated_fields, c.referenced_data_json",
             {"n": resolved},
         )
         if not rows:
             return None
         comp = rows[0]
         comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
+        comp["referenced_data"] = json.loads(comp.get("c.referenced_data_json") or "{}")
 
         raw_styles = self._q(
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
@@ -345,7 +349,7 @@ class GraphReader:
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn}) "
             "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
-            "c.truncated_fields "
+            "c.truncated_fields, c.referenced_data_json "
             "ORDER BY c.name",
             {"names": names},
         )
@@ -444,6 +448,7 @@ class GraphReader:
                 "occurrence":        comp["c.occurrence"],
                 "classes":           comp["c.classes"] or "",
                 "truncated_fields":  (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
+                "referenced_data":   json.loads(comp.get("c.referenced_data_json") or "{}"),
                 "styles_by_state":   dict(styles_by_comp.get(cname, {})),
                 "tokens":            tokens_by_comp.get(cname, []),
                 "texts":             texts_by_comp.get(cname, []),
@@ -463,6 +468,11 @@ class GraphReader:
         agent can ask "what changed since the last build" without comparing
         two Kuzu databases from scratch.
 
+        Also carries skipped_entries: how many bundle entries failed to
+        decode during that build and were silently dropped (source_loader.py)
+        — previously only ever logged to stderr, never queryable. 0 when
+        the state predates this field or nothing was skipped.
+
         Returns None when this reader wasn't given a state_path (e.g. built
         directly in a test without one), the file doesn't exist, or it
         predates this field.
@@ -472,7 +482,9 @@ class GraphReader:
         try:
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
             diff = data.get("last_diff") if isinstance(data, dict) else None
-            return diff if isinstance(diff, dict) else None
+            if not isinstance(diff, dict):
+                return None
+            return {**diff, "skipped_entries": int(data.get("skipped_entries", 0))}
         except Exception as exc:  # noqa: BLE001
             logger.debug("reader: could not read build diff from %s: %s", self._state_path, exc)
             return None
@@ -977,7 +989,7 @@ class GraphReader:
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(c:Component) "
             "RETURN DISTINCT c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
-            "c.truncated_fields "
+            "c.truncated_fields, c.referenced_data_json "
             "ORDER BY c.name",
             {"n": resolved},
         )
@@ -1398,6 +1410,7 @@ def _assemble_screen_full(
             "occurrence":     comp["c.occurrence"],
             "classes":        comp["c.classes"] or "",
             "truncated_fields": (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
+            "referenced_data": json.loads(comp.get("c.referenced_data_json") or "{}"),
             "styles_by_state": {
                 state: entries
                 for state, entries in styles_by_comp.get(cname, {}).items()

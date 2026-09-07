@@ -97,6 +97,22 @@ class MockReader:
                 "texts": [{"t.content": f"text{i}", "t.text_type": "label"} for i in range(10)],
                 "children": [], "parents": [], "screens_using": [],
             }
+        if name == "Icon":
+            return {
+                "c.name": name, "c.comp_type": "component",
+                "c.jsx_snippet": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
+                "children": [], "parents": [], "screens_using": [],
+                "referenced_data": {"ICONS": {"lock": "M21 2l-2 2", "trash": "M3 6h18"}},
+            }
+        if name == "ManyRefDataComp":
+            return {
+                "c.name": name, "c.comp_type": "component",
+                "c.jsx_snippet": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
+                "children": [], "parents": [], "screens_using": [],
+                "referenced_data": {"ICONS": {f"icon{i}": f"M{i} 0 0" for i in range(35)}},
+            }
         return {
             "c.name": name, "c.comp_type": "button",
             "c.jsx_snippet": "<button/>", "c.occurrence": 5, "c.classes": "",
@@ -454,6 +470,97 @@ class TestTruncationNoticesPointToFullTools:
     def test_component_full_texts_point_to_get_full_texts(self):
         result = _dispatcher(1).dispatch("get_component_full", {"name": "ManyTextsComp"}, "doc1")
         assert "get_full_texts(ManyTextsComp)" in result
+
+
+class TestReferencedDataInComponentSpec:
+    """
+    A component whose own body references a module-level constant by name
+    (e.g. ICONS[name]) has that constant's literal content rendered in its
+    spec — the mechanism that lets an agent reuse the prototype's own exact
+    icon paths instead of substituting a different icon set (docs/changes/C39).
+    """
+
+    def test_referenced_data_section_present(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "Icon"}, "doc1")
+        assert "Dados referenciados" in result
+        assert "ICONS" in result
+
+    def test_referenced_data_values_shown(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "Icon"}, "doc1")
+        assert "M21 2l-2 2" in result
+        assert "M3 6h18" in result
+
+    def test_no_section_when_component_has_no_referenced_data(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        assert "Dados referenciados" not in result
+
+    def test_large_table_is_truncated_with_pointer_to_get_component_data(self):
+        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyRefDataComp"}, "doc1")
+        assert "mais" in result.lower()
+        assert "get_component_data(ManyRefDataComp)" in result
+
+
+class TestGetComponentDataTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_component_data" in names
+
+    def test_returns_complete_uncapped_table(self):
+        result = _dispatcher(1).dispatch("get_component_data", {"name": "ManyRefDataComp"}, "doc1")
+        assert "icon34" in result  # 35th entry — beyond the 30-item display cap
+        assert "mais" not in result.lower()
+
+    def test_returns_full_values_for_small_table(self):
+        result = _dispatcher(1).dispatch("get_component_data", {"name": "Icon"}, "doc1")
+        assert "M21 2l-2 2" in result
+        assert "M3 6h18" in result
+
+    def test_unknown_component_returns_not_found_message(self):
+        result = _dispatcher(1).dispatch("get_component_data", {"name": "GhostComp"}, "doc1")
+        assert "não encontrado" in result.lower()
+
+    def test_component_without_referenced_data_returns_explanatory_message(self):
+        result = _dispatcher(1).dispatch("get_component_data", {"name": "BtnPrimary"}, "doc1")
+        assert "nenhum dado referenciado" in result.lower()
+
+
+class TestGetBuildDiffSkippedEntriesNotice:
+    """
+    RawSources.skipped_entries (bundle entries that failed to decode) was
+    previously only ever logged to stderr during a build — never
+    queryable through any MCP tool. get_build_diff now surfaces it
+    regardless of which message it would otherwise return (docs/changes/C39).
+    """
+
+    class _StubReader:
+        def __init__(self, diff):
+            self._diff = diff
+
+        def get_build_diff(self):
+            return self._diff
+
+    def test_warns_on_first_build_when_entries_were_skipped(self):
+        result = _dispatcher(1).get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 2}))
+        assert "2 entrada" in result
+        assert "falharam ao decodificar" in result
+
+    def test_warns_when_no_screen_or_component_changes(self):
+        diff = {"is_first_build": False, "screens_added": [], "screens_removed": [],
+                "comps_added": [], "comps_removed": [], "skipped_entries": 1}
+        result = _dispatcher(1).get_build_diff(self._StubReader(diff))
+        assert "1 entrada" in result
+        assert "Nenhuma mudança" in result
+
+    def test_warns_alongside_a_real_diff(self):
+        diff = {"is_first_build": False, "screens_added": ["NewPage"], "screens_removed": [],
+                "comps_added": [], "comps_removed": [], "skipped_entries": 1}
+        result = _dispatcher(1).get_build_diff(self._StubReader(diff))
+        assert "1 entrada" in result
+        assert "NewPage" in result
+
+    def test_no_notice_when_nothing_was_skipped(self):
+        result = _dispatcher(1).get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 0}))
+        assert "falharam ao decodificar" not in result
 
 
 class TestGetComponentFullTool:

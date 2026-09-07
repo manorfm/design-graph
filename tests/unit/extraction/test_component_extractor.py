@@ -12,7 +12,7 @@ from design_graph.extraction.component_extractor import (
     infer_component_type,
     select_renderable_boundaries,
 )
-from design_graph.parsing.js_parser import find_all_boundaries
+from design_graph.parsing.js_parser import find_all_boundaries, find_module_level_constants
 from design_graph.parsing.palette_extractor import discover_prototype_palette
 from design_graph.parsing.token_extractor import build_token_map
 
@@ -123,6 +123,49 @@ class TestExtractComponent:
         b = _boundary(BTN_JS, "BtnPrimary")
         comp = extract_component(BTN_JS, b, 1, {})
         assert any("Confirmar" in t.content for t in comp.texts)
+
+
+ICON_COMPONENT_JS = """
+const ICONS = { lock: "M21 2l-2 2", trash: "M3 6h18" };
+
+function Icon({ name, size = 16 }) {
+    const d = ICONS[name] || "";
+    return (
+        <svg width={size} height={size}><path d={d}/></svg>
+    )
+}
+"""
+
+
+class TestExtractComponentReferencedModuleData:
+    """
+    A component whose own body references a module-level constant by name
+    (e.g. `ICONS[name]`) gets that constant's literal content attached
+    verbatim — see module_data_extractor.py, docs/changes/C39. This is the
+    mechanism that lets an agent reconstructing `Icon` reuse the prototype's
+    own exact SVG paths instead of substituting a different icon set.
+    """
+
+    def test_referenced_constant_is_attached_when_module_constants_given(self):
+        b = _boundary(ICON_COMPONENT_JS, "Icon")
+        module_constants = find_module_level_constants(ICON_COMPONENT_JS, find_all_boundaries(ICON_COMPONENT_JS))
+        comp = extract_component(ICON_COMPONENT_JS, b, 1, {}, module_constants=module_constants)
+        assert comp.referenced_data["ICONS"] == {"lock": "M21 2l-2 2", "trash": "M3 6h18"}
+
+    def test_referenced_data_empty_without_module_constants(self):
+        # Backward-compatible default: every existing call site that never
+        # passes module_constants keeps getting an empty dict, not a crash.
+        b = _boundary(ICON_COMPONENT_JS, "Icon")
+        comp = extract_component(ICON_COMPONENT_JS, b, 1, {})
+        assert comp.referenced_data == {}
+
+    def test_unrelated_component_does_not_get_the_data_attached(self):
+        js = ICON_COMPONENT_JS + '\nfunction Btn() { return <button>OK</button>; }\n'
+        boundaries = find_all_boundaries(js)
+        module_constants = find_module_level_constants(js, boundaries)
+        b = next(x for x in boundaries if x.name == "Btn")
+        comp = extract_component(js, b, 1, {}, module_constants=module_constants)
+        assert comp.referenced_data == {}
 
 
 TOKEN_HOVER_JS = """

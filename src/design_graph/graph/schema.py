@@ -11,6 +11,10 @@ Schema changes:
        during extraction, e.g. "styles,texts" — empty string when nothing was cut)
   v8 — added order_index to CONTAINS (sibling render order — first-appearance
        order in the source JSX, not alphabetical)
+  v9 — added referenced_data_json to Component (JSON-encoded {const_name:
+       value} for every module-level constant this component's own body
+       references by name, e.g. an icon-name -> SVG-path lookup table —
+       empty string when none apply; see extraction/module_data_extractor.py)
 """
 
 from __future__ import annotations
@@ -57,6 +61,7 @@ _NODE_TABLES: list[str] = [
         "  occurrence INT64,"
         "  classes STRING,"
         "  truncated_fields STRING,"
+        "  referenced_data_json STRING,"
         "  PRIMARY KEY(name)"
         ")"
     ),

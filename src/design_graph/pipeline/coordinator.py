@@ -45,7 +45,7 @@ from design_graph.parsing.css_class_resolver import (
     extract_tag_pseudo_rules,
 )
 from design_graph.parsing.format_detector import PLAIN_HTML
-from design_graph.parsing.js_parser import find_all_boundaries
+from design_graph.parsing.js_parser import find_all_boundaries, find_module_level_constants
 from design_graph.parsing.palette_extractor import discover_prototype_palette
 from design_graph.parsing.source_loader import load
 from design_graph.parsing.token_extractor import build_token_map, extract_tokens
@@ -202,6 +202,7 @@ async def run_pipeline(
     save_build_state(state_path, build_new_state(
         sources.html_hash, screens, comp_counter,
         source_path=html_path, database_path=db_path, diff=diff,
+        skipped_entries=sources.skipped_entries,
     ))
     elapsed = time.monotonic() - t_start
 
@@ -269,6 +270,14 @@ async def extract_react(
     # it links to a Token exactly like a literal color would.
     palette = discover_prototype_palette(sources.js)
 
+    # Every module-level `const NAME = {...}`/`[...]` in the whole file —
+    # a component whose own body references one by name (e.g. an
+    # icon-name -> SVG-path lookup table indexed as `ICONS[name]`) gets its
+    # literal content attached verbatim (see module_data_extractor.py,
+    # docs/changes/C39). Computed once here, same "outside every boundary"
+    # scan module_texts already needed above.
+    module_constants = find_module_level_constants(sources.js, all_boundaries)
+
     token_map     = build_token_map(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
     tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
@@ -289,7 +298,8 @@ async def extract_react(
         sources.js, comp_bounds, occurrences, token_map,
         concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
         responsive_rule_map=responsive_rule_map,
-        palette=palette, on_component_extracted=on_component_extracted,
+        palette=palette, module_constants=module_constants,
+        on_component_extracted=on_component_extracted,
     )
 
     screens = extract_screens(sources.js, all_boundaries)
