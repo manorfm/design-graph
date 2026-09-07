@@ -618,11 +618,54 @@ class TestSplitTopLevel:
         assert split_top_level("a:b:c", separator=":") == ["a", "b", "c"]
 
 
+class TestSplitTopLevelStripsComments:
+    """
+    A `//`/`/* */` comment sitting between two object-literal entries used
+    to glue itself onto the *next* segment once the depth-aware comma split
+    stopped at the following comma — confirmed against the real `toToggle`
+    prototype's own `ICONS` table, where `toggle: null, // custom below\n
+    key: "..."` produced the key `"// custom below\n  key"` instead of
+    `"key"` (docs/changes/C40).
+    """
+
+    def test_line_comment_between_entries_does_not_leak_into_next_segment(self):
+        text = 'a: 1, // custom below\n  b: 2'
+        parts = [p.strip() for p in split_top_level(text)]
+        assert parts == ["a: 1", "b: 2"]
+
+    def test_block_comment_between_entries_is_stripped(self):
+        text = 'a: 1, /* skip this */ b: 2'
+        parts = [p.strip() for p in split_top_level(text)]
+        assert parts == ["a: 1", "b: 2"]
+
+    def test_url_inside_string_is_not_mistaken_for_a_comment(self):
+        text = 'href: "https://example.com", label: "Site"'
+        parts = split_top_level(text)
+        assert len(parts) == 2
+        assert "https://example.com" in parts[0]
+
+    def test_comment_at_end_of_text_does_not_crash(self):
+        text = 'a: 1 // trailing, no newline'
+        parts = [p.strip() for p in split_top_level(text)]
+        assert parts == ["a: 1"]
+
+
 class TestIterObjectLiteralPairs:
     def test_values_kept_raw_not_unwrapped(self):
         pairs = list(iter_object_literal_pairs("label: 'Cardápio & Preço', icon: Icon.card"))
         assert ("label", "'Cardápio & Preço'") in pairs
         assert ("icon", "Icon.card") in pairs
+
+    def test_line_comment_between_entries_does_not_become_part_of_next_key(self):
+        # The exact real-world shape this bug was found against: a value
+        # (`null`) that's already dropped elsewhere for being non-string,
+        # immediately followed by a trailing line comment, immediately
+        # followed by the next real entry.
+        body = 'apps: "M3 3h7v7", toggle: null, // custom below\n  key: "M21 2l-2 2"'
+        pairs = dict(iter_object_literal_pairs(body))
+        assert "key" in pairs
+        assert pairs["key"] == '"M21 2l-2 2"'
+        assert not any("custom below" in k for k in pairs)
 
 
 class TestFindModuleLevelConstants:

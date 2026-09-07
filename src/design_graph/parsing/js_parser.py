@@ -533,6 +533,39 @@ def iter_style_object_blocks(text: str) -> Iterator[str]:
         yield text[object_open + 1 : object_close - 1]
 
 
+def _strip_comments(text: str) -> str:
+    """
+    Blank out `//...` and `/* ... */` comments in `text`, replacing each
+    with spaces (newlines kept as-is) so every other character keeps its
+    original position — callers that slice the result don't need to know
+    it was rewritten.
+
+    Reuses JavaScriptLexicalView's own quote/comment classification (the
+    same one used to keep a stray `//` inside a real string, e.g.
+    `href: "https://example.com"`, from being mistaken for a line
+    comment) rather than re-deriving it here. A range is a comment (to
+    strip) when it opens with `/`; a range that opens with a quote
+    character is real string content and is left untouched.
+
+    Without this, a line comment sitting between two object-literal
+    entries (`toggle: null, // custom below\n  key: "..."`) glues itself
+    onto the *next* key once split_top_level's depth-aware comma split
+    stops at the following comma — confirmed against the real `toToggle`
+    prototype's own `ICONS` table (docs/changes/C40).
+    """
+    ranges = JavaScriptLexicalView.analyze(text).ignored_ranges
+    if not ranges:
+        return text
+    chars = list(text)
+    for start, end in ranges:
+        if text[start] != "/":
+            continue  # string content, not a comment — keep verbatim
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+
 def split_top_level(text: str, separator: str = ",") -> list[str]:
     """
     Split text on `separator` at bracket depth 0 and outside a quote or
@@ -541,7 +574,12 @@ def split_top_level(text: str, separator: str = ",") -> list[str]:
     elements need: a separator inside a nested object, a ternary, or a
     template-literal interpolation must never be mistaken for a top-level
     boundary. One splitter, so the two consumers can't drift apart.
+
+    `//`/`/* */` comments are stripped first (see _strip_comments) — a
+    comment sitting between two entries is neither a real key nor a real
+    value and must never survive into either.
     """
+    text = _strip_comments(text)
     segments: list[str] = []
     depth = {"(": 0, "[": 0, "{": 0}
     opening_for = {")": "(", "]": "[", "}": "{"}
