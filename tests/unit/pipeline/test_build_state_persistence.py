@@ -205,6 +205,37 @@ class TestBuildNewState:
         assert state.screens == {}
         assert state.components == {}
 
+    def test_skipped_entries_defaults_to_zero(self):
+        state = build_new_state("x", [], Counter())
+        assert state.skipped_entries == 0
+
+    def test_skipped_entries_forwarded_when_provided(self):
+        state = build_new_state("x", [], Counter(), skipped_entries=2)
+        assert state.skipped_entries == 2
+
+
+class TestSkippedEntriesRoundTrip:
+    """
+    RawSources.skipped_entries (bundle entries that failed to decode) was
+    previously only ever logged to stderr during a build — never persisted,
+    so get_build_diff could never surface it to an MCP agent. See
+    docs/changes/C39.
+    """
+
+    def test_save_then_load_preserves_skipped_entries(self, tmp_path):
+        path = tmp_path / "state.json"
+        save_build_state(path, _minimal_state(skipped_entries=3))
+        assert load_build_state(path).skipped_entries == 3
+
+    def test_load_defaults_to_zero_for_state_written_before_this_field(self, tmp_path):
+        # A state.json from before this field existed has no such key —
+        # must not crash, and must not be mistaken for "3 skipped".
+        data = {"html_hash": "x", "last_build": "2024-01-01T00:00:00+00:00",
+                "screens": {}, "components": {}}
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        assert load_build_state(path).skipped_entries == 0
+
     def test_same_screens_produce_same_hashes(self):
         screens = [_screen("Home", ["A", "B"])]
         state_a = build_new_state("x", screens, Counter())

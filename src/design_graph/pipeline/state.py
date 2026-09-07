@@ -85,6 +85,7 @@ def load_build_state(state_path: Path) -> BuildState:
             database_path=data.get("database_path", ""),
             schema_version=int(data.get("schema_version", 1)),
             last_diff=_diff_from_payload(data.get("last_diff")),
+            skipped_entries=int(data.get("skipped_entries", 0)),
         )
     except Exception as exc:
         logger.warning(
@@ -112,6 +113,7 @@ def save_build_state(state_path: Path, state: BuildState) -> None:
         "database_path": state.database_path,
         "schema_version": state.schema_version,
         "last_diff": _diff_to_payload(state.last_diff),
+        "skipped_entries": state.skipped_entries,
     }
     tmp_path = state_path.with_suffix(".tmp")
     tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -127,6 +129,7 @@ def build_new_state(
     source_path: Path | None = None,
     database_path: Path | None = None,
     diff: BuildDiff | None = None,
+    skipped_entries: int = 0,
 ) -> BuildState:
     """
     Construct a BuildState snapshot from the current extraction results.
@@ -139,6 +142,13 @@ def build_new_state(
     particular — can answer "what changed since the last build" by just
     reading this file, without recomputing anything or comparing two
     Kuzu databases from scratch.
+
+    skipped_entries: RawSources.skipped_entries for this build — bundle
+    entries that failed to decode and were silently dropped before this
+    function was ever called. Previously only ever logged (source_loader.py);
+    persisting it here lets get_build_diff surface it to an agent working
+    purely through MCP, who would otherwise have no way to know part of the
+    prototype's source was never read (docs/changes/C39).
     """
     return BuildState(
         html_hash=html_hash,
@@ -149,6 +159,7 @@ def build_new_state(
         database_path=str(database_path.resolve()) if database_path else "",
         schema_version=2,
         last_diff=diff,
+        skipped_entries=skipped_entries,
     )
 
 

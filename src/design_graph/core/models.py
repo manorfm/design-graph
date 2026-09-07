@@ -539,6 +539,11 @@ class ExtractedComponent:
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
     truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
+    referenced_data: dict[str, object] = field(default_factory=dict)
+    # {const_name: value} for every module-level constant this component's
+    # own body references by name (e.g. ICONS for a component that does
+    # `ICONS[name]`) — see extraction/module_data_extractor.py and
+    # docs/changes/C39.
 
     @classmethod
     def consolidate(cls, variants: list["ExtractedComponent"]) -> "ExtractedComponent":
@@ -577,6 +582,12 @@ class ExtractedComponent:
         truncated_fields = frozenset(
             field_name for variant in variants for field_name in variant.truncated_fields
         )
+        # Union across variants, later declarations' values winning on a
+        # repeated const name — same "last declaration wins" bias
+        # child_refs/jsx_snippet already apply for the live variant above.
+        referenced_data: dict[str, object] = {}
+        for variant in variants:
+            referenced_data.update(variant.referenced_data)
         # Render order comes from the *live* variant (the last declaration —
         # same "last declaration wins in JS" criterion _label_jsx_variants
         # already uses above to pick which jsx_snippet actually executes),
@@ -613,6 +624,7 @@ class ExtractedComponent:
             props=list(props.values()),
             icons=list(icons.values()),
             truncated_fields=truncated_fields,
+            referenced_data=referenced_data,
         )
 
 
@@ -733,6 +745,13 @@ class BuildState:
     database_path: str = ""
     schema_version: int = 2
     last_diff: "BuildDiff | None" = None  # what this build changed relative to the one before it
+    skipped_entries: int = 0
+    # Bundle entries (bundled_react only) that failed base64/gzip/utf-8
+    # decode during this build and were dropped — RawSources.skipped_entries
+    # verbatim. Persisted here (not just logged) so get_build_diff can
+    # surface it: a real, known gap in what this build could read, distinct
+    # from an "Unresolved" component (a name referenced but never defined
+    # anywhere) — this is source that was never even seen (docs/changes/C39).
 
 
 @dataclass(frozen=True)

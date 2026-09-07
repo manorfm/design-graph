@@ -290,19 +290,20 @@ class GraphWriter:
         component_exists = self._node_exists("Component", "name", comp.name)
         jsx = _capped_jsx_snippet(comp.name, comp.jsx_snippet)
         truncated = ",".join(sorted(comp.truncated_fields))
+        referenced_data_json = json.dumps(comp.referenced_data) if comp.referenced_data else ""
         if not component_exists:
             self._safe_execute(
                 "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, "
-                "classes:$c, truncated_fields:$tf})",
+                "classes:$c, truncated_fields:$tf, referenced_data_json:$rd})",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes, "tf": truncated},
+                 "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
             )
         else:
             self._safe_execute(
                 "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.jsx_snippet=$s, "
-                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf",
+                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf, c.referenced_data_json=$rd",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes, "tf": truncated},
+                 "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
             )
         self._known_comp_names.add(comp.name)
         self._resolved_comp_names.add(comp.name)
@@ -639,7 +640,7 @@ class GraphWriter:
             return
         ok = self._safe_execute(
             "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
-            "occurrence:$o, classes:'', truncated_fields:''})",
+            "occurrence:$o, classes:'', truncated_fields:'', referenced_data_json:''})",
             {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )
         if ok or self._node_exists("Component", "name", name):

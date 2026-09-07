@@ -598,6 +598,29 @@ class TestGetBuildDiff:
         assert diff["screens_added"] == ["NewPage"]
         assert diff["comps_removed"] == ["OldBtn"]
 
+    def test_diff_payload_carries_skipped_entries(self, reader_with_conn):
+        import json as _json
+        conn, tmp_path = reader_with_conn
+        state_path = tmp_path / "diff2.db.state.json"
+        state_path.write_text(_json.dumps({
+            "last_diff": {"is_first_build": True, "screens_added": [], "screens_removed": [],
+                           "comps_added": [], "comps_removed": []},
+            "skipped_entries": 2,
+        }))
+        reader = GraphReader(conn, state_path=state_path)
+        assert reader.get_build_diff()["skipped_entries"] == 2
+
+    def test_diff_payload_defaults_skipped_entries_to_zero(self, reader_with_conn):
+        import json as _json
+        conn, tmp_path = reader_with_conn
+        state_path = tmp_path / "diff3.db.state.json"
+        state_path.write_text(_json.dumps({
+            "last_diff": {"is_first_build": True, "screens_added": [], "screens_removed": [],
+                           "comps_added": [], "comps_removed": []},
+        }))
+        reader = GraphReader(conn, state_path=state_path)
+        assert reader.get_build_diff()["skipped_entries"] == 0
+
     def test_none_when_state_file_has_no_diff_key(self, reader_with_conn):
         import json as _json
         conn, tmp_path = reader_with_conn

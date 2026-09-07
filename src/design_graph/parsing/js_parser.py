@@ -607,6 +607,46 @@ def parse_object_literal_props(block: str) -> list[tuple[str, str]]:
     return [(key, unwrap_quoted_literal(value)) for key, value in iter_object_literal_pairs(block)]
 
 
+_RE_MODULE_LEVEL_CONST = re.compile(r"\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*([\[{])")
+
+
+def find_module_level_constants(js: str, boundaries: list[FunctionBoundary]) -> dict[str, str]:
+    """
+    Every `const NAME = {...}` or `const NAME = [...]` declared outside all
+    function boundaries, keyed by NAME, mapped to its own raw literal text
+    (opening/closing bracket included).
+
+    SCREAMING_CASE is the same convention module_text_extractor.py already
+    uses to spot "this is shared, hoisted config", not an incidental local
+    variable — a shared, hoisted constant like this sits outside every
+    function boundary by construction (component/section extraction only
+    scan inside them). This is the single detection pass both
+    module_text_extractor.py (UI copy from an array of object literals) and
+    component_extractor.py (arbitrary data a specific component's own body
+    references by name, e.g. an icon-name → SVG-path lookup table) build on
+    — one scan, so the two callers can't drift on what counts as "module
+    level" or disagree on which declaration wins when a name repeats.
+
+    A repeated declaration of the same NAME keeps only its last occurrence
+    (dict assignment order) — the same "last declaration wins" rule
+    ExtractedComponent.consolidate already applies to a component's own
+    jsx_snippet variants, for the same reason: later code overwrites earlier
+    code at runtime.
+    """
+    constants: dict[str, str] = {}
+    for match in _RE_MODULE_LEVEL_CONST.finditer(js):
+        if any(b.start <= match.start() < b.end for b in boundaries):
+            continue
+        opener = match.group(2)
+        closer = "}" if opener == "{" else "]"
+        open_index = match.end() - 1
+        close_index = find_matching_delimiter(js, open_index, opener, closer)
+        if close_index is None:
+            continue
+        constants[match.group(1)] = js[open_index:close_index]
+    return constants
+
+
 def is_quoted_string_literal(value: str) -> bool:
     """
     True when `value` (as written in source, untrimmed of its own quotes)

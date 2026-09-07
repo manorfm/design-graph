@@ -60,6 +60,7 @@ from design_graph.core.patterns import (
 )
 from design_graph.extraction.icon_extractor import extract_icons
 from design_graph.extraction.jsx_sanitizer import sanitize_jsx
+from design_graph.extraction.module_data_extractor import extract_referenced_module_data
 from design_graph.extraction.prop_extractor import extract_props_from_function_signature
 from design_graph.extraction.visual_function import VisualFunctionCandidate
 from design_graph.parsing.css_class_resolver import CssRule, resolve_classes
@@ -147,6 +148,7 @@ def extract_component(
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
     responsive_rule_map: dict[str, list[CssRule]] | None = None,
     palette: PrototypePalette | None = None,
+    module_constants: dict[str, str] | None = None,
 ) -> ExtractedComponent:
     """
     Extract all data for one component in a single pass over its function body.
@@ -173,6 +175,14 @@ def extract_component(
     (`background: C.bg`) is folded to its literal hex (`#404040`) before
     being stored — the same value a literal `background: '#404040'` would
     have produced, so existing exact-value token matching sees it too.
+
+    module_constants: optional {name: raw_literal} map from
+    parsing.js_parser.find_module_level_constants() — every module-level
+    `const NAME = {...}`/`[...]` in the whole file, computed once per build
+    (not once per component). When provided, any entry whose NAME this
+    component's own body references by name (e.g. an icon-name -> SVG-path
+    lookup table indexed as `ICONS[name]`) is captured verbatim into
+    referenced_data — see extraction/module_data_extractor.py.
     """
     window = js[boundary.start : boundary.end]
 
@@ -474,6 +484,9 @@ def extract_component(
     })
 
     props = extract_props_from_function_signature(js, boundary)
+    referenced_data = (
+        extract_referenced_module_data(window, module_constants) if module_constants else {}
+    )
 
     return ExtractedComponent(
         name=boundary.name,
@@ -488,6 +501,7 @@ def extract_component(
         props=props,
         icons=icons,
         truncated_fields=truncated_fields,
+        referenced_data=referenced_data,
     )
 
 
@@ -501,6 +515,7 @@ async def extract_all_components(
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
     responsive_rule_map: dict[str, list[CssRule]] | None = None,
     palette: PrototypePalette | None = None,
+    module_constants: dict[str, str] | None = None,
     on_component_extracted: Callable[[str, int, int], None] | None = None,
 ) -> list[ExtractedComponent]:
     """
@@ -513,6 +528,8 @@ async def extract_all_components(
     responsive_rule_map: optional @media-scoped class rule map, same forwarding.
     palette: optional PrototypePalette forwarded to each extract_component call —
         see extract_component's own docstring.
+    module_constants: optional module-level-constant map forwarded to each
+        extract_component call — see extract_component's own docstring.
     on_component_extracted: optional callback(name, index, total) called once per
         completed extraction in the asyncio event loop — safe for non-thread-safe
         reporters since asyncio is single-threaded.
@@ -529,7 +546,7 @@ async def extract_all_components(
             result = await asyncio.to_thread(
                 extract_component,
                 js, boundary, occurrences.get(boundary.name, 1), token_map,
-                rule_map, tag_rule_map, responsive_rule_map, palette,
+                rule_map, tag_rule_map, responsive_rule_map, palette, module_constants,
             )
         completed[0] += 1
         if on_component_extracted is not None:
