@@ -1203,7 +1203,10 @@ class ToolDispatcher:
         get_screen_full/get_component_spec only ever slice it for display
         ("+N mais" with no way back). This renders the same reader data
         without the slice — no new query, just no truncation (see
-        docs/changes/C36).
+        docs/changes/C36). For name=, also covers @media-scoped styles
+        (docs/changes/C41) — get_component_spec is the only other place
+        that surfaces them, and it truncates each condition's own table at
+        12 rows with no way back, same as the unconditional states.
         """
         if screen and section:
             sec = reader.get_section(screen, section)
@@ -1233,16 +1236,35 @@ class ToolDispatcher:
                 lines = [f"# Estilos completos: .{name}\n", "| Propriedade | Valor |", "|---|---|"]
                 lines.extend(f"| {s['property']} | {s['value']} |" for s in class_styles)
                 return "\n".join(lines)
-            if not spec.get("styles_by_state"):
+            styles_by_state = spec.get("styles_by_state") or {}
+            responsive_by_media = spec.get("responsive_styles_by_media") or {}
+            if not styles_by_state and not responsive_by_media:
                 return f"Nenhum estilo encontrado para o componente '{spec['c.name']}'."
             lines = [f"# Estilos completos: {spec['c.name']}\n"]
-            for state, raw_styles in sorted(spec["styles_by_state"].items()):
+            for state, raw_styles in sorted(styles_by_state.items()):
                 lines.append(f"## Estado: {state}")
                 lines.append("| Propriedade | Valor |")
                 lines.append("|---|---|")
                 for s in _dedupe_styles_by_property(raw_styles):
                     lines.append(f"| {s['property']} | {s['value']} |")
                 lines.append("")
+            if responsive_by_media:
+                # Same C35 rule get_component_spec already applies: a
+                # @media-scoped value is never the component's actual
+                # default — kept in its own section, labeled by condition,
+                # never merged into the states above.
+                lines.append("## Estilos responsivos")
+                lines.append(
+                    "> Valores abaixo só se aplicam sob a condição `@media` indicada — "
+                    "não confundir com o valor default acima.\n"
+                )
+                for media, raw_styles in sorted(responsive_by_media.items()):
+                    lines.append(f"### `@media {media}`")
+                    lines.append("| Propriedade | Valor |")
+                    lines.append("|---|---|")
+                    for s in _dedupe_styles_by_property(raw_styles):
+                        lines.append(f"| {s['property']} | {s['value']} |")
+                    lines.append("")
             return "\n".join(lines)
 
         return "Informe `name` (componente) ou `screen` + `section` (seção)."
@@ -1462,7 +1484,7 @@ class ToolDispatcher:
                 lines.append("|---|---|")
                 for s in styles[:12]:
                     lines.append(f"| {s['property']} | {s['value']} |")
-                notice = _truncation_notice(len(styles), 12)
+                notice = _truncation_notice(len(styles), 12, recoverable_via=cname)
                 if notice:
                     lines.append(notice)
         if spec.get("tokens"):

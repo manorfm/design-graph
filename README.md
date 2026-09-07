@@ -372,7 +372,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_component_children` | Return direct child components, in render order | `name`, `doc?` |
 | `get_component_interactions` | Return hover/focus effects and transitions | `name`, `doc?` |
 | `get_full_jsx` | Return unsanitized JSX | `name`, `doc?` |
-| `get_full_styles` | Return a component's or a screen section's complete style list, with no display cap — the `get_full_jsx` equivalent for styles | `name?` (component) or `screen?` + `section?`, `doc?` |
+| `get_full_styles` | Return a component's or a screen section's complete style list, with no display cap — the `get_full_jsx` equivalent for styles. For `name=`, also includes `@media`-scoped styles in their own section | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_full_texts` | Return a component's or a screen section's complete text list, with no display cap — the `get_full_styles` equivalent for texts | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_component_data` | Return the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path table indexed as `ICONS[name]`) — reuse these exact values instead of substituting an equivalent icon/asset | `name`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted | `category?`, `screen?`, `doc?` |
