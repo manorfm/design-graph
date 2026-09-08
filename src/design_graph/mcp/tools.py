@@ -16,7 +16,7 @@ import logging
 from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
 from design_graph.extraction.component_extractor import extract_component
-from design_graph.graph.reader import GraphReader
+from design_graph.graph.reader import GraphReader, NamedEntityResolution
 from design_graph.mcp.search import search
 from design_graph.parsing.js_parser import find_all_boundaries
 
@@ -122,6 +122,18 @@ def _truncated_fields_notice(
     field_list = ", ".join(fields)
     suffix = f" Chame get_full_jsx('{recoverable_via}') para o JSX bruto." if recoverable_via else ""
     return f"> ⚠ Extração truncada em: {field_list} — esta spec pode estar incompleta.{suffix}"
+
+
+def _named_entity_resolution_error(name: str, resolution: NamedEntityResolution) -> str | None:
+    """Format failed or ambiguous cross-entity resolution once for all tools."""
+    if resolution.is_ambiguous:
+        candidates = ", ".join(
+            f"{candidate.kind}='{candidate.name}'" for candidate in resolution.candidates
+        )
+        return f"Nome '{name}' é ambíguo: {candidates}. Informe o nome exato da entidade desejada."
+    if resolution.entity is None:
+        return f"Nome '{name}' não encontrado. Use search('{name}') para explorar."
+    return None
 
 
 class CappedJsx(str):
@@ -478,11 +490,11 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "get_full_texts",
-        "description": "Returns a component's or a screen section's complete text list, without the display cap other tools apply ('+N mais'). The get_full_styles equivalent for texts. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec/get_component_full truncated a text list.",
+        "description": "Returns a component's, screen's, or screen section's complete text list, without the display cap other tools apply ('+N mais'). Pass name= for a component or screen, or screen= + section= for one section. Exact names are resolved before partial matches; ambiguous partial names return their candidates.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name":    {"type": "string", "description": "Component name (mutually exclusive with screen/section)"},
+                "name":    {"type": "string", "description": "Component or screen name (mutually exclusive with screen/section)"},
                 "screen":  {"type": "string", "description": "Screen name (use together with section)"},
                 "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
                 "doc":     _doc_param(),
@@ -1225,17 +1237,27 @@ class ToolDispatcher:
             return "\n".join(lines)
 
         if name:
-            spec = reader.get_component_spec(name)
-            if not spec:
-                # Same fallback get_component_spec applies (C36 P3) — a
-                # shared CSS class with no named component must resolve
-                # here too, not just through the other tool.
+            resolution = reader.resolve_named_entity(name)
+            if resolution.is_ambiguous:
+                return _named_entity_resolution_error(name, resolution) or ""
+            if resolution.entity is None:
+                # A CSS class is not a graph entity, so it is intentionally
+                # checked only after the named-entity resolver found none.
                 class_styles = reader.find_styles_by_class(name)
                 if not class_styles:
-                    return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+                    return f"Nome '{name}' não encontrado. Use search('{name}') para explorar."
                 lines = [f"# Estilos completos: .{name}\n", "| Propriedade | Valor |", "|---|---|"]
                 lines.extend(f"| {s['property']} | {s['value']} |" for s in class_styles)
                 return "\n".join(lines)
+
+            if resolution.entity.kind == "screen":
+                return (
+                    f"'{resolution.entity.name}' é uma tela. Informe também `section` para obter "
+                    "os estilos completos de uma seção."
+                )
+            spec = reader.get_component_spec(resolution.entity.name)
+            if not spec:
+                return f"Componente '{resolution.entity.name}' não encontrado."
             styles_by_state = spec.get("styles_by_state") or {}
             responsive_by_media = spec.get("responsive_styles_by_media") or {}
             if not styles_by_state and not responsive_by_media:
@@ -1291,9 +1313,25 @@ class ToolDispatcher:
             return "\n".join(lines)
 
         if name:
-            spec = reader.get_component_spec(name)
+            resolution = reader.resolve_named_entity(name)
+            error = _named_entity_resolution_error(name, resolution)
+            if error:
+                return error
+            assert resolution.entity is not None
+            if resolution.entity.kind == "screen":
+                screen = reader.get_screen_texts(resolution.entity.name)
+                if not screen or not screen["texts"]:
+                    return f"Nenhum texto encontrado para a tela '{resolution.entity.name}'."
+                lines = [f"# Textos completos: {screen['name']}\n"]
+                lines.extend(
+                    f'- "{text["content"]}" ({text["text_type"]}; {text["source"]})'
+                    for text in screen["texts"]
+                )
+                return "\n".join(lines)
+
+            spec = reader.get_component_spec(resolution.entity.name)
             if not spec:
-                return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+                return f"Componente '{resolution.entity.name}' não encontrado."
             if not spec.get("texts"):
                 return f"Nenhum texto encontrado para o componente '{spec['c.name']}'."
             lines = [f"# Textos completos: {spec['c.name']}\n"]
@@ -1316,9 +1354,19 @@ class ToolDispatcher:
         every entry. Renders that same data without the slice — no new
         query, just no truncation.
         """
-        spec = reader.get_component_spec(name)
+        resolution = reader.resolve_named_entity(name)
+        error = _named_entity_resolution_error(name, resolution)
+        if error:
+            return error
+        assert resolution.entity is not None
+        if resolution.entity.kind == "screen":
+            return (
+                f"'{resolution.entity.name}' é uma tela; dados referenciados de módulo "
+                "ainda só estão disponíveis para componentes."
+            )
+        spec = reader.get_component_spec(resolution.entity.name)
         if not spec:
-            return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+            return f"Componente '{resolution.entity.name}' não encontrado."
         referenced_data = spec.get("referenced_data") or {}
         if not referenced_data:
             return (

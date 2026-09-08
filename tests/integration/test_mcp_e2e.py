@@ -31,6 +31,7 @@ from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
 SIMPLE_HTML = FIXTURE_DIR / "simple.html"
+ROOT_SCREEN_WITH_PREFIX_COMPONENT_HTML = FIXTURE_DIR / "root_screen_with_prefix_component.html"
 
 # ── shared graph fixture ──────────────────────────────────────────────────────
 
@@ -62,6 +63,16 @@ def single_server(real_reader):
 def dual_server(real_reader):
     """MCPServer with two readers for multi-prototype tests."""
     return MCPServer([("proto_a", real_reader), ("proto_b", real_reader)])
+
+
+@pytest.fixture(scope="module")
+def root_screen_server(tmp_path_factory):
+    """A real graph where App is a Screen and AppStep is a Component."""
+    tmp = tmp_path_factory.mktemp("mcp_root_screen")
+    db_path = tmp / "root-screen.db"
+    asyncio.run(run_pipeline(ROOT_SCREEN_WITH_PREFIX_COMPONENT_HTML, db_path, tmp / ".state.json"))
+    db = kuzu.Database(str(db_path), read_only=True)
+    return MCPServer([("root-screen", GraphReader(kuzu.Connection(db)) )])
 
 
 # ── helper ────────────────────────────────────────────────────────────────────
@@ -237,6 +248,27 @@ class TestGetFullJsxTool:
         resp = _call(single_server, "get_full_jsx", {"name": "Ghost999"})
         text = _text(resp)
         assert isinstance(text, str)
+
+
+# ── Exact entity identity across Screen and Component ─────────────────────────
+
+class TestExactScreenIdentity:
+    def test_full_texts_prefers_exact_screen_over_prefix_component(self, root_screen_server):
+        text = _text(_call(root_screen_server, "get_full_texts", {"name": "App"}))
+        assert "# Textos completos: App" in text
+        assert "Exact root screen text" in text
+        assert "# Textos completos: AppStep" not in text
+
+    def test_component_data_does_not_resolve_exact_screen_to_prefix_component(self, root_screen_server):
+        text = _text(_call(root_screen_server, "get_component_data", {"name": "App"}))
+        assert "é uma tela" in text
+        assert "AppStep" not in text
+
+    def test_partial_name_with_screen_and_component_candidates_is_ambiguous(self, root_screen_server):
+        text = _text(_call(root_screen_server, "get_full_texts", {"name": "Ap"}))
+        assert "ambíguo" in text
+        assert "App" in text
+        assert "AppStep" in text
 
 
 # ── set_prototype tool (session state) ───────────────────────────────────────

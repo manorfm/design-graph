@@ -103,9 +103,13 @@ class TestLargePrototypeGraphQueries:
         screens = reader.find_screens_using_comp_transitively("BtnPrimary")
         assert len(screens) >= 2, "BtnPrimary appears in multiple screens transitively"
 
-    def test_fuzzy_component_lookup(self, reader):
-        result = reader.get_component("Cart")  # partial match → CartItem or CartScreen
-        assert result is not None, "Fuzzy lookup for 'Cart' prefix should find a component"
+    def test_cross_entity_partial_lookup_is_ambiguous(self, reader):
+        resolution = reader.resolve_named_entity("Cart")
+        assert resolution.entity is None
+        assert {(candidate.kind, candidate.name) for candidate in resolution.candidates} >= {
+            ("screen", "CartScreen"),
+            ("component", "CartItem"),
+        }
 
     def test_tokens_extracted_from_large_bundle(self, reader):
         tokens = reader.get_tokens()

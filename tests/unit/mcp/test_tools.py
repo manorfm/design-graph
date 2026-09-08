@@ -2,6 +2,7 @@
 
 import pytest
 
+from design_graph.graph.reader import NamedEntity, NamedEntityResolution
 from design_graph.mcp.server import MCPServer
 from design_graph.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher
 
@@ -20,6 +21,14 @@ class MockReader:
             return {"name": "RestaurantsPage", "component_count": 3,
                     "sections_count": 2, "components": [], "sections": [], "texts": []}
         return None
+
+    def resolve_named_entity(self, name):
+        if "Ghost" in name or "Nonexistent" in name or name == "page-title":
+            return NamedEntityResolution()
+        return NamedEntityResolution(entity=NamedEntity("component", name))
+
+    def get_screen_texts(self, name):
+        return {"name": name, "texts": []}
 
     def get_component(self, name):
         return {"c.name": name, "c.comp_type": "card", "c.jsx_snippet": "<div/>",
