@@ -170,8 +170,9 @@ class TestGetScreenLayout:
 
         monkeypatch.setattr(layout_graph, "_q", counting_q)
         layout_graph.get_screen_layout("DashboardPage")
-        # screen fuzzy + comp query + comp style join + section style join (C36) — not N per component/section
-        assert call_count <= 4
+        # Cross-entity exact resolution checks Screen and Component before
+        # the three bounded layout queries — never N per component/section.
+        assert call_count <= 5
 
     def test_fuzzy_screen_resolution_works(self, layout_graph):
         profiles = layout_graph.get_screen_layout("Dashboard")  # partial name

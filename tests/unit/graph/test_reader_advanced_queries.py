@@ -29,7 +29,7 @@ from design_graph.core.models import (
     StyleEntry,
     TextEntry,
 )
-from design_graph.graph.reader import GraphReader, _fuzzy_match
+from design_graph.graph.reader import GraphReader, _best_fuzzy_matches
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
 from design_graph.parsing.token_extractor import build_token_map
@@ -323,25 +323,62 @@ class TestFuzzyMatch:
     NAMES = ["RestaurantsPage", "BtnPrimary", "SectionCard", "LoginForm"]
 
     def test_exact_match_case_insensitive(self):
-        assert _fuzzy_match("btnprimary", self.NAMES) == "BtnPrimary"
+        assert _best_fuzzy_matches("btnprimary", self.NAMES) == (0, ["BtnPrimary"])
 
     def test_prefix_match(self):
-        assert _fuzzy_match("Rest", self.NAMES) == "RestaurantsPage"
+        assert _best_fuzzy_matches("Rest", self.NAMES) == (1, ["RestaurantsPage"])
 
     def test_suffix_match(self):
-        assert _fuzzy_match("Page", self.NAMES) == "RestaurantsPage"
+        assert _best_fuzzy_matches("Page", self.NAMES) == (2, ["RestaurantsPage"])
 
     def test_contains_match(self):
-        assert _fuzzy_match("tionCard", self.NAMES) == "SectionCard"
+        assert _best_fuzzy_matches("tionCard", self.NAMES) == (2, ["SectionCard"])
 
     def test_no_match_returns_none(self):
-        assert _fuzzy_match("NoMatchXYZ", self.NAMES) is None
+        assert _best_fuzzy_matches("NoMatchXYZ", self.NAMES) == (None, [])
 
     def test_empty_names_returns_none(self):
-        assert _fuzzy_match("anything", []) is None
+        assert _best_fuzzy_matches("anything", []) == (None, [])
 
     def test_empty_hint_returns_none(self):
-        assert _fuzzy_match("", self.NAMES) is None
+        assert _best_fuzzy_matches("", self.NAMES) == (None, [])
+
+
+class TestCrossEntityNameResolution:
+    def test_exact_screen_beats_prefix_component(self, tmp_path):
+        db = kuzu.Database(str(tmp_path / "names.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, jsx_snippet:''})")
+        conn.execute(
+            "CREATE (:Component {name:'AppStep', comp_type:'component', jsx_snippet:'', "
+            "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
+        )
+        reader = GraphReader(conn)
+
+        resolution = reader.resolve_named_entity("App")
+
+        assert resolution.entity is not None
+        assert resolution.entity.kind == "screen"
+        assert resolution.entity.name == "App"
+
+    def test_partial_name_returns_every_best_cross_entity_candidate(self, tmp_path):
+        db = kuzu.Database(str(tmp_path / "ambiguous-names.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, jsx_snippet:''})")
+        conn.execute(
+            "CREATE (:Component {name:'AppStep', comp_type:'component', jsx_snippet:'', "
+            "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
+        )
+        reader = GraphReader(conn)
+
+        resolution = reader.resolve_named_entity("Ap")
+
+        assert resolution.entity is None
+        assert {(candidate.kind, candidate.name) for candidate in resolution.candidates} == {
+            ("screen", "App"), ("component", "AppStep"),
+        }
 
 
 # ── _q error handling ─────────────────────────────────────────────────────────

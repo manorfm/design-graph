@@ -758,7 +758,7 @@ class TestFuzzyFastPath:
         finally:
             reader._q = original
         assert resolved == "BtnWithBadge"
-        assert len(calls) == 1  # only the exact-match lookup, no full scan
+        assert len(calls) == 2  # exact Screen and Component checks, no full scan
 
     def test_prefix_component_match_still_falls_back(self, populated_db):
         reader = populated_db.reader
@@ -775,7 +775,7 @@ class TestFuzzyFastPath:
         finally:
             reader._q = original
         assert resolved == "BtnWithBadge"
-        assert len(calls) == 2  # exact-match miss, then full scan
+        assert len(calls) == 4  # both exact-match misses, then both full scans
 
     def test_exact_screen_match_skips_full_scan(self, populated_db):
         reader = populated_db.reader
@@ -792,7 +792,7 @@ class TestFuzzyFastPath:
         finally:
             reader._q = original
         assert resolved == "RestaurantsPage"
-        assert len(calls) == 1
+        assert len(calls) == 2  # exact Screen and Component checks, no full scan
 
 
 @pytest.fixture

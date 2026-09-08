@@ -13,7 +13,9 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import kuzu
 
@@ -26,6 +28,26 @@ from design_graph.core.models import resolve_icon_markers
 from design_graph.core.patterns import RE_ICON_MARKER
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class NamedEntity:
+    """One addressable graph entity returned by a name lookup."""
+
+    kind: Literal["screen", "component"]
+    name: str
+
+
+@dataclass(frozen=True)
+class NamedEntityResolution:
+    """The unique entity or the competing candidates for a name hint."""
+
+    entity: NamedEntity | None = None
+    candidates: tuple[NamedEntity, ...] = ()
+
+    @property
+    def is_ambiguous(self) -> bool:
+        return bool(self.candidates)
 
 
 class GraphReader:
@@ -1099,6 +1121,30 @@ class GraphReader:
             comp_children_rows=comp_children_rows,
         )
 
+    def get_screen_texts(self, name: str) -> dict | None:
+        """Return every section and contained-component text for a screen."""
+        resolved = self._fuzzy_find_screen(name)
+        if not resolved:
+            return None
+
+        section_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
+            "-[:SECTION_HAS_TEXT]->(t:UIText) "
+            "RETURN sec.name AS source, t.content AS content, t.text_type AS text_type "
+            "ORDER BY source, content",
+            {"n": resolved},
+        )
+        component_rows = self._q(
+            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
+            "-[:CONTAINS*0..3]->(c:Component) "
+            "WITH DISTINCT c "
+            "MATCH (c)-[:COMP_HAS_TEXT]->(t:UIText) "
+            "RETURN c.name AS source, t.content AS content, t.text_type AS text_type "
+            "ORDER BY source, text_type, content",
+            {"n": resolved},
+        )
+        return {"name": resolved, "texts": section_rows + component_rows}
+
     # ── Layout profiles ───────────────────────────────────────────────────────
 
     def get_component_layout_profile(self, name: str) -> dict | None:
@@ -1220,24 +1266,58 @@ class GraphReader:
 
     # ── Fuzzy name resolution ─────────────────────────────────────────────────
 
+    def resolve_named_entity(self, hint: str) -> NamedEntityResolution:
+        """
+        Resolve a screen or component name without silently changing entity type.
+
+        Exact matches win across both node types. Partial matching is only
+        accepted when it identifies one entity; competing candidates are
+        returned to the caller for an explicit, actionable response.
+        """
+        normalized = hint.strip()
+        if not normalized:
+            return NamedEntityResolution()
+
+        direct_matches = [
+            NamedEntity("screen", row["s.name"])
+            for row in self._q("MATCH (s:Screen {name:$n}) RETURN s.name", {"n": normalized})
+        ] + [
+            NamedEntity("component", row["c.name"])
+            for row in self._q("MATCH (c:Component {name:$n}) RETURN c.name", {"n": normalized})
+        ]
+        if len(direct_matches) == 1:
+            return NamedEntityResolution(entity=direct_matches[0])
+        if len(direct_matches) > 1:
+            return NamedEntityResolution(candidates=tuple(direct_matches))
+
+        screen_names = [row["s.name"] for row in self._q("MATCH (s:Screen) RETURN s.name")]
+        component_names = [row["c.name"] for row in self._q("MATCH (c:Component) RETURN c.name")]
+        screen_rank, screen_matches = _best_fuzzy_matches(normalized, screen_names)
+        component_rank, component_matches = _best_fuzzy_matches(normalized, component_names)
+        ranks = [rank for rank in (screen_rank, component_rank) if rank is not None]
+        if not ranks:
+            return NamedEntityResolution()
+
+        best_rank = min(ranks)
+        matches = [
+            *(NamedEntity("screen", match) for match in screen_matches if screen_rank == best_rank),
+            *(NamedEntity("component", match) for match in component_matches if component_rank == best_rank),
+        ]
+        if len(matches) == 1:
+            return NamedEntityResolution(entity=matches[0])
+        return NamedEntityResolution(candidates=tuple(matches))
+
     def _fuzzy_find_screen(self, hint: str) -> str | None:
-        # Fast path: most calls arrive with a name already exact (e.g. copied
-        # from list_screens) — a PK lookup avoids pulling every screen name
-        # into Python just to confirm what's already an exact match.
-        exact = self._q("MATCH (s:Screen {name:$n}) RETURN s.name", {"n": hint})
-        if exact:
-            return exact[0]["s.name"]
-        all_screens = self._q("MATCH (s:Screen) RETURN s.name")
-        names = [r["s.name"] for r in all_screens]
-        return _fuzzy_match(hint, names)
+        resolution = self.resolve_named_entity(hint)
+        if resolution.entity and resolution.entity.kind == "screen":
+            return resolution.entity.name
+        return None
 
     def _fuzzy_find_component(self, hint: str) -> str | None:
-        exact = self._q("MATCH (c:Component {name:$n}) RETURN c.name", {"n": hint})
-        if exact:
-            return exact[0]["c.name"]
-        all_comps = self._q("MATCH (c:Component) RETURN c.name")
-        names = [r["c.name"] for r in all_comps]
-        return _fuzzy_match(hint, names)
+        resolution = self.resolve_named_entity(hint)
+        if resolution.entity and resolution.entity.kind == "component":
+            return resolution.entity.name
+        return None
 
     # ── Icon expansion ────────────────────────────────────────────────────────
 
@@ -1504,28 +1584,19 @@ def _build_layout_profile(comp_name: str, layout_props: dict[str, str]) -> dict:
     }
 
 
-def _fuzzy_match(hint: str, names: list[str]) -> str | None:
-    """
-    Resolve a partial name to a full name using priority matching:
-    1. Exact (case-insensitive)
-    2. Prefix
-    3. Suffix
-    4. Contains
-    Returns None if no match or hint is empty.
-    """
+def _best_fuzzy_matches(hint: str, names: list[str]) -> tuple[int | None, list[str]]:
+    """Return every best-ranked candidate for a case-insensitive name hint."""
     lower = hint.lower().strip()
     if not lower:
-        return None
-    for name in names:
-        if name.lower() == lower:
-            return name
-    prefix  = [n for n in names if n.lower().startswith(lower)]
-    if prefix:
-        return prefix[0]
-    suffix  = [n for n in names if n.lower().endswith(lower)]
-    if suffix:
-        return suffix[0]
-    contains = [n for n in names if lower in n.lower()]
-    if contains:
-        return contains[0]
-    return None
+        return None, []
+    strategies = (
+        lambda name: name.lower() == lower,
+        lambda name: name.lower().startswith(lower),
+        lambda name: name.lower().endswith(lower),
+        lambda name: lower in name.lower(),
+    )
+    for rank, strategy in enumerate(strategies):
+        matches = [name for name in names if strategy(name)]
+        if matches:
+            return rank, matches
+    return None, []

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+function AppStep() {
+  return <p>{"Component prefix text"}</p>;
+}
+
+function App() {
+  return (
+    <main>
+      {/* ── Root content ── */}
+      <h1>{"Exact root screen text"}</h1>
+      <AppStep />
+    </main>
+  );
+}
+</script>
+</body>
+</html>
