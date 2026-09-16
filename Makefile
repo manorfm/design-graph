@@ -48,6 +48,7 @@ help:
 	@echo "    make install-hooks               Install git hooks (auto-versioning)"
 	@echo "    make push                        Push commits + version tags to GitHub"
 	@echo "    make version                     Show current and projected next version"
+	@echo "    make release                     Push + publish a GitHub release (triggers PyPI)"
 	@echo ""
 	@echo "  Maintenance"
 	@echo "    make list-graphs                 List available graphs"
@@ -181,6 +182,18 @@ version:
 	@python scripts/auto_version.py --dry-run 2>/dev/null || \
 	 python3 -c "import subprocess; print(subprocess.run(['git','describe','--tags','--abbrev=0'],capture_output=True,text=True).stdout.strip() or '(no tags yet)')"
 
+release:
+	@command -v gh >/dev/null 2>&1 || (echo "Error: GitHub CLI 'gh' not found. Install: https://cli.github.com" && exit 1)
+	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null); \
+	test -n "$$TAG" || (echo "Error: no version tag found yet. Commit with a feat/fix/chore/refactor prefix first." && exit 1); \
+	git push --follow-tags; \
+	if gh release view $$TAG >/dev/null 2>&1; then \
+		echo "Release $$TAG already exists on GitHub."; \
+	else \
+		echo "Publishing GitHub release $$TAG (this triggers the PyPI publish workflow)…"; \
+		gh release create $$TAG --title $$TAG --generate-notes; \
+	fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Maintenance
 # ─────────────────────────────────────────────────────────────────────────────
@@ -200,5 +213,5 @@ clean-all:
 
 .PHONY: help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
         screens tokens search inspect impact screen \
-        install-hooks push version \
+        install-hooks push version release \
         list-graphs clean-graph clean-all
