@@ -20,15 +20,22 @@ Runtime dependencies (`beautifulsoup4`, `kuzu` and `mcp`) are installed automati
 
 ## Install
 
-Install directly from GitHub:
+From PyPI:
 
 ```bash
-python3 -m pip install git+https://github.com/manorfm/design-graph.git
+python3 -m pip install design-graph
 ```
 
 For an isolated command-line installation:
 
 ```bash
+pipx install design-graph
+```
+
+To track the latest commit on `main` instead of the last published release:
+
+```bash
+python3 -m pip install git+https://github.com/manorfm/design-graph.git
 pipx install git+https://github.com/manorfm/design-graph.git
 ```
 
@@ -50,7 +57,7 @@ design-mcp --help
 ### Upgrade
 
 ```bash
-python3 -m pip install --upgrade git+https://github.com/manorfm/design-graph.git
+python3 -m pip install --upgrade design-graph
 ```
 
 With `pipx`:
@@ -58,6 +65,8 @@ With `pipx`:
 ```bash
 pipx upgrade design-graph
 ```
+
+Installed from the git URL instead? Use `pip install --upgrade git+https://github.com/manorfm/design-graph.git` (or `pipx upgrade` still works, since pipx remembers the source).
 
 This package now requires Python 3.10+ (the `mcp` SDK dependency doesn't support 3.9). If `python3`/`pipx` resolve to an older interpreter, the upgrade fails to resolve dependencies — install or point `pipx` at a 3.10+ interpreter first (e.g. `pipx install --python python3.11 ...`).
 
