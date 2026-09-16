@@ -44,7 +44,7 @@ async def load(html_path: Path) -> RawSources:
 
     raw_bytes = await asyncio.to_thread(html_path.read_bytes)
     html_text = raw_bytes.decode("utf-8", errors="replace")
-    html_hash = hashlib.md5(raw_bytes).hexdigest()
+    html_hash = hashlib.md5(raw_bytes, usedforsecurity=False).hexdigest()
 
     soup = BeautifulSoup(html_text, "html.parser")
     fmt  = detect(html_text, soup)

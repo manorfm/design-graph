@@ -99,7 +99,7 @@ def collect_graph_status(
     current_hash = ""
     if html_path and html_path.exists():
         try:
-            current_hash = hashlib.md5(html_path.read_bytes()).hexdigest()
+            current_hash = hashlib.md5(html_path.read_bytes(), usedforsecurity=False).hexdigest()
         except Exception as exc:
             logger.warning("status: could not hash %s: %s", html_path, exc)
 
