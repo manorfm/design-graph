@@ -101,8 +101,43 @@ class TestParseQueryArgs:
             parse_query_args(["--help"])
         assert exc.value.code == 0
         output = capsys.readouterr().out
-        for command in ("screens", "tokens", "search", "inspect", "impact", "screen", "interactions", "children"):
+        for command in ("screens", "tokens", "search", "inspect", "impact", "screen",
+                         "interactions", "children", "metrics"):
             assert command in output
+
+
+# ── metrics command ───────────────────────────────────────────────────────────
+
+class TestParseMetricsArgs:
+    def test_metrics_command_parsed(self):
+        args = parse_query_args(["metrics"])
+        assert args.command == "metrics"
+
+    def test_metrics_defaults_are_unset(self):
+        args = parse_query_args(["metrics"])
+        assert args.tool is None
+        assert args.outcome is None
+        assert args.since is None
+        assert args.until is None
+        assert args.limit is None
+        assert args.raw is False
+
+    def test_metrics_with_all_flags(self):
+        args = parse_query_args([
+            "metrics", "--tool", "search", "--outcome", "ok",
+            "--since", "24h", "--until", "2026-01-01T00:00:00Z",
+            "--limit", "10", "--raw",
+        ])
+        assert args.tool == "search"
+        assert args.outcome == "ok"
+        assert args.since == "24h"
+        assert args.until == "2026-01-01T00:00:00Z"
+        assert args.limit == 10
+        assert args.raw is True
+
+    def test_metrics_doc_filter_reuses_shared_flag(self):
+        args = parse_query_args(["--doc", "toToggle", "metrics"])
+        assert args.document == "toToggle"
 
 
 # ── dispatch_query_command ────────────────────────────────────────────────────
@@ -128,6 +163,7 @@ class TestDispatchQueryCommand:
         dispatcher.get_screen.return_value = "## Screen"
         dispatcher.get_component_interactions.return_value = "## Interactions"
         dispatcher.get_component_children.return_value = "## Children"
+        dispatcher.get_metrics.return_value = "## Métricas de uso"
         return dispatcher, reader
 
     def test_screens_calls_list_screens(self, capsys):
@@ -177,6 +213,25 @@ class TestDispatchQueryCommand:
         dispatcher, reader = self._mock_dispatcher_and_reader()
         dispatch_query_command(self._args("children", name="CardProduct"), dispatcher, reader)
         dispatcher.get_component_children.assert_called_once_with(reader, "CardProduct")
+
+    def test_metrics_calls_get_metrics_with_all_args(self, capsys):
+        dispatcher, reader = self._mock_dispatcher_and_reader()
+        args = QueryCliArgs(
+            command="metrics", name="", query="", category=None, verbose=False,
+            document="toToggle", tool="search", outcome="ok",
+            since="24h", until="2026-01-01T00:00:00Z", limit=10, raw=True,
+        )
+        dispatch_query_command(args, dispatcher, reader)
+        dispatcher.get_metrics.assert_called_once_with(
+            doc="toToggle", tool="search", outcome="ok",
+            since="24h", until="2026-01-01T00:00:00Z", limit=10, raw=True,
+        )
+
+    def test_metrics_output_is_printed(self, capsys):
+        dispatcher, reader = self._mock_dispatcher_and_reader()
+        args = QueryCliArgs(command="metrics", name="", query="", category=None, verbose=False)
+        dispatch_query_command(args, dispatcher, reader)
+        assert "Métricas de uso" in capsys.readouterr().out
 
     def test_unknown_command_raises_system_exit(self):
         dispatcher, reader = self._mock_dispatcher_and_reader()

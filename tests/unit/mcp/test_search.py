@@ -144,6 +144,12 @@ class _StubReader:
     def list_shared_style_classes(self):
         return []
 
+    def get_component_parents(self, name):
+        return []
+
+    def find_screens_using_comp_transitively(self, comp_name):
+        return []
+
 
 class TestSearchCoversAllComponents:
     """search() must find every component, not only the 5 in top_components."""
@@ -250,6 +256,12 @@ class _StubReaderForCoverage:
     def list_shared_style_classes(self):
         return []
 
+    def get_component_parents(self, name):
+        return []
+
+    def find_screens_using_comp_transitively(self, comp_name):
+        return []
+
 
 class TestCoverageRanking:
     def test_result_matching_more_query_words_ranks_first(self):
@@ -307,6 +319,64 @@ class TestWordCoverageExposedOnResult:
         by_name = {r.name: r.word_coverage for r in results}
         assert by_name["AvatarCircle"] == 1.0
         assert by_name["AvatarBadge"] < 1.0
+
+
+class _StubReaderWithHierarchy:
+    """
+    One component with a known parent and a known owning screen —
+    isolates hierarchy enrichment on Component-type search results.
+
+    A search hit used to carry only {type, name, detail, doc, score}: an
+    agent had to spend a follow-up get_component_spec() call just to learn
+    where a matched component lives in the tree. That data (parents,
+    screens_using) already sits in the graph and is already exposed by
+    get_component_spec via reader.get_component_parents /
+    find_screens_using_comp_transitively — search() reuses those same two
+    reader methods rather than inventing a parallel lookup.
+    """
+
+    def list_screens(self):
+        return [{"name": "TeamsView", "component_count": 1,
+                  "sections_count": 0, "top_components": ["MemberRow"]}]
+
+    def list_components(self, comp_type=None):
+        return [{"c.name": "MemberRow", "c.comp_type": "list-item", "c.occurrence": 1}]
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return []
+
+    def list_shared_style_classes(self):
+        return []
+
+    def get_component_parents(self, name):
+        return ["TeamsSection"] if name == "MemberRow" else []
+
+    def find_screens_using_comp_transitively(self, comp_name):
+        return ["TeamsView"] if comp_name == "MemberRow" else []
+
+
+class TestSearchExposesComponentHierarchy:
+    def _run(self, query: str) -> list[SearchResult]:
+        return search([("proto", _StubReaderWithHierarchy())], query)
+
+    def test_component_result_carries_parents(self):
+        results = self._run("MemberRow")
+        match = next(r for r in results if r.type == "Component")
+        assert match.parents == ["TeamsSection"]
+
+    def test_component_result_carries_screens_using(self):
+        results = self._run("MemberRow")
+        match = next(r for r in results if r.type == "Component")
+        assert match.screens_using == ["TeamsView"]
+
+    def test_non_component_result_has_empty_hierarchy_fields(self):
+        results = self._run("TeamsView")
+        match = next(r for r in results if r.type == "Screen")
+        assert match.parents == []
+        assert match.screens_using == []
 
 
 class TestSearchHasNoRegexInjectionSurface:

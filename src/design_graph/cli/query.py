@@ -42,6 +42,12 @@ class QueryCliArgs:
     verbose:  bool          = False
     document: str | None    = None
     db_path:  Path | None   = None
+    tool:     str | None    = None
+    outcome:  str | None    = None
+    since:    str | None    = None
+    until:    str | None    = None
+    limit:    int | None    = None
+    raw:      bool          = False
 
 
 # ── Argument parser (pure, testable) ──────────────────────────────────────────
@@ -92,6 +98,21 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
         sp = sub.add_parser(cmd, parents=[shared], help=f"Query by {meta}")
         sp.add_argument("name", metavar=meta)
 
+    metrics_p = sub.add_parser(
+        "metrics", parents=[shared], help="Show usage metrics for this server's tool calls",
+    )
+    metrics_p.add_argument("--tool", default=None, help="Filter to calls of one tool")
+    metrics_p.add_argument("--outcome", default=None,
+                            help="Filter by outcome: ok|not_found|ambiguous|no_results|error")
+    metrics_p.add_argument("--since", default=None,
+                            help="Lower bound: ISO-8601 timestamp or relative shorthand ('24h', '7d')")
+    metrics_p.add_argument("--until", default=None,
+                            help="Upper bound: ISO-8601 timestamp or relative shorthand")
+    metrics_p.add_argument("--limit", type=int, default=None,
+                            help="Max raw records shown with --raw. Does not affect the aggregate.")
+    metrics_p.add_argument("--raw", action="store_true", default=False,
+                            help="Show the raw call list instead of the aggregate summary")
+
     ns = p.parse_args(argv)
 
     query    = " ".join(ns.terms) if hasattr(ns, "terms") else ""
@@ -106,6 +127,12 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
         verbose=getattr(ns, "verbose", False),
         document=getattr(ns, "document", None),
         db_path=getattr(ns, "db_path", None),
+        tool=getattr(ns, "tool", None),
+        outcome=getattr(ns, "outcome", None),
+        since=getattr(ns, "since", None),
+        until=getattr(ns, "until", None),
+        limit=getattr(ns, "limit", None),
+        raw=getattr(ns, "raw", False),
     )
 
 
@@ -149,6 +176,12 @@ def dispatch_query_command(
     elif cmd == "children":
         print(dispatcher.get_component_children(reader, args.name))
 
+    elif cmd == "metrics":
+        print(dispatcher.get_metrics(
+            doc=args.document, tool=args.tool, outcome=args.outcome,
+            since=args.since, until=args.until, limit=args.limit, raw=args.raw,
+        ))
+
     else:
         print(f"error: unknown command '{cmd}'", file=sys.stderr)
         sys.exit(1)
@@ -165,6 +198,12 @@ def main() -> None:
     configure_cli_logging(verbose=args.verbose)
 
     from design_graph.mcp.tools import ToolDispatcher
+
+    if args.command == "metrics":
+        # Metrics live in a flat log file, not a graph database — skip the
+        # .db discovery/loading below entirely, unlike every other command.
+        dispatch_query_command(args, ToolDispatcher([]), reader=None)
+        return
 
     from design_graph.core.graph_catalog import GraphCatalogError
     from design_graph.workspace import GraphWorkspace

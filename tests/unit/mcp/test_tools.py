@@ -305,6 +305,46 @@ class TestSearchWeakMatchWarning:
         assert "parcial" not in result.lower()
 
 
+class _ComponentHierarchyReader:
+    """
+    One component with a known parent and a known owning screen. A search
+    hit used to render as just its name/type/detail — an agent had to spend
+    a follow-up get_component_spec() call just to learn where a matched
+    component lives in the tree, even though the graph already has that
+    edge (see docs/investigation/design-graph-findings.md).
+    """
+
+    def list_screens(self):
+        return [{"name": "TeamsView", "component_count": 1,
+                  "sections_count": 0, "top_components": ["MemberRow"]}]
+
+    def list_components(self, comp_type=None):
+        return [{"c.name": "MemberRow", "c.comp_type": "list-item", "c.occurrence": 1}]
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return []
+
+    def list_shared_style_classes(self):
+        return []
+
+    def get_component_parents(self, name):
+        return ["TeamsSection"]
+
+    def find_screens_using_comp_transitively(self, comp_name):
+        return ["TeamsView"]
+
+
+class TestSearchRendersComponentHierarchy:
+    def test_component_hit_shows_parent_and_owning_screen(self):
+        d = ToolDispatcher([("doc1", _ComponentHierarchyReader())])
+        result = d.dispatch("search", {"query": "MemberRow"}, "doc1")
+        assert "TeamsSection" in result
+        assert "TeamsView" in result
+
+
 class TestListComponentsTool:
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
@@ -810,3 +850,99 @@ class TestMCPServer:
         assert result.is_error is False
         assert "not found" in result.text.lower()
         assert not server._active_doc
+
+
+# ── get_metrics tool ─────────────────────────────────────────────────────────
+#
+# get_metrics reads mcp/metrics.py's call log — never a GraphReader — so it
+# is special-cased in ToolDispatcher.dispatch() alongside list_screens/search,
+# before pick_reader() runs, and must work with zero prototypes loaded.
+
+def _metric_record(**overrides):
+    from design_graph.mcp.metrics import CallRecord
+
+    defaults = dict(
+        timestamp="2026-01-01T00:00:00.000+00:00", tool="search", prototype="toToggle",
+        outcome="ok", duration_ms=1.0, response_chars=10, arguments={"query": "x"},
+    )
+    defaults.update(overrides)
+    return CallRecord(**defaults)
+
+
+class TestGetMetricsTool:
+    def test_tool_in_definitions(self):
+        names = {t["name"] for t in TOOL_DEFINITIONS}
+        assert "get_metrics" in names
+
+    def test_works_with_zero_prototypes_loaded(self, monkeypatch):
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: [])
+        d = ToolDispatcher([])
+        result = d.dispatch("get_metrics", {}, "")
+        assert isinstance(result, str)
+
+    def test_empty_state_message(self, monkeypatch):
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: [])
+        d = ToolDispatcher([])
+        result = d.dispatch("get_metrics", {}, "")
+        assert "Nenhuma chamada" in result
+
+    def test_aggregate_shows_by_tool_breakdown_and_not_ok_rate(self, monkeypatch):
+        records = [_metric_record(tool="search", outcome="ok"),
+                   _metric_record(tool="search", outcome="no_results")]
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {}, "")
+        assert "search" in result
+        assert "Taxa não-ok" in result
+
+    def test_aggregate_shows_by_prototype_section(self, monkeypatch):
+        records = [_metric_record(prototype="toToggle"), _metric_record(prototype="ipede-v7")]
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {}, "")
+        assert "toToggle" in result
+        assert "ipede-v7" in result
+
+    def test_aggregate_shows_top_empty_queries(self, monkeypatch):
+        records = [_metric_record(tool="search", outcome="no_results",
+                                   arguments={"query": "botao cinza"})] * 2
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {}, "")
+        assert "botao cinza" in result
+
+    def test_filters_thread_through_to_query_calls(self, monkeypatch):
+        captured = {}
+
+        def _stub(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", _stub)
+        ToolDispatcher([]).dispatch(
+            "get_metrics",
+            {"doc": "toToggle", "tool": "search", "outcome": "ok",
+             "since": "24h", "until": "2026-01-01T00:00:00Z"},
+            "",
+        )
+        assert captured["prototype"] == "toToggle"
+        assert captured["tool"] == "search"
+        assert captured["outcome"] == "ok"
+        assert captured["since"] == "24h"
+        assert captured["until"] == "2026-01-01T00:00:00Z"
+
+    def test_raw_mode_renders_call_table_instead_of_summary(self, monkeypatch):
+        records = [_metric_record(tool="search")]
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {"raw": True}, "")
+        assert "Chamadas registradas" in result
+        assert "Taxa não-ok" not in result
+
+    def test_limit_does_not_affect_aggregate_total(self, monkeypatch):
+        records = [_metric_record() for _ in range(10)]
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {"limit": 2}, "")
+        assert "(10 chamadas)" in result
+
+    def test_raw_mode_limit_truncates_shown_rows(self, monkeypatch):
+        records = [_metric_record(timestamp=f"2026-01-01T00:00:0{i}.000+00:00") for i in range(5)]
+        monkeypatch.setattr("design_graph.mcp.metrics.query_calls", lambda **kwargs: records)
+        result = ToolDispatcher([]).dispatch("get_metrics", {"raw": True, "limit": 2}, "")
+        assert "+3 mais" in result

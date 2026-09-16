@@ -8,7 +8,7 @@ search that ranks exact > prefix > suffix > contains matches.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from design_graph.core.constants import MAX_TOKENS_IN_SEARCH_QUERY_EXPANSION
 from design_graph.graph.reader import GraphReader
@@ -26,6 +26,12 @@ class SearchResult:
     doc: str     # prototype/document name
     score: int   # 0–100
     word_coverage: float = 1.0  # fraction of the query's distinct words this result actually matched
+    # Graph context for Component results, so an agent can tell where a hit
+    # lives without a follow-up get_component_spec() call. Reuses the same
+    # reader methods get_component_spec already calls for this — empty for
+    # every non-Component result type.
+    parents: list[str] = field(default_factory=list)
+    screens_using: list[str] = field(default_factory=list)
 
 
 def score_match(name: str, query: str) -> int:
@@ -123,10 +129,22 @@ def search(
         best_by_key.values(),
         key=lambda r: (-r.word_coverage, -r.score),
     )
+    top = ranked[:max_results]
+
+    # Hierarchy lookups cost a graph query each, so they only run on the
+    # final, already-deduplicated, already-capped result set — never once
+    # per matched query term.
+    readers_by_doc = dict(readers)
+    for result in top:
+        if result.type == "Component":
+            reader = readers_by_doc[result.doc]
+            result.parents = reader.get_component_parents(result.id)
+            result.screens_using = reader.find_screens_using_comp_transitively(result.id)
+
     logger.debug(
         "search: query=%r terms=%r found=%d", query, terms, len(ranked)
     )
-    return ranked[:max_results]
+    return top
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────

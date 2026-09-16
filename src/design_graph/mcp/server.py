@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,6 +123,7 @@ class MCPServer:
         self._snapshot   = GraphDirectorySnapshot.of(graph_dir)
         configured = str(load_user_config().get("default_doc", "")).strip()
         self._active_doc: str = os.environ.get("DESIGN_GRAPH_DOC", "").strip() or configured
+        self._metrics_disabled = os.environ.get("DESIGN_GRAPH_METRICS_DISABLED", "").strip().lower() in ("1", "true", "on")
 
     def tool_definitions(self) -> list[dict]:
         from design_graph.mcp.tools import TOOL_DEFINITIONS
@@ -145,18 +147,48 @@ class MCPServer:
 
     def dispatch_tool_call(self, name: str, arguments: dict) -> ToolCallResult:
         self._reload_if_stale()
+        started = time.monotonic()
 
         if name == "set_prototype":
-            return ToolCallResult(text=self._set_prototype(arguments.get("name", "")))
+            result = ToolCallResult(text=self._set_prototype(arguments.get("name", "")))
+        else:
+            try:
+                text = self._dispatcher.dispatch(name, arguments, self._active_doc)
+            except Exception as exc:
+                sys.stderr.write(f"[design-graph] ERROR {name}: {traceback.format_exc()}\n")
+                result = ToolCallResult(text=f"Error executing {name}: {exc}", is_error=True)
+            else:
+                sys.stderr.write(f"[design-graph] {name} → {len(text)} chars\n")
+                result = ToolCallResult(text=text)
 
+        self._record_metrics(name, arguments, result, (time.monotonic() - started) * 1000)
+        return result
+
+    def _record_metrics(
+        self, name: str, arguments: dict, result: ToolCallResult, duration_ms: float
+    ) -> None:
+        """
+        Log one CallRecord for this call. Swallows any exception here on
+        purpose — unlike GraphReader._q's swallowing (which hides a real
+        domain bug from the caller), this only protects an already-computed,
+        correct ToolCallResult from being clobbered by a bug in a purely
+        secondary concern: writing a metrics log line.
+        """
+        if self._metrics_disabled:
+            return
         try:
-            text = self._dispatcher.dispatch(name, arguments, self._active_doc)
-        except Exception as exc:
-            sys.stderr.write(f"[design-graph] ERROR {name}: {traceback.format_exc()}\n")
-            return ToolCallResult(text=f"Error executing {name}: {exc}", is_error=True)
+            from design_graph.mcp.metrics import CallRecord, classify_outcome, record_call
 
-        sys.stderr.write(f"[design-graph] {name} → {len(text)} chars\n")
-        return ToolCallResult(text=text)
+            record_call(CallRecord.capture(
+                tool=name,
+                prototype=arguments.get("doc") or self._active_doc or None,
+                outcome=classify_outcome(result.text, result.is_error),
+                duration_ms=duration_ms,
+                response_chars=len(result.text),
+                arguments=arguments,
+            ))
+        except Exception:  # noqa: BLE001 — metrics writing must never break a real tool response
+            pass
 
     def _reload_if_stale(self) -> None:
         """
