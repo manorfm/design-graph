@@ -47,4 +47,4 @@ def compute_diff(
 def compute_screen_hash(screen: ExtractedScreen) -> str:
     """Stable 12-char hex fingerprint of a screen based on name + component refs."""
     key = f"{screen.name}:{','.join(sorted(screen.component_refs))}"
-    return hashlib.md5(key.encode()).hexdigest()[:12]
+    return hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()[:12]
