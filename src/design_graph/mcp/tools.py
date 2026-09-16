@@ -17,7 +17,7 @@ from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
 from design_graph.extraction.component_extractor import extract_component
 from design_graph.graph.reader import GraphReader, NamedEntityResolution
-from design_graph.mcp.search import search
+from design_graph.mcp.search import SearchResult, search
 from design_graph.parsing.js_parser import find_all_boundaries
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 # Default page size for list_components — the only listing tool that had no
 # cap at all (search/get_screen_full/get_component_spec already truncate).
 _DEFAULT_LIST_COMPONENTS_LIMIT = 100
+_DEFAULT_METRICS_LIMIT = 500
+_METRICS_OUTCOMES = ("ok", "not_found", "ambiguous", "no_results", "error")
 
 # validate_component_implementation re-runs the same regex-based extractor
 # used for a whole prototype bundle, but over agent-submitted text instead
@@ -122,6 +124,24 @@ def _truncated_fields_notice(
     field_list = ", ".join(fields)
     suffix = f" Chame get_full_jsx('{recoverable_via}') para o JSX bruto." if recoverable_via else ""
     return f"> ⚠ Extração truncada em: {field_list} — esta spec pode estar incompleta.{suffix}"
+
+
+def _hierarchy_tag(item: SearchResult) -> str:
+    """
+    Trailing " (pais: X; telas: Y)" for a Component search hit that has
+    graph context — same "Pais"/"Telas" vocabulary get_component_spec
+    already uses (see `get_component_spec` below), so a search result reads
+    consistently with a full spec instead of introducing new terms. Empty
+    for every non-Component result and for a Component with neither.
+    """
+    if item.type != "Component":
+        return ""
+    bits = []
+    if item.parents:
+        bits.append(f"pais: {', '.join(item.parents)}")
+    if item.screens_using:
+        bits.append(f"telas: {', '.join(item.screens_using)}")
+    return f" _({'; '.join(bits)})_" if bits else ""
 
 
 def _named_entity_resolution_error(name: str, resolution: NamedEntityResolution) -> str | None:
@@ -566,6 +586,50 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_metrics",
+        "description": (
+            "Returns usage metrics for this server's own tool calls: counts by tool and "
+            "outcome, not-found/ambiguous/no-results rate, per-prototype breakdown, and the "
+            "search queries that most often returned nothing. Filter by doc, tool, outcome "
+            "or time window. Default output is an aggregate summary; pass raw=true for the "
+            "underlying call list instead."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "doc": {
+                    "type": "string",
+                    "description": "Filter to calls tagged with this prototype. Omit to include every prototype.",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Filter to calls of one tool (e.g. 'search').",
+                },
+                "outcome": {
+                    "type": "string",
+                    "description": "Filter by outcome: ok|not_found|ambiguous|no_results|error.",
+                },
+                "since": {
+                    "type": "string",
+                    "description": "Lower bound: ISO-8601 timestamp or relative shorthand ('24h', '7d', '30m').",
+                },
+                "until": {
+                    "type": "string",
+                    "description": "Upper bound: ISO-8601 timestamp or relative shorthand.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": f"Max raw records shown when raw=true. Default {_DEFAULT_METRICS_LIMIT}. Does not affect the aggregate.",
+                },
+                "raw": {
+                    "type": "boolean",
+                    "description": "Return the raw call list instead of the aggregate summary.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "get_component_spec",
         "description": (
             "Returns the complete spec of a component structured for screen reconstruction: "
@@ -779,6 +843,13 @@ class ToolDispatcher:
 
         if tool_name == "search":
             return self.tool_search(args.get("query", ""))
+
+        if tool_name == "get_metrics":
+            return self.get_metrics(
+                doc=doc, tool=args.get("tool"), outcome=args.get("outcome"),
+                since=args.get("since"), until=args.get("until"),
+                limit=args.get("limit"), raw=bool(args.get("raw", False)),
+            )
 
         reader, err = self.pick_reader(doc, active_doc)
         if err:
@@ -1186,7 +1257,7 @@ class ToolDispatcher:
                 doc_tag = f" `[{item.doc}]`" if len(self._readers) > 1 else ""
                 detail  = f" — {item.detail}" if item.detail else ""
                 partial_tag = " *(parcial)*" if item.word_coverage < 1.0 else ""
-                lines.append(f"- **{item.name}**{doc_tag}{detail}{partial_tag}")
+                lines.append(f"- **{item.name}**{doc_tag}{detail}{partial_tag}{_hierarchy_tag(item)}")
             lines.append("")
         return "\n".join(lines)
 
@@ -1453,6 +1524,72 @@ class ToolDispatcher:
         if notice:
             lines.append(notice + " (passe limit= para ver mais, ou comp_type= para filtrar)")
         logger.debug("tools: list_components(type=%s) → %d/%d rows shown", comp_type, len(shown), len(comps))
+        return "\n".join(lines)
+
+    def get_metrics(
+        self,
+        doc: str | None = None,
+        tool: str | None = None,
+        outcome: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        limit: int | None = None,
+        raw: bool = False,
+    ) -> str:
+        from design_graph.mcp.metrics import aggregate, query_calls
+
+        # No `limit` passed here on purpose: the aggregate must summarize
+        # the full filtered set, never an arbitrarily truncated sample —
+        # `limit` only caps how many rows raw=true renders, applied below.
+        records = query_calls(prototype=doc, tool=tool, outcome=outcome, since=since, until=until)
+        if not records:
+            return "Nenhuma chamada registrada para os filtros informados."
+        if raw:
+            return self._render_metrics_raw(records, limit)
+        return self._render_metrics_summary(aggregate(records))
+
+    def _render_metrics_raw(self, records: list, limit: int | None) -> str:
+        effective_limit = limit if limit and limit > 0 else _DEFAULT_METRICS_LIMIT
+        shown = records[:effective_limit]
+        lines = [
+            "## Chamadas registradas", f"({len(records)} encontradas)\n",
+            "| Timestamp | Ferramenta | Prototype | Outcome | Duração (ms) |",
+            "|---|---|---|---|---|",
+        ]
+        for r in shown:
+            lines.append(f"| {r.timestamp} | {r.tool} | {r.prototype or '-'} | {r.outcome} | {r.duration_ms:.1f} |")
+        notice = _truncation_notice(len(records), len(shown))
+        if notice:
+            lines.append(notice + " (passe limit= para ver mais)")
+        return "\n".join(lines)
+
+    def _render_metrics_summary(self, summary) -> str:
+        lines = ["## Métricas de uso", f"({summary.total} chamadas)\n"]
+        lines.append("| Ferramenta | Total | " + " | ".join(_METRICS_OUTCOMES) + " |")
+        lines.append("|---|---|" + "---|" * len(_METRICS_OUTCOMES))
+        for tool_name, counts in sorted(summary.by_tool.items(), key=lambda kv: -kv[1]["total"]):
+            row = [tool_name, str(counts["total"])] + [str(counts.get(o, 0)) for o in _METRICS_OUTCOMES]
+            lines.append("| " + " | ".join(row) + " |")
+
+        lines.append(f"\n**Taxa não-ok:** {summary.not_ok_rate:.1%}")
+
+        if summary.by_prototype:
+            lines.append("\n### Por prototype")
+            lines.append("| Prototype | Total | Taxa não-ok |")
+            lines.append("|---|---|---|")
+            for proto, counts in sorted(summary.by_prototype.items(), key=lambda kv: -kv[1]["total"]):
+                total = counts["total"]
+                not_ok = total - counts.get("ok", 0)
+                rate = (not_ok / total) if total else 0.0
+                lines.append(f"| {proto} | {total} | {rate:.1%} |")
+
+        if summary.top_empty_queries:
+            lines.append("\n### Buscas sem resultado (top)")
+            lines.append("| Query | Ocorrências |")
+            lines.append("|---|---|")
+            for query, count in summary.top_empty_queries:
+                lines.append(f"| {query} | {count} |")
+
         return "\n".join(lines)
 
     def _render_shared_css_class_spec(

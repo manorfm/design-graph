@@ -287,6 +287,7 @@ design-query impact SectionCard
 design-query screen RestaurantsPage
 design-query interactions BtnPrimary
 design-query children CardProduct
+design-query metrics
 ```
 
 `--verbose`, `--doc` and `--db` are accepted before or after the command.
@@ -302,6 +303,8 @@ Every terminal query operates on one selected database. Selection follows this o
 5. Automatic selection when exactly one database exists
 
 When multiple databases exist without a selection, the command exits with guidance instead of choosing one silently.
+
+`design-query metrics` is the one exception: it never touches a `.db` file, so it works even when no prototype has been built yet — see [Call metrics](#call-metrics).
 
 ## Configure the MCP server
 
@@ -382,6 +385,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_build_diff` | Return screens/components added or removed since the previous build, plus a warning when any bundle entry failed to decode and was dropped from that build | `doc?` |
 | `validate_component_implementation` | Compare JSX you wrote against a component's stored spec (children, default-state styles, texts) and report discrepancies | `name`, `jsx_source`, `doc?` |
 | `set_prototype` | Set or inspect the active prototype for this MCP connection — resets on a connection restart (e.g. a client `/mcp` reconnect), even mid-task | `name?` |
+| `get_metrics` | Return usage metrics for this server's own tool calls — see [Call metrics](#call-metrics) | `doc?`, `tool?`, `outcome?`, `since?`, `until?`, `limit?`, `raw?` |
 
 `get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category.
 
@@ -409,6 +413,58 @@ get_screen_full(name="HomePage", doc="admin")
 
 The `doc` value is the database filename without `.db`.
 
+## Call metrics
+
+Every call made through the MCP server (`dispatch_tool_call`) is logged as one JSON line to `metrics.jsonl` in the XDG data directory — always `$XDG_DATA_HOME/design-graph` (`~/.local/share/design-graph` by default), regardless of any `GRAPH_DIR`/`graph_dir` override used for `.db` files (see [Graph directory configuration](#graph-directory-configuration)): the log's location doesn't move with the graph directory. Each line records the tool name, the active prototype, an outcome, duration and the call's own arguments. `design-query`'s other commands talk to the graph directly and are not logged — only calls that went through the MCP server are.
+
+Outcome is classified from the tool's own rendered response: `error` for a raised exception, `not_found` / `ambiguous` / `no_results` from the same phrasing every tool already uses for those cases, `ok` otherwise. This is a heuristic read on the response text, not a separate contract — a tool that changes its wording could fall through to `ok`.
+
+Read the log back with the `get_metrics` MCP tool or `design-query metrics` — both take the same filters and read the same file:
+
+```bash
+design-query metrics
+design-query metrics --tool search --outcome no_results
+design-query metrics --doc "app-v1" --since 24h
+design-query metrics --raw --limit 20
+```
+
+| Parameter | Meaning |
+|---|---|
+| `doc` | Filter to calls tagged with this prototype |
+| `tool` | Filter to calls of one tool (e.g. `search`) |
+| `outcome` | `ok`, `not_found`, `ambiguous`, `no_results` or `error` |
+| `since` / `until` | ISO-8601 timestamp or relative shorthand (`24h`, `7d`, `30m`) |
+| `limit` | Max rows shown with `raw=true` — never affects the aggregate below |
+| `raw` | Return the raw call list instead of the aggregate summary |
+
+The default output is an aggregate summary: counts per tool and outcome, an overall not-ok rate, a per-prototype breakdown, and the search queries that most often returned nothing — the fastest way to see where search coverage is actually failing in real usage, not just in a hand-picked example:
+
+```text
+## Métricas de uso
+(342 chamadas)
+
+| Ferramenta | Total | ok | not_found | ambiguous | no_results | error |
+|---|---|---|---|---|---|---|
+| search | 128 | 96 | 0 | 6 | 26 | 0 |
+| get_component_spec | 74 | 68 | 6 | 0 | 0 | 0 |
+| list_components | 30 | 30 | 0 | 0 | 0 | 0 |
+
+**Taxa não-ok:** 14.6%
+
+### Por prototype
+| Prototype | Total | Taxa não-ok |
+|---|---|---|
+| app-v1 | 210 | 12.4% |
+| admin | 132 | 18.2% |
+
+### Buscas sem resultado (top)
+| Query | Ocorrências |
+|---|---|
+| botao cinza | 6 |
+| modal confirmação | 4 |
+```
+
+Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 
 ## Extracted capabilities
 
