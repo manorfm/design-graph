@@ -1,6 +1,7 @@
 # design-graph
 
 [![Tests](https://github.com/manorfm/design-graph/actions/workflows/tests.yml/badge.svg)](https://github.com/manorfm/design-graph/actions/workflows/tests.yml)
+[![Security](https://github.com/manorfm/design-graph/actions/workflows/security.yml/badge.svg)](https://github.com/manorfm/design-graph/actions/workflows/security.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-v0.34.0-green.svg)](https://github.com/manorfm/design-graph/tags)
@@ -531,6 +532,26 @@ make clean-all
 ```
 
 Developer-oriented targets include `install-hooks`, `version`, `push` and `release`. Run `make help` for the complete list.
+
+## Releasing & security
+
+Versioning is commit-driven: `make install-hooks` installs a post-commit hook (`scripts/auto_version.py`) that reads the conventional-commit prefix (`feat`/`fix`/`chore`/`refactor`) and creates an annotated `vX.Y.Z` tag automatically.
+
+To ship a release:
+
+```bash
+make release
+```
+
+This pushes commits and tags, then creates a GitHub Release from the latest tag — which is what triggers the publish pipeline (`.github/workflows/publish.yml`). Nothing reaches PyPI without passing through, in order:
+
+1. **`security.yml`** — CodeQL, Bandit and `pip-audit` (SAST + dependency/SCA scanning). A failing scan blocks the release outright.
+2. **`build`** — builds the sdist/wheel.
+3. **`publish`** — requires manual approval (the `pypi` GitHub environment has a required reviewer) before publishing to PyPI via trusted publishing (OIDC — no long-lived API token is stored anywhere).
+
+The same `security.yml` also runs on every push and pull request to `main`, so issues surface before merge, not just at release time.
+
+Repository access is locked down so all of this is enforced, not just advisory: branch protection on `main` requires a pull request for anyone other than a repo admin, and a tag ruleset restricts creation/deletion of `v*` tags to admins — so an external contributor can propose changes via PR but cannot push a release or trigger a publish, even by cloning the repo and running `make` locally (the PyPI trusted-publisher credential only exists inside a GitHub Actions run of this exact repository).
 
 ## Repository structure
 
