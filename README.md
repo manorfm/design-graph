@@ -530,7 +530,7 @@ make clean-graph DB=/path/to/prototype.db
 make clean-all
 ```
 
-Developer-oriented targets include `install-hooks`, `version` and `push`. Run `make help` for the complete list.
+Developer-oriented targets include `install-hooks`, `version`, `push` and `release`. Run `make help` for the complete list.
 
 ## Repository structure
 
