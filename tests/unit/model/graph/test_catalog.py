@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pytest
 
-from design_graph.core.graph_catalog import (
+from design_graph.model.graph.catalog import (
     AmbiguousGraphSelection,
     GraphCatalog,
     GraphDocumentName,

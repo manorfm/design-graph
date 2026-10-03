@@ -12,11 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.core.models import (
-    ExtractedComponent,
-    ExtractedScreen,
-    ExtractedSection,
-)
+from design_graph.model.entities import ExtractedComponent, ExtractedScreen, ExtractedSection
 from design_graph.cli.chunk_export import (
     _build_screen_content,
     _section_fallback_content,

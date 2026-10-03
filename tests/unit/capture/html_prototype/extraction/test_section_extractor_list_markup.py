@@ -19,7 +19,7 @@ build a Section on, reusing the exact same balanced-brace region scan
 
 from __future__ import annotations
 
-from design_graph.core.models import ExtractedScreen
+from design_graph.model.entities import ExtractedScreen
 from design_graph.capture.html_prototype.extraction.section_extractor import extract_sections
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries

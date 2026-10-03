@@ -10,7 +10,7 @@ class TestScreenRoleStrBehavior:
     def test_str_produces_plain_value_not_class_dot_member(self):
         # A bare (str, Enum) renders "ScreenRole.PAGE" via str()/f-string —
         # Enum.__str__ shadows str.__str__. ScreenRole must use the shared
-        # StrEnum base (core/models.py) like every other enum in the domain,
+        # StrEnum base (model/entities.py) like every other enum in the domain,
         # not redefine the same footgun independently.
         assert str(ScreenIdentity.classify("RestaurantsPage").role) == "page"
 

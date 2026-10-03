@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.core.models import DOMPattern
+from design_graph.capture.html_prototype.sources import DOMPattern
 from design_graph.capture.html_prototype.extraction.plain_html_component_extractor import (
     _extract_inline_styles,
     dom_patterns_to_extracted_components,

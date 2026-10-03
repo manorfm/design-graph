@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
@@ -15,11 +15,11 @@ from design_graph.core.models import (
     InteractionEntry,
     StyleEntry,
     TextEntry,
+    index_tokens_by_value,
 )
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
-from design_graph.core.models import index_tokens_by_value
+from design_graph.model.graph.reader import GraphReader
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
@@ -952,9 +952,9 @@ class TestJsxSnippetSizeCap:
     def fresh_writer(self, tmp_path):
         from types import SimpleNamespace
         import kuzu
-        from design_graph.graph.schema import initialize_schema
-        from design_graph.graph.writer import GraphWriter
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.schema import initialize_schema
+        from design_graph.model.graph.writer import GraphWriter
+        from design_graph.model.graph.reader import GraphReader
         db   = kuzu.Database(str(tmp_path / "cap.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
@@ -965,8 +965,8 @@ class TestJsxSnippetSizeCap:
         return "<div>" + ("x" * 30_000) + "</div>"
 
     def test_oversized_component_jsx_is_capped(self, fresh_writer):
-        from design_graph.core.models import ExtractedComponent
-        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.entities import ExtractedComponent
+        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
         comp = ExtractedComponent(
             name="BigComp", comp_type="card", jsx_snippet=self._oversized_jsx(),
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
@@ -980,8 +980,8 @@ class TestJsxSnippetSizeCap:
         )
 
     def test_oversized_section_jsx_is_capped(self, fresh_writer):
-        from design_graph.core.models import ExtractedScreen, ExtractedSection
-        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.entities import ExtractedScreen, ExtractedSection
+        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
         section = ExtractedSection(
             id="sec_big", screen="BigPage", name="BigSection",
             styles={}, component_refs=[], texts=[],
@@ -997,7 +997,7 @@ class TestJsxSnippetSizeCap:
         )
 
     def test_normal_jsx_is_stored_intact(self, fresh_writer):
-        from design_graph.core.models import ExtractedComponent
+        from design_graph.model.entities import ExtractedComponent
         jsx = "<div><button>OK</button></div>"
         comp = ExtractedComponent(
             name="SmallComp", comp_type="button", jsx_snippet=jsx,
@@ -1008,8 +1008,8 @@ class TestJsxSnippetSizeCap:
         assert result["c.jsx_snippet"] == jsx
 
     def test_oversized_screen_jsx_is_capped(self, fresh_writer):
-        from design_graph.core.models import ExtractedScreen
-        from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.entities import ExtractedScreen
+        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
         screen = ExtractedScreen(
             name="BigScreen", component_refs=[], sections_count=0,
             jsx_snippet=self._oversized_jsx(),

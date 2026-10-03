@@ -20,8 +20,8 @@ from design_graph.capture.html_prototype.parsing.js_parser import (
     find_function_end,
 )
 from design_graph.capture.html_prototype.parsing.token_extractor import extract_tokens
-from design_graph.core.models import RawSources
-from design_graph.core.patterns import RE_COMP_FN
+from design_graph.capture.html_prototype.sources import RawSources
+from design_graph.capture.html_prototype.patterns import RE_COMP_FN
 
 
 # ── format_detector: Tailwind detection ──────────────────────────────────────
@@ -62,7 +62,7 @@ class TestFunctionEndFallback:
         js = "function MyComp() " + " " * 600 + "{ return <div/>; }"
         end = find_function_end(js, 0)
         # Should return fallback (fn_start + JS_FUNCTION_FALLBACK_WINDOW)
-        from design_graph.core.constants import JS_FUNCTION_FALLBACK_WINDOW
+        from design_graph.capture.html_prototype.constants import JS_FUNCTION_FALLBACK_WINDOW
         assert end == min(JS_FUNCTION_FALLBACK_WINDOW, len(js))
 
 

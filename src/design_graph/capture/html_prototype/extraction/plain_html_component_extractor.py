@@ -11,7 +11,7 @@ becomes a component named by _infer_component_name() in html_parser.
 Responsibility boundary:
   - html_parser.py   → detects repeating DOM patterns (parsing layer)
   - THIS module      → converts patterns to domain entities (extraction layer)
-  - graph/writer.py  → persists entities to Kuzu (graph layer)
+  - model/graph/writer.py → persists entities to Kuzu (model layer)
 """
 
 from __future__ import annotations
@@ -19,13 +19,8 @@ from __future__ import annotations
 import logging
 import re
 
-from design_graph.core.models import (
-    ComponentType,
-    DOMPattern,
-    ExtractedComponent,
-    SemanticType,
-    StyleEntry,
-)
+from design_graph.model.entities import ComponentType, ExtractedComponent, StyleEntry
+from design_graph.capture.html_prototype.sources import DOMPattern, SemanticType
 
 logger = logging.getLogger(__name__)
 

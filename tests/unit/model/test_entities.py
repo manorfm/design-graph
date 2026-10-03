@@ -1,10 +1,10 @@
-"""Tests for value objects and enums in core/models.py — DDD refactor."""
+"""Tests for value objects and enums in model/entities.py."""
 
 import hashlib
 
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     ComponentProp,
     ComponentType,
     DetectionMethod,
@@ -18,14 +18,13 @@ from design_graph.core.models import (
     JsxMarkerKind,
     JsxSnippet,
     PropDefault,
-    SemanticType,
-    SourceFormat,
     StyleEntry,
     StyleState,
     TextEntry,
     TextType,
     TokenCategory,
 )
+from design_graph.capture.html_prototype.sources import SemanticType, SourceFormat
 
 
 class TestEntityIdDerive:

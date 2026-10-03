@@ -26,7 +26,7 @@ from design_graph.paths import (
     load_user_config,
     resolve_graph_dir,
 )
-from design_graph.core.graph_catalog import GraphDocumentName
+from design_graph.model.graph.catalog import GraphDocumentName
 
 
 # ── resolve_graph_dir ─────────────────────────────────────────────────────────

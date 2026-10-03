@@ -19,8 +19,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from design_graph.core.models import BuildDiff, BuildState, ExtractedScreen
-from design_graph.graph.diff import compute_screen_hash
+from design_graph.model.build import BuildDiff, BuildState
+from design_graph.model.entities import ExtractedScreen
+from design_graph.model.graph.diff import compute_screen_hash
 
 logger = logging.getLogger(__name__)
 

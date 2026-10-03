@@ -8,7 +8,7 @@ outside all of them by construction.
 
 from __future__ import annotations
 
-from design_graph.core.models import TextType
+from design_graph.model.entities import TextType
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 

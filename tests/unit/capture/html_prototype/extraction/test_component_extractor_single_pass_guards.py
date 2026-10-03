@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.core.constants import MAX_INTERACTIONS_PER_COMPONENT
+from design_graph.capture.html_prototype.constants import (
+    MAX_INTERACTIONS_PER_COMPONENT,
+    MAX_CLASSES_PER_COMPONENT,
+    MAX_STYLES_PER_COMPONENT,
+    MAX_TEXTS_PER_COMPONENT,
+)
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 
@@ -287,11 +292,6 @@ class TestTextFiltering:
 
 import logging
 
-from design_graph.core.constants import (
-    MAX_CLASSES_PER_COMPONENT,
-    MAX_STYLES_PER_COMPONENT,
-    MAX_TEXTS_PER_COMPONENT,
-)
 
 
 def _make_js_with_many_styles(name: str, count: int) -> str:
@@ -304,7 +304,7 @@ def _make_js_with_many_styles(name: str, count: int) -> str:
 
 # ── CSS class rule_map integration (C10) ─────────────────────────────────────
 
-from design_graph.core.models import FunctionBoundary
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule, resolve_classes
 
 
@@ -423,7 +423,7 @@ class TestCssClassResolutionInExtractor:
             assert s.element.startswith("class:")
 
     def test_inline_styles_take_precedence_over_class_capacity(self):
-        from design_graph.core.constants import MAX_STYLES_PER_COMPONENT
+        from design_graph.capture.html_prototype.constants import MAX_STYLES_PER_COMPONENT
         # Fill up styles with inline, then class styles should be capped
         inline_parts = " ".join(
             f'style={{{{prop{i}: "val{i}px"}}}}' for i in range(MAX_STYLES_PER_COMPONENT)
@@ -761,7 +761,7 @@ class TestTruncatedFields:
         assert comp.truncated_fields == frozenset()
 
     def test_consolidate_unions_truncated_fields_across_variants(self):
-        from design_graph.core.models import ExtractedComponent
+        from design_graph.model.entities import ExtractedComponent
         v1 = ExtractedComponent(
             name="Dup", comp_type="component", jsx_snippet="<div/>",
             occurrence=1, classes="", truncated_fields=frozenset({"styles"}),

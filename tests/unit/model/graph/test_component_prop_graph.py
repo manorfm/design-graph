@@ -10,14 +10,10 @@ from __future__ import annotations
 import kuzu
 import pytest
 
-from design_graph.core.models import (
-    ComponentProp,
-    ExtractedComponent,
-    ExtractedScreen,
-)
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.model.entities import ComponentProp, ExtractedComponent, ExtractedScreen
+from design_graph.model.graph.reader import GraphReader
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 @pytest.fixture(scope="module")
@@ -62,12 +58,12 @@ def prop_graph(tmp_path_factory):
 
 class TestComponentPropSchema:
     def test_component_prop_node_table_in_ddl(self):
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         ddl = " ".join(SCHEMA)
         assert "ComponentProp" in ddl
 
     def test_has_prop_relationship_in_ddl(self):
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         ddl = " ".join(SCHEMA)
         assert "HAS_PROP" in ddl
 

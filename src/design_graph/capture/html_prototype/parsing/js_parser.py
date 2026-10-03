@@ -16,12 +16,9 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from design_graph.core.constants import (
-    JS_FUNCTION_FALLBACK_WINDOW,
-    JS_FUNCTION_SCAN_LIMIT,
-)
-from design_graph.core.models import FunctionBoundary
-from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_VISUAL_RETURN
+from design_graph.capture.html_prototype.constants import JS_FUNCTION_FALLBACK_WINDOW, JS_FUNCTION_SCAN_LIMIT
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.capture.html_prototype.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_VISUAL_RETURN
 
 logger = logging.getLogger(__name__)
 

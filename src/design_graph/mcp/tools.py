@@ -13,10 +13,16 @@ from __future__ import annotations
 import json
 import logging
 
-from design_graph.core.graph_catalog import GraphDocumentName
-from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
+from design_graph.model.graph.catalog import GraphDocumentName
+from design_graph.model.entities import (
+    ComponentType,
+    JsxSnippet,
+    PropDefault,
+    StyleState,
+    TokenCategory,
+)
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
-from design_graph.graph.reader import GraphReader, NamedEntityResolution
+from design_graph.model.graph.reader import GraphReader, NamedEntityResolution
 from design_graph.mcp.search import SearchResult, search
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 
@@ -160,7 +166,7 @@ class CappedJsx(str):
     """
     A JSX/markup snippet capped to a display limit, aware of its own cut.
 
-    Mirrors PropDefault (core/models.py): a fact about the value — whether it
+    Mirrors PropDefault (model/entities.py): a fact about the value — whether it
     was cut, and by how much — lives on the value itself instead of being
     recomputed from a raw length comparison at every render site.
     """

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from design_graph.core.models import FunctionBoundary
-from design_graph.core.patterns import RE_VISUAL_RETURN
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.capture.html_prototype.patterns import RE_VISUAL_RETURN
 
 
 @dataclass(frozen=True)

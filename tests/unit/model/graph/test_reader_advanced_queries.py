@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
@@ -28,11 +28,11 @@ from design_graph.core.models import (
     InteractionEntry,
     StyleEntry,
     TextEntry,
+    index_tokens_by_value,
 )
-from design_graph.graph.reader import GraphReader, _best_fuzzy_matches
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
-from design_graph.core.models import index_tokens_by_value
+from design_graph.model.graph.reader import GraphReader, _best_fuzzy_matches
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 # ── Shared populated fixture ──────────────────────────────────────────────────

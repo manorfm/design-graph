@@ -11,7 +11,7 @@ import logging
 import re
 from collections import Counter
 
-from design_graph.core.constants import (
+from design_graph.capture.html_prototype.constants import (
     FONT_SIZE_MAX_PX,
     FONT_SIZE_MIN_PX,
     FONT_SIZE_SEMANTIC_LABELS,
@@ -33,8 +33,9 @@ from design_graph.core.constants import (
     SPACING_MAX_PX,
     SPACING_MIN_PX,
 )
-from design_graph.core.models import DesignToken, EntityId, RawSources, TokenCategory
-from design_graph.core.patterns import (
+from design_graph.model.entities import DesignToken, EntityId, TokenCategory
+from design_graph.capture.html_prototype.sources import RawSources
+from design_graph.capture.html_prototype.patterns import (
     RE_BORDER_RADIUS,
     RE_BOX_SHADOW,
     RE_COLOR,

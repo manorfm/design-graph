@@ -12,7 +12,7 @@ from __future__ import annotations
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     ComponentProp,
     ExtractedComponent,
     ExtractedScreen,
@@ -21,9 +21,9 @@ from design_graph.core.models import (
     StyleEntry,
     TextEntry,
 )
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.model.graph.reader import GraphReader
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 # ── Fixture ───────────────────────────────────────────────────────────────────

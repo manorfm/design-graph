@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from design_graph.core.graph_catalog import (
+from design_graph.model.graph.catalog import (
     GraphArtifactKind,
     GraphCatalog,
     GraphDocumentName,

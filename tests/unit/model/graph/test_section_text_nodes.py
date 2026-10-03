@@ -13,15 +13,15 @@ from __future__ import annotations
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
     TextEntry,
 )
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.model.graph.reader import GraphReader
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 # ── Shared fixture ────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ def text_graph(tmp_path_factory):
 
 class TestSectionTextSchema:
     def test_section_has_text_relationship_in_schema_ddl(self):
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         ddl = " ".join(SCHEMA)
         assert "SECTION_HAS_TEXT" in ddl
 

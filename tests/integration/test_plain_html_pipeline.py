@@ -18,7 +18,7 @@ from pathlib import Path
 import kuzu
 import pytest
 
-from design_graph.graph.reader import GraphReader
+from design_graph.model.graph.reader import GraphReader
 from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"

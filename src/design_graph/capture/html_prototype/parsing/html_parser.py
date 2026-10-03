@@ -18,12 +18,8 @@ from collections import Counter, defaultdict
 
 from bs4 import BeautifulSoup, Tag
 
-from design_graph.core.constants import (
-    LAYOUT_ONLY_TAGS,
-    MIN_DOM_PATTERN_REPETITIONS,
-    MIN_DOM_SIGNATURE_LENGTH,
-)
-from design_graph.core.models import DOMPattern, SemanticType
+from design_graph.capture.html_prototype.constants import LAYOUT_ONLY_TAGS, MIN_DOM_PATTERN_REPETITIONS, MIN_DOM_SIGNATURE_LENGTH
+from design_graph.capture.html_prototype.sources import DOMPattern, SemanticType
 
 logger = logging.getLogger(__name__)
 

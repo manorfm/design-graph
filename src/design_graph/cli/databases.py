@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Protocol
 
-from design_graph.core.graph_catalog import (
+from design_graph.model.graph.catalog import (
     GraphCatalogError,
     GraphDocumentName,
     GraphMaintenancePlan,

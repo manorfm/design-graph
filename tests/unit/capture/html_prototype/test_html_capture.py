@@ -20,7 +20,7 @@ class TestExtractReactResolvesPaletteReferences:
     """
 
     def test_component_style_and_token_agree_on_the_resolved_hex(self):
-        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
         from design_graph.capture.html_prototype.html_capture import extract_react
 
         js = """
@@ -45,7 +45,7 @@ class TestExtractReactResolvesPaletteReferences:
 
 class TestExtractReactScreenComponentSplit:
     def test_screen_boundary_excluded_from_extracted_components(self):
-        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
         from design_graph.capture.html_prototype.html_capture import extract_react
 
         js = """
@@ -65,7 +65,7 @@ class TestExtractReactScreenComponentSplit:
         # (Page/Screen/Dashboard/View/Detail) still becomes a screen — not
         # a component — when its own body conditionally switches between
         # 2+ Tab-suffixed children (a full-page multi-tab editor shell).
-        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
         from design_graph.capture.html_prototype.html_capture import extract_react
 
         js = """
@@ -102,7 +102,7 @@ class TestExtractReactSectionsResolveCssClasses:
     """
 
     def test_list_item_section_carries_css_class_resolved_style(self):
-        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
         from design_graph.capture.html_prototype.html_capture import extract_react
 
         js = """
@@ -157,7 +157,7 @@ class TestExtractReactComponentAliasResolution:
     """
 
     def _extract(self):
-        from design_graph.core.models import RawSources, SourceFormat
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
         from design_graph.capture.html_prototype.html_capture import extract_react
 
         sources = RawSources(js=self._JS, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)

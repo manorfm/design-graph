@@ -2,7 +2,7 @@
 JSX sanitization for AI-agent consumption.
 
 sanitize_jsx() strips JavaScript control flow out of a component's return
-block, replacing dynamic expressions with typed markers (core.models.JsxMarker)
+block, replacing dynamic expressions with typed markers (model.entities.JsxMarker)
 that name which component renders there without exposing the logic around it.
 
 Every collapse here locates the *true* end of a `{...}` JSX expression with
@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     JSX_ARROW_FN_MARKER,
     JSX_BARE_EXPRESSION_MARKER,
     JSX_HANDLER_MARKER,
@@ -26,7 +26,7 @@ from design_graph.core.models import (
     JsxMarker,
     JsxMarkerKind,
 )
-from design_graph.core.patterns import (
+from design_graph.capture.html_prototype.patterns import (
     RE_JSX_CONDITIONAL_HEAD,
     RE_JSX_EITHER_ELSE_BRANCH,
     RE_JSX_EITHER_HEAD,

@@ -30,10 +30,10 @@ from design_graph.capture.base import (  # UnsupportedPrototypeError: re-exporte
     UnsupportedPrototypeError,
 )
 from design_graph.capture.registry import capture_for
-from design_graph.core.models import BuildStats
-from design_graph.graph.diff import compute_diff
-from design_graph.graph.writer import GraphWriteSession
-from design_graph.core.models import index_tokens_by_value
+from design_graph.model.build import BuildStats
+from design_graph.model.graph.diff import compute_diff
+from design_graph.model.graph.writer import GraphWriteSession
+from design_graph.model.entities import index_tokens_by_value
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 

@@ -15,13 +15,10 @@ import logging
 import re
 from dataclasses import dataclass
 
-from design_graph.core.constants import REACT_INTERNALS
-from design_graph.core.models import ExtractedScreen, FunctionBoundary, StrEnum
-from design_graph.core.patterns import (
-    RE_COMP_REF,
-    RE_JSX_CALL,
-    RE_JSX_TAG,
-)
+from design_graph.capture.html_prototype.constants import REACT_INTERNALS
+from design_graph.model.entities import ExtractedScreen, StrEnum
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.capture.html_prototype.patterns import RE_COMP_REF, RE_JSX_CALL, RE_JSX_TAG
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.capture.html_prototype.extraction.visual_function import VisualFunctionCandidate

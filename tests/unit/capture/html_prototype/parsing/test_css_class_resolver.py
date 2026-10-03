@@ -585,7 +585,7 @@ class TestCssClassResolverLayerIsolation:
     # Exact layer paths that parsing/ must not depend on
     FORBIDDEN_LAYERS = (
         "design_graph.capture.html_prototype.extraction",
-        "design_graph.graph",
+        "design_graph.model.graph",
         "design_graph.mcp",
     )
 

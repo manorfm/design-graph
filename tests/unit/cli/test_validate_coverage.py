@@ -29,14 +29,14 @@ from design_graph.cli.validate import (
     render_validation_report,
     validate_graph,
 )
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
 )
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 FIXTURE = Path(__file__).parent.parent.parent / "fixtures" / "simple.html"
 
@@ -146,7 +146,7 @@ class TestCheckNoOrphanedComponents:
         # No write_screen() call → OrphanComp has no USES_COMPONENT relationship
         ro_db   = kuzu.Database(str(tmp_path / "orphan.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         return GraphReader(ro_conn)
 
     def test_orphaned_component_detected(self, tmp_path):
@@ -207,7 +207,7 @@ class TestCheckTokensHaveUsage:
         gw.write_tokens([zero_token])
         ro_db   = kuzu.Database(str(tmp_path / "tokens.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         return GraphReader(ro_conn)
 
     def test_zero_usage_token_detected(self, tmp_path):

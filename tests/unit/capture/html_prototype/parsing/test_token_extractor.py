@@ -2,9 +2,9 @@
 
 import pytest
 
-from design_graph.core.models import DesignToken, RawSources
+from design_graph.model.entities import DesignToken, index_tokens_by_value
+from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.html_prototype.parsing.token_extractor import extract_tokens
-from design_graph.core.models import index_tokens_by_value
 
 
 def _sources(js: str = "", css: str = "") -> RawSources:

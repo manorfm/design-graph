@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from design_graph.graph.reader import GraphReader
+    from design_graph.model.graph.reader import GraphReader
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -63,14 +63,14 @@ def _load_readers(graph_dir: Path) -> list[tuple[str, GraphReader]]:
 
     import kuzu
 
-    from design_graph.graph.reader import GraphReader
+    from design_graph.model.graph.reader import GraphReader
 
     readers: list[tuple[str, GraphReader]] = []
     for db_path in sorted(graph_dir.glob("*.db")):
         try:
             db = kuzu.Database(str(db_path), read_only=True)
             # Same <db>.state.json naming GraphDatabase.state_path uses
-            # (core/graph_catalog.py) — lets get_build_diff() find it.
+            # (model/graph/catalog.py) — lets get_build_diff() find it.
             state_path = db_path.parent / f"{db_path.name}.state.json"
             readers.append((db_path.stem, GraphReader(kuzu.Connection(db), state_path=state_path)))
             sys.stderr.write(f"[design-graph] loaded: {db_path.name}\n")
@@ -213,7 +213,7 @@ class MCPServer:
         )
 
     def _set_prototype(self, name: str) -> str:
-        from design_graph.core.graph_catalog import GraphDocumentName
+        from design_graph.model.graph.catalog import GraphDocumentName
 
         if not name:
             if self._active_doc:

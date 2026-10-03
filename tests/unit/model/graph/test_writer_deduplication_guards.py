@@ -15,17 +15,17 @@ from __future__ import annotations
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
     InteractionEntry,
     StyleEntry,
     TextEntry,
+    index_tokens_by_value,
 )
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
-from design_graph.core.models import index_tokens_by_value
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 @pytest.fixture
@@ -234,7 +234,7 @@ class TestUnresolvedChildBecomesShell:
         assert result.get_next()[0] == 1
 
     def test_shell_component_marked_unresolved(self, writer):
-        from design_graph.core.models import ComponentDefinitionStatus
+        from design_graph.model.entities import ComponentDefinitionStatus
         gw, conn = writer
         parent = _comp("IconButton", child_refs=["ChevronRight"])
         gw.write_component(parent, {})
@@ -245,7 +245,7 @@ class TestUnresolvedChildBecomesShell:
 
     def test_get_component_children_surfaces_the_external_reference(self, tmp_path):
         import kuzu as _kuzu
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         db = _kuzu.Database(str(tmp_path / "shell.db"))
         conn = _kuzu.Connection(db)
         initialize_schema(conn)

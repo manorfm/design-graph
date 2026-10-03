@@ -509,7 +509,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 
 Editable source: [`diagram.excalidraw`](./diagram.excalidraw).
 
-See [`schema.py`](./src/design_graph/graph/schema.py) for the authoritative node and relationship definitions.
+See [`schema.py`](./src/design_graph/model/graph/schema.py) for the authoritative node and relationship definitions.
 
 ## Makefile shortcuts
 

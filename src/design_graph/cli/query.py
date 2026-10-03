@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from design_graph.cli._logging import configure_cli_logging
-from design_graph.core.models import TokenCategory
+from design_graph.model.entities import TokenCategory
 from design_graph.paths import resolve_graph_dir
 
 if TYPE_CHECKING:
@@ -205,7 +205,7 @@ def main() -> None:
         dispatch_query_command(args, ToolDispatcher([]), reader=None)
         return
 
-    from design_graph.core.graph_catalog import GraphCatalogError
+    from design_graph.model.graph.catalog import GraphCatalogError
     from design_graph.workspace import GraphWorkspace
     try:
         selected = GraphWorkspace.open().select(db_path=args.db_path, document=args.document)
@@ -227,7 +227,7 @@ def main() -> None:
 
 def _open_graph_reader(db_path: Path) -> list:
     import kuzu
-    from design_graph.graph.reader import GraphReader
+    from design_graph.model.graph.reader import GraphReader
     try:
         db = kuzu.Database(str(db_path), read_only=True)
         return [(db_path.stem, GraphReader(kuzu.Connection(db)))]

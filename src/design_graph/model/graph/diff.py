@@ -11,7 +11,8 @@ import hashlib
 import logging
 from collections import Counter
 
-from design_graph.core.models import BuildDiff, BuildState, ExtractedScreen
+from design_graph.model.build import BuildDiff, BuildState
+from design_graph.model.entities import ExtractedScreen
 
 logger = logging.getLogger(__name__)
 

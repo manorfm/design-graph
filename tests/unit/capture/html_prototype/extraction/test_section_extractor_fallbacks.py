@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.core.models import ExtractedScreen, FunctionBoundary
+from design_graph.model.entities import ExtractedScreen
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.extraction.section_extractor import (
     _build_section,
     _detect_by_structure,
@@ -53,7 +54,7 @@ class TestNoSectionsDetected:
         assert isinstance(sections, list)
 
     def test_returns_empty_for_zero_length_boundary(self):
-        from design_graph.core.models import FunctionBoundary
+        from design_graph.capture.html_prototype.sources import FunctionBoundary
         b = FunctionBoundary(name="TestPage", start=10, body_start=10, end=10)
         s = _screen("TestPage")
         sections = extract_sections("function TestPage() {}", s, b)
@@ -123,7 +124,7 @@ class TestStructuralFallback:
         """
         sections = _detect_by_structure(window, "TestScreen")
         # Should not produce more sections than MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
-        from design_graph.core.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
+        from design_graph.capture.html_prototype.constants import MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
         assert len(sections) <= MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK
 
 

@@ -213,8 +213,7 @@ def _read_graph_metrics(db_path: Path) -> tuple[dict[str, int], GraphHealthMetri
     """Open one read-only connection and collect counts plus relational health."""
     try:
         import kuzu
-        from design_graph.graph.reader import GraphReader
-        from design_graph.graph.schema import initialize_schema
+        from design_graph.model.graph.reader import GraphReader
 
         db   = kuzu.Database(str(db_path), read_only=True)
         conn = kuzu.Connection(db)
@@ -223,8 +222,3 @@ def _read_graph_metrics(db_path: Path) -> tuple[dict[str, int], GraphHealthMetri
     except Exception as exc:
         logger.warning("status: could not read node counts from %s: %s", db_path, exc)
         return {}, GraphHealthMetrics()
-
-
-def _read_node_counts(db_path: Path) -> dict[str, int]:
-    """Backward-compatible count projection."""
-    return _read_graph_metrics(db_path)[0]

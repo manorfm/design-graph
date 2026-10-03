@@ -14,16 +14,16 @@ from __future__ import annotations
 import kuzu
 import pytest
 
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
     StyleEntry,
 )
-from design_graph.graph.reader import GraphReader
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import GraphWriter
+from design_graph.model.graph.reader import GraphReader
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import GraphWriter
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ def section_graph(tmp_path_factory):
 class TestSectionStyleNodesWritten:
     def test_section_has_style_relationship_exists_in_schema(self):
         """SECTION_HAS_STYLE rel must be defined — verify via schema DDL list."""
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         ddl = " ".join(SCHEMA)
         assert "SECTION_HAS_STYLE" in ddl
 

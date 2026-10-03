@@ -34,8 +34,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from design_graph.cli._logging import configure_cli_logging
-from design_graph.core.graph_catalog import GraphDocumentName
-from design_graph.core.models import resolve_icon_markers
+from design_graph.model.graph.catalog import GraphDocumentName
+from design_graph.model.entities import resolve_icon_markers
 from design_graph.paths import default_db_for
 from design_graph.cli.databases import DatabaseCliArgs, parse_database_args
 from design_graph.cli.init import InitCliArgs, parse_init_args
@@ -267,7 +267,7 @@ def _run_build(argv: list[str]) -> None:
     from design_graph.pipeline.state import BuildStateRepository
     state_repository = BuildStateRepository.for_database(db_path)
     state_path = state_repository.path
-    from design_graph.core.graph_catalog import GraphCatalog
+    from design_graph.model.graph.catalog import GraphCatalog
     catalog = GraphCatalog.discover(db_path.parent)
     state_repository.migrate_legacy(
         db_path.parent / ".graph-state.json",
@@ -492,7 +492,7 @@ def _build_report_from_graph(
     import kuzu
 
     from design_graph.cli.report import ReportConfig, build_prototype_report
-    from design_graph.graph.reader import GraphReader
+    from design_graph.model.graph.reader import GraphReader
 
     config = ReportConfig(
         prototype_name=prototype_name,
@@ -532,7 +532,7 @@ def _select_database(db_path: Path | None, document: str | None) -> Path:
 
 
 def _select_graph(db_path: Path | None, document: str | None):
-    from design_graph.core.graph_catalog import GraphCatalogError
+    from design_graph.model.graph.catalog import GraphCatalogError
     from design_graph.workspace import GraphWorkspace
     try:
         return GraphWorkspace.open().select(db_path=db_path, document=document)

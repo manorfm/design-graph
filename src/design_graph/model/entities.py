@@ -1,22 +1,29 @@
 """
-Domain models shared across all layers.
+Design-graph domain entities — the vocabulary every capture produces and
+every interface reads: screens, sections, components, props, styles, tokens,
+texts, interactions and icons.
 
-All dataclasses here are immutable by default (frozen=True where possible).
-Mutable ones (e.g. ExtractedScreen with sections_count updated post-extraction)
-use regular @dataclass with explicit field control.
+Nothing here depends on how a prototype was captured or how the graph is
+queried; captures and interfaces depend on this module, never the reverse.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Optional
 
-from design_graph.core.patterns import RE_ICON_MARKER, RE_IDENTIFIER_SHAPED_TOKEN
+# Matches the {[icon:id]} marker IconAsset.__str__ produces, for expansion
+# back into full markup by resolve_icon_markers.
+RE_ICON_MARKER = re.compile(r'\{\[icon:(icon_[0-9a-f]{8})\]\}')
 
+# A raw string candidate that reads as a code artifact rather than visible
+# copy: a lowercase/underscore identifier (`flex_start`, `overview`) or a
+# color literal (`#1a1a1a`, `rgba(0,0,0,.5)` — the latter caught by its
+# `rgba` prefix, not this pattern). Backs TextEntry.is_plausible_content.
+RE_IDENTIFIER_SHAPED_TOKEN = re.compile(r"^[a-z_]+$")
 
-# ── Identity ───────────────────────────────────────────────────────────────────
 
 class EntityId(str):
     """
@@ -40,51 +47,16 @@ class EntityId(str):
         return cls(f"{prefix}_{suffix}")
 
 
-# ── Raw parsing output ────────────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class RawSources:
-    """Output of source_loader.load() — immutable view of the HTML file's content."""
-
-    js: str
-    css: str
-    inner_html: str
-    html_hash: str
-    format: SourceFormat
-    skipped_entries: int = 0  # bundle entries that failed base64/gzip decode (bundled_react only)
-
-
-@dataclass(frozen=True)
-class FunctionBoundary:
-    """
-    Exact character-level position of a JavaScript function in the JS string.
-
-    start      — index of "function Name("
-    body_start — index of the first "{" (function body open)
-    end        — index after the matching "}" (function body close)
-
-    Guarantee: for sibling functions, boundary[i].end <= boundary[i+1].start.
-    This property is what makes parallel extraction safe.
-    """
-
-    name: str
-    start: int
-    body_start: int
-    end: int
-
-
 class ComponentDefinitionStatus(IntEnum):
     """Persistence marker encoded in Component.occurrence without a schema migration."""
 
     UNRESOLVED = 0
 
 
-# ── Closed-set value types ──────────────────────────────────────────────────────
-
 class StrEnum(str, Enum):
     """
     Base for every closed-set value type in this codebase — not just the
-    domain fields below; screen_extractor.ScreenRole, graph_catalog's
+    domain fields below; screen_extractor.ScreenRole, the graph catalog's
     GraphArtifactKind/GraphSelectionSource, and cli.validate.ValidationSeverity
     use it too.
 
@@ -129,23 +101,11 @@ class TokenCategory(StrEnum):
     CSS_VAR = "css_var"
 
 
-class SourceFormat(StrEnum):
-    BUNDLED_REACT = "bundled_react"
-    TAILWIND = "tailwind"
-    PLAIN_HTML = "plain_html"
-
-
 class DetectionMethod(StrEnum):
     COMMENT = "comment"
     STRUCTURAL = "structural"
     SEMANTIC = "semantic"
     LIST_ITEM = "list_item"
-
-
-class ChunkLevel(StrEnum):
-    SCREEN = "screen"
-    SECTION = "section"
-    COMPONENT = "component"
 
 
 class ComponentType(StrEnum):
@@ -168,23 +128,6 @@ class ComponentType(StrEnum):
     COMPONENT = "component"  # fallback/unknown
 
 
-class SemanticType(StrEnum):
-    """DOM-level semantic category from html_parser._infer_semantic_type —
-    distinct value space from ComponentType (e.g. "nav" vs "navigation");
-    _SEMANTIC_TYPE_TO_COMP_TYPE maps one to the other."""
-
-    NAV = "nav"
-    HEADER = "header"
-    FOOTER = "footer"
-    CARD = "card"
-    MODAL = "modal"
-    BADGE = "badge"
-    FORM = "form"
-    TABLE = "table"
-    LIST_ITEM = "list-item"
-    COMPONENT = "component"
-
-
 class PropDefault(str):
     """
     A React prop's default-value literal, as declared in the component's
@@ -205,8 +148,6 @@ class PropDefault(str):
     def as_table_cell(self) -> str:
         return f"`{self}`" if self.was_declared else "—"
 
-
-# ── JSX sanitization markers ────────────────────────────────────────────────────
 
 class JsxMarkerKind(StrEnum):
     """The three ways sanitize_jsx collapses a dynamic JSX expression."""
@@ -286,8 +227,6 @@ class JsxSnippet(str):
         return any(marker in self for marker in self._MARKERS)
 
 
-# ── Design tokens ─────────────────────────────────────────────────────────────
-
 @dataclass(frozen=True)
 class DesignToken:
     """A reusable visual value extracted from CSS/JS (color, spacing, etc.)."""
@@ -307,8 +246,6 @@ def index_tokens_by_value(tokens: list[DesignToken]) -> dict[str, list[DesignTok
     return index
 
 
-# ── Icon assets ─────────────────────────────────────────────────────────────────
-
 @dataclass(frozen=True)
 class IconAsset:
     """
@@ -319,7 +256,7 @@ class IconAsset:
     same IconAsset — the graph stores its source once no matter how many
     places render it. str(icon) is the {[icon:id]} marker left in place of
     the markup in a component's jsx_snippet; GraphReader expands it back on
-    read (see graph.reader.GraphReader._resolve_icons).
+    read (see model.graph.reader.GraphReader._resolve_icons).
     """
 
     id: EntityId
@@ -349,8 +286,6 @@ def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:
     return RE_ICON_MARKER.sub(lambda m: markup_by_id.get(m.group(1), m.group(0)), text)
 
 
-# ── Component prop declarations ───────────────────────────────────────────────
-
 @dataclass(frozen=True)
 class ComponentProp:
     """A declared prop extracted from a React component's destructured function signature."""
@@ -369,8 +304,6 @@ class ComponentProp:
             default_value=PropDefault(default_value),
         )
 
-
-# ── Component sub-entities ────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class StyleEntry:
@@ -502,8 +435,6 @@ class TextEntry:
             content=text, text_type=TextType.SECTION_TEXT, source=section_id, element="section",
         )
 
-
-# ── Extracted domain entities ─────────────────────────────────────────────────
 
 def _label_jsx_variants(jsx_variants: list[str]) -> str:
     """
@@ -703,92 +634,3 @@ class ExtractedSection:
             texts=texts, jsx_snippet=jsx_snippet, detection_method=DetectionMethod.SEMANTIC,
         )
 
-
-# ── DOM analysis (plain HTML) ─────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class DOMPattern:
-    """A DOM structure that repeats >= N times — candidate for a component."""
-
-    signature: str       # e.g. "div.card>img,h3,p,button"
-    count: int
-    first_example: str   # truncated HTML of the first occurrence
-    inferred_name: str   # e.g. "RestaurantCard"
-    semantic_type: SemanticType
-
-
-# ── Chunking ──────────────────────────────────────────────────────────────────
-
-@dataclass
-class ChunkEnvelope:
-    """
-    A self-contained fragment of UI structure with navigation metadata.
-    Designed for AI consumption: each chunk makes sense without reading siblings.
-    """
-
-    chunk_id: str            # slug: [a-z0-9_]+
-    breadcrumb: str          # e.g. "RestaurantsPage > Header"
-    level: ChunkLevel
-    parent_id: Optional[str]
-    sibling_ids: list[str]
-    child_ids: list[str]
-    content: str             # sanitized JSX or structured HTML
-    tokens_est: int          # len(content) // 4
-    component_refs: list[str]
-    context_summary: str     # one-line description
-    source_screen: str
-
-
-# ── Build state ───────────────────────────────────────────────────────────────
-
-@dataclass
-class BuildState:
-    """Persisted state from the previous build run (for incremental builds)."""
-
-    html_hash: str
-    last_build: str            # ISO datetime string
-    screens: dict[str, str]    # name → content hash
-    components: dict[str, int] # name → occurrence count
-    source_path: str = ""
-    database_path: str = ""
-    schema_version: int = 2
-    last_diff: "BuildDiff | None" = None  # what this build changed relative to the one before it
-    skipped_entries: int = 0
-    # Bundle entries (bundled_react only) that failed base64/gzip/utf-8
-    # decode during this build and were dropped — RawSources.skipped_entries
-    # verbatim. Persisted here (not just logged) so get_build_diff can
-    # surface it: a real, known gap in what this build could read, distinct
-    # from an "Unresolved" component (a name referenced but never defined
-    # anywhere) — this is source that was never even seen (docs/changes/C39).
-
-
-@dataclass(frozen=True)
-class BuildDiff:
-    """What changed between the previous and current build."""
-
-    is_first_build: bool
-    screens_added: list[str]
-    screens_removed: list[str]
-    comps_added: list[str]
-    comps_removed: list[str]
-
-
-@dataclass
-class BuildStats:
-    """Counts of graph nodes/edges after a completed build."""
-
-    screens: int = 0
-    components: int = 0
-    extracted_components: int = 0
-    unresolved_components: int = 0
-    tokens: int = 0
-    icons: int = 0
-    sections: int = 0
-    interactions: int = 0
-    styles: int = 0
-    texts: int = 0
-    contains_rels: int = 0
-    component_props: int = 0   # ComponentProp nodes from function signature extraction
-    section_styles: int = 0    # SECTION_HAS_STYLE edges for section container styles
-    write_errors: int = 0      # Non-duplicate write failures during this build (should be 0)
-    duration_seconds: float = 0.0

@@ -16,8 +16,8 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from design_graph.core.models import SourceFormat
-from design_graph.core.patterns import RE_COMPRESSED_BUNDLE, RE_TAILWIND_CLASS
+from design_graph.capture.html_prototype.sources import SourceFormat
+from design_graph.capture.html_prototype.patterns import RE_COMPRESSED_BUNDLE, RE_TAILWIND_CLASS
 
 logger = logging.getLogger(__name__)
 

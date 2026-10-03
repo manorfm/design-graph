@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from design_graph.core.models import StrEnum
+from design_graph.model.entities import StrEnum
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,7 @@ def validate_graph(db_path: Path) -> GraphValidationReport:
 
     try:
         import kuzu
-        from design_graph.graph.reader import GraphReader
-        from design_graph.graph.schema import STATS_QUERIES, initialize_schema
+        from design_graph.model.graph.reader import GraphReader
 
         db   = kuzu.Database(str(db_path), read_only=True)
         conn = kuzu.Connection(db)

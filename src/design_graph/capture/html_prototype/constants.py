@@ -1,6 +1,6 @@
 """
-Shared constants: React internals to exclude and semantic keyword
-mappings for HTML component detection.
+Thresholds and limits of the html_prototype capture: React internals to
+exclude, token-promotion thresholds and per-component extraction caps.
 
 Color labels are not among these: a hardcoded hex→label table shared
 across every prototype this server ever loads would mislabel a color the
@@ -20,8 +20,6 @@ REACT_INTERNALS: frozenset[str] = frozenset({
     "ReactDOMRoot", "ReactDOMHydrationRoot",
 })
 
-# Minimum name length to consider a PascalCase symbol as a component
-MIN_COMPONENT_NAME_LENGTH = 3
 
 # Colors to skip when building the token list (too generic / always present)
 SKIP_COLORS: frozenset[str] = frozenset({
@@ -46,24 +44,6 @@ SPACING_MAX_PX = 200
 
 # ── HTML component detection keywords ────────────────────────────────────────
 
-# Maps semantic component type → CSS class keywords that indicate it
-HTML_SEMANTIC_KEYWORDS: dict[str, list[str]] = {
-    "navbar":     ["nav", "navbar", "topbar", "navigation", "header"],
-    "sidebar":    ["sidebar", "sidenav", "aside", "drawer"],
-    "card":       ["card", "tile", "widget", "panel", "box"],
-    "table":      ["table", "data-table", "grid"],
-    "form":       ["form", "form-group", "field", "input-group"],
-    "modal":      ["modal", "dialog", "popup", "overlay"],
-    "button":     ["btn", "button", "cta"],
-    "badge":      ["badge", "tag", "chip", "label", "pill"],
-    "alert":      ["alert", "notification", "toast", "banner"],
-    "tabs":       ["tab", "tabs", "tabbar"],
-    "dropdown":   ["dropdown", "select-menu"],
-    "pagination": ["pagination", "pager"],
-    "avatar":     ["avatar", "profile-pic", "user-icon"],
-    "kpi":        ["kpi", "stat", "metric", "counter", "summary-card"],
-    "chart":      ["chart", "graph", "plot"],
-}
 
 # DOM tags excluded from pattern detection — document-level wrappers only.
 # NOTE: 'div' and 'span' are intentionally NOT here; they can be components
@@ -86,8 +66,6 @@ MAX_INTERACTIONS_PER_COMPONENT = 15
 MAX_TEXTS_PER_COMPONENT = 30
 MAX_CLASSES_PER_COMPONENT = 10
 MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK = 8
-MAX_SECTION_COMMENT_SECTIONS = 20
-MAX_TOKENS_IN_SEARCH_QUERY_EXPANSION = 6
 
 # ── JS parser safety limits ───────────────────────────────────────────────────
 
@@ -153,53 +131,3 @@ MAX_RADIUS_TOKENS      = 10
 
 MIN_CSS_VAR_OCCURRENCES = 1   # definitions typically appear once in the source
 MAX_CSS_VAR_TOKENS      = 30
-
-# ── Layout CSS properties ─────────────────────────────────────────────────────
-
-# CSS properties that describe spatial structure rather than visual appearance.
-# Used by GraphReader.get_component_layout_profile() to filter Style nodes.
-LAYOUT_CSS_PROPERTIES: frozenset[str] = frozenset({
-    "display", "position", "top", "right", "bottom", "left", "zIndex",
-    "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
-    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
-    "flex", "flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis",
-    "alignItems", "alignContent", "justifyContent", "justifyItems",
-    "gap", "rowGap", "columnGap",
-    "overflow", "overflowX", "overflowY",
-    "gridTemplateColumns", "gridTemplateRows", "gridColumn", "gridRow",
-    "boxSizing",
-})
-
-# Layout properties with first-class profile keys (camelCase → snake_case).
-# Properties not in this set land in the LayoutProfile.extra_layout dict.
-_LAYOUT_FAST_PATH_PROPERTIES: frozenset[str] = frozenset({
-    "display", "position", "width", "height",
-    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
-    "flexDirection", "alignItems", "justifyContent", "gap", "overflow", "zIndex",
-})
-
-# A bare pixel width/height at or under this size reads as a decorative
-# indicator (a status dot, a Segmented track's selection marker) rather
-# than real spatial structure. Style capture has no notion of which JSX
-# node within a component a given style came from (StyleEntry.element is
-# the component's name, not a node identity), so a component's own real
-# container dimensions and a tiny nested decoration's dimensions land in
-# the same flat property→value map. _build_layout_profile hides width AND
-# height together only when BOTH are present and BOTH are this small —
-# a real layout element practically never reports both that tiny at once,
-# while a lone small width (a fixed-size icon) or a percentage/keyword
-# value is left untouched as a genuine signal.
-DECORATIVE_DIMENSION_MAX_PX = 12
-
-# Maximum characters stored for a JSX snippet in the graph.
-# Prevents oversized components from bloating the database and MCP responses.
-MAX_JSX_SNIPPET_CHARS = 8_000
-
-# ── Chunking ──────────────────────────────────────────────────────────────────
-
-DEFAULT_CHUNK_MAX_CHARS = 12_000
-
-# Estimated tokens = chars / this divisor (conservative estimate)
-CHUNK_CHARS_PER_TOKEN = 4

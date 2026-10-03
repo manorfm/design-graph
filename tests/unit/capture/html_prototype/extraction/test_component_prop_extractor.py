@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.core.models import ComponentProp, FunctionBoundary
+from design_graph.model.entities import ComponentProp
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.extraction.prop_extractor import extract_props_from_function_signature
 
 

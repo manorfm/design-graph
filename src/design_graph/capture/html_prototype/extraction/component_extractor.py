@@ -19,18 +19,17 @@ import re
 from collections import Counter
 from typing import Callable
 
-from design_graph.core.constants import (
+from design_graph.capture.html_prototype.constants import (
     MAX_CLASSES_PER_COMPONENT,
     MAX_INTERACTIONS_PER_COMPONENT,
     MAX_STYLES_PER_COMPONENT,
     MAX_TEXTS_PER_COMPONENT,
     REACT_INTERNALS,
 )
-from design_graph.core.models import (
+from design_graph.model.entities import (
     ComponentType,
     DesignToken,
     ExtractedComponent,
-    FunctionBoundary,
     InteractionEntry,
     InteractionTrigger,
     StyleEntry,
@@ -38,7 +37,8 @@ from design_graph.core.models import (
     TextEntry,
     TextType,
 )
-from design_graph.core.patterns import (
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.capture.html_prototype.patterns import (
     RE_BUTTON_TEXT,
     RE_CLASS_NAME,
     RE_COMP_REF,

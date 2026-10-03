@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import logging
 
-from design_graph.core.models import ComponentProp, FunctionBoundary
-from design_graph.core.patterns import RE_DESTRUCTURED_PROPS
+from design_graph.model.entities import ComponentProp
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.capture.html_prototype.patterns import RE_DESTRUCTURED_PROPS
 
 logger = logging.getLogger(__name__)
 

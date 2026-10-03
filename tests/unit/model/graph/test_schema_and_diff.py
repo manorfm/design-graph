@@ -7,9 +7,10 @@ from collections import Counter
 import kuzu
 import pytest
 
-from design_graph.core.models import BuildState, ExtractedScreen
-from design_graph.graph.diff import compute_diff, compute_screen_hash
-from design_graph.graph.schema import STATS_QUERIES, initialize_schema
+from design_graph.model.build import BuildState
+from design_graph.model.entities import ExtractedScreen
+from design_graph.model.graph.diff import compute_diff, compute_screen_hash
+from design_graph.model.graph.schema import STATS_QUERIES, initialize_schema
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -38,14 +39,14 @@ class TestInitializeSchema:
             fresh_conn.execute(f"MATCH ()-[r:{rel}]->() RETURN count(r)")
 
     def test_style_uses_token_in_schema_ddl(self):
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         assert any("STYLE_USES_TOKEN" in stmt for stmt in SCHEMA), (
             "STYLE_USES_TOKEN rel table missing from schema DDL. "
             "Add: CREATE REL TABLE STYLE_USES_TOKEN(FROM Style TO Token)"
         )
 
     def test_screen_has_text_removed_from_schema_ddl(self):
-        from design_graph.graph.schema import SCHEMA
+        from design_graph.model.graph.schema import SCHEMA
         assert not any("SCREEN_HAS_TEXT" in stmt for stmt in SCHEMA), (
             "SCREEN_HAS_TEXT is dead code (never written by GraphWriter). "
             "Remove it from schema DDL."

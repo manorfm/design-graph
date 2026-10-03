@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from design_graph.core.models import FunctionBoundary
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.pipeline.build_progress import (
     BuildPhaseReporter,
     SilentBuildReporter,
@@ -97,7 +97,7 @@ class TestExtractAllComponentsCallback:
 
     def _make_boundaries(self) -> list[FunctionBoundary]:
         from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
-        from design_graph.core.models import RawSources
+        from design_graph.capture.html_prototype.sources import RawSources
         return find_all_boundaries(self._JS)
 
     def test_callback_called_once_per_extracted_component(self):

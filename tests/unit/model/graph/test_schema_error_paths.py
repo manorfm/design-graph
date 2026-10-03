@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import kuzu
 import pytest
 
-from design_graph.graph.schema import _verify_kuzu_version, initialize_schema
+from design_graph.model.graph.schema import _verify_kuzu_version, initialize_schema
 
 
 class TestInitializeSchemaErrorPropagation:

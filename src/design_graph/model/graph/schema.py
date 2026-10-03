@@ -24,7 +24,7 @@ import sys
 
 import kuzu
 
-from design_graph.core.models import ComponentDefinitionStatus
+from design_graph.model.entities import ComponentDefinitionStatus
 
 logger = logging.getLogger(__name__)
 

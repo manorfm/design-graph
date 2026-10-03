@@ -5,7 +5,7 @@ from collections import Counter
 
 import pytest
 
-from design_graph.core.models import DesignToken
+from design_graph.model.entities import DesignToken, index_tokens_by_value
 from design_graph.capture.html_prototype.extraction.component_extractor import (
     extract_all_components,
     extract_component,
@@ -14,7 +14,6 @@ from design_graph.capture.html_prototype.extraction.component_extractor import (
 )
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries, find_module_level_constants
 from design_graph.capture.html_prototype.parsing.palette_extractor import discover_prototype_palette
-from design_graph.core.models import index_tokens_by_value
 
 BTN_JS = """
 function BtnPrimary() {
@@ -581,7 +580,7 @@ class TestPaletteReferenceFoldedIntoStyleValue:
         assert background.value == "C.bg"
 
     def test_resolved_value_now_links_to_its_token(self):
-        from design_graph.core.models import DesignToken
+        from design_graph.model.entities import DesignToken
 
         token = DesignToken(id="col_bg", category="color", label="bg", value="#404040", usage=5)
         b = _boundary(PALETTE_JS, "PricingPageV6")

@@ -24,7 +24,7 @@ from pathlib import Path
 import kuzu
 import pytest
 
-from design_graph.graph.reader import GraphReader
+from design_graph.model.graph.reader import GraphReader
 from design_graph.mcp.server import MCPServer
 from design_graph.mcp.tools import ToolDispatcher
 from design_graph.pipeline.coordinator import run_pipeline
@@ -275,7 +275,7 @@ class TestExactScreenIdentity:
 
 class TestSetPrototypeTool:
     def test_set_prototype_changes_active_doc(self):
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         server = MCPServer([("proto_x", _make_stub_reader()), ("proto_y", _make_stub_reader())])
         _call(server, "set_prototype", {"name": "proto_x"})
         assert server._active_doc == "proto_x"
@@ -297,7 +297,7 @@ class TestSetPrototypeTool:
 
     def test_active_doc_used_by_subsequent_tool_calls(self):
         """After set_prototype, tool calls should use the active doc."""
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         reader = _make_stub_reader()
         server = MCPServer([("the_doc", reader)])
         _call(server, "set_prototype", {"name": "the_doc"})

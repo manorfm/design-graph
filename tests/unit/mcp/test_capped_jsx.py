@@ -4,7 +4,7 @@ get_section (4000/2500/2000/3000 chars) to keep MCP responses small. Slicing
 the string directly, the way every one of those call sites used to, gives no
 signal that content is missing — an agent reconstructing a screen from a
 silently incomplete component never finds out. CappedJsx ties the cut fact to
-the value itself, the same way PropDefault (core/models.py) ties "is
+the value itself, the same way PropDefault (model/entities.py) ties "is
 required" to a default-value string, so every render site gets the same
 notice for free instead of re-deriving it from a raw length comparison.
 """

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 
-from design_graph.core.models import StrEnum
+from design_graph.model.entities import StrEnum
 
 
 @dataclass(frozen=True)

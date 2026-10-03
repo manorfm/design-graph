@@ -15,7 +15,8 @@ from __future__ import annotations
 import pytest
 from bs4 import BeautifulSoup
 
-from design_graph.core.models import ExtractedScreen, FunctionBoundary
+from design_graph.model.entities import ExtractedScreen
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.extraction.section_extractor import (
     _detect_by_semantic,
     extract_sections_for_plain_html,

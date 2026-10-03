@@ -20,7 +20,7 @@ import logging
 from bs4 import BeautifulSoup
 
 from design_graph.capture.base import PrototypeDocument
-from design_graph.core.models import RawSources
+from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
 logger = logging.getLogger(__name__)

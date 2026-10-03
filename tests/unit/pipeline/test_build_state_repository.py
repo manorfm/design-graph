@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from design_graph.pipeline.state import BuildStateRepository
-from design_graph.core.models import BuildState
+from design_graph.model.build import BuildState
 
 
 class TestBuildStateRepository:

@@ -20,8 +20,8 @@ from typing import TextIO
 
 import kuzu
 
-from design_graph.core.constants import MAX_JSX_SNIPPET_CHARS
-from design_graph.core.models import (
+
+from design_graph.model.entities import (
     ComponentDefinitionStatus,
     ComponentProp,
     ComponentType,
@@ -33,9 +33,13 @@ from design_graph.core.models import (
     StyleEntry,
     TextEntry,
 )
-from design_graph.graph.schema import initialize_schema, STATS_QUERIES
+from design_graph.model.graph.schema import initialize_schema, STATS_QUERIES
 
 logger = logging.getLogger(__name__)
+
+# Maximum characters stored for a JSX snippet in the graph.
+# Prevents oversized components from bloating the database and MCP responses.
+MAX_JSX_SNIPPET_CHARS = 8_000
 
 
 class BuildLockError(RuntimeError):

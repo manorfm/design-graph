@@ -8,18 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from design_graph.core.models import (
+from design_graph.cli.chunk_export import (
     ChunkEnvelope,
     ChunkLevel,
-    ExtractedComponent,
-    ExtractedScreen,
-    ExtractedSection,
-)
-from design_graph.cli.chunk_export import (
     chunk_extracted_data,
     export_chunks_jsonl,
     to_chunk_id,
 )
+from design_graph.model.entities import ExtractedComponent, ExtractedScreen, ExtractedSection
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

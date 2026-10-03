@@ -2,7 +2,7 @@
 
 import pytest
 
-from design_graph.core.models import ExtractedScreen
+from design_graph.model.entities import ExtractedScreen
 from design_graph.capture.html_prototype.extraction.section_extractor import extract_sections
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
@@ -313,7 +313,7 @@ class TestQualityFilter:
         js = "const x = 1;"
         bounds = find_all_boundaries(js)
         screen = ExtractedScreen(name="Missing", component_refs=[], sections_count=0)
-        from design_graph.core.models import FunctionBoundary
+        from design_graph.capture.html_prototype.sources import FunctionBoundary
         dummy = FunctionBoundary(name="Missing", start=0, body_start=0, end=0)
         result = extract_sections(js, screen, dummy)
         assert isinstance(result, list)

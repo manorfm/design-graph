@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from design_graph.core.patterns import RE_COMPONENT_ALIAS
+from design_graph.capture.html_prototype.patterns import RE_COMPONENT_ALIAS
 
 logger = logging.getLogger(__name__)
 

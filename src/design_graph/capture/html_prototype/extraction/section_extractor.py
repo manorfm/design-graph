@@ -23,20 +23,20 @@ import re
 
 from bs4 import BeautifulSoup
 
-from design_graph.core.constants import (
+from design_graph.capture.html_prototype.constants import (
     JS_FUNCTION_FALLBACK_WINDOW,
     JS_FUNCTION_SCAN_LIMIT,
     MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK,
     REACT_INTERNALS,
 )
-from design_graph.core.models import (
+from design_graph.model.entities import (
     DetectionMethod,
     ExtractedScreen,
     ExtractedSection,
-    FunctionBoundary,
     StyleEntry,
     StyleState,
 )
+from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule, resolve_classes
 from design_graph.capture.html_prototype.parsing.html_parser import extract_semantic_sections
 from design_graph.capture.html_prototype.parsing.js_parser import (
@@ -44,7 +44,7 @@ from design_graph.capture.html_prototype.parsing.js_parser import (
     iter_style_object_blocks,
     parse_object_literal_props,
 )
-from design_graph.core.patterns import (
+from design_graph.capture.html_prototype.patterns import (
     RE_CLASS_NAME,
     RE_COMP_REF,
     RE_JSX_RAW_LIST_HEAD,

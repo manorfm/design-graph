@@ -60,7 +60,7 @@ class TestHasReactFunctions:
 class TestPlainHtmlRouting:
     def test_plain_html_fixture_uses_dom_pattern_path(self, tmp_path):
         """plain.html has no React functions — should use DOM pattern extraction."""
-        from design_graph.graph.reader import GraphReader
+        from design_graph.model.graph.reader import GraphReader
         import kuzu
 
         db_path    = tmp_path / "plain_route.db"

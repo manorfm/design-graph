@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from design_graph.core.models import BuildState, ExtractedScreen
+from design_graph.model.build import BuildState
+from design_graph.model.entities import ExtractedScreen
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 
 
@@ -126,7 +127,7 @@ class TestSaveBuildState:
         assert state.html_hash == "second"
 
     def test_roundtrip_preserves_last_diff(self, tmp_path):
-        from design_graph.core.models import BuildDiff
+        from design_graph.model.build import BuildDiff
         diff = BuildDiff(
             is_first_build=False,
             screens_added=["NewPage"], screens_removed=[],
@@ -170,7 +171,7 @@ class TestBuildNewState:
         assert state.last_diff is None
 
     def test_diff_forwarded_when_provided(self):
-        from design_graph.core.models import BuildDiff
+        from design_graph.model.build import BuildDiff
         diff = BuildDiff(is_first_build=True, screens_added=["Home"],
                           screens_removed=[], comps_added=[], comps_removed=[])
         state = build_new_state("x", [], Counter(), diff=diff)

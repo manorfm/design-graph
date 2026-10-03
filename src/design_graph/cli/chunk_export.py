@@ -15,19 +15,51 @@ import dataclasses
 import json
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
-from design_graph.core.constants import CHUNK_CHARS_PER_TOKEN, DEFAULT_CHUNK_MAX_CHARS
-from design_graph.core.models import (
-    ChunkEnvelope,
-    ChunkLevel,
+from design_graph.model.entities import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    StrEnum,
 )
-from design_graph.core.patterns import RE_CHUNK_ID_INVALID
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CHUNK_MAX_CHARS = 12_000
+
+# Estimated tokens = chars / this divisor (conservative estimate)
+CHUNK_CHARS_PER_TOKEN = 4
+
+RE_CHUNK_ID_INVALID = re.compile(r'[^a-z0-9]+')
+
+
+class ChunkLevel(StrEnum):
+    SCREEN = "screen"
+    SECTION = "section"
+    COMPONENT = "component"
+
+
+@dataclass
+class ChunkEnvelope:
+    """
+    A self-contained fragment of UI structure with navigation metadata.
+    Designed for AI consumption: each chunk makes sense without reading siblings.
+    """
+
+    chunk_id: str            # slug: [a-z0-9_]+
+    breadcrumb: str          # e.g. "RestaurantsPage > Header"
+    level: ChunkLevel
+    parent_id: Optional[str]
+    sibling_ids: list[str]
+    child_ids: list[str]
+    content: str             # sanitized JSX or structured HTML
+    tokens_est: int          # len(content) // 4
+    component_refs: list[str]
+    context_summary: str     # one-line description
+    source_screen: str
 
 
 def chunk_extracted_data(

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from design_graph.graph.reader import GraphReader
+from design_graph.model.graph.reader import GraphReader
 from design_graph.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher
 
 

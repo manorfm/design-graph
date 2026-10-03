@@ -19,15 +19,47 @@ from typing import Literal
 
 import kuzu
 
-from design_graph.core.constants import (
-    DECORATIVE_DIMENSION_MAX_PX,
-    LAYOUT_CSS_PROPERTIES,
-    _LAYOUT_FAST_PATH_PROPERTIES,
-)
-from design_graph.core.models import resolve_icon_markers
-from design_graph.core.patterns import RE_ICON_MARKER
+
+from design_graph.model.entities import resolve_icon_markers, RE_ICON_MARKER
 
 logger = logging.getLogger(__name__)
+
+# CSS properties that describe spatial structure rather than visual appearance.
+# Used by GraphReader.get_component_layout_profile() to filter Style nodes.
+LAYOUT_CSS_PROPERTIES: frozenset[str] = frozenset({
+    "display", "position", "top", "right", "bottom", "left", "zIndex",
+    "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
+    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+    "flex", "flexDirection", "flexWrap", "flexGrow", "flexShrink", "flexBasis",
+    "alignItems", "alignContent", "justifyContent", "justifyItems",
+    "gap", "rowGap", "columnGap",
+    "overflow", "overflowX", "overflowY",
+    "gridTemplateColumns", "gridTemplateRows", "gridColumn", "gridRow",
+    "boxSizing",
+})
+
+# Layout properties with first-class profile keys (camelCase → snake_case).
+# Properties not in this set land in the LayoutProfile.extra_layout dict.
+_LAYOUT_FAST_PATH_PROPERTIES: frozenset[str] = frozenset({
+    "display", "position", "width", "height",
+    "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+    "flexDirection", "alignItems", "justifyContent", "gap", "overflow", "zIndex",
+})
+
+# A bare pixel width/height at or under this size reads as a decorative
+# indicator (a status dot, a Segmented track's selection marker) rather
+# than real spatial structure. Style capture has no notion of which JSX
+# node within a component a given style came from (StyleEntry.element is
+# the component's name, not a node identity), so a component's own real
+# container dimensions and a tiny nested decoration's dimensions land in
+# the same flat property→value map. _build_layout_profile hides width AND
+# height together only when BOTH are present and BOTH are this small —
+# a real layout element practically never reports both that tiny at once,
+# while a lone small width (a fixed-size icon) or a percentage/keyword
+# value is left untouched as a genuine signal.
+DECORATIVE_DIMENSION_MAX_PX = 12
 
 
 @dataclass(frozen=True)
@@ -910,7 +942,7 @@ class GraphReader:
     # ── Stats ──────────────────────────────────────────────────────────────────
 
     def count_nodes(self) -> dict[str, int]:
-        from design_graph.graph.schema import STATS_QUERIES
+        from design_graph.model.graph.schema import STATS_QUERIES
         result: dict[str, int] = {}
         for key, cypher in STATS_QUERIES.items():
             rows = self._q(cypher)

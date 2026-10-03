@@ -10,11 +10,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from design_graph.core.constants import MAX_TOKENS_IN_SEARCH_QUERY_EXPANSION
-from design_graph.graph.reader import GraphReader
+
+from design_graph.model.graph.reader import GraphReader
 from design_graph.mcp.aliases import get_aliases
 
 logger = logging.getLogger(__name__)
+
+MAX_TOKENS_IN_SEARCH_QUERY_EXPANSION = 6
 
 
 @dataclass

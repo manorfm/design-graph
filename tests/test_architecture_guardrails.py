@@ -7,18 +7,18 @@ test suite so a CI failure gives immediate feedback on which rule was broken.
 
 G1  capture/html_prototype/parsing/    must not import its extraction/, graph/, or mcp/
 G2  capture/html_prototype/extraction/ must not import from graph/ or mcp/
-G3  graph/reader.py must not contain write statements (CREATE/DELETE/MERGE)
+G3  model/graph/reader.py must not contain write statements (CREATE/DELETE/MERGE)
 G4  extraction/ functions must be synchronous — async only in coordinator
 G5  GraphReader connection must open with read_only=True
 G6  FunctionBoundary list must have non-overlapping intervals (covered by T03)
 G7  chunk_id values must match [a-z0-9_]+ (covered by T16)
 G8  GraphWriter methods must not be awaited in coordinator.py
-G9  cli/ modules must not import directly from parsing/, extraction/, or graph/
-    (CLI talks only to coordinator, paths, and mcp/tools — not to internals)
+G9  only the pipeline writes the graph — interfaces never import the writer
 G10 plain_html_component_extractor must not import from graph/ or mcp/
     (it is an extraction-layer module — same rules as G2)
 G12 format-specific code lives inside capture/, reached from outside only
     through capture.base and capture.registry
+G13 model/ depends on nothing else in the package
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from pathlib import Path
 SRC = Path(__file__).parent.parent / "src" / "design_graph"
 PARSING_DIR    = SRC / "capture" / "html_prototype" / "parsing"
 EXTRACTION_DIR = SRC / "capture" / "html_prototype" / "extraction"
-GRAPH_DIR      = SRC / "graph"
+GRAPH_DIR      = SRC / "model" / "graph"
 PIPELINE_DIR   = SRC / "pipeline"
 CLI_DIR        = SRC / "cli"
 
@@ -73,7 +73,7 @@ def _contains_pattern(path: Path, pattern: str) -> list[int]:
 class TestG1ParsingLayerIsolation:
     FORBIDDEN_PREFIXES = (
         "design_graph.capture.html_prototype.extraction",
-        "design_graph.graph",
+        "design_graph.model.graph",
         "design_graph.mcp",
         "design_graph.pipeline",
     )
@@ -83,7 +83,7 @@ class TestG1ParsingLayerIsolation:
         assert not violations, self._fmt(violations)
 
     def test_no_parsing_module_imports_graph(self):
-        violations = self._collect_violations("design_graph.graph")
+        violations = self._collect_violations("design_graph.model.graph")
         assert not violations, self._fmt(violations)
 
     def test_no_parsing_module_imports_mcp(self):
@@ -114,7 +114,7 @@ class TestG2ExtractionLayerIsolation:
         violations = []
         for f in _py_files(EXTRACTION_DIR):
             for mod in _imports_in_file(f):
-                if mod.startswith("design_graph.graph"):
+                if mod.startswith("design_graph.model.graph"):
                     violations.append(f"{f.name}: imports {mod!r}")
         assert not violations, (
             "G2 violation(s) — extraction/ imports from graph/:\n  "
@@ -165,7 +165,7 @@ class TestG3ReaderIsReadOnly:
         assert not violations, (
             "G3 violation — reader.py contains Cypher write operations:\n  "
             + "\n  ".join(violations)
-            + "\nAll write operations must live in graph/writer.py."
+            + "\nAll write operations must live in model/graph/writer.py."
         )
 
 
@@ -275,7 +275,7 @@ class TestG10PlainHtmlExtractorLayerIsolation:
     Same isolation rules as G2: must not import from graph/ or mcp/.
     """
     EXTRACTOR_PATH = EXTRACTION_DIR / "plain_html_component_extractor.py"
-    FORBIDDEN = ("design_graph.graph", "design_graph.mcp")
+    FORBIDDEN = ("design_graph.model.graph", "design_graph.mcp")
 
     def test_no_graph_imports_at_module_level(self):
         violations = []
@@ -293,57 +293,26 @@ class TestG10PlainHtmlExtractorLayerIsolation:
         )
 
 
-# ── G9: cli/ does not import internal layers directly ────────────────────────
+# ── G9: only the pipeline writes the graph ───────────────────────────────────
 
-class TestG9CliDoesNotBypassLayers:
+class TestG9OnlyThePipelineWritesTheGraph:
     """
-    The CLI layer must remain thin: it may import from coordinator, paths,
-    mcp/tools, and its own _logging helper — never from parsing/, extraction/,
-    or graph/ directly.
-
-    Chunk export captures through coordinator.capture_prototype — the same
-    path the build pipeline uses — and chunks with the CLI's own chunk_export
-    module. This guardrail checks top-level (module-level) imports via AST.
+    Interfaces (CLI, MCP) read the model; building a graph goes through the
+    pipeline, which owns the one atomic write session. No interface may open
+    a writer of its own.
     """
-    FORBIDDEN_FROM_CLI = (
-        "design_graph.capture.html_prototype.parsing",
-        "design_graph.capture.html_prototype.extraction",
-        "design_graph.graph",
-    )
 
-    def _top_level_imports(self, path: Path) -> list[str]:
-        """Return module names from top-level (non-function) import statements."""
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        modules: list[str] = []
-        for node in ast.iter_child_nodes(tree):  # only top-level
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    modules.append(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    modules.append(node.module)
-        return modules
+    WRITER_MODULES = ("design_graph.model.graph.writer", "design_graph.model.graph.schema")
 
-    def test_build_py_no_direct_layer_imports_at_top_level(self):
-        violations = []
-        for mod in self._top_level_imports(CLI_DIR / "build.py"):
-            if any(mod.startswith(p) for p in self.FORBIDDEN_FROM_CLI):
-                violations.append(f"build.py top-level import: {mod!r}")
-        assert not violations, (
-            "G9 violation — cli/build.py imports internal layers at module level:\n  "
-            + "\n  ".join(violations)
-            + "\nUse local imports inside functions or go through coordinator/tools."
-        )
-
-    def test_query_py_no_direct_layer_imports_at_top_level(self):
-        violations = []
-        for mod in self._top_level_imports(CLI_DIR / "query.py"):
-            if any(mod.startswith(p) for p in self.FORBIDDEN_FROM_CLI):
-                violations.append(f"query.py top-level import: {mod!r}")
-        assert not violations, (
-            "G9 violation — cli/query.py imports internal layers at module level:\n  "
-            + "\n  ".join(violations)
-        )
+    def test_interfaces_never_import_the_graph_writer(self):
+        violations = [
+            f"{_module_name(path)}: imports {mod!r}"
+            for directory in (CLI_DIR, SRC / "mcp")
+            for path in directory.rglob("*.py")
+            for mod in _imports_in_file(path)
+            if mod.startswith(self.WRITER_MODULES)
+        ]
+        assert not violations, "G9 violation(s):\n  " + "\n  ".join(violations)
 
 
 # ── G12: capture/ is sealed behind its contract ──────────────────────────────
@@ -383,7 +352,7 @@ class TestG12CaptureIsSealed:
         assert not violations, "G12 violation(s):\n  " + "\n  ".join(violations)
 
     def test_capture_never_imports_storage_pipeline_or_interfaces(self):
-        forbidden = ("design_graph.graph", "design_graph.mcp", "design_graph.cli", "design_graph.pipeline")
+        forbidden = ("design_graph.model.graph", "design_graph.mcp", "design_graph.cli", "design_graph.pipeline")
         violations = [
             f"{_module_name(path)}: imports {mod!r}"
             for path in CAPTURE_DIR.rglob("*.py")
@@ -391,3 +360,30 @@ class TestG12CaptureIsSealed:
             if mod.startswith(forbidden)
         ]
         assert not violations, "G12 violation(s):\n  " + "\n  ".join(violations)
+
+
+# ── G13: model/ is the stable centre ──────────────────────────────────────────
+
+MODEL_DIR = SRC / "model"
+
+
+class TestG13ModelIsTheCentre:
+    """
+    model/ holds the design entities and their graph storage. Captures,
+    the pipeline and the interfaces all depend on it — it depends on none of
+    them, so none of them can force it to change.
+    """
+
+    def test_shared_core_package_is_dissolved_into_model(self):
+        assert not (SRC / "core").exists(), "G13 violation — core/ still exists; its entities belong in model/"
+        assert not (SRC / "graph").exists(), "G13 violation — graph/ still exists; storage belongs in model/"
+
+    def test_model_never_imports_capture_pipeline_or_interfaces(self):
+        forbidden = ("design_graph.capture", "design_graph.pipeline", "design_graph.mcp", "design_graph.cli")
+        violations = [
+            f"{_module_name(path)}: imports {mod!r}"
+            for path in MODEL_DIR.rglob("*.py")
+            for mod in _imports_in_file(path)
+            if mod.startswith(forbidden)
+        ]
+        assert not violations, "G13 violation(s):\n  " + "\n  ".join(violations)

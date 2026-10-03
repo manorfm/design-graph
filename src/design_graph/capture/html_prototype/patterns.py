@@ -1,5 +1,5 @@
 """
-All compiled regular expressions for the design-graph system.
+Compiled regular expressions of the html_prototype capture.
 
 Centralised here so that:
 - No regex literal appears in business logic modules
@@ -31,7 +31,6 @@ RE_PX_VALUE = re.compile(r'\b(\d*\.?\d+)(px|rem|em|%|vh|vw)\b')
 
 # ── Typography ────────────────────────────────────────────────────────────────
 
-RE_FONT_FAMILY = re.compile(r"font-?[Ff]amily\s*[=:]\s*[\"']?([^;}{\"'\n]{5,80})")
 RE_FONT_SIZE   = re.compile(r"font-?[Ss]ize\s*[=:]\s*[\"']?([^;}{\"'\n]{2,20})")
 RE_FONT_WEIGHT = re.compile(r"font-?[Ww]eight\s*[=:]\s*[\"']?(\d{3,4}|bold|semibold)")
 
@@ -214,12 +213,6 @@ RE_HEADING     = re.compile(r'<h[1-6][^>]*>\s*["\']?([^<"\']{3,60})')
 RE_BUTTON_TEXT = re.compile(r'<(?:button|Btn)[\s\S]*?>\s*\n?\s*([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^<"\']{1,39})')
 RE_LABEL_TEXT  = re.compile(r'<(?:label|span)[^>]*>\s*["\']?([^<"\']{3,60})')
 
-# A raw string candidate that reads as a code artifact rather than visible
-# copy: a lowercase/underscore identifier (`flex_start`, `overview`) or a
-# color literal (`#1a1a1a`, `rgba(0,0,0,.5)` — the latter caught by its
-# `rgba` prefix, not this pattern). Backs TextEntry.is_plausible_content.
-RE_IDENTIFIER_SHAPED_TOKEN = re.compile(r"^[a-z_]+$")
-
 
 # ── JSX section comments ──────────────────────────────────────────────────────
 #
@@ -349,10 +342,6 @@ RE_JSX_MARKER_COMP = re.compile(
 RE_SVG_OPEN_TAG  = re.compile(r'<svg\b[^>]*?(?P<self_close>/)?>', re.IGNORECASE)
 RE_SVG_CLOSE_TAG = re.compile(r'</svg\s*>', re.IGNORECASE)
 
-# Matches the {[icon:id]} marker IconAsset.__str__ produces, for expansion
-# back into full markup by graph.reader.GraphReader._resolve_icons.
-RE_ICON_MARKER = re.compile(r'\{\[icon:(icon_[0-9a-f]{8})\]\}')
-
 
 # ── Format detection ──────────────────────────────────────────────────────────
 
@@ -360,8 +349,3 @@ RE_TAILWIND_CLASS = re.compile(
     r'\.(flex|grid|p-\d|m-\d|text-[a-z]|bg-[a-z]|border-[a-z])[a-z0-9-]*\s*\{'
 )
 RE_COMPRESSED_BUNDLE = re.compile(r'"compressed"\s*:\s*true')
-
-
-# ── Chunk ID generation ───────────────────────────────────────────────────────
-
-RE_CHUNK_ID_INVALID = re.compile(r'[^a-z0-9]+')

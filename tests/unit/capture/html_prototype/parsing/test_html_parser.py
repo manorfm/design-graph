@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from bs4 import BeautifulSoup
 
-from design_graph.core.models import DOMPattern
+from design_graph.capture.html_prototype.sources import DOMPattern
 from design_graph.capture.html_prototype.parsing.html_parser import extract_dom_patterns, extract_semantic_sections
 
 FIXTURE_DIR = Path(__file__).parents[4] / "fixtures"

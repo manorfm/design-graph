@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 
-from design_graph.core.graph_catalog import GraphDocumentName
+from design_graph.model.graph.catalog import GraphDocumentName
 
 
 def _xdg_data_home() -> Path:

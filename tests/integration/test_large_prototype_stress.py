@@ -18,7 +18,7 @@ import kuzu
 import pytest
 
 from design_graph.cli.chunk_export import chunk_extracted_data
-from design_graph.graph.reader import GraphReader
+from design_graph.model.graph.reader import GraphReader
 from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR  = Path(__file__).parent.parent / "fixtures"
@@ -126,7 +126,7 @@ class TestLargePrototypeChunking:
     def chunks(cls, reader):
         from collections import defaultdict
 
-        from design_graph.core.models import ExtractedComponent, ExtractedScreen, ExtractedSection
+        from design_graph.model.entities import ExtractedComponent, ExtractedScreen, ExtractedSection
 
         # Reconstruct minimal domain objects from graph reader output
         screens_raw = reader.list_screens()

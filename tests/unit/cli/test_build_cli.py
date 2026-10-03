@@ -22,7 +22,7 @@ from design_graph.cli.build import (
     main,
     parse_database_args,
 )
-from design_graph.core.graph_catalog import GraphDocumentName
+from design_graph.model.graph.catalog import GraphDocumentName
 
 
 # ── parse_build_args ──────────────────────────────────────────────────────────

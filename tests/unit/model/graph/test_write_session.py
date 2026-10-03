@@ -15,9 +15,9 @@ from pathlib import Path
 import kuzu
 import pytest
 
-from design_graph.core.models import DesignToken, ExtractedComponent
-from design_graph.graph.schema import initialize_schema
-from design_graph.graph.writer import BuildLockError, GraphWriteSession, GraphWriter
+from design_graph.model.entities import DesignToken, ExtractedComponent
+from design_graph.model.graph.schema import initialize_schema
+from design_graph.model.graph.writer import BuildLockError, GraphWriteSession, GraphWriter
 
 
 # ── Success path ──────────────────────────────────────────────────────────────

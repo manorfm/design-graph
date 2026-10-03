@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from design_graph.core.graph_catalog import AmbiguousGraphSelection, GraphSelectionSource
+from design_graph.model.graph.catalog import AmbiguousGraphSelection, GraphSelectionSource
 from design_graph.workspace import GraphWorkspace
 
 

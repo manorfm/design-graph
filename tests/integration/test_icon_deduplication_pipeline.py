@@ -13,7 +13,7 @@ import asyncio
 import kuzu
 import pytest
 
-from design_graph.graph.reader import GraphReader
+from design_graph.model.graph.reader import GraphReader
 from design_graph.pipeline.coordinator import run_pipeline
 
 ICON_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7 12 12 22 7z"/></svg>'

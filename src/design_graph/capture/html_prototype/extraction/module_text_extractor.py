@@ -17,7 +17,8 @@ module is the only place that makes them findable at all.
 
 from __future__ import annotations
 
-from design_graph.core.models import FunctionBoundary, TextEntry, TextType
+from design_graph.capture.html_prototype.sources import FunctionBoundary
+from design_graph.model.entities import TextEntry, TextType
 from design_graph.capture.html_prototype.parsing.js_parser import (
     find_module_level_constants,
     is_quoted_string_literal,

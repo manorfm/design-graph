@@ -7,15 +7,15 @@ and returns the IconAsset each marker stands for. The same icon reused
 anywhere — twice in one component, or once each in a hundred — always hashes
 to the same id (see IconAsset.create), so the graph stores its markup once
 no matter how many places render it. GraphReader expands the marker back to
-the full markup on read (see graph.reader.GraphReader._resolve_icons).
+the full markup on read (see model.graph.reader.GraphReader._resolve_icons).
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 
-from design_graph.core.models import IconAsset
-from design_graph.core.patterns import RE_SVG_CLOSE_TAG, RE_SVG_OPEN_TAG
+from design_graph.model.entities import IconAsset
+from design_graph.capture.html_prototype.patterns import RE_SVG_CLOSE_TAG, RE_SVG_OPEN_TAG
 
 
 def extract_icons(jsx: str) -> tuple[str, list[IconAsset]]:

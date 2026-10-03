@@ -2,7 +2,7 @@
 
 import pytest
 
-from design_graph.core.patterns import RE_COMP_ARROW_FN, RE_COMP_FN
+from design_graph.capture.html_prototype.patterns import RE_COMP_ARROW_FN, RE_COMP_FN
 from design_graph.capture.html_prototype.extraction.visual_function import VisualFunctionCandidate
 from design_graph.capture.html_prototype.parsing.js_parser import (
     extract_return_block,

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from bs4 import BeautifulSoup
 
-from design_graph.core.models import RawSources
+from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.html_prototype.parsing.source_loader import _extract_bundled_react, decompose
 

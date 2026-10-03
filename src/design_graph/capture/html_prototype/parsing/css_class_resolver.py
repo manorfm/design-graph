@@ -14,7 +14,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from design_graph.core.models import StyleEntry, StyleState
+from design_graph.model.entities import StyleEntry, StyleState
 
 logger = logging.getLogger(__name__)
 

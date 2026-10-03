@@ -9,7 +9,7 @@ downstream regex actually sees.
 
 from __future__ import annotations
 
-from design_graph.core.models import IconAsset
+from design_graph.model.entities import IconAsset
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 
 

@@ -78,7 +78,7 @@ class TestLogDiff:
     """_log_diff has 4 independent branch conditions — cover each."""
 
     def _diff(self, **kwargs):
-        from design_graph.core.models import BuildDiff
+        from design_graph.model.build import BuildDiff
         defaults = dict(
             is_first_build=False,
             screens_added=[],

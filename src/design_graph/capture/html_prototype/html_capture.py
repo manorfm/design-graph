@@ -18,14 +18,14 @@ from dataclasses import replace
 from bs4 import BeautifulSoup
 
 from design_graph.capture.base import CaptureResult, ComponentProgress, PrototypeDocument
-from design_graph.core.models import (
+from design_graph.model.entities import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
-    FunctionBoundary,
-    RawSources,
+    index_tokens_by_value,
 )
-from design_graph.core.patterns import RE_COMP_FN
+from design_graph.capture.html_prototype.sources import FunctionBoundary, RawSources
+from design_graph.capture.html_prototype.patterns import RE_COMP_FN
 from design_graph.capture.html_prototype.extraction.alias_extractor import apply_aliases, extract_component_aliases
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components, select_renderable_boundaries
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
@@ -43,7 +43,6 @@ from design_graph.capture.html_prototype.parsing.js_parser import find_all_bound
 from design_graph.capture.html_prototype.parsing.palette_extractor import discover_prototype_palette
 from design_graph.capture.html_prototype.parsing.source_loader import decompose
 from design_graph.capture.html_prototype.parsing.token_extractor import extract_tokens
-from design_graph.core.models import index_tokens_by_value
 
 logger = logging.getLogger(__name__)
 

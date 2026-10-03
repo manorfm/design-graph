@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from design_graph.core.patterns import RE_COLOR
+from design_graph.capture.html_prototype.patterns import RE_COLOR
 from design_graph.capture.html_prototype.parsing.js_parser import (
     find_matching_delimiter,
     is_quoted_string_literal,
