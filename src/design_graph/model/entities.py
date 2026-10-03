@@ -112,9 +112,7 @@ class DetectionMethod(StrEnum):
 
 
 class ComponentType(StrEnum):
-    """Semantic type of an ExtractedComponent — union of every value the
-    React-path inference (component_extractor) and the plain-HTML path
-    (plain_html_component_extractor) can produce."""
+    """Semantic type of a component — the vocabulary every capture classifies into."""
 
     MODAL = "modal"
     SCREEN = "screen"
@@ -133,13 +131,11 @@ class ComponentType(StrEnum):
 
 class PropDefault(str):
     """
-    A React prop's default-value literal, as declared in the component's
-    destructured function signature (e.g. `variant = 'secondary'`).
+    A prop's default-value literal as the source declares it (e.g.
+    `variant = 'secondary'`).
 
-    JSX has no required/optional prop system, so an empty value here means
-    only that no default was declared — not that callers must supply the
-    prop. A prop is routinely omitted at call sites (guarded by `&&`,
-    rendered safely as `undefined`, etc.) with no default in sight.
+    An empty value means only that no default was declared — not that callers
+    must supply the prop: props are routinely omitted where they are used.
     """
 
     __slots__ = ()
@@ -150,14 +146,6 @@ class PropDefault(str):
 
     def as_table_cell(self) -> str:
         return f"`{self}`" if self.was_declared else "—"
-
-
-
-
-
-
-
-
 
 
 @dataclass(frozen=True)
@@ -221,7 +209,7 @@ def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:
 
 @dataclass(frozen=True)
 class ComponentProp:
-    """A declared prop extracted from a React component's destructured function signature."""
+    """A prop a component declares, with its default value when it has one."""
 
     id: EntityId
     component_name: str
@@ -369,45 +357,19 @@ class TextEntry:
         )
 
 
-def _label_jsx_variants(jsx_variants: list[str]) -> str:
-    """
-    Join same-named component definitions found at multiple points in the
-    source, labeling which one actually executes.
-
-    JS hoists `function Name(...)` declarations fully — a later declaration
-    of the same name in the same scope completely replaces an earlier one,
-    so only the last one ever runs. Silently concatenating them would let an
-    agent mistake unreachable code for the real implementation.
-    """
-    if len(jsx_variants) <= 1:
-        return jsx_variants[0] if jsx_variants else ""
-
-    last = len(jsx_variants) - 1
-    labeled = [
-        f"{{/* Variant {i + 1}/{len(jsx_variants)} — "
-        + ("live (last declaration wins in JS)" if i == last else "shadowed by a later declaration, never executes")
-        + f" */}}\n{jsx}"
-        for i, jsx in enumerate(jsx_variants)
-    ]
-    return "\n\n".join(labeled)
-
-
 @dataclass
 class ExtractedComponent:
-    """
-    Full extracted representation of a React component function.
-    Populated in a single pass over the function body.
-    """
+    """A reusable piece of UI, as its capture extracted it from the prototype."""
 
     name: str
     comp_type: ComponentType
-    source_code: str    # sanitized return() block
-    occurrence: int     # how many times this function appears in the JS
-    classes: str        # space-separated CSS class names found in className=
+    source_code: str    # the markup that renders it, as stored by the capture
+    occurrence: int     # how many times it appears in the prototype
+    classes: str        # space-separated CSS class names it uses
     styles: list[StyleEntry] = field(default_factory=list)
     interactions: list[InteractionEntry] = field(default_factory=list)
     texts: list[TextEntry] = field(default_factory=list)
-    child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
+    child_refs: list[str] = field(default_factory=list)   # names of the components it renders
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
@@ -419,91 +381,6 @@ class ExtractedComponent:
     # own body references by name (e.g. ICONS for a component that does
     # `ICONS[name]`) — see extraction/module_data_extractor.py and
     # docs/changes/C39.
-
-    @classmethod
-    def consolidate(cls, variants: list["ExtractedComponent"]) -> "ExtractedComponent":
-        """Merge same-named source definitions into one lossless graph entity."""
-        if not variants:
-            raise ValueError("component consolidation requires at least one variant")
-        names = {variant.name for variant in variants}
-        if len(names) != 1:
-            raise ValueError("component variants must share the same name")
-
-        jsx_variants = list(dict.fromkeys(
-            variant.source_code for variant in variants if variant.source_code
-        ))
-        source_code = _label_jsx_variants(jsx_variants)
-        classes = sorted({
-            class_name
-            for variant in variants
-            for class_name in variant.classes.split()
-            if class_name
-        })
-        styles = {
-            item.id: item for variant in variants for item in variant.styles
-        }
-        interactions = {
-            item.id: item for variant in variants for item in variant.interactions
-        }
-        texts = {
-            item.id: item for variant in variants for item in variant.texts
-        }
-        props = {
-            item.id: item for variant in variants for item in variant.props
-        }
-        icons = {
-            item.id: item for variant in variants for item in variant.icons
-        }
-        truncated_fields = frozenset(
-            field_name for variant in variants for field_name in variant.truncated_fields
-        )
-        # Union across variants, later declarations' values winning on a
-        # repeated const name — same "last declaration wins" bias
-        # child_refs/source_code already apply for the live variant above.
-        referenced_data: dict[str, object] = {}
-        for variant in variants:
-            referenced_data.update(variant.referenced_data)
-        # Render order comes from the *live* variant (the last declaration —
-        # same "last declaration wins in JS" criterion _label_jsx_variants
-        # already uses above to pick which source_code actually executes),
-        # not a union sorted alphabetically. A variant order this component
-        # only referenced in a shadowed, dead declaration is still included
-        # — for completeness, matching the union semantics this dedup
-        # already had — just appended after the live variant's real order
-        # instead of taking equal precedence with it.
-        live_variant = variants[-1]
-        seen_children: set[str] = set()
-        child_refs: list[str] = []
-        for child in live_variant.child_refs:
-            if child not in seen_children:
-                seen_children.add(child)
-                child_refs.append(child)
-        for variant in variants:
-            for child in variant.child_refs:
-                if child not in seen_children:
-                    seen_children.add(child)
-                    child_refs.append(child)
-        return cls(
-            name=variants[0].name,
-            comp_type=next(
-                (variant.comp_type for variant in variants if variant.comp_type != ComponentType.COMPONENT),
-                variants[0].comp_type,
-            ),
-            source_code=source_code,
-            occurrence=max(variant.occurrence for variant in variants),
-            classes=" ".join(classes),
-            styles=list(styles.values()),
-            interactions=list(interactions.values()),
-            texts=list(texts.values()),
-            child_refs=child_refs,
-            props=list(props.values()),
-            icons=list(icons.values()),
-            truncated_fields=truncated_fields,
-            referenced_data=referenced_data,
-            source_lang=live_variant.source_lang,
-            source_simplified=any(variant.source_simplified for variant in variants),
-            declares_inline_styles=any(variant.declares_inline_styles for variant in variants),
-        )
 
 
 @dataclass(frozen=True)
@@ -521,15 +398,11 @@ class ScreenLink:
 @dataclass
 class ExtractedScreen:
     """
-    A React function identified as a top-level screen/page.
-    sections_count is filled after SectionExtractor runs.
+    A top-level screen/page. sections_count is filled once its sections are known.
 
-    source_code is the screen's own return-block — the shell around its
-    children (header, grid, chrome) — captured the same way an
-    ExtractedComponent's is. Screens and components are deliberately
-    disjoint (coordinator.extract_react: "a screen boundary must never
-    also be extracted as a component"), so without its own source_code a
-    screen's root markup would never be stored anywhere.
+    source_code is the screen's own markup — the shell around its children
+    (header, grid, chrome). Screens and components are disjoint, so without
+    its own source_code a screen's root markup would be stored nowhere.
     """
 
     name: str

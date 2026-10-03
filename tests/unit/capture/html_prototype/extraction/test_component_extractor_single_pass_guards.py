@@ -19,6 +19,7 @@ from design_graph.capture.html_prototype.constants import (
     MAX_STYLES_PER_COMPONENT,
     MAX_TEXTS_PER_COMPONENT,
 )
+from design_graph.capture.html_prototype.extraction.definition_merge import merge_definitions
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 
@@ -770,5 +771,5 @@ class TestTruncatedFields:
             name="Dup", comp_type="component", source_code="<div/>",
             occurrence=1, classes="", truncated_fields=frozenset({"texts"}),
         )
-        merged = ExtractedComponent.consolidate([v1, v2])
+        merged = merge_definitions([v1, v2])
         assert merged.truncated_fields == frozenset({"styles", "texts"})

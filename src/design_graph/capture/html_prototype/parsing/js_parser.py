@@ -664,7 +664,7 @@ def find_module_level_constants(js: str, boundaries: list[FunctionBoundary]) -> 
 
     A repeated declaration of the same NAME keeps only its last occurrence
     (dict assignment order) — the same "last declaration wins" rule
-    ExtractedComponent.consolidate already applies to a component's own
+    extraction.definition_merge.merge_definitions already applies to a component's own
     source_code variants, for the same reason: later code overwrites earlier
     code at runtime.
     """

@@ -422,3 +422,49 @@ class TestG14InterfacesAreThinAdapters:
             and path.relative_to(SRC).as_posix() not in TestG12CaptureIsSealed.KNOWN_EXCEPTIONS
         ]
         assert not violations, "G14 violation(s):\n  " + "\n  ".join(violations)
+
+
+# ── G15: the model speaks design, not a source format ─────────────────────────
+
+class TestG15ModelHasNoFormatVocabulary:
+    """
+    No identifier or string the model's code uses may belong to one source
+    format (JSX, React, a framework's attribute names) — such knowledge lives
+    in the capture that reads that format. Docstrings and comments may still
+    mention formats as examples.
+    """
+
+    FORMAT_WORDS = re.compile(r"jsx|react|classname|dclogic", re.IGNORECASE)
+
+    @staticmethod
+    def _code_words(path: Path) -> list[tuple[int, str]]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.body and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str)
+        }
+        words: list[tuple[int, str]] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                words.append((node.lineno, node.id))
+            elif isinstance(node, ast.Attribute):
+                words.append((node.lineno, node.attr))
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                words.append((node.lineno, node.name))
+            elif isinstance(node, ast.arg):
+                words.append((node.lineno, node.arg))
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
+                words.append((node.lineno, node.value))
+        return words
+
+    def test_model_code_carries_no_format_vocabulary(self):
+        violations = [
+            f"{path.relative_to(SRC)}:{line}: {word[:60]!r}"
+            for path in MODEL_DIR.rglob("*.py")
+            for line, word in self._code_words(path)
+            if self.FORMAT_WORDS.search(word)
+        ]
+        assert not violations, "G15 violation(s):\n  " + "\n  ".join(violations)

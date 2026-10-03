@@ -57,6 +57,7 @@ from design_graph.capture.html_prototype.patterns import (
     re_state_setter_trigger,
     re_state_ternary_style,
 )
+from design_graph.capture.html_prototype.extraction.definition_merge import merge_definitions
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.capture.html_prototype.extraction.module_data_extractor import extract_referenced_module_data
@@ -563,7 +564,7 @@ async def extract_all_components(
     for comp in results:
         variants_by_name.setdefault(comp.name, []).append(comp)
     unique = [
-        ExtractedComponent.consolidate(variants)
+        merge_definitions(variants)
         for variants in variants_by_name.values()
     ]
 

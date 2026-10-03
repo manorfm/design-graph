@@ -39,7 +39,7 @@ from design_graph.model.graph.schema import MODEL_VERSION, STATS_QUERIES, initia
 
 logger = logging.getLogger(__name__)
 
-# Maximum characters stored for a JSX snippet in the graph.
+# Maximum characters of source code stored per screen, section or component.
 # Prevents oversized components from bloating the database and MCP responses.
 MAX_SOURCE_CODE_CHARS = 8_000
 
