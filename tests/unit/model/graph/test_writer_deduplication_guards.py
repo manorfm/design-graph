@@ -38,7 +38,7 @@ def writer(tmp_path):
 
 def _comp(name: str, **kwargs) -> ExtractedComponent:
     defaults = dict(
-        comp_type="card", jsx_snippet="<div/>", occurrence=1,
+        comp_type="card", source_code="<div/>", occurrence=1,
         classes="", styles=[], interactions=[], texts=[], child_refs=[],
     )
     return ExtractedComponent(name=name, **{**defaults, **kwargs})

@@ -52,13 +52,13 @@ def full_screen_graph(tmp_path_factory):
 
     badge = ExtractedComponent(
         name="Badge", comp_type="badge",
-        jsx_snippet="<span>B</span>", occurrence=2, classes="",
+        source_code="<span>B</span>", occurrence=2, classes="",
         styles=[],
     )
 
     top_nav = ExtractedComponent(
         name="TopNav", comp_type="navigation",
-        jsx_snippet="<nav>Home</nav>", occurrence=1, classes="nav-bar",
+        source_code="<nav>Home</nav>", occurrence=1, classes="nav-bar",
         styles=[
             StyleEntry(id="sn1", element="TopNav", state="default", property="display",         value="flex"),
             StyleEntry(id="sn2", element="TopNav", state="default", property="width",           value="100%"),
@@ -82,7 +82,7 @@ def full_screen_graph(tmp_path_factory):
 
     content_card = ExtractedComponent(
         name="ContentCard", comp_type="card",
-        jsx_snippet="<div>Content</div>", occurrence=1, classes="card",
+        source_code="<div>Content</div>", occurrence=1, classes="card",
         styles=[
             StyleEntry(id="sc1", element="ContentCard", state="default", property="display", value="grid"),
             StyleEntry(id="sc2", element="ContentCard", state="default", property="gap",     value="12px"),
@@ -101,13 +101,13 @@ def full_screen_graph(tmp_path_factory):
         styles={"padding": "32px", "backgroundColor": "#000"},
         component_refs=["TopNav"],
         texts=["Welcome", "Get started"],
-        jsx_snippet="<section>Hero</section>",
+        source_code="<section>Hero</section>",
         detection_method="comment",
     )
     content = ExtractedSection(
         id="sec_content", screen="HomeScreen", name="ContentSection",
         styles={}, component_refs=["ContentCard"],
-        texts=[], jsx_snippet="<section>Content</section>",
+        texts=[], source_code="<section>Content</section>",
         detection_method="structural",
     )
     screen = ExtractedScreen(
@@ -148,7 +148,7 @@ class TestGetScreenFullMetadata:
         assert result is not None
         assert result["name"] == "HomeScreen"
 
-    def test_returns_screen_own_jsx_snippet_key(self, full_screen_graph):
+    def test_returns_screen_own_source_code_key(self, full_screen_graph):
         """
         The screen's own root JSX (the shell around its sections/components)
         must be reachable from get_screen_full itself — not only via a
@@ -157,7 +157,7 @@ class TestGetScreenFullMetadata:
         own, or has real markup no detection strategy could anchor on.
         """
         result = full_screen_graph.get_screen_full("HomeScreen")
-        assert "jsx_snippet" in result
+        assert "source_code" in result
 
 
 # ── Sections ──────────────────────────────────────────────────────────────────
@@ -185,10 +185,10 @@ class TestGetScreenFullSections:
         hero   = next(s for s in result["sections"] if s["name"] == "HeroSection")
         assert "Welcome" in hero["texts"]
 
-    def test_section_includes_jsx_snippet(self, full_screen_graph):
+    def test_section_includes_source_code(self, full_screen_graph):
         result = full_screen_graph.get_screen_full("HomeScreen")
         hero   = next(s for s in result["sections"] if s["name"] == "HeroSection")
-        assert "Hero" in hero["jsx_snippet"]
+        assert "Hero" in hero["source_code"]
 
     def test_section_includes_detection_method(self, full_screen_graph):
         result = full_screen_graph.get_screen_full("HomeScreen")
@@ -211,10 +211,10 @@ class TestGetScreenFullComponents:
         nav    = next(c for c in result["components"] if c["name"] == "TopNav")
         assert nav["comp_type"] == "navigation"
 
-    def test_component_includes_jsx_snippet(self, full_screen_graph):
+    def test_component_includes_source_code(self, full_screen_graph):
         result = full_screen_graph.get_screen_full("HomeScreen")
         nav    = next(c for c in result["components"] if c["name"] == "TopNav")
-        assert "Home" in nav["jsx_snippet"]
+        assert "Home" in nav["source_code"]
 
     def test_component_includes_styles_by_state(self, full_screen_graph):
         result       = full_screen_graph.get_screen_full("HomeScreen")
@@ -318,7 +318,7 @@ class TestGetScreenFullQueryEfficiency:
 # A screen whose own markup never anchors a Section (no comment marker, no
 # padding-styled div, no raw-markup .map()) and references no Component
 # still has real content — get_screen_full must still surface it via the
-# screen's own jsx_snippet, the only place left it could possibly be.
+# screen's own source_code, the only place left it could possibly be.
 
 @pytest.fixture(scope="module")
 def undecomposed_screen_graph(tmp_path_factory):
@@ -331,7 +331,7 @@ def undecomposed_screen_graph(tmp_path_factory):
 
     screen = ExtractedScreen(
         name="BareScreen", component_refs=[], sections_count=0,
-        jsx_snippet='<div className="bare"><span className="bare-title">Hello</span></div>',
+        source_code='<div className="bare"><span className="bare-title">Hello</span></div>',
     )
     gw.write_screen(screen, [], {})
 
@@ -339,11 +339,11 @@ def undecomposed_screen_graph(tmp_path_factory):
 
 
 class TestGetScreenFullOwnJsxSnippetForUndecomposedScreen:
-    def test_screen_jsx_snippet_present_despite_no_sections_or_components(self, undecomposed_screen_graph):
+    def test_screen_source_code_present_despite_no_sections_or_components(self, undecomposed_screen_graph):
         result = undecomposed_screen_graph.get_screen_full("BareScreen")
         assert result["sections"] == []
         assert result["components"] == []
-        assert "bare-title" in result["jsx_snippet"]
+        assert "bare-title" in result["source_code"]
 
 
 # ── Nested components (CONTAINS closure, not just direct USES_COMPONENT) ─────
@@ -374,18 +374,18 @@ def nested_screen_graph(tmp_path_factory):
 
     deep_icon = ExtractedComponent(
         name="DeepIcon", comp_type="icon",
-        jsx_snippet="<svg />", occurrence=1, classes="",
+        source_code="<svg />", occurrence=1, classes="",
         styles=[StyleEntry(id="di1", element="DeepIcon", state="default", property="width", value="16px")],
     )
     mid_badge = ExtractedComponent(
         name="MidBadge", comp_type="badge",
-        jsx_snippet="<span><DeepIcon /></span>", occurrence=1, classes="",
+        source_code="<span><DeepIcon /></span>", occurrence=1, classes="",
         styles=[StyleEntry(id="mb1", element="MidBadge", state="default", property="borderRadius", value="99px")],
         child_refs=["DeepIcon"],
     )
     top_card = ExtractedComponent(
         name="TopCard", comp_type="card",
-        jsx_snippet="<div><MidBadge /></div>", occurrence=1, classes="",
+        source_code="<div><MidBadge /></div>", occurrence=1, classes="",
         styles=[StyleEntry(id="tc1", element="TopCard", state="default", property="display", value="flex")],
         child_refs=["MidBadge"],
     )

@@ -43,7 +43,7 @@ def text_graph(tmp_path_factory):
 
     gw.write_tokens([])
     btn = ExtractedComponent(
-        name="BtnPrimary", comp_type="button", jsx_snippet="<button>Confirm</button>",
+        name="BtnPrimary", comp_type="button", source_code="<button>Confirm</button>",
         occurrence=2, classes="",
         texts=[TextEntry(id="txt1", content="Confirm", text_type="button",
                          source="BtnPrimary", element="button")],
@@ -58,7 +58,7 @@ def text_graph(tmp_path_factory):
         styles={"padding": "24px"},
         component_refs=["BtnPrimary"],
         texts=["Welcome back", "Get started"],
-        jsx_snippet="<header/>",
+        source_code="<header/>",
         detection_method="semantic",
     )
     footer = ExtractedSection(
@@ -66,7 +66,7 @@ def text_graph(tmp_path_factory):
         styles={},
         component_refs=[],
         texts=[],
-        jsx_snippet="<footer/>",
+        source_code="<footer/>",
         detection_method="semantic",
     )
     gw.write_screen(screen, [header, footer], {})

@@ -255,7 +255,7 @@ class IconAsset:
     reused across components or within one component always resolves to the
     same IconAsset — the graph stores its source once no matter how many
     places render it. str(icon) is the {[icon:id]} marker left in place of
-    the markup in a component's jsx_snippet; GraphReader expands it back on
+    the markup in a component's source_code; GraphReader expands it back on
     read (see model.graph.reader.GraphReader._resolve_icons).
     """
 
@@ -468,7 +468,7 @@ class ExtractedComponent:
 
     name: str
     comp_type: ComponentType
-    jsx_snippet: str    # sanitized return() block
+    source_code: str    # sanitized return() block
     occurrence: int     # how many times this function appears in the JS
     classes: str        # space-separated CSS class names found in className=
     styles: list[StyleEntry] = field(default_factory=list)
@@ -476,7 +476,7 @@ class ExtractedComponent:
     texts: list[TextEntry] = field(default_factory=list)
     child_refs: list[str] = field(default_factory=list)   # PascalCase component names referenced in JSX
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
-    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
+    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
     referenced_data: dict[str, object] = field(default_factory=dict)
     # {const_name: value} for every module-level constant this component's
@@ -494,9 +494,9 @@ class ExtractedComponent:
             raise ValueError("component variants must share the same name")
 
         jsx_variants = list(dict.fromkeys(
-            variant.jsx_snippet for variant in variants if variant.jsx_snippet
+            variant.source_code for variant in variants if variant.source_code
         ))
-        jsx_snippet = _label_jsx_variants(jsx_variants)
+        source_code = _label_jsx_variants(jsx_variants)
         classes = sorted({
             class_name
             for variant in variants
@@ -523,13 +523,13 @@ class ExtractedComponent:
         )
         # Union across variants, later declarations' values winning on a
         # repeated const name — same "last declaration wins" bias
-        # child_refs/jsx_snippet already apply for the live variant above.
+        # child_refs/source_code already apply for the live variant above.
         referenced_data: dict[str, object] = {}
         for variant in variants:
             referenced_data.update(variant.referenced_data)
         # Render order comes from the *live* variant (the last declaration —
         # same "last declaration wins in JS" criterion _label_jsx_variants
-        # already uses above to pick which jsx_snippet actually executes),
+        # already uses above to pick which source_code actually executes),
         # not a union sorted alphabetically. A variant order this component
         # only referenced in a shadowed, dead declaration is still included
         # — for completeness, matching the union semantics this dedup
@@ -553,7 +553,7 @@ class ExtractedComponent:
                 (variant.comp_type for variant in variants if variant.comp_type != ComponentType.COMPONENT),
                 variants[0].comp_type,
             ),
-            jsx_snippet=jsx_snippet,
+            source_code=source_code,
             occurrence=max(variant.occurrence for variant in variants),
             classes=" ".join(classes),
             styles=list(styles.values()),
@@ -573,19 +573,19 @@ class ExtractedScreen:
     A React function identified as a top-level screen/page.
     sections_count is filled after SectionExtractor runs.
 
-    jsx_snippet is the screen's own return-block — the shell around its
+    source_code is the screen's own return-block — the shell around its
     children (header, grid, chrome) — captured the same way an
     ExtractedComponent's is. Screens and components are deliberately
     disjoint (coordinator.extract_react: "a screen boundary must never
-    also be extracted as a component"), so without its own jsx_snippet a
+    also be extracted as a component"), so without its own source_code a
     screen's root markup would never be stored anywhere.
     """
 
     name: str
     component_refs: list[str] = field(default_factory=list)  # direct children
     sections_count: int = 0
-    jsx_snippet: str = ""
-    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by jsx_snippet
+    source_code: str = ""
+    icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
 
 
 @dataclass(frozen=True)
@@ -606,31 +606,31 @@ class ExtractedSection:
                            # elements' same-named property into one slot.
     component_refs: list[str]
     texts: list[str]
-    jsx_snippet: str
+    source_code: str
     detection_method: DetectionMethod
     element_styles: list[StyleEntry] = field(default_factory=list)  # CSS-class-resolved, one entry per (selector, property) — see `styles` above
 
     @classmethod
     def create(
         cls, screen: str, name: str, styles: dict, component_refs: list[str],
-        texts: list[str], jsx_snippet: str, detection_method: DetectionMethod,
+        texts: list[str], source_code: str, detection_method: DetectionMethod,
         element_styles: list[StyleEntry] | None = None,
     ) -> "ExtractedSection":
         """Comment or structural detection — id keyed by (screen, name)."""
         return cls(
             id=EntityId.derive("sec", f"{screen}_{name}"),
             screen=screen, name=name, styles=styles, component_refs=component_refs,
-            texts=texts, jsx_snippet=jsx_snippet, detection_method=detection_method,
+            texts=texts, source_code=source_code, detection_method=detection_method,
             element_styles=element_styles or [],
         )
 
     @classmethod
-    def create_semantic(cls, screen: str, name: str, index: int, texts: list[str], jsx_snippet: str) -> "ExtractedSection":
+    def create_semantic(cls, screen: str, name: str, index: int, texts: list[str], source_code: str) -> "ExtractedSection":
         """Semantic (plain-HTML) detection — index included since same-named
         semantic sections can repeat within a screen."""
         return cls(
             id=EntityId.derive("sec", f"{screen}_{name}_{index}"),
             screen=screen, name=name, styles={}, component_refs=[],
-            texts=texts, jsx_snippet=jsx_snippet, detection_method=DetectionMethod.SEMANTIC,
+            texts=texts, source_code=source_code, detection_method=DetectionMethod.SEMANTIC,
         )
 

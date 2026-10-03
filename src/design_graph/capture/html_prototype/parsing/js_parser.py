@@ -665,7 +665,7 @@ def find_module_level_constants(js: str, boundaries: list[FunctionBoundary]) -> 
     A repeated declaration of the same NAME keeps only its last occurrence
     (dict assignment order) — the same "last declaration wins" rule
     ExtractedComponent.consolidate already applies to a component's own
-    jsx_snippet variants, for the same reason: later code overwrites earlier
+    source_code variants, for the same reason: later code overwrites earlier
     code at runtime.
     """
     constants: dict[str, str] = {}

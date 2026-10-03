@@ -188,12 +188,12 @@ def extract_component(
 
     # ── JSX snippet (extracted from return block) ──
     # Icons are pulled out before sanitize_jsx so the sanitizer — and every
-    # downstream consumer of jsx_snippet — only ever sees the short marker,
+    # downstream consumer of source_code — only ever sees the short marker,
     # never the raw SVG source.
     jsx_raw = extract_return_block(js, boundary.start, boundary.end, body_start=boundary.body_start)
     jsx_with_icon_refs, icons = extract_icons(jsx_raw) if jsx_raw else ("", [])
-    jsx_snippet = sanitize_jsx(jsx_with_icon_refs) if jsx_with_icon_refs else ""
-    marker_refs = _extract_marker_refs(jsx_snippet)
+    source_code = sanitize_jsx(jsx_with_icon_refs) if jsx_with_icon_refs else ""
+    marker_refs = _extract_marker_refs(source_code)
 
     # ── Single pass: collect everything ──
     styles:       list[StyleEntry]       = []
@@ -438,7 +438,7 @@ def extract_component(
                         seen_style_ids.add(entry.id)
                         styles.append(entry)
 
-    # Child component references — from JSX tags and from typed markers in jsx_snippet.
+    # Child component references — from JSX tags and from typed markers in source_code.
     # Order is first-appearance, not alphabetical: RE_JSX_TAG matches (the
     # dominant source in real JSX) are collected fully before RE_COMP_REF and
     # marker_refs, so it's a documented approximation of true source order,
@@ -491,7 +491,7 @@ def extract_component(
     return ExtractedComponent(
         name=boundary.name,
         comp_type=infer_component_type(boundary.name),
-        jsx_snippet=jsx_snippet,
+        source_code=source_code,
         occurrence=occurrence,
         classes=" ".join(classes),
         styles=styles,

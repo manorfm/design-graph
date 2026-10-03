@@ -38,7 +38,7 @@ _METRICS_OUTCOMES = ("ok", "not_found", "ambiguous", "no_results", "error")
 # used for a whole prototype bundle, but over agent-submitted text instead
 # of a local file — the one MCP tool whose input isn't bounded by "however
 # big this local prototype happens to be". A real component's stored
-# jsx_snippet is itself capped at MAX_JSX_SNIPPET_CHARS (8_000); this is a
+# source_code is itself capped at MAX_SOURCE_CODE_CHARS (8_000); this is a
 # generous multiple of that, not a tight fit, so it never rejects a
 # legitimate submission while still bounding the computational cost of an
 # oversized jsx_source (accidental or adversarial, e.g. an agent misled by
@@ -89,7 +89,7 @@ def _truncation_notice(
     (styles via get_full_styles, texts via get_full_texts — see
     docs/changes/C36 and C38), the exact call to make — same "never
     truncate without naming the way back" convention already used by
-    _truncated_fields_notice and CappedJsx.notice for jsx_snippet/component
+    _truncated_fields_notice and CappedJsx.notice for source_code/component
     truncation. None (a caller with no escape hatch at all) keeps the
     notice as it was before this parameter existed.
 
@@ -235,8 +235,8 @@ class ScreenStructureGap:
 
     __slots__ = ("exists",)
 
-    def __init__(self, jsx_snippet: str) -> None:
-        self.exists = len(jsx_snippet or "") >= _MIN_JSX_LENGTH_FOR_SCREEN_STRUCTURE_GAP
+    def __init__(self, source_code: str) -> None:
+        self.exists = len(source_code or "") >= _MIN_JSX_LENGTH_FOR_SCREEN_STRUCTURE_GAP
 
     def notice(self, recoverable_via: str) -> str | None:
         if not self.exists:
@@ -260,8 +260,8 @@ class StyleExtractionGap:
 
     __slots__ = ("exists",)
 
-    def __init__(self, jsx_snippet: str) -> None:
-        self.exists = "style={" in (jsx_snippet or "")
+    def __init__(self, source_code: str) -> None:
+        self.exists = "style={" in (source_code or "")
 
     def notice(self) -> str | None:
         if not self.exists:
@@ -990,7 +990,7 @@ class ToolDispatcher:
         ]
 
         if not spec["sections"] and not spec["components"]:
-            gap_notice = ScreenStructureGap(spec.get("jsx_snippet", "")).notice(
+            gap_notice = ScreenStructureGap(spec.get("source_code", "")).notice(
                 recoverable_via=spec["name"]
             )
             if gap_notice:
@@ -1019,8 +1019,8 @@ class ToolDispatcher:
                     )
                     if notice:
                         lines.append(notice)
-                if sec["jsx_snippet"]:
-                    jsx = CappedJsx(sec["jsx_snippet"], 2000)
+                if sec["source_code"]:
+                    jsx = CappedJsx(sec["source_code"], 2000)
                     lines.append("\n```jsx")
                     lines.append(jsx)
                     lines.append("```")
@@ -1060,7 +1060,7 @@ class ToolDispatcher:
                         if notice:
                             lines.append(notice)
                 if not any_styles:
-                    notice = StyleExtractionGap(comp["jsx_snippet"]).notice()
+                    notice = StyleExtractionGap(comp["source_code"]).notice()
                     if notice:
                         lines.append(f"\n{notice}")
 
@@ -1091,8 +1091,8 @@ class ToolDispatcher:
                     lines.append("\n#### Referenced data")
                     lines.extend(_referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
 
-                if comp["jsx_snippet"]:
-                    jsx = CappedJsx(comp["jsx_snippet"], 2500)
+                if comp["source_code"]:
+                    jsx = CappedJsx(comp["source_code"], 2500)
                     lines.append("\n```jsx")
                     lines.append(jsx)
                     lines.append("```")
@@ -1153,8 +1153,8 @@ class ToolDispatcher:
             )
             if notice:
                 lines.append(notice)
-        if sec["jsx_snippet"]:
-            jsx = CappedJsx(sec["jsx_snippet"], 3000)
+        if sec["source_code"]:
+            jsx = CappedJsx(sec["source_code"], 3000)
             lines.append("\n## JSX\n```jsx")
             lines.append(jsx)
             lines.append("```")
@@ -1177,8 +1177,8 @@ class ToolDispatcher:
         trunc_notice = _truncated_fields_notice(comp.get("c.truncated_fields"), recoverable_via=cname)
         if trunc_notice:
             lines.append(trunc_notice)
-        if comp.get("c.jsx_snippet"):
-            jsx = CappedJsx(comp["c.jsx_snippet"], 4000)
+        if comp.get("c.source_code"):
+            jsx = CappedJsx(comp["c.source_code"], 4000)
             lines += ["", "## JSX", "```jsx", jsx, "```"]
             notice = jsx.notice(recoverable_via=cname)
             if notice:
@@ -1194,7 +1194,7 @@ class ToolDispatcher:
                 if state in by_state:
                     lines.append(f"**{state}**: {' | '.join(by_state[state][:6])}")
         else:
-            notice = StyleExtractionGap(comp.get("c.jsx_snippet", "")).notice()
+            notice = StyleExtractionGap(comp.get("c.source_code", "")).notice()
             if notice:
                 lines.append(f"\n{notice}")
         if comp.get("tokens"):
@@ -1659,7 +1659,7 @@ class ToolDispatcher:
                 if notice:
                     lines.append(notice)
         else:
-            notice = StyleExtractionGap(spec.get("c.jsx_snippet", "")).notice()
+            notice = StyleExtractionGap(spec.get("c.source_code", "")).notice()
             if notice:
                 lines.append(f"\n{notice}")
         if spec.get("responsive_styles_by_media"):
@@ -1710,8 +1710,8 @@ class ToolDispatcher:
                 "em vez de outro ícone/dado equivalente."
             )
             lines.extend(_referenced_data_lines(spec["referenced_data"], recoverable_via=cname))
-        if spec.get("c.jsx_snippet"):
-            jsx = CappedJsx(spec["c.jsx_snippet"], 3000)
+        if spec.get("c.source_code"):
+            jsx = CappedJsx(spec["c.source_code"], 3000)
             lines.append("\n## JSX\n```jsx")
             lines.append(jsx)
             lines.append("```")
@@ -1765,7 +1765,7 @@ class ToolDispatcher:
                     if notice:
                         lines.append(notice)
             if not any_styles:
-                notice = StyleExtractionGap(comp["jsx_snippet"]).notice()
+                notice = StyleExtractionGap(comp["source_code"]).notice()
                 if notice:
                     lines.append(f"\n{notice}")
 
@@ -1794,8 +1794,8 @@ class ToolDispatcher:
                 lines.append("\n#### Dados referenciados")
                 lines.extend(_referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
 
-            if comp["jsx_snippet"]:
-                jsx = CappedJsx(comp["jsx_snippet"], 2500)
+            if comp["source_code"]:
+                jsx = CappedJsx(comp["source_code"], 2500)
                 lines.append("\n```jsx")
                 lines.append(jsx)
                 lines.append("```")

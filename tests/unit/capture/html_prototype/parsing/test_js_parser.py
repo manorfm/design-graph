@@ -360,7 +360,7 @@ class TestArrowFunctionComponents:
     """
     const Name = ({ ... }) => ( <jsx/> ) declarations were previously invisible
     to boundary detection (RE_COMP_FN only matches `function Name(`), so a
-    component defined this way became a graph node with no jsx_snippet,
+    component defined this way became a graph node with no source_code,
     styles, props or interactions — reported by `design-graph validate` as
     "unresolved". Reproduces the OptRow pattern from a real prototype.
     """

@@ -538,7 +538,7 @@ def _build_section(
         styles=styles,
         component_refs=comp_refs,
         texts=texts,
-        jsx_snippet=block[:3_000].strip(),
+        source_code=block[:3_000].strip(),
         detection_method=detection_method,
         element_styles=element_styles,
     )
@@ -590,7 +590,7 @@ def extract_sections_for_plain_html(
             name=name,
             index=idx,
             texts=texts[:10],
-            jsx_snippet=html[:2_000],
+            source_code=html[:2_000],
         ))
 
     logger.debug(
@@ -598,7 +598,7 @@ def extract_sections_for_plain_html(
         screen_name, len(sections),
     )
     # Semantic sections use a relaxed quality check: presence of HTML content is sufficient
-    return [s for s in sections if s.jsx_snippet.strip() or s.texts]
+    return [s for s in sections if s.source_code.strip() or s.texts]
 
 
 def _detect_by_semantic(

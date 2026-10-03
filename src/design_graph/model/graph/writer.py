@@ -39,26 +39,26 @@ logger = logging.getLogger(__name__)
 
 # Maximum characters stored for a JSX snippet in the graph.
 # Prevents oversized components from bloating the database and MCP responses.
-MAX_JSX_SNIPPET_CHARS = 8_000
+MAX_SOURCE_CODE_CHARS = 8_000
 
 
 class BuildLockError(RuntimeError):
     """Raised when a build is already in progress for the target database."""
 
 
-def _capped_jsx_snippet(owner: str, jsx_snippet: str) -> str:
+def _capped_source_code(owner: str, source_code: str) -> str:
     """
-    A jsx_snippet truncated to MAX_JSX_SNIPPET_CHARS for storage, logging
+    A source_code truncated to MAX_SOURCE_CODE_CHARS for storage, logging
     when truncation actually happened. Shared by every node type that
     stores one (Component, Section, Screen) so the cap and its log message
     can't drift between them.
     """
-    if len(jsx_snippet) > MAX_JSX_SNIPPET_CHARS:
+    if len(source_code) > MAX_SOURCE_CODE_CHARS:
         logger.debug(
-            "writer: jsx_snippet for %s capped at %d chars (was %d)",
-            owner, MAX_JSX_SNIPPET_CHARS, len(jsx_snippet),
+            "writer: source_code for %s capped at %d chars (was %d)",
+            owner, MAX_SOURCE_CODE_CHARS, len(source_code),
         )
-    return jsx_snippet[:MAX_JSX_SNIPPET_CHARS]
+    return source_code[:MAX_SOURCE_CODE_CHARS]
 
 
 class GraphWriteSession:
@@ -273,8 +273,8 @@ class GraphWriter:
             if screen.name in self._declared_screen_names:
                 continue
             self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc, jsx_snippet:$s})",
-                {"n": screen.name, "sc": screen.sections_count, "s": _capped_jsx_snippet(screen.name, screen.jsx_snippet)},
+                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc, source_code:$s})",
+                {"n": screen.name, "sc": screen.sections_count, "s": _capped_source_code(screen.name, screen.source_code)},
             )
             self._declared_screen_names.add(screen.name)
 
@@ -292,19 +292,19 @@ class GraphWriter:
             return
 
         component_exists = self._node_exists("Component", "name", comp.name)
-        jsx = _capped_jsx_snippet(comp.name, comp.jsx_snippet)
+        jsx = _capped_source_code(comp.name, comp.source_code)
         truncated = ",".join(sorted(comp.truncated_fields))
         referenced_data_json = json.dumps(comp.referenced_data) if comp.referenced_data else ""
         if not component_exists:
             self._safe_execute(
-                "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:$s, occurrence:$o, "
+                "CREATE (:Component {name:$n, comp_type:$t, source_code:$s, occurrence:$o, "
                 "classes:$c, truncated_fields:$tf, referenced_data_json:$rd})",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
                  "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
             )
         else:
             self._safe_execute(
-                "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.jsx_snippet=$s, "
+                "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.source_code=$s, "
                 "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf, c.referenced_data_json=$rd",
                 {"n": comp.name, "t": comp.comp_type, "s": jsx,
                  "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
@@ -455,16 +455,16 @@ class GraphWriter:
         component_refs = [
             name for name in screen.component_refs if name not in self._declared_screen_names
         ]
-        jsx = _capped_jsx_snippet(screen.name, screen.jsx_snippet)
+        jsx = _capped_source_code(screen.name, screen.source_code)
         if screen.name in self._declared_screen_names:
             self._safe_execute(
                 "MATCH (s:Screen {name:$n}) "
-                "SET s.component_count=$cc, s.sections_count=$sc, s.jsx_snippet=$s",
+                "SET s.component_count=$cc, s.sections_count=$sc, s.source_code=$s",
                 {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
             )
         else:
             self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, jsx_snippet:$s})",
+                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, source_code:$s})",
                 {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
             )
 
@@ -485,11 +485,11 @@ class GraphWriter:
             )
 
         for section in sections:
-            sec_jsx = _capped_jsx_snippet(f"section {section.id}", section.jsx_snippet)
+            sec_jsx = _capped_source_code(f"section {section.id}", section.source_code)
             self._safe_execute(
                 "CREATE (:Section {id:$id, screen:$sc, name:$nm, "
                 "styles_json:$sj, components_json:$cj, texts_json:$tj, "
-                "jsx_snippet:$jsx, detection_method:$dm})",
+                "source_code:$jsx, detection_method:$dm})",
                 {
                     "id": section.id, "sc": section.screen, "nm": section.name,
                     "sj": json.dumps(section.styles),
@@ -643,7 +643,7 @@ class GraphWriter:
             self._known_comp_names.add(name)
             return
         ok = self._safe_execute(
-            "CREATE (:Component {name:$n, comp_type:$t, jsx_snippet:'', "
+            "CREATE (:Component {name:$n, comp_type:$t, source_code:'', "
             "occurrence:$o, classes:'', truncated_fields:'', referenced_data_json:''})",
             {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )

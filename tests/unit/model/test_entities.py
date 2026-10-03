@@ -389,14 +389,14 @@ class TestExtractedSectionCreate:
         expected = "sec_" + hashlib.md5(b"HomeScreen_Header").hexdigest()[:8]
         section = ExtractedSection.create(
             screen="HomeScreen", name="Header", styles={}, component_refs=[],
-            texts=[], jsx_snippet="", detection_method=DetectionMethod.COMMENT,
+            texts=[], source_code="", detection_method=DetectionMethod.COMMENT,
         )
         assert section.id == expected
 
     def test_create_semantic_matches_legacy_seed(self):
         expected = "sec_" + hashlib.md5(b"HomeScreen_Nav_0").hexdigest()[:8]
         section = ExtractedSection.create_semantic(
-            screen="HomeScreen", name="Nav", index=0, texts=[], jsx_snippet="",
+            screen="HomeScreen", name="Nav", index=0, texts=[], source_code="",
         )
         assert section.id == expected
         assert section.detection_method == DetectionMethod.SEMANTIC
@@ -404,7 +404,7 @@ class TestExtractedSectionCreate:
     def test_element_styles_defaults_to_empty_list(self):
         section = ExtractedSection.create(
             screen="HomeScreen", name="Header", styles={}, component_refs=[],
-            texts=[], jsx_snippet="", detection_method=DetectionMethod.COMMENT,
+            texts=[], source_code="", detection_method=DetectionMethod.COMMENT,
         )
         assert section.element_styles == []
 
@@ -415,7 +415,7 @@ class TestExtractedSectionCreate:
         ]
         section = ExtractedSection.create(
             screen="HistoryView", name="Audit item", styles={}, component_refs=[],
-            texts=[], jsx_snippet="", detection_method=DetectionMethod.LIST_ITEM,
+            texts=[], source_code="", detection_method=DetectionMethod.LIST_ITEM,
             element_styles=entries,
         )
         assert section.element_styles == entries
@@ -426,15 +426,15 @@ class TestExtractedSectionCreate:
 class TestExtractedComponentConsolidateSingleVariant:
     def _component(self, jsx: str) -> ExtractedComponent:
         return ExtractedComponent(
-            name="Btn", comp_type=ComponentType.BUTTON, jsx_snippet=jsx,
+            name="Btn", comp_type=ComponentType.BUTTON, source_code=jsx,
             occurrence=1, classes="",
         )
 
     def test_single_variant_returned_without_any_label_noise(self):
         comp = ExtractedComponent.consolidate([self._component("<button>Go</button>")])
-        assert comp.jsx_snippet == "<button>Go</button>"
-        assert "live" not in comp.jsx_snippet
-        assert "shadowed" not in comp.jsx_snippet
+        assert comp.source_code == "<button>Go</button>"
+        assert "live" not in comp.source_code
+        assert "shadowed" not in comp.source_code
 
 
 # ── Deduplicated icon assets ────────────────────────────────────────────────────
@@ -467,7 +467,7 @@ class TestExtractedComponentConsolidateChildOrder:
 
     def _component(self, child_refs: list[str]) -> ExtractedComponent:
         return ExtractedComponent(
-            name="Shared", comp_type=ComponentType.COMPONENT, jsx_snippet="<div/>",
+            name="Shared", comp_type=ComponentType.COMPONENT, source_code="<div/>",
             occurrence=1, classes="", child_refs=child_refs,
         )
 
@@ -494,7 +494,7 @@ class TestExtractedComponentConsolidateChildOrder:
 class TestExtractedComponentConsolidateMergesIcons:
     def _component(self, icons: list[IconAsset]) -> ExtractedComponent:
         return ExtractedComponent(
-            name="Btn", comp_type=ComponentType.BUTTON, jsx_snippet="<button/>",
+            name="Btn", comp_type=ComponentType.BUTTON, source_code="<button/>",
             occurrence=1, classes="", icons=icons,
         )
 

@@ -48,7 +48,7 @@ class TestGraphWriteSessionSuccess:
         final = tmp_path / "design.db"
         comp = ExtractedComponent(
             name="TestBtn", comp_type="button",
-            jsx_snippet="<button>OK</button>",
+            source_code="<button>OK</button>",
             occurrence=1, classes="btn",
             styles=[], interactions=[], texts=[], child_refs=[],
         )

@@ -56,9 +56,9 @@ def dom_pattern_to_extracted_component(pattern: DOMPattern) -> ExtractedComponen
     were a named React component — same schema, different origin.
     """
     comp_type  = _SEMANTIC_TYPE_TO_COMP_TYPE.get(pattern.semantic_type, ComponentType.COMPONENT)
-    jsx_snippet = pattern.first_example[:3_000]
-    classes    = _extract_css_classes(jsx_snippet)
-    styles     = _extract_inline_styles(jsx_snippet, pattern.inferred_name)
+    source_code = pattern.first_example[:3_000]
+    classes    = _extract_css_classes(source_code)
+    styles     = _extract_inline_styles(source_code, pattern.inferred_name)
 
     logger.debug(
         "plain_html_extractor: %s (type=%s, count=%d, classes=%s)",
@@ -68,7 +68,7 @@ def dom_pattern_to_extracted_component(pattern: DOMPattern) -> ExtractedComponen
     return ExtractedComponent(
         name=pattern.inferred_name,
         comp_type=comp_type,
-        jsx_snippet=jsx_snippet,
+        source_code=source_code,
         occurrence=pattern.count,
         classes=classes,
         styles=styles,

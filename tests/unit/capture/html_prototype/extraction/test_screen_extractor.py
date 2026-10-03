@@ -200,7 +200,7 @@ class TestScreenJsxSnippet:
     extracted as a Component (coordinator.extract_react: "a screen boundary
     must never also be extracted as a component"), so its own root JSX —
     the shell: header, grid, chrome around the tabs — was never captured by
-    anything. A Screen must carry its own jsx_snippet the same way an
+    anything. A Screen must carry its own source_code the same way an
     ExtractedComponent does, independent of that partition.
     """
 
@@ -208,17 +208,17 @@ class TestScreenJsxSnippet:
         bounds = find_all_boundaries(js)
         return extract_screens(js, bounds)
 
-    def test_screen_captures_its_own_return_block_as_jsx_snippet(self):
+    def test_screen_captures_its_own_return_block_as_source_code(self):
         screens = self._screens(SCREENS_JS)
         rest_page = next(s for s in screens if s.name == "RestaurantsPage")
-        assert "SectionCard" in rest_page.jsx_snippet
-        assert "BtnPrimary" in rest_page.jsx_snippet
+        assert "SectionCard" in rest_page.source_code
+        assert "BtnPrimary" in rest_page.source_code
 
-    def test_overlay_shell_screen_also_captures_jsx_snippet(self):
+    def test_overlay_shell_screen_also_captures_source_code(self):
         screens = self._screens(TestIsScreenRecognisesOverlayShellsByStructure.OVERLAY_JS)
         editor = next(s for s in screens if s.name == "ItemEditorV6")
-        assert editor.jsx_snippet != ""
-        assert "BasicTab" in editor.jsx_snippet
+        assert editor.source_code != ""
+        assert "BasicTab" in editor.source_code
 
     def test_empty_js_yields_no_snippet_crash(self):
         assert extract_screens("", []) == []

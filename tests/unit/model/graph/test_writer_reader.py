@@ -57,14 +57,14 @@ def populated_db(tmp_path):
     tm = index_tokens_by_value([token])
 
     badge = ExtractedComponent(
-        name="Badge", comp_type="badge", jsx_snippet="<span>badge</span>",
+        name="Badge", comp_type="badge", source_code="<span>badge</span>",
         occurrence=3, classes="badge", styles=[], interactions=[], texts=[], child_refs=[],
     )
     gw.write_component(badge, tm)
 
     btn = ExtractedComponent(
         name="BtnWithBadge", comp_type="button",
-        jsx_snippet="<button><Badge /></button>",
+        source_code="<button><Badge /></button>",
         occurrence=2, classes="btn", child_refs=["Badge"],
         styles=[StyleEntry(id="st_1", element="BtnWithBadge", state="default",
                            property="backgroundColor", value="#ffb81c")],
@@ -73,7 +73,7 @@ def populated_db(tmp_path):
     gw.write_component(btn, tm)
 
     card = ExtractedComponent(
-        name="SectionCard", comp_type="card", jsx_snippet="<div>card</div>",
+        name="SectionCard", comp_type="card", source_code="<div>card</div>",
         occurrence=4, classes="card", styles=[], interactions=[], texts=[], child_refs=[],
     )
     gw.write_component(card, tm)
@@ -81,7 +81,7 @@ def populated_db(tmp_path):
     section = ExtractedSection(
         id="sec_hdr", screen="RestaurantsPage", name="Header",
         styles={}, component_refs=["BtnWithBadge"], texts=["Restaurantes"],
-        jsx_snippet="<div>header</div>", detection_method="comment",
+        source_code="<div>header</div>", detection_method="comment",
     )
     screen = ExtractedScreen(
         name="RestaurantsPage",
@@ -201,7 +201,7 @@ class TestWriteModuleTexts:
 class TestWriteComponent:
     def _make_comp(self, name, child_refs=None):
         return ExtractedComponent(
-            name=name, comp_type="card", jsx_snippet="<div/>",
+            name=name, comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[],
             texts=[], child_refs=child_refs or [],
         )
@@ -215,7 +215,7 @@ class TestWriteComponent:
     def test_truncated_fields_persisted_as_sorted_csv(self, writer):
         gw, conn = writer
         comp = ExtractedComponent(
-            name="Truncated", comp_type="card", jsx_snippet="<div/>",
+            name="Truncated", comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=[], truncated_fields=frozenset({"texts", "styles"}),
         )
@@ -250,7 +250,7 @@ class TestWriteComponent:
 
         resolved = conn.execute(
             "MATCH (c:Component {name:'MenuFormModal'}) "
-            "RETURN c.occurrence, c.jsx_snippet"
+            "RETURN c.occurrence, c.source_code"
         ).get_next()
         assert resolved == [1, "<div/>"]
 
@@ -291,7 +291,7 @@ class TestWriteComponent:
         child = ExtractedScreen("RestaurantSectorsView", [], 0)
         section = ExtractedSection(
             id="sectors", screen="RestaurantDetail", name="Sectors", styles={},
-            component_refs=["RestaurantSectorsView"], texts=[], jsx_snippet="<div/>",
+            component_refs=["RestaurantSectorsView"], texts=[], source_code="<div/>",
             detection_method="semantic",
         )
         gw.declare_screens([parent, child])
@@ -323,7 +323,7 @@ class TestWriteComponent:
     def test_style_linked_to_component(self, writer):
         gw, conn = writer
         comp = ExtractedComponent(
-            name="StyledComp", comp_type="button", jsx_snippet="",
+            name="StyledComp", comp_type="button", source_code="",
             occurrence=1, classes="",
             styles=[StyleEntry(id="st_sc1", element="StyledComp",
                                state="default", property="color", value="red")],
@@ -343,7 +343,7 @@ class TestWriteComponent:
         gw.write_tokens([token])
         tm = index_tokens_by_value([token])
         comp = ExtractedComponent(
-            name="TokenComp", comp_type="button", jsx_snippet="",
+            name="TokenComp", comp_type="button", source_code="",
             occurrence=1, classes="",
             styles=[StyleEntry(id="st_tok1", element="TokenComp",
                                state="default", property="bg", value="#ffb81c")],
@@ -371,7 +371,7 @@ class TestWriteScreen:
                                  component_refs=["UnknownWidget"], sections_count=0)
         gw.write_screen(screen, [], {})
         result = conn.execute(
-            "MATCH (c:Component {name:'UnknownWidget'}) RETURN c.jsx_snippet"
+            "MATCH (c:Component {name:'UnknownWidget'}) RETURN c.source_code"
         )
         assert result.get_next()[0] == ""
 
@@ -380,7 +380,7 @@ class TestWriteScreen:
         screen = ExtractedScreen(name="SectionPage", component_refs=[], sections_count=1)
         section = ExtractedSection(
             id="sec_t1", screen="SectionPage", name="Header",
-            styles={}, component_refs=[], texts=[], jsx_snippet="<div/>",
+            styles={}, component_refs=[], texts=[], source_code="<div/>",
             detection_method="comment",
         )
         gw.write_screen(screen, [section], {})
@@ -513,7 +513,7 @@ class TestOrderIndex:
 
     def _comp(self, name, child_refs=None):
         return ExtractedComponent(
-            name=name, comp_type="card", jsx_snippet="<div/>",
+            name=name, comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=child_refs or [],
         )
@@ -650,7 +650,7 @@ class TestGetComponentFull:
 
     def _comp(self, name, child_refs=None, styles=None):
         return ExtractedComponent(
-            name=name, comp_type="card", jsx_snippet=f"<div>{name}</div>",
+            name=name, comp_type="card", source_code=f"<div>{name}</div>",
             occurrence=1, classes="", styles=styles or [],
             interactions=[], texts=[], child_refs=child_refs or [],
         )
@@ -703,7 +703,7 @@ class TestTruncatedFieldsRoundTrip:
 
     def _comp(self, name, truncated=frozenset()):
         return ExtractedComponent(
-            name=name, comp_type="card", jsx_snippet="<div/>",
+            name=name, comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=[], truncated_fields=truncated,
         )
@@ -814,7 +814,7 @@ def two_screen_db(tmp_path):
     tm = index_tokens_by_value([primary, dark])
 
     btn = ExtractedComponent(
-        name="BtnWithBadge", comp_type="button", jsx_snippet="<button/>",
+        name="BtnWithBadge", comp_type="button", source_code="<button/>",
         occurrence=1, classes="", child_refs=[],
         styles=[StyleEntry(id="st_primary", element="BtnWithBadge", state="default",
                            property="backgroundColor", value="#ffb81c")],
@@ -823,7 +823,7 @@ def two_screen_db(tmp_path):
     gw.write_component(btn, tm)
 
     dark_card = ExtractedComponent(
-        name="DarkCard", comp_type="card", jsx_snippet="<div/>",
+        name="DarkCard", comp_type="card", source_code="<div/>",
         occurrence=1, classes="", child_refs=[],
         styles=[StyleEntry(id="st_dark", element="DarkCard", state="default",
                            property="backgroundColor", value="#111111")],
@@ -943,7 +943,7 @@ class TestGetImpact:
 
 class TestJsxSnippetSizeCap:
     """
-    GraphWriter must cap jsx_snippet before persisting so that oversized JSX
+    GraphWriter must cap source_code before persisting so that oversized JSX
     cannot cause performance issues or exceed Kuzu string limits.
     The cap must be enforced in write_component AND write_screen (sections).
     """
@@ -966,59 +966,59 @@ class TestJsxSnippetSizeCap:
 
     def test_oversized_component_jsx_is_capped(self, fresh_writer):
         from design_graph.model.entities import ExtractedComponent
-        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
         comp = ExtractedComponent(
-            name="BigComp", comp_type="card", jsx_snippet=self._oversized_jsx(),
+            name="BigComp", comp_type="card", source_code=self._oversized_jsx(),
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         fresh_writer.writer.write_component(comp, {})
         result = fresh_writer.reader.get_component("BigComp")
         assert result is not None
-        stored = result.get("c.jsx_snippet", "")
-        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
-            f"Stored jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        stored = result.get("c.source_code", "")
+        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
+            f"Stored source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
         )
 
     def test_oversized_section_jsx_is_capped(self, fresh_writer):
         from design_graph.model.entities import ExtractedScreen, ExtractedSection
-        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
         section = ExtractedSection(
             id="sec_big", screen="BigPage", name="BigSection",
             styles={}, component_refs=[], texts=[],
-            jsx_snippet=self._oversized_jsx(), detection_method="comment",
+            source_code=self._oversized_jsx(), detection_method="comment",
         )
         screen = ExtractedScreen(name="BigPage", component_refs=[], sections_count=1)
         fresh_writer.writer.write_screen(screen, [section], {})
         sec = fresh_writer.reader.get_section("BigPage", "BigSection")
         assert sec is not None
-        stored = sec.get("jsx_snippet", "")
-        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
-            f"Stored section jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        stored = sec.get("source_code", "")
+        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
+            f"Stored section source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
         )
 
     def test_normal_jsx_is_stored_intact(self, fresh_writer):
         from design_graph.model.entities import ExtractedComponent
         jsx = "<div><button>OK</button></div>"
         comp = ExtractedComponent(
-            name="SmallComp", comp_type="button", jsx_snippet=jsx,
+            name="SmallComp", comp_type="button", source_code=jsx,
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         fresh_writer.writer.write_component(comp, {})
         result = fresh_writer.reader.get_component("SmallComp")
-        assert result["c.jsx_snippet"] == jsx
+        assert result["c.source_code"] == jsx
 
     def test_oversized_screen_jsx_is_capped(self, fresh_writer):
         from design_graph.model.entities import ExtractedScreen
-        from design_graph.model.graph.writer import MAX_JSX_SNIPPET_CHARS
+        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
         screen = ExtractedScreen(
             name="BigScreen", component_refs=[], sections_count=0,
-            jsx_snippet=self._oversized_jsx(),
+            source_code=self._oversized_jsx(),
         )
         fresh_writer.writer.declare_screens([screen])
         stored = fresh_writer.reader.get_full_jsx("BigScreen")
-        assert stored.startswith("<div>"), "screen fallback did not return the stored jsx_snippet at all"
-        assert len(stored) <= MAX_JSX_SNIPPET_CHARS, (
-            f"Stored screen jsx_snippet has {len(stored)} chars, expected ≤ {MAX_JSX_SNIPPET_CHARS}"
+        assert stored.startswith("<div>"), "screen fallback did not return the stored source_code at all"
+        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
+            f"Stored screen source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
         )
 
 
@@ -1027,7 +1027,7 @@ class TestGetFullJsxFallsBackToScreen:
     get_full_jsx('ItemEditorV6') failed outright before this: a full-page
     overlay shell is classified as a Screen and (deliberately) never also
     extracted as a Component, so a Component-only lookup always came up
-    empty for it. get_full_jsx must resolve a Screen's own jsx_snippet
+    empty for it. get_full_jsx must resolve a Screen's own source_code
     when no Component of that name exists — not report the screen's shell
     JSX as "unavailable" when it was captured, just filed differently.
     """
@@ -1042,7 +1042,7 @@ class TestGetFullJsxFallsBackToScreen:
     def test_screen_without_matching_component_returns_its_own_jsx(self, fresh_writer):
         screen = ExtractedScreen(
             name="ItemEditorV6", component_refs=["BasicTab"], sections_count=0,
-            jsx_snippet="<div className='shell'>{tab === 'basic' && <BasicTab />}</div>",
+            source_code="<div className='shell'>{tab === 'basic' && <BasicTab />}</div>",
         )
         fresh_writer.writer.declare_screens([screen])
         result = fresh_writer.reader.get_full_jsx("ItemEditorV6")
@@ -1054,13 +1054,13 @@ class TestGetFullJsxFallsBackToScreen:
         # keep returning the Component's JSX unchanged — the Screen
         # fallback only fires when no Component matches at all.
         comp = ExtractedComponent(
-            name="PricingPageV6", comp_type="card", jsx_snippet="<div>component version</div>",
+            name="PricingPageV6", comp_type="card", source_code="<div>component version</div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         fresh_writer.writer.write_component(comp, {})
         screen = ExtractedScreen(
             name="PricingPageV6", component_refs=[], sections_count=0,
-            jsx_snippet="<div>should not surface</div>",
+            source_code="<div>should not surface</div>",
         )
         fresh_writer.writer.declare_screens([screen])
         result = fresh_writer.reader.get_full_jsx("PricingPageV6")

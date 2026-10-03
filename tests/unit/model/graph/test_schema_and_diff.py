@@ -57,7 +57,7 @@ class TestInitializeSchema:
         for name in ("Parent", "Child"):
             fresh_conn.execute(
                 "CREATE (:Component {name:$n, comp_type:'card', "
-                "jsx_snippet:'', occurrence:1, classes:''})",
+                "source_code:'', occurrence:1, classes:''})",
                 {"n": name}
             )
         fresh_conn.execute(
@@ -72,7 +72,7 @@ class TestInitializeSchema:
         fresh_conn.execute(
             "CREATE (:Section {id:'s1', screen:'Pg', name:'Header', "
             "styles_json:'{}', components_json:'[]', texts_json:'[]', "
-            "jsx_snippet:'', detection_method:'comment'})"
+            "source_code:'', detection_method:'comment'})"
         )
         result = fresh_conn.execute(
             "MATCH (s:Section {id:'s1'}) RETURN s.detection_method"

@@ -43,7 +43,7 @@ def section_graph(tmp_path_factory):
 
     gw.write_tokens([])
     comp = ExtractedComponent(
-        name="NavItem", comp_type="component", jsx_snippet="<a/>",
+        name="NavItem", comp_type="component", source_code="<a/>",
         occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
     )
     gw.write_component(comp, {})
@@ -54,7 +54,7 @@ def section_graph(tmp_path_factory):
         styles={"padding": "24px", "backgroundColor": "#1a1a1a", "display": "flex"},
         component_refs=["NavItem"],
         texts=["Welcome"],
-        jsx_snippet="<header/>",
+        source_code="<header/>",
         detection_method="semantic",
     )
     footer = ExtractedSection(
@@ -62,7 +62,7 @@ def section_graph(tmp_path_factory):
         styles={},
         component_refs=[],
         texts=[],
-        jsx_snippet="<footer/>",
+        source_code="<footer/>",
         detection_method="semantic",
     )
     gw.write_screen(screen, [header, footer], {})

@@ -66,11 +66,11 @@ class TestDetectBySemantic:
         sections = _detect_by_semantic(soup, "TestPage")
         assert isinstance(sections, list)
 
-    def test_section_has_jsx_snippet_from_html(self):
+    def test_section_has_source_code_from_html(self):
         soup = _soup("<html><body><section id='featured'><h2>Featured</h2><p>x</p></section></body></html>")
         sections = _detect_by_semantic(soup, "TestPage")
         if sections:
-            assert any("featured" in s.jsx_snippet.lower() or "Featured" in s.jsx_snippet
+            assert any("featured" in s.source_code.lower() or "Featured" in s.source_code
                        for s in sections)
 
 

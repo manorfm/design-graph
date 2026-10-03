@@ -23,7 +23,7 @@ class _DynamicStyleReader:
     def get_component(self, name):
         return {
             "c.name": "RestaurantAvatar", "c.comp_type": "component", "c.occurrence": 1,
-            "c.jsx_snippet": DYNAMIC_STYLE_JSX, "c.classes": "",
+            "c.source_code": DYNAMIC_STYLE_JSX, "c.classes": "",
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
         }
@@ -34,7 +34,7 @@ class _DynamicStyleReader:
             "sections": [],
             "components": [{
                 "name": "RestaurantAvatar", "comp_type": "component", "occurrence": 1,
-                "jsx_snippet": DYNAMIC_STYLE_JSX, "classes": "",
+                "source_code": DYNAMIC_STYLE_JSX, "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -43,7 +43,7 @@ class _DynamicStyleReader:
     def get_component_spec(self, name):
         return {
             "c.name": "RestaurantAvatar", "c.comp_type": "component", "c.occurrence": 1,
-            "c.jsx_snippet": DYNAMIC_STYLE_JSX, "c.classes": "",
+            "c.source_code": DYNAMIC_STYLE_JSX, "c.classes": "",
             "screens_using": [], "parents": [], "children": [],
             "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [], "props": [],
         }
@@ -55,17 +55,17 @@ class _NoStyleAtAllReader(_DynamicStyleReader):
 
     def get_component(self, name):
         d = super().get_component(name)
-        d["c.jsx_snippet"] = "<span>{initials}</span>"
+        d["c.source_code"] = "<span>{initials}</span>"
         return d
 
     def get_screen_full(self, name):
         d = super().get_screen_full(name)
-        d["components"][0]["jsx_snippet"] = "<span>{initials}</span>"
+        d["components"][0]["source_code"] = "<span>{initials}</span>"
         return d
 
     def get_component_spec(self, name):
         d = super().get_component_spec(name)
-        d["c.jsx_snippet"] = "<span>{initials}</span>"
+        d["c.source_code"] = "<span>{initials}</span>"
         return d
 
 

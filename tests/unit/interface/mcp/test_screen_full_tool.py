@@ -36,14 +36,14 @@ def _make_screen_full_spec() -> dict:
                 },
                 "component_refs":   ["TopNav"],
                 "texts":            ["Welcome", "Get started"],
-                "jsx_snippet":      "<section>Hero</section>",
+                "source_code":      "<section>Hero</section>",
             }
         ],
         "components": [
             {
                 "name":       "TopNav",
                 "comp_type":  "navigation",
-                "jsx_snippet": "<nav>Home</nav>",
+                "source_code": "<nav>Home</nav>",
                 "occurrence": 1,
                 "classes":    "nav-bar",
                 "styles_by_state": {
@@ -214,7 +214,7 @@ class TestGetScreenFullToolComponentOutput:
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
         assert "Badge" in output
 
-    def test_renders_component_jsx_snippet(self, dispatcher):
+    def test_renders_component_source_code(self, dispatcher):
         output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
         assert "<nav>" in output or "nav" in output
 

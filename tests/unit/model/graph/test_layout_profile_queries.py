@@ -45,7 +45,7 @@ def layout_graph(tmp_path_factory):
     gw.write_tokens([])
 
     flex_card = ExtractedComponent(
-        name="FlexCard", comp_type="card", jsx_snippet="<div/>",
+        name="FlexCard", comp_type="card", source_code="<div/>",
         occurrence=2, classes="",
         styles=[
             StyleEntry(id="s1", element="FlexCard", state="default", property="display",       value="flex"),
@@ -57,7 +57,7 @@ def layout_graph(tmp_path_factory):
         ],
     )
     grid_list = ExtractedComponent(
-        name="GridList", comp_type="list-item", jsx_snippet="<ul/>",
+        name="GridList", comp_type="list-item", source_code="<ul/>",
         occurrence=1, classes="",
         styles=[
             StyleEntry(id="s7", element="GridList", state="default", property="display",  value="grid"),
@@ -66,7 +66,7 @@ def layout_graph(tmp_path_factory):
         ],
     )
     bare_comp = ExtractedComponent(
-        name="BareComp", comp_type="component", jsx_snippet="<span/>",
+        name="BareComp", comp_type="component", source_code="<span/>",
         occurrence=1, classes="",
         styles=[],
     )
@@ -82,7 +82,7 @@ def layout_graph(tmp_path_factory):
     )
     section = ExtractedSection(
         id="sec1", screen="DashboardPage", name="Main",
-        styles={}, component_refs=["FlexCard"], texts=[], jsx_snippet="",
+        styles={}, component_refs=["FlexCard"], texts=[], source_code="",
         detection_method="semantic",
     )
     gw.write_screen(screen, [section], {})
@@ -231,7 +231,7 @@ def section_only_layout_graph(tmp_path_factory):
     screen = ExtractedScreen(name="HistoryView", component_refs=[], sections_count=0)
     section = ExtractedSection(
         id="sec_audit", screen="HistoryView", name="Audit item",
-        styles={}, component_refs=[], texts=[], jsx_snippet="",
+        styles={}, component_refs=[], texts=[], source_code="",
         detection_method="list_item",
         element_styles=[
             StyleEntry.from_css_class("audit-item", "display", "grid"),

@@ -52,7 +52,7 @@ class _PropsReader:
             "sections": [],
             "components": [{
                 "name": "Btn", "comp_type": "button", "occurrence": 1,
-                "jsx_snippet": "", "classes": "",
+                "source_code": "", "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": self._PROPS, "children": [],
             }],
@@ -61,7 +61,7 @@ class _PropsReader:
     def get_component_spec(self, name):
         return {
             "c.name": "Btn", "c.comp_type": "button", "c.occurrence": 1,
-            "c.jsx_snippet": "", "c.classes": "",
+            "c.source_code": "", "c.classes": "",
             "screens_using": [], "parents": [], "children": [],
             "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
             "props": self._PROPS,

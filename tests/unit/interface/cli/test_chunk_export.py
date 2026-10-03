@@ -29,13 +29,13 @@ def _section(name: str, screen: str, jsx: str = "<div>section</div>",
     return ExtractedSection(
         id=f"sec_{name.lower()}", screen=screen, name=name,
         styles={}, component_refs=refs or [], texts=[f"Text in {name}"],
-        jsx_snippet=jsx, detection_method="comment",
+        source_code=jsx, detection_method="comment",
     )
 
 
 def _comp(name: str, jsx: str = "<div>comp</div>") -> ExtractedComponent:
     return ExtractedComponent(
-        name=name, comp_type="card", jsx_snippet=jsx,
+        name=name, comp_type="card", source_code=jsx,
         occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
     )
 

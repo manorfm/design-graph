@@ -113,7 +113,7 @@ class TestInlineListMarkupIsLastResortStrategy:
         boundary = _boundary(HISTORY_VIEW_JS, "HistoryView")
         sections = extract_sections(HISTORY_VIEW_JS, _screen("HistoryView"), boundary)
         audit_section = next(s for s in sections if "Icon" in s.component_refs)
-        assert "audit-item" in audit_section.jsx_snippet
+        assert "audit-item" in audit_section.source_code
 
     def test_two_independent_raw_map_blocks_each_produce_their_own_section(self):
         boundary = _boundary(HISTORY_VIEW_JS, "HistoryView")
@@ -122,7 +122,7 @@ class TestInlineListMarkupIsLastResortStrategy:
         # "audit-item" (qualifies: has an Icon ref) is guaranteed; the chip
         # filter row has no component refs/texts/styles of its own and may
         # be dropped by the quality filter — only the qualifying one is required.
-        assert any("audit-item" in s.jsx_snippet for s in list_item_sections)
+        assert any("audit-item" in s.source_code for s in list_item_sections)
 
     def test_named_component_list_is_not_claimed_by_this_strategy(self):
         """A `.map()` returning a named component (<UserRow/>) is already

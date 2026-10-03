@@ -408,7 +408,7 @@ async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
     # components just produced, before anything is chunked.
     markup_by_icon_id = {icon.id: icon.markup for c in comps for icon in c.icons}
     for c in comps:
-        c.jsx_snippet = resolve_icon_markers(c.jsx_snippet, markup_by_icon_id)
+        c.source_code = resolve_icon_markers(c.source_code, markup_by_icon_id)
     comps_d = {c.name: c for c in comps}
 
     chunks = chunk_extracted_data(screens, sections_map, comps_d, parsed.max_chars)

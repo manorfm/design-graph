@@ -149,7 +149,7 @@ class TestLargePrototypeChunking:
                         components[cname] = ExtractedComponent(
                             name=cname,
                             comp_type=raw.get("c.comp_type", "card"),
-                            jsx_snippet=raw.get("c.jsx_snippet", ""),
+                            source_code=raw.get("c.source_code", ""),
                             occurrence=raw.get("c.occurrence", 1),
                             classes=raw.get("c.classes", ""),
                             styles=[], interactions=[], texts=[],

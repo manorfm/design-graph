@@ -61,7 +61,7 @@ def rich_graph(tmp_path_factory):
 
     price_tag = ExtractedComponent(
         name="PriceTag", comp_type="badge",
-        jsx_snippet="<span style={{color:'#ffb81c'}}>R$99</span>",
+        source_code="<span style={{color:'#ffb81c'}}>R$99</span>",
         occurrence=3, classes="price",
         styles=[StyleEntry(id="st_price", element="PriceTag", state="default",
                            property="color", value="#ffb81c")],
@@ -73,7 +73,7 @@ def rich_graph(tmp_path_factory):
 
     cart_item = ExtractedComponent(
         name="CartItem", comp_type="card",
-        jsx_snippet="<div><PriceTag /></div>",
+        source_code="<div><PriceTag /></div>",
         occurrence=2, classes="cart-item",
         styles=[StyleEntry(id="st_cart", element="CartItem", state="hover",
                            property="opacity", value="0.8")],
@@ -85,7 +85,7 @@ def rich_graph(tmp_path_factory):
 
     btn = ExtractedComponent(
         name="BtnPrimary", comp_type="button",
-        jsx_snippet="<button>OK</button>",
+        source_code="<button>OK</button>",
         occurrence=5, classes="btn",
         styles=[], interactions=[], texts=[], child_refs=[],
     )
@@ -97,7 +97,7 @@ def rich_graph(tmp_path_factory):
     # into "default" (see TestMediaScopedStylesExcludedElsewhere below).
     responsive_card = ExtractedComponent(
         name="ResponsiveCard", comp_type="card",
-        jsx_snippet="<div className=\"card\">Card</div>",
+        source_code="<div className=\"card\">Card</div>",
         occurrence=1, classes="card",
         styles=[
             StyleEntry(id="st_resp_default", element="ResponsiveCard", state="default",
@@ -112,7 +112,7 @@ def rich_graph(tmp_path_factory):
     section = ExtractedSection(
         id="sec_hdr", screen="RestaurantsPage", name="Header",
         styles={"padding": "16px"}, component_refs=["BtnPrimary"],
-        texts=["Restaurantes"], jsx_snippet="<div>header</div>",
+        texts=["Restaurantes"], source_code="<div>header</div>",
         detection_method="comment",
     )
     screen = ExtractedScreen(
@@ -349,9 +349,9 @@ class TestCrossEntityNameResolution:
         db = kuzu.Database(str(tmp_path / "names.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, jsx_snippet:''})")
+        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, source_code:''})")
         conn.execute(
-            "CREATE (:Component {name:'AppStep', comp_type:'component', jsx_snippet:'', "
+            "CREATE (:Component {name:'AppStep', comp_type:'component', source_code:'', "
             "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
         )
         reader = GraphReader(conn)
@@ -366,9 +366,9 @@ class TestCrossEntityNameResolution:
         db = kuzu.Database(str(tmp_path / "ambiguous-names.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, jsx_snippet:''})")
+        conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, source_code:''})")
         conn.execute(
-            "CREATE (:Component {name:'AppStep', comp_type:'component', jsx_snippet:'', "
+            "CREATE (:Component {name:'AppStep', comp_type:'component', source_code:'', "
             "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
         )
         reader = GraphReader(conn)
@@ -563,9 +563,9 @@ class TestGetComponentSpec:
         spec = rich_graph.reader.get_component_spec("PriceTag")
         assert "texts" in spec
 
-    def test_jsx_snippet_present(self, rich_graph):
+    def test_source_code_present(self, rich_graph):
         spec = rich_graph.reader.get_component_spec("BtnPrimary")
-        assert "c.jsx_snippet" in spec
+        assert "c.source_code" in spec
 
     def test_fuzzy_name_resolution(self, rich_graph):
         spec = rich_graph.reader.get_component_spec("btn")  # prefix match
@@ -599,16 +599,16 @@ class TestGetComponentSpecScreensUsingDepth:
         gw = GraphWriter(conn)
 
         leaf = ExtractedComponent(
-            name="DeepLeaf", comp_type="badge", jsx_snippet="<span />",
+            name="DeepLeaf", comp_type="badge", source_code="<span />",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         deep = ExtractedComponent(
-            name="DeepMid", comp_type="card", jsx_snippet="<div><DeepLeaf /></div>",
+            name="DeepMid", comp_type="card", source_code="<div><DeepLeaf /></div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=["DeepLeaf"],
         )
         mid = ExtractedComponent(
-            name="TopMid", comp_type="card", jsx_snippet="<div><DeepMid /></div>",
+            name="TopMid", comp_type="card", source_code="<div><DeepMid /></div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=["DeepMid"],
         )
@@ -668,16 +668,16 @@ class TestGetComponentScreensUsingDepth:
         gw = GraphWriter(conn)
 
         leaf = ExtractedComponent(
-            name="DeepLeaf", comp_type="badge", jsx_snippet="<span />",
+            name="DeepLeaf", comp_type="badge", source_code="<span />",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         deep = ExtractedComponent(
-            name="DeepMid", comp_type="card", jsx_snippet="<div><DeepLeaf /></div>",
+            name="DeepMid", comp_type="card", source_code="<div><DeepLeaf /></div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=["DeepLeaf"],
         )
         mid = ExtractedComponent(
-            name="TopMid", comp_type="card", jsx_snippet="<div><DeepMid /></div>",
+            name="TopMid", comp_type="card", source_code="<div><DeepMid /></div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=["DeepMid"],
         )

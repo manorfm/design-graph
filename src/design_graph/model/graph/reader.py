@@ -183,14 +183,14 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
             "c.truncated_fields, c.referenced_data_json",
             {"n": resolved},
         )
         if not rows:
             return None
         comp = rows[0]
-        comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
+        comp["c.source_code"] = self._resolve_icons(comp["c.source_code"])
         comp["referenced_data"] = json.loads(comp.get("c.referenced_data_json") or "{}")
 
         styles       = self._q(
@@ -264,14 +264,14 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
             "c.truncated_fields, c.referenced_data_json",
             {"n": resolved},
         )
         if not rows:
             return None
         comp = rows[0]
-        comp["c.jsx_snippet"] = self._resolve_icons(comp["c.jsx_snippet"])
+        comp["c.source_code"] = self._resolve_icons(comp["c.source_code"])
         comp["referenced_data"] = json.loads(comp.get("c.referenced_data_json") or "{}")
 
         raw_styles = self._q(
@@ -402,13 +402,13 @@ class GraphReader:
         comp_rows = self._q(
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn}) "
-            "RETURN c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
             "c.truncated_fields, c.referenced_data_json "
             "ORDER BY c.name",
             {"names": names},
         )
         for row in comp_rows:
-            row["c.jsx_snippet"] = self._resolve_icons(row["c.jsx_snippet"] or "")
+            row["c.source_code"] = self._resolve_icons(row["c.source_code"] or "")
 
         comp_style_rows = self._q(
             # media = '' guard: see get_component's identical comment (C35) —
@@ -498,7 +498,7 @@ class GraphReader:
             components.append({
                 "name":              cname,
                 "comp_type":         comp["c.comp_type"],
-                "jsx_snippet":       comp["c.jsx_snippet"] or "",
+                "source_code":       comp["c.source_code"] or "",
                 "occurrence":        comp["c.occurrence"],
                 "classes":           comp["c.classes"] or "",
                 "truncated_fields":  (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
@@ -571,7 +571,7 @@ class GraphReader:
             "MATCH (s:Screen {name:$sn})-[:HAS_SECTION]->(sec:Section) "
             "WHERE toLower(sec.name) CONTAINS toLower($sec) "
             "RETURN sec.id, sec.name, sec.styles_json, sec.components_json, "
-            "       sec.texts_json, sec.jsx_snippet, sec.detection_method",
+            "       sec.texts_json, sec.source_code, sec.detection_method",
             {"sn": screen, "sec": section_hint},
         )
         if not rows:
@@ -606,7 +606,7 @@ class GraphReader:
             "styles_by_element": styles_by_element,
             "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
             "texts":             texts,
-            "jsx_snippet":       self._resolve_icons(sec["sec.jsx_snippet"] or ""),
+            "source_code":       self._resolve_icons(sec["sec.source_code"] or ""),
         }
 
     def get_section_texts(self, section_id: str) -> list[dict]:
@@ -864,8 +864,8 @@ class GraphReader:
 
     def get_full_jsx(self, name: str) -> str:
         """
-        A Component's jsx_snippet, or — when no Component of that name
-        exists — the jsx_snippet of a Screen by that name. A full-page
+        A Component's source_code, or — when no Component of that name
+        exists — the source_code of a Screen by that name. A full-page
         overlay shell (ItemEditorV6) is classified as a Screen and
         deliberately never also extracted as a Component (a screen
         boundary is never double-counted as a component), so without this
@@ -873,17 +873,17 @@ class GraphReader:
         never be reachable through this call at all.
         """
         comp_rows = self._q(
-            "MATCH (c:Component {name:$n}) RETURN c.jsx_snippet, c.comp_type",
+            "MATCH (c:Component {name:$n}) RETURN c.source_code, c.comp_type",
             {"n": name},
         )
-        if comp_rows and comp_rows[0].get("c.jsx_snippet"):
-            return self._resolve_icons(comp_rows[0]["c.jsx_snippet"])
+        if comp_rows and comp_rows[0].get("c.source_code"):
+            return self._resolve_icons(comp_rows[0]["c.source_code"])
 
         screen_rows = self._q(
-            "MATCH (s:Screen {name:$n}) RETURN s.jsx_snippet", {"n": name},
+            "MATCH (s:Screen {name:$n}) RETURN s.source_code", {"n": name},
         )
-        if screen_rows and screen_rows[0].get("s.jsx_snippet"):
-            return self._resolve_icons(screen_rows[0]["s.jsx_snippet"])
+        if screen_rows and screen_rows[0].get("s.source_code"):
+            return self._resolve_icons(screen_rows[0]["s.source_code"])
         return ""
 
     # ── Impact analysis ───────────────────────────────────────────────────────
@@ -982,9 +982,9 @@ class GraphReader:
         contains:
 
         - Screen metadata (name, component_count, sections_count)
-        - sections: list of dicts with styles, texts, component_refs, jsx_snippet
+        - sections: list of dicts with styles, texts, component_refs, source_code
         - components: list of dicts with styles_by_state, tokens, texts,
-                      interactions, props, children, jsx_snippet
+                      interactions, props, children, source_code
         - layout_profiles: list of LayoutProfile dicts (display, flex, spacing…)
 
         Section styles come from SECTION_HAS_STYLE nodes (canonical) with a
@@ -998,23 +998,23 @@ class GraphReader:
         # Q1: Screen metadata
         screen_rows = self._q(
             "MATCH (s:Screen {name:$n}) "
-            "RETURN s.name, s.component_count, s.sections_count, s.jsx_snippet",
+            "RETURN s.name, s.component_count, s.sections_count, s.source_code",
             {"n": resolved},
         )
         if not screen_rows:
             return None
         s = screen_rows[0]
-        s["s.jsx_snippet"] = self._resolve_icons(s["s.jsx_snippet"] or "")
+        s["s.source_code"] = self._resolve_icons(s["s.source_code"] or "")
 
         # Q2: All sections
         section_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section) "
             "RETURN sec.id, sec.name, sec.components_json, sec.texts_json, "
-            "       sec.styles_json, sec.jsx_snippet, sec.detection_method",
+            "       sec.styles_json, sec.source_code, sec.detection_method",
             {"n": resolved},
         )
         for row in section_rows:
-            row["sec.jsx_snippet"] = self._resolve_icons(row["sec.jsx_snippet"] or "")
+            row["sec.source_code"] = self._resolve_icons(row["sec.source_code"] or "")
 
         # Q3: Section styles — canonical source (SECTION_HAS_STYLE)
         sec_style_rows = self._q(
@@ -1042,13 +1042,13 @@ class GraphReader:
         comp_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(c:Component) "
-            "RETURN DISTINCT c.name, c.comp_type, c.jsx_snippet, c.occurrence, c.classes, "
+            "RETURN DISTINCT c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
             "c.truncated_fields, c.referenced_data_json "
             "ORDER BY c.name",
             {"n": resolved},
         )
         for row in comp_rows:
-            row["c.jsx_snippet"] = self._resolve_icons(row["c.jsx_snippet"] or "")
+            row["c.source_code"] = self._resolve_icons(row["c.source_code"] or "")
 
         # Q6: Component styles — all states via single JOIN (also used for layout profiles)
         #
@@ -1353,9 +1353,9 @@ class GraphReader:
 
     # ── Icon expansion ────────────────────────────────────────────────────────
 
-    def _resolve_icons(self, jsx_snippet: str) -> str:
+    def _resolve_icons(self, source_code: str) -> str:
         """
-        Expand every {[icon:id]} reference in `jsx_snippet` back into the full
+        Expand every {[icon:id]} reference in `source_code` back into the full
         SVG markup it stands for, via one batched lookup for however many
         distinct icons the snippet references.
 
@@ -1363,15 +1363,15 @@ class GraphReader:
         A reference with no matching Icon node (should not happen against a
         graph built by this same codebase) is left as-is rather than dropped.
         """
-        if not jsx_snippet or "{[icon:" not in jsx_snippet:
-            return jsx_snippet
+        if not source_code or "{[icon:" not in source_code:
+            return source_code
 
-        ids = sorted(set(RE_ICON_MARKER.findall(jsx_snippet)))
+        ids = sorted(set(RE_ICON_MARKER.findall(source_code)))
         rows = self._q(
             "MATCH (i:Icon) WHERE i.id IN $ids RETURN i.id, i.markup", {"ids": ids},
         )
         markup_by_id = {row["i.id"]: row["i.markup"] for row in rows}
-        return resolve_icon_markers(jsx_snippet, markup_by_id)
+        return resolve_icon_markers(source_code, markup_by_id)
 
     # ── Query helper ──────────────────────────────────────────────────────────
 
@@ -1467,7 +1467,7 @@ def _assemble_screen_full(
             "styles_by_element": styles_by_element,
             "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
             "texts":             list(texts),
-            "jsx_snippet":       sec["sec.jsx_snippet"] or "",
+            "source_code":       sec["sec.source_code"] or "",
         })
 
     # ── Component data ────────────────────────────────────────────────────────
@@ -1518,7 +1518,7 @@ def _assemble_screen_full(
         components.append({
             "name":           cname,
             "comp_type":      comp["c.comp_type"],
-            "jsx_snippet":    comp["c.jsx_snippet"] or "",
+            "source_code":    comp["c.source_code"] or "",
             "occurrence":     comp["c.occurrence"],
             "classes":        comp["c.classes"] or "",
             "truncated_fields": (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
@@ -1543,7 +1543,7 @@ def _assemble_screen_full(
         "name":            screen_meta["s.name"],
         "component_count": screen_meta["s.component_count"],
         "sections_count":  screen_meta["s.sections_count"],
-        "jsx_snippet":     screen_meta.get("s.jsx_snippet") or "",
+        "source_code":     screen_meta.get("s.source_code") or "",
         "sections":        sections,
         "components":      components,
         "layout_profiles": layout_profiles,

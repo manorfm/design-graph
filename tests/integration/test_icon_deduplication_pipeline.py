@@ -74,9 +74,9 @@ class TestIconStoredOnceAcrossComponents:
         reader, _ = icon_reader
         comp_a = reader.get_component("IconButtonA")
         comp_b = reader.get_component("IconButtonB")
-        assert ICON_SVG in comp_a["c.jsx_snippet"]
-        assert ICON_SVG in comp_b["c.jsx_snippet"]
-        assert "{[icon:" not in comp_a["c.jsx_snippet"]
+        assert ICON_SVG in comp_a["c.source_code"]
+        assert ICON_SVG in comp_b["c.source_code"]
+        assert "{[icon:" not in comp_a["c.source_code"]
 
     def test_get_full_jsx_expands_marker(self, icon_reader):
         reader, _ = icon_reader

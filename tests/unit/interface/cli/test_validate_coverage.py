@@ -139,7 +139,7 @@ class TestCheckNoOrphanedComponents:
         gw = GraphWriter(conn)
         # Component with no screen reference
         orphan = ExtractedComponent(
-            name="OrphanComp", comp_type="card", jsx_snippet="<div/>",
+            name="OrphanComp", comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
         gw.write_component(orphan, {})

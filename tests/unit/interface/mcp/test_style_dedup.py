@@ -84,7 +84,7 @@ class MockReaderWithCrowdedStyles:
             "name": "RestaurantsPage", "component_count": 1, "sections_count": 0,
             "sections": [],
             "components": [{
-                "name": "RestCard", "comp_type": "card", "jsx_snippet": "",
+                "name": "RestCard", "comp_type": "card", "source_code": "",
                 "occurrence": 1, "classes": "",
                 "styles_by_state": {"default": list(self._RAW_DEFAULT_STYLES)},
                 "tokens": [], "texts": [], "interactions": [], "props": [], "children": [],

@@ -184,7 +184,7 @@ class TestFindBalancedDivEnd:
         assert len(sections) >= 1
         # The first section's block must reach past the nested <div className="row">
         # child all the way to SectionCard, not stop at the child's own </div>.
-        assert "SectionCard" in sections[0].jsx_snippet
+        assert "SectionCard" in sections[0].source_code
 
     def test_unbalanced_close_falls_back_to_fixed_window(self):
         window = "<div style={{padding: '24px'}}>" + "x" * 50  # no </div> at all

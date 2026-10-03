@@ -261,7 +261,7 @@ class TestSemanticChromeTagsAsSections:
         boundary = _boundary(APP_SHELL_JS, "App")
         sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
         sidebar = next(s for s in sections if s.name == "Sidebar")
-        assert "Applications" in sidebar.jsx_snippet
+        assert "Applications" in sidebar.source_code
 
     def test_div_with_classname_is_named_from_classname_not_first_text(self):
         # <div className="topbar" ...> — text-based naming would have
@@ -276,7 +276,7 @@ class TestSemanticChromeTagsAsSections:
         # become its own section just because it's inside App's shell.
         boundary = _boundary(APP_SHELL_JS, "App")
         sections = extract_sections(APP_SHELL_JS, _screen("App"), boundary)
-        assert not any(s.jsx_snippet.strip().startswith("<main") for s in sections)
+        assert not any(s.source_code.strip().startswith("<main") for s in sections)
 
     def test_screen_with_no_semantic_chrome_tags_is_unaffected(self):
         # No <aside>/<nav>/<header>/<footer> anywhere — same result as

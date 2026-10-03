@@ -31,7 +31,7 @@ class MockReader:
         return {"name": name, "texts": []}
 
     def get_component(self, name):
-        return {"c.name": name, "c.comp_type": "card", "c.jsx_snippet": "<div/>",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>",
                 "c.occurrence": 2, "c.classes": "card",
                 "styles": [], "tokens": [], "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"], "children": []}
@@ -69,7 +69,7 @@ class MockReader:
                 ".audit-item": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(10)],
                 ".audit-dot": [{"property": "display", "value": "flex"}],
             },
-            "component_refs": [], "texts": [f"text{i}" for i in range(10)], "jsx_snippet": "",
+            "component_refs": [], "texts": [f"text{i}" for i in range(10)], "source_code": "",
         }
     def count_nodes(self): return {}
     def find_screens_using_comp_transitively(self, name): return []
@@ -90,7 +90,7 @@ class MockReader:
         if name == "ManyStylesComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {
                     "default": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
                 },
@@ -100,7 +100,7 @@ class MockReader:
         if name == "ManyTextsComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {},
                 "tokens": [], "interactions": [],
                 "texts": [{"t.content": f"text{i}", "t.text_type": "label"} for i in range(10)],
@@ -109,7 +109,7 @@ class MockReader:
         if name == "Icon":
             return {
                 "c.name": name, "c.comp_type": "component",
-                "c.jsx_snippet": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<svg/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
                 "children": [], "parents": [], "screens_using": [],
                 "referenced_data": {"ICONS": {"lock": "M21 2l-2 2", "trash": "M3 6h18"}},
@@ -117,7 +117,7 @@ class MockReader:
         if name == "ResponsiveOnlyComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {},
                 "responsive_styles_by_media": {
                     "(max-width: 600px)": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
@@ -128,7 +128,7 @@ class MockReader:
         if name == "MixedResponsiveComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.jsx_snippet": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
                 "responsive_styles_by_media": {
                     "(max-width: 600px)": [{"property": "color", "value": "blue"}],
@@ -139,14 +139,14 @@ class MockReader:
         if name == "ManyRefDataComp":
             return {
                 "c.name": name, "c.comp_type": "component",
-                "c.jsx_snippet": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<svg/>", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
                 "children": [], "parents": [], "screens_using": [],
                 "referenced_data": {"ICONS": {f"icon{i}": f"M{i} 0 0" for i in range(35)}},
             }
         return {
             "c.name": name, "c.comp_type": "button",
-            "c.jsx_snippet": "<button/>", "c.occurrence": 5, "c.classes": "",
+            "c.source_code": "<button/>", "c.occurrence": 5, "c.classes": "",
             "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
             "tokens": [], "texts": [], "interactions": [],
             "children": [], "parents": [], "screens_using": ["RestaurantsPage"],
@@ -176,14 +176,14 @@ class MockReader:
             "root": name,
             "components": [
                 {
-                    "name": name, "comp_type": "card", "jsx_snippet": "<div/>",
+                    "name": name, "comp_type": "card", "source_code": "<div/>",
                     "occurrence": 2, "classes": "", "truncated_fields": [],
                     "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
                     "tokens": [], "texts": root_texts, "interactions": [], "props": [],
                     "children": ["Badge"],
                 },
                 {
-                    "name": "Badge", "comp_type": "badge", "jsx_snippet": "<span/>",
+                    "name": "Badge", "comp_type": "badge", "source_code": "<span/>",
                     "occurrence": 1, "classes": "", "truncated_fields": [],
                     "styles_by_state": {}, "tokens": [], "texts": [],
                     "interactions": [], "props": [], "children": [],

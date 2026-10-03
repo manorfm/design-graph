@@ -4,7 +4,7 @@ Tests for chunker.py edge cases not covered by test_chunker.py.
 Targets:
   - _unique_chunk_id collision counter (lines 159-160)
   - _build_screen_content max_chars truncation (line 180)
-  - _section_fallback_content when jsx_snippet is empty (lines 194-195)
+  - _section_fallback_content when source_code is empty (lines 194-195)
   - _split_section_by_components: component without JSX (line 214)
 """
 
@@ -97,7 +97,7 @@ class TestSectionFallbackContent:
         return ExtractedSection(
             id=f"sec_{name.lower()}", screen="TestPage", name=name,
             styles={}, component_refs=refs, texts=[],
-            jsx_snippet=jsx, detection_method="comment",
+            source_code=jsx, detection_method="comment",
         )
 
     def test_returns_string_with_section_name(self):
@@ -138,7 +138,7 @@ class TestSplitSectionByComponentsNoJsx:
         section = ExtractedSection(
             id="sec_big", screen="TestPage", name="Big",
             styles={}, component_refs=["GhostComp"], texts=[],
-            jsx_snippet="X" * 15_000,  # force per-component split
+            source_code="X" * 15_000,  # force per-component split
             detection_method="comment",
         )
         # GhostComp exists but has no JSX

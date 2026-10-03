@@ -108,7 +108,7 @@ def chunk_extracted_data(
         for i, section in enumerate(screen_secs):
             siblings = [sid for j, sid in enumerate(sec_ids) if j != i]
 
-            if len(section.jsx_snippet) <= max_chars:
+            if len(section.source_code) <= max_chars:
                 cid = sec_ids[i]
                 chunk = ChunkEnvelope(
                     chunk_id=cid,
@@ -117,8 +117,8 @@ def chunk_extracted_data(
                     parent_id=screen_id,
                     sibling_ids=siblings,
                     child_ids=[],
-                    content=section.jsx_snippet or _section_fallback_content(section),
-                    tokens_est=len(section.jsx_snippet) // CHUNK_CHARS_PER_TOKEN,
+                    content=section.source_code or _section_fallback_content(section),
+                    tokens_est=len(section.source_code) // CHUNK_CHARS_PER_TOKEN,
                     component_refs=section.component_refs,
                     context_summary=_section_summary(section, screen.name),
                     source_screen=screen.name,
@@ -207,8 +207,8 @@ def _build_screen_content(
     total = 0
     for comp_name in screen.component_refs[:5]:
         comp = components.get(comp_name)
-        if comp and comp.jsx_snippet:
-            snippet = comp.jsx_snippet
+        if comp and comp.source_code:
+            snippet = comp.source_code
             if total + len(snippet) > max_chars:
                 break
             parts.append(f"/* {comp_name} */\n{snippet}")
@@ -223,7 +223,7 @@ def _build_screen_content(
 
 
 def _section_fallback_content(section: ExtractedSection) -> str:
-    """Generate minimal content when jsx_snippet is empty."""
+    """Generate minimal content when source_code is empty."""
     refs = ", ".join(section.component_refs[:5]) or "none"
     return f"/* Section: {section.name} | components: {refs} */"
 
@@ -242,7 +242,7 @@ def _split_section_by_components(
 
     for comp_name in section.component_refs:
         comp = components.get(comp_name)
-        content = (comp.jsx_snippet if comp else "")[:max_chars]
+        content = (comp.source_code if comp else "")[:max_chars]
         if not content:
             content = f"/* {comp_name} — no JSX available */"
 

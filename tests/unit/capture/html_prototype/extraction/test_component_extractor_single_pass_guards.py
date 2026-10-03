@@ -763,11 +763,11 @@ class TestTruncatedFields:
     def test_consolidate_unions_truncated_fields_across_variants(self):
         from design_graph.model.entities import ExtractedComponent
         v1 = ExtractedComponent(
-            name="Dup", comp_type="component", jsx_snippet="<div/>",
+            name="Dup", comp_type="component", source_code="<div/>",
             occurrence=1, classes="", truncated_fields=frozenset({"styles"}),
         )
         v2 = ExtractedComponent(
-            name="Dup", comp_type="component", jsx_snippet="<div/>",
+            name="Dup", comp_type="component", source_code="<div/>",
             occurrence=1, classes="", truncated_fields=frozenset({"texts"}),
         )
         merged = ExtractedComponent.consolidate([v1, v2])

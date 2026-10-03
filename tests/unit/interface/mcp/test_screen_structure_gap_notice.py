@@ -32,7 +32,7 @@ class _NothingDecomposedReader:
     def get_screen_full(self, name):
         return {
             "name": "HistoryView", "component_count": 0, "sections_count": 0,
-            "jsx_snippet": _SUBSTANTIAL_JSX,
+            "source_code": _SUBSTANTIAL_JSX,
             "sections": [], "components": [],
         }
 
@@ -43,7 +43,7 @@ class _TrivialScreenReader:
     def get_screen_full(self, name):
         return {
             "name": "EmptyScreen", "component_count": 0, "sections_count": 0,
-            "jsx_snippet": "<div />",
+            "source_code": "<div />",
             "sections": [], "components": [],
         }
 
@@ -54,10 +54,10 @@ class _DecomposedScreenReader:
     def get_screen_full(self, name):
         return {
             "name": "NormalScreen", "component_count": 0, "sections_count": 1,
-            "jsx_snippet": _SUBSTANTIAL_JSX,
+            "source_code": _SUBSTANTIAL_JSX,
             "sections": [{
                 "id": "s1", "name": "Hero", "detection_method": "comment",
-                "styles_by_element": {}, "component_refs": [], "texts": [], "jsx_snippet": "",
+                "styles_by_element": {}, "component_refs": [], "texts": [], "source_code": "",
             }],
             "components": [],
         }

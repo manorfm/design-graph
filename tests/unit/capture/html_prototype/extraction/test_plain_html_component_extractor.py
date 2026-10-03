@@ -57,10 +57,10 @@ class TestDomPatternToExtractedComponent:
         result = dom_pattern_to_extracted_component(_pattern(count=7))
         assert result.occurrence == 7
 
-    def test_jsx_snippet_is_first_example_html(self):
+    def test_source_code_is_first_example_html(self):
         html = '<div class="card"><h3>Alfa</h3></div>'
         result = dom_pattern_to_extracted_component(_pattern(example=html))
-        assert html in result.jsx_snippet or "card" in result.jsx_snippet
+        assert html in result.source_code or "card" in result.source_code
 
     def test_classes_extracted_from_html_snippet(self):
         html = '<div class="restaurant-card featured"><img/><h3>Name</h3></div>'
@@ -81,7 +81,7 @@ class TestDomPatternToExtractedComponent:
         a = dom_pattern_to_extracted_component(pattern)
         b = dom_pattern_to_extracted_component(pattern)
         assert a.name == b.name
-        assert a.jsx_snippet == b.jsx_snippet
+        assert a.source_code == b.source_code
 
     def test_no_styles_when_snippet_has_no_inline_styles(self):
         html = '<div class="card"><h3>Name</h3></div>'

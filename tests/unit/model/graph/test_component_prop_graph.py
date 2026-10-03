@@ -32,7 +32,7 @@ def prop_graph(tmp_path_factory):
 
     gw.write_tokens([])
     navbar = ExtractedComponent(
-        name="NavBar", comp_type="navigation", jsx_snippet="<nav/>",
+        name="NavBar", comp_type="navigation", source_code="<nav/>",
         occurrence=1, classes="",
         props=[
             ComponentProp(id="p1", component_name="NavBar", prop_name="title",  default_value=""),
@@ -40,7 +40,7 @@ def prop_graph(tmp_path_factory):
         ],
     )
     btn = ExtractedComponent(
-        name="BtnPrimary", comp_type="button", jsx_snippet="<button/>",
+        name="BtnPrimary", comp_type="button", source_code="<button/>",
         occurrence=3, classes="",
         props=[
             ComponentProp(id="p3", component_name="BtnPrimary", prop_name="label",   default_value=""),
@@ -102,7 +102,7 @@ class TestComponentPropWriter:
         # Add a bare component with no props
         gw = GraphWriter(prop_graph)
         bare = ExtractedComponent(
-            name="BareIcon", comp_type="component", jsx_snippet="<svg/>",
+            name="BareIcon", comp_type="component", source_code="<svg/>",
             occurrence=1, classes="", props=[],
         )
         gw.write_component(bare, {})
@@ -117,7 +117,7 @@ class TestComponentPropWriter:
         """Writing the same component twice must not duplicate prop nodes."""
         gw = GraphWriter(prop_graph)
         navbar = ExtractedComponent(
-            name="NavBar", comp_type="navigation", jsx_snippet="<nav/>",
+            name="NavBar", comp_type="navigation", source_code="<nav/>",
             occurrence=1, classes="",
             props=[ComponentProp(id="p1", component_name="NavBar", prop_name="title", default_value="")],
         )

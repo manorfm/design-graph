@@ -48,7 +48,7 @@ def shared_class_graph(tmp_path_factory):
     lonely_style = StyleEntry.from_css_class("lonely", "color", "red")
 
     page_title = ExtractedComponent(
-        name="PageTitle", comp_type="component", jsx_snippet='<div className="chip"/>',
+        name="PageTitle", comp_type="component", source_code='<div className="chip"/>',
         occurrence=1, classes="chip", styles=[chip_style, lonely_style],
         interactions=[], texts=[], child_refs=[],
     )
@@ -57,7 +57,7 @@ def shared_class_graph(tmp_path_factory):
     history_screen = ExtractedScreen(name="HistoryView", component_refs=[], sections_count=0)
     row_section = ExtractedSection(
         id="sec_row", screen="HistoryView", name="Row",
-        styles={}, component_refs=[], texts=[], jsx_snippet="",
+        styles={}, component_refs=[], texts=[], source_code="",
         detection_method="list_item", element_styles=[chip_style],
     )
     gw.write_screen(history_screen, [row_section], {})

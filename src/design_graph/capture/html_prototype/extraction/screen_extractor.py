@@ -127,13 +127,13 @@ def extract_screens(
             continue
 
         component_refs = _collect_component_refs(body, exclude=boundary.name)
-        jsx_snippet, icons = _extract_screen_jsx(js, boundary)
+        source_code, icons = _extract_screen_jsx(js, boundary)
 
         screens.append(ExtractedScreen(
             name=boundary.name,
             component_refs=component_refs,
             sections_count=0,
-            jsx_snippet=jsx_snippet,
+            source_code=source_code,
             icons=icons,
         ))
 
@@ -150,7 +150,7 @@ def extract_screens(
 def _extract_screen_jsx(js: str, boundary: FunctionBoundary) -> tuple[str, list]:
     """
     The screen's own return-block, sanitized the same way an
-    ExtractedComponent's jsx_snippet is: icons pulled out first (so the
+    ExtractedComponent's source_code is: icons pulled out first (so the
     sanitizer and every downstream reader only ever see the short marker),
     then sanitize_jsx collapses dynamic expressions.
     """

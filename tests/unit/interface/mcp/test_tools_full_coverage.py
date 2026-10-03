@@ -58,7 +58,7 @@ class RichMockReader:
                 },
                 "component_refs": ["BtnPrimary"],
                 "texts": ["Restaurantes"],
-                "jsx_snippet": "<div>header jsx</div>",
+                "source_code": "<div>header jsx</div>",
             }
         return None
 
@@ -66,7 +66,7 @@ class RichMockReader:
         if name == "BtnWithStyles":
             return {
                 "c.name": "BtnWithStyles", "c.comp_type": "button",
-                "c.jsx_snippet": "<button>OK</button>",
+                "c.source_code": "<button>OK</button>",
                 "c.occurrence": 3, "c.classes": "btn",
                 "styles": [
                     {"s.state": "default",    "s.property": "backgroundColor", "s.value": "#ffb81c"},
@@ -79,7 +79,7 @@ class RichMockReader:
                 "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"],
             }
-        return {"c.name": name, "c.comp_type": "card", "c.jsx_snippet": "",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "",
                 "c.occurrence": 1, "c.classes": "",
                 "styles": [], "tokens": [], "children": [], "texts": [],
                 "interactions": [], "screens_using": []}
@@ -186,7 +186,7 @@ class TestGetSectionTool:
         result = d.get_section(r, "RestaurantsPage", "Header")
         assert "Restaurantes" in result
 
-    def test_section_with_jsx_snippet_included(self):
+    def test_section_with_source_code_included(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
         result = d.get_section(r, "RestaurantsPage", "Header")
@@ -223,7 +223,7 @@ class TestGetComponentRichRendering:
         result = d.get_component(r, "BtnWithStyles")
         assert "Badge" in result
 
-    def test_component_with_jsx_snippet_rendered(self):
+    def test_component_with_source_code_rendered(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
         result = d.get_component(r, "BtnWithStyles")
@@ -421,13 +421,13 @@ class _OverflowReader:
             "styles_by_element": self._STYLES_9_BY_ELEMENT,
             "component_refs": ["BtnPrimary"],
             "texts": self._TEXTS_9,
-            "jsx_snippet": "",
+            "source_code": "",
         }
 
     def get_component_spec(self, name):
         return {
             "c.name": "OverflowComp", "c.comp_type": "card",
-            "c.occurrence": 3, "c.jsx_snippet": "",
+            "c.occurrence": 3, "c.source_code": "",
             "c.classes": "",
             "styles_by_state": self._STYLES_15_BY_STATE,
             "tokens": [],
@@ -484,7 +484,7 @@ class TestTruncationWarnings:
                 return {
                     "id": "s", "name": "Small", "detection_method": "comment",
                     "styles_by_element": {"(estilo da seção)": [{"property": "padding", "value": "4px"}]},
-                    "component_refs": [], "texts": ["Hello"], "jsx_snippet": "",
+                    "component_refs": [], "texts": ["Hello"], "source_code": "",
                 }
         d = ToolDispatcher([("proto", SmallReader())])
         result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
@@ -498,7 +498,7 @@ class TestTruncationWarnings:
 class _CappedExtractionReader:
     def get_component(self, name):
         return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.jsx_snippet": "<div/>",
+            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "<div/>",
             "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "styles,texts",
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
@@ -506,7 +506,7 @@ class _CappedExtractionReader:
 
     def get_component_spec(self, name):
         return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.jsx_snippet": "",
+            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "",
             "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "interactions",
             "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
             "children": [], "parents": [], "screens_using": [],
@@ -518,7 +518,7 @@ class _CappedExtractionReader:
             "sections": [],
             "components": [{
                 "name": "CappedComp", "comp_type": "card", "occurrence": 1,
-                "jsx_snippet": "", "classes": "", "truncated_fields": ["classes"],
+                "source_code": "", "classes": "", "truncated_fields": ["classes"],
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -673,7 +673,7 @@ class TestTruncatedFieldsNotice:
 # ── recover the rest via get_full_jsx (components only, not sections) ───────
 
 class _JsxOverflowReader:
-    """jsx_snippet longer than every render-time cap (2000/2500/3000/4000)."""
+    """source_code longer than every render-time cap (2000/2500/3000/4000)."""
 
     _LONG_JSX = "<div>" + "x" * 4100 + "</div>"
 
@@ -681,7 +681,7 @@ class _JsxOverflowReader:
         return {
             "id": "sec_x", "name": "BigSection", "detection_method": "comment",
             "styles_by_element": {}, "component_refs": [], "texts": [],
-            "jsx_snippet": self._LONG_JSX,
+            "source_code": self._LONG_JSX,
         }
 
     def get_screen_full(self, name):
@@ -690,11 +690,11 @@ class _JsxOverflowReader:
             "sections": [{
                 "name": "BigSection", "detection_method": "comment",
                 "styles_by_element": {}, "component_refs": [], "texts": [],
-                "jsx_snippet": self._LONG_JSX,
+                "source_code": self._LONG_JSX,
             }],
             "components": [{
                 "name": "BigComp", "comp_type": "card", "occurrence": 1,
-                "jsx_snippet": self._LONG_JSX, "classes": "",
+                "source_code": self._LONG_JSX, "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -703,7 +703,7 @@ class _JsxOverflowReader:
     def get_component(self, name):
         return {
             "c.name": "BigComp", "c.comp_type": "card", "c.occurrence": 1,
-            "c.jsx_snippet": self._LONG_JSX, "c.classes": "",
+            "c.source_code": self._LONG_JSX, "c.classes": "",
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
         }

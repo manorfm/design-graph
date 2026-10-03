@@ -77,11 +77,11 @@ class TestExtractComponent:
         comp = extract_component(BTN_JS, b, 1, {})
         assert comp.comp_type == "button"
 
-    def test_jsx_snippet_captured(self):
+    def test_source_code_captured(self):
         b = _boundary(BTN_JS, "BtnPrimary")
         comp = extract_component(BTN_JS, b, 1, {})
-        assert "button" in comp.jsx_snippet.lower()
-        assert "Confirmar" in comp.jsx_snippet
+        assert "button" in comp.source_code.lower()
+        assert "Confirmar" in comp.source_code
 
     def test_svg_icon_is_deduplicated_into_marker(self):
         js = """
@@ -97,8 +97,8 @@ class TestExtractComponent:
         comp = extract_component(js, b, 1, {})
 
         assert len(comp.icons) == 1
-        assert "<svg" not in comp.jsx_snippet
-        assert str(comp.icons[0]) in comp.jsx_snippet
+        assert "<svg" not in comp.source_code
+        assert str(comp.icons[0]) in comp.source_code
 
     def test_default_style_found(self):
         b = _boundary(BTN_JS, "BtnPrimary")
@@ -707,8 +707,8 @@ class TestExtractAllComponents:
         # shadowed declaration, still included but appended after).
         assert component.child_refs == ["BetaCard", "AlphaCard"]
         assert {prop.prop_name for prop in component.props} == {"first", "second"}
-        assert "First action" in component.jsx_snippet
-        assert "Second action" in component.jsx_snippet
+        assert "First action" in component.source_code
+        assert "Second action" in component.source_code
 
     def test_palette_forwarded_to_every_component(self):
         bounds = find_all_boundaries(PALETTE_JS)
@@ -740,10 +740,10 @@ class TestExtractAllComponents:
         )
         component = components[0]
 
-        first_pos  = component.jsx_snippet.find("First action")
-        second_pos = component.jsx_snippet.find("Second action")
-        live_label_pos    = component.jsx_snippet.find("live")
-        shadowed_label_pos = component.jsx_snippet.find("shadowed")
+        first_pos  = component.source_code.find("First action")
+        second_pos = component.source_code.find("Second action")
+        live_label_pos    = component.source_code.find("live")
+        shadowed_label_pos = component.source_code.find("shadowed")
 
         assert -1 not in (first_pos, second_pos, live_label_pos, shadowed_label_pos)
         assert shadowed_label_pos < first_pos, "first-declared variant must be labeled shadowed"

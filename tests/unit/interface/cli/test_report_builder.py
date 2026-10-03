@@ -65,7 +65,7 @@ class _MockReader:
         ]
 
     def get_component(self, name):
-        return {"c.name": name, "c.comp_type": "card", "c.jsx_snippet": "<div/>",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>",
                 "c.occurrence": 2, "c.classes": "card",
                 "styles": [], "tokens": [], "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"], "children": []}

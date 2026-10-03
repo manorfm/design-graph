@@ -29,12 +29,12 @@ def icon_graph(tmp_path_factory):
 
     gw.write_tokens([])
     icon = ExtractedComponent(
-        name="Icon", comp_type="component", jsx_snippet="<svg/>",
+        name="Icon", comp_type="component", source_code="<svg/>",
         occurrence=1, classes="",
         referenced_data={"ICONS": ICONS_DATA},
     )
     plain = ExtractedComponent(
-        name="Btn", comp_type="button", jsx_snippet="<button/>",
+        name="Btn", comp_type="button", source_code="<button/>",
         occurrence=2, classes="",
     )
     gw.write_component(icon, {})
