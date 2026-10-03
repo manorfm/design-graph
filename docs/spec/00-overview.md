@@ -99,9 +99,9 @@ design-graph/
 
 | Comando | Módulo | Função |
 |---|---|---|
-| `design-graph <proto.html>` | `design_graph.cli.build` | `main()` |
-| `design-mcp` | `design_graph.mcp.server` | `main()` |
-| `design-query <cmd>` | `design_graph.cli.query` | `main()` |
+| `design-graph <proto.html>` | `design_graph.interface.cli.build` | `main()` |
+| `design-mcp` | `design_graph.interface.mcp.server` | `main()` |
+| `design-query <cmd>` | `design_graph.interface.cli.query` | `main()` |
 
 ## Invariantes do sistema
 

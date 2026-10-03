@@ -586,7 +586,7 @@ class TestCssClassResolverLayerIsolation:
     FORBIDDEN_LAYERS = (
         "design_graph.capture.html_prototype.extraction",
         "design_graph.model.graph",
-        "design_graph.mcp",
+        "design_graph.interface.mcp",
     )
 
     def test_no_import_from_extraction_graph_mcp(self):

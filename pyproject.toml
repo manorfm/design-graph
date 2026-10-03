@@ -17,9 +17,9 @@ dependencies = [
 ]
 
 [project.scripts]
-design-graph = "design_graph.cli.build:main"
-design-mcp   = "design_graph.mcp.server:main"
-design-query = "design_graph.cli.query:main"
+design-graph = "design_graph.interface.cli.build:main"
+design-mcp   = "design_graph.interface.mcp.server:main"
+design-query = "design_graph.interface.cli.query:main"
 
 [project.optional-dependencies]
 dev = [

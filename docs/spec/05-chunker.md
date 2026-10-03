@@ -214,7 +214,7 @@ O chunker pode ser usado sem construir o grafo completo — para o caso de
 ### Entry point
 
 ```python
-# design_graph/cli/build.py
+# design_graph/interface/cli/build.py
 
 def cmd_chunk(html_path: Path, output_path: Path, max_chars: int) -> None:
     """Extrai e exporta chunks sem persistir no grafo."""

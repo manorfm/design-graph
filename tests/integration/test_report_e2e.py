@@ -40,7 +40,7 @@ def built_graph(tmp_path_factory):
 def _invoke_report(argv: list[str]) -> None:
     """Invoke design-graph report via main() with controlled sys.argv."""
     with patch("sys.argv", ["design-graph", "report", *argv]):
-        from design_graph.cli.build import main
+        from design_graph.interface.cli.build import main
         main()
 
 

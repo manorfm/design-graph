@@ -34,7 +34,7 @@ PARSING_DIR    = SRC / "capture" / "html_prototype" / "parsing"
 EXTRACTION_DIR = SRC / "capture" / "html_prototype" / "extraction"
 GRAPH_DIR      = SRC / "model" / "graph"
 PIPELINE_DIR   = SRC / "pipeline"
-CLI_DIR        = SRC / "cli"
+CLI_DIR        = SRC / "interface" / "cli"
 
 
 def _py_files(directory: Path) -> list[Path]:
@@ -74,7 +74,7 @@ class TestG1ParsingLayerIsolation:
     FORBIDDEN_PREFIXES = (
         "design_graph.capture.html_prototype.extraction",
         "design_graph.model.graph",
-        "design_graph.mcp",
+        "design_graph.interface.mcp",
         "design_graph.pipeline",
     )
 
@@ -87,7 +87,7 @@ class TestG1ParsingLayerIsolation:
         assert not violations, self._fmt(violations)
 
     def test_no_parsing_module_imports_mcp(self):
-        violations = self._collect_violations("design_graph.mcp")
+        violations = self._collect_violations("design_graph.interface.mcp")
         assert not violations, self._fmt(violations)
 
     def test_no_parsing_module_imports_pipeline(self):
@@ -125,7 +125,7 @@ class TestG2ExtractionLayerIsolation:
         violations = []
         for f in _py_files(EXTRACTION_DIR):
             for mod in _imports_in_file(f):
-                if mod.startswith("design_graph.mcp"):
+                if mod.startswith("design_graph.interface.mcp"):
                     violations.append(f"{f.name}: imports {mod!r}")
         assert not violations, (
             "G2 violation(s) — extraction/ imports from mcp/:\n  "
@@ -216,7 +216,7 @@ class TestG5ReaderConnectionIsReadOnly:
     """
 
     def test_mcp_server_opens_db_read_only(self):
-        server_src = (SRC / "mcp" / "server.py").read_text(encoding="utf-8")
+        server_src = (SRC / "interface" / "mcp" / "server.py").read_text(encoding="utf-8")
         assert "read_only=True" in server_src, (
             "G5 violation — mcp/server.py does not open Kuzu with read_only=True. "
             "All databases passed to GraphReader must be opened in read-only mode."
@@ -275,7 +275,7 @@ class TestG10PlainHtmlExtractorLayerIsolation:
     Same isolation rules as G2: must not import from graph/ or mcp/.
     """
     EXTRACTOR_PATH = EXTRACTION_DIR / "plain_html_component_extractor.py"
-    FORBIDDEN = ("design_graph.model.graph", "design_graph.mcp")
+    FORBIDDEN = ("design_graph.model.graph", "design_graph.interface.mcp")
 
     def test_no_graph_imports_at_module_level(self):
         violations = []
@@ -307,7 +307,7 @@ class TestG9OnlyThePipelineWritesTheGraph:
     def test_interfaces_never_import_the_graph_writer(self):
         violations = [
             f"{_module_name(path)}: imports {mod!r}"
-            for directory in (CLI_DIR, SRC / "mcp")
+            for directory in (CLI_DIR, SRC / "interface" / "mcp")
             for path in directory.rglob("*.py")
             for mod in _imports_in_file(path)
             if mod.startswith(self.WRITER_MODULES)
@@ -334,7 +334,7 @@ class TestG12CaptureIsSealed:
 
     # validate_component_implementation re-captures an agent-submitted JSX
     # fragment; it leaves this list once captures expose fragment capture.
-    KNOWN_EXCEPTIONS = {"mcp/tools.py"}
+    KNOWN_EXCEPTIONS = {"interface/mcp/tools.py"}
 
     def test_format_specific_packages_live_inside_capture(self):
         stray = [name for name in ("parsing", "extraction") if (SRC / name).exists()]
@@ -352,7 +352,7 @@ class TestG12CaptureIsSealed:
         assert not violations, "G12 violation(s):\n  " + "\n  ".join(violations)
 
     def test_capture_never_imports_storage_pipeline_or_interfaces(self):
-        forbidden = ("design_graph.model.graph", "design_graph.mcp", "design_graph.cli", "design_graph.pipeline")
+        forbidden = ("design_graph.model.graph", "design_graph.interface.mcp", "design_graph.interface.cli", "design_graph.pipeline")
         violations = [
             f"{_module_name(path)}: imports {mod!r}"
             for path in CAPTURE_DIR.rglob("*.py")
@@ -379,7 +379,7 @@ class TestG13ModelIsTheCentre:
         assert not (SRC / "graph").exists(), "G13 violation — graph/ still exists; storage belongs in model/"
 
     def test_model_never_imports_capture_pipeline_or_interfaces(self):
-        forbidden = ("design_graph.capture", "design_graph.pipeline", "design_graph.mcp", "design_graph.cli")
+        forbidden = ("design_graph.capture", "design_graph.pipeline", "design_graph.interface.mcp", "design_graph.interface.cli")
         violations = [
             f"{_module_name(path)}: imports {mod!r}"
             for path in MODEL_DIR.rglob("*.py")
@@ -387,3 +387,38 @@ class TestG13ModelIsTheCentre:
             if mod.startswith(forbidden)
         ]
         assert not violations, "G13 violation(s):\n  " + "\n  ".join(violations)
+
+
+# ── G14: interfaces are thin adapters over the model ──────────────────────────
+
+INTERFACE_DIR = SRC / "interface"
+
+
+class TestG14InterfacesAreThinAdapters:
+    """
+    Every way of using design-graph (CLI, MCP server, …) lives in interface/
+    and reaches the rest only through the model, the build pipeline and the
+    shared workspace configuration — so a new interface is one new package.
+    """
+
+    ALLOWED = (
+        "design_graph.interface",
+        "design_graph.model",
+        "design_graph.pipeline",
+        "design_graph.paths",
+        "design_graph.workspace",
+    )
+
+    def test_interfaces_live_inside_interface(self):
+        stray = [name for name in ("mcp", "cli") if (SRC / name).exists()]
+        assert not stray, f"G14 violation — interface packages outside interface/: {stray}"
+
+    def test_interfaces_import_only_model_pipeline_and_config(self):
+        violations = [
+            f"{_module_name(path)}: imports {mod!r}"
+            for path in INTERFACE_DIR.rglob("*.py")
+            for mod in _imports_in_file(path)
+            if mod.startswith("design_graph") and not mod.startswith(self.ALLOWED)
+            and path.relative_to(SRC).as_posix() not in TestG12CaptureIsSealed.KNOWN_EXCEPTIONS
+        ]
+        assert not violations, "G14 violation(s):\n  " + "\n  ".join(violations)

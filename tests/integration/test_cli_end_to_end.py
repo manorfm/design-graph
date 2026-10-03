@@ -47,14 +47,14 @@ class TestBuildCommand:
     def test_build_creates_db_file(self, tmp_path):
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         assert db_path.exists()
 
     def test_build_accepts_named_database(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--name", "My App"]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         assert (tmp_path / "My App.db").exists()
 
@@ -62,7 +62,7 @@ class TestBuildCommand:
         monkeypatch.setenv("GRAPH_DIR", str(tmp_path))
         argv = ["design-graph", str(SIMPLE_HTML), "--name", "My App"]
         with patch("sys.argv", argv):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         (tmp_path / "My App.db").unlink()
         capsys.readouterr()
@@ -76,7 +76,7 @@ class TestBuildCommand:
     def test_build_prints_summary_to_stdout(self, tmp_path, capsys):
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         out = capsys.readouterr().out
         assert "Screens" in out or "screens" in out.lower()
@@ -86,7 +86,7 @@ class TestBuildCommand:
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML),
                                 "--db", str(db_path), "--quiet"]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         out = capsys.readouterr().out
         assert out.strip() == ""
@@ -98,7 +98,7 @@ class TestBuildCommand:
         asyncio.run(run_pipeline(SIMPLE_HTML, db_path, state_path))
         # Second build — should skip
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         out = capsys.readouterr().out
         assert "unchanged" in out.lower() or "skipped" in out.lower()
@@ -107,7 +107,7 @@ class TestBuildCommand:
         db_path = tmp_path / "out.db"
         # First build
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         capsys.readouterr()  # clear
         # Force rebuild
@@ -121,7 +121,7 @@ class TestBuildCommand:
     def test_missing_file_exits_with_error(self, tmp_path, capsys):
         ghost = tmp_path / "ghost.html"
         with patch("sys.argv", ["design-graph", str(ghost)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
@@ -130,7 +130,7 @@ class TestBuildCommand:
 
     def test_help_flag_exits_zero(self):
         with patch("sys.argv", ["design-graph", "--help"]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code == 0
@@ -139,7 +139,7 @@ class TestBuildCommand:
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML),
                                 "--db", str(db_path), "--diff"]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         # Should complete without exception
 
@@ -151,7 +151,7 @@ class TestChunkCommand:
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(SIMPLE_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         assert out.exists()
 
@@ -162,7 +162,7 @@ class TestChunkCommand:
         shutil.copy(SIMPLE_HTML, local_html)
         expected_jsonl = local_html.with_suffix(".jsonl")
         with patch("sys.argv", ["design-graph", "chunk", str(local_html)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         assert expected_jsonl.exists()
 
@@ -171,7 +171,7 @@ class TestChunkCommand:
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(SIMPLE_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         lines = out.read_text().splitlines()
         assert len(lines) >= 1
@@ -186,7 +186,7 @@ class TestChunkCommand:
         max_c = 500
         with patch("sys.argv", ["design-graph", "chunk", str(SIMPLE_HTML),
                                 "--output", str(out), "--max-chars", str(max_c)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         for line in out.read_text().splitlines():
             data = json.loads(line)
@@ -214,7 +214,7 @@ class TestChunkCommand:
         """, encoding="utf-8")
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(html), "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
 
         contents = [json.loads(line)["content"] for line in out.read_text().splitlines()]
@@ -225,7 +225,7 @@ class TestChunkCommand:
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(SIMPLE_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         stdout = capsys.readouterr().out
         assert "chunk" in stdout.lower()
@@ -234,7 +234,7 @@ class TestChunkCommand:
     def test_chunk_missing_file_exits_nonzero(self, tmp_path):
         ghost = tmp_path / "ghost.html"
         with patch("sys.argv", ["design-graph", "chunk", str(ghost)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
@@ -249,7 +249,7 @@ class TestChunkCommand:
         out = tmp_path / "chunks.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(ARROW_SCREEN_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
         rows = [json.loads(line) for line in out.read_text().splitlines()]
         section_breadcrumbs = [r["breadcrumb"] for r in rows if r["level"] == "section"]
@@ -271,7 +271,7 @@ class TestQueryCommand:
 
     def _run_query(self, *argv):
         with patch("sys.argv", ["design-query", *argv]):
-            from design_graph.cli.query import main
+            from design_graph.interface.cli.query import main
             main()
 
     def test_screens_lists_restaurants_page(self, capsys):
@@ -332,7 +332,7 @@ class TestQueryCommand:
     def test_no_graphs_prints_guidance(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setenv("GRAPH_DIR", str(tmp_path / "empty"))
         with patch("sys.argv", ["design-query", "screens"]):
-            from design_graph.cli.query import main
+            from design_graph.interface.cli.query import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
@@ -341,14 +341,14 @@ class TestQueryCommand:
 
     def test_unknown_command_exits_nonzero(self):
         with patch("sys.argv", ["design-query", "nonexistent_cmd"]):
-            from design_graph.cli.query import main
+            from design_graph.interface.cli.query import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
 
     def test_help_exits_zero(self):
         with patch("sys.argv", ["design-query", "--help"]):
-            from design_graph.cli.query import main
+            from design_graph.interface.cli.query import main
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code == 0

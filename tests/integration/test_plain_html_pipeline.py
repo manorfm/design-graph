@@ -145,7 +145,7 @@ class TestPlainHtmlChunking:
         out = tmp_path / "plain.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(PLAIN_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
 
         assert out.exists(), "Expected JSONL output from chunk command"
@@ -165,7 +165,7 @@ class TestPlainHtmlChunking:
         out = tmp_path / "plain2.jsonl"
         with patch("sys.argv", ["design-graph", "chunk", str(PLAIN_HTML),
                                 "--output", str(out)]):
-            from design_graph.cli.build import main
+            from design_graph.interface.cli.build import main
             main()
 
         for line in out.read_text().splitlines():

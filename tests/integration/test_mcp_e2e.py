@@ -25,8 +25,8 @@ import kuzu
 import pytest
 
 from design_graph.model.graph.reader import GraphReader
-from design_graph.mcp.server import MCPServer
-from design_graph.mcp.tools import ToolDispatcher
+from design_graph.interface.mcp.server import MCPServer
+from design_graph.interface.mcp.tools import ToolDispatcher
 from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
@@ -204,15 +204,15 @@ class TestSearchTool:
 
     def test_search_results_are_ordered_by_relevance(self, single_server):
         """Exact match 'BtnPrimary' should appear before partial 'Btn' matches."""
-        from design_graph.mcp.search import search as raw_search
-        from design_graph.mcp.search import expand_query, score_match
+        from design_graph.interface.mcp.search import search as raw_search
+        from design_graph.interface.mcp.search import expand_query, score_match
         results = raw_search([("simple", single_server._readers[0][1])], "BtnPrimary")
         if len(results) >= 2:
             scores = [r.score for r in results]
             assert scores == sorted(scores, reverse=True), "Results not ordered by score"
 
     def test_search_results_deduplicated_by_doc_and_id(self, single_server):
-        from design_graph.mcp.search import search as raw_search
+        from design_graph.interface.mcp.search import search as raw_search
         results = raw_search([("simple", single_server._readers[0][1])], "card")
         ids = [(r.doc, r.id) for r in results]
         assert len(ids) == len(set(ids)), "Duplicate (doc, id) pairs in search results"

@@ -16,4 +16,4 @@ def _isolate_metrics_log(tmp_path, monkeypatch):
     not it exercises metrics directly.
     """
     fake_path = tmp_path / "metrics.jsonl"
-    monkeypatch.setattr("design_graph.mcp.metrics.metrics_path", lambda: fake_path)
+    monkeypatch.setattr("design_graph.interface.mcp.metrics.metrics_path", lambda: fake_path)
