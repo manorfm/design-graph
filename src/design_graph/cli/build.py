@@ -397,7 +397,7 @@ def _run_chunk(argv: list[str]) -> None:
 
 
 async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
-    from design_graph.extraction.chunker import chunk_extracted_data, export_chunks_jsonl
+    from design_graph.cli.chunk_export import chunk_extracted_data, export_chunks_jsonl
     from design_graph.pipeline.coordinator import capture_prototype
 
     result = await capture_prototype(parsed.html_path)

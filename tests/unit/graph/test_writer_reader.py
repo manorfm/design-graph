@@ -19,7 +19,7 @@ from design_graph.core.models import (
 from design_graph.graph.reader import GraphReader
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
-from design_graph.parsing.token_extractor import build_token_map
+from design_graph.core.models import index_tokens_by_value
 
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ def populated_db(tmp_path):
     token = DesignToken(id="col_1", category="color",
                         label="primary", value="#ffb81c", usage=5)
     gw.write_tokens([token])
-    tm = build_token_map([token])
+    tm = index_tokens_by_value([token])
 
     badge = ExtractedComponent(
         name="Badge", comp_type="badge", jsx_snippet="<span>badge</span>",
@@ -341,7 +341,7 @@ class TestWriteComponent:
         token = DesignToken(id="col_x", category="color",
                             label="primary", value="#ffb81c", usage=5)
         gw.write_tokens([token])
-        tm = build_token_map([token])
+        tm = index_tokens_by_value([token])
         comp = ExtractedComponent(
             name="TokenComp", comp_type="button", jsx_snippet="",
             occurrence=1, classes="",
@@ -811,7 +811,7 @@ def two_screen_db(tmp_path):
     primary = DesignToken(id="col_primary", category="color", label="primary", value="#ffb81c", usage=5)
     dark = DesignToken(id="col_dark", category="color", label="dark", value="#111111", usage=3)
     gw.write_tokens([primary, dark])
-    tm = build_token_map([primary, dark])
+    tm = index_tokens_by_value([primary, dark])
 
     btn = ExtractedComponent(
         name="BtnWithBadge", comp_type="button", jsx_snippet="<button/>",

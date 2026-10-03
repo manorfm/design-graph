@@ -96,12 +96,12 @@ class TestExtractAllComponentsCallback:
     )
 
     def _make_boundaries(self) -> list[FunctionBoundary]:
-        from design_graph.parsing.js_parser import find_all_boundaries
+        from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
         from design_graph.core.models import RawSources
         return find_all_boundaries(self._JS)
 
     def test_callback_called_once_per_extracted_component(self):
-        from design_graph.extraction.component_extractor import extract_all_components
+        from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         boundaries = self._make_boundaries()
         calls: list[tuple[str, int, int]] = []
 
@@ -115,7 +115,7 @@ class TestExtractAllComponentsCallback:
         assert len(calls) == len(boundaries)
 
     def test_callback_receives_correct_total(self):
-        from design_graph.extraction.component_extractor import extract_all_components
+        from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         boundaries = self._make_boundaries()
         totals: list[int] = []
 
@@ -126,7 +126,7 @@ class TestExtractAllComponentsCallback:
         assert all(t == len(boundaries) for t in totals)
 
     def test_callback_index_covers_one_to_n(self):
-        from design_graph.extraction.component_extractor import extract_all_components
+        from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         boundaries = self._make_boundaries()
         indices: list[int] = []
 
@@ -137,7 +137,7 @@ class TestExtractAllComponentsCallback:
         assert sorted(indices) == list(range(1, len(boundaries) + 1))
 
     def test_no_callback_works_without_error(self):
-        from design_graph.extraction.component_extractor import extract_all_components
+        from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         boundaries = self._make_boundaries()
         result = asyncio.run(extract_all_components(
             self._JS, boundaries, Counter(b.name for b in boundaries), {},
@@ -145,7 +145,7 @@ class TestExtractAllComponentsCallback:
         assert len(result) > 0
 
     def test_empty_boundaries_with_callback_never_calls_callback(self):
-        from design_graph.extraction.component_extractor import extract_all_components
+        from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         calls = []
         asyncio.run(extract_all_components(
             self._JS, [], Counter(), {},

@@ -25,7 +25,7 @@ from design_graph.core.models import (
 )
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
-from design_graph.parsing.token_extractor import build_token_map
+from design_graph.core.models import index_tokens_by_value
 
 
 @pytest.fixture
@@ -315,7 +315,7 @@ class TestStyleTokenLinkage:
         gw, conn = writer
         tok = self._token("primary", "#ffb81c")
         gw.write_tokens([tok])
-        tm = build_token_map([tok])  # {"#ffb81c": [tok]}
+        tm = index_tokens_by_value([tok])  # {"#ffb81c": [tok]}
         gw.write_component(self._style_comp("Btn", "#ffb81c"), tm)
         result = conn.execute(
             "MATCH (s:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
@@ -330,7 +330,7 @@ class TestStyleTokenLinkage:
         gw, conn = writer
         tok = self._token("secondary", "#123456")
         gw.write_tokens([tok])
-        tm = build_token_map([tok])
+        tm = index_tokens_by_value([tok])
         gw.write_component(self._style_comp("Card", "14px"), tm)
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 0
@@ -340,7 +340,7 @@ class TestStyleTokenLinkage:
         # Token stored as uppercase; style value is lowercase — should still match
         tok = self._token("primary_upper", "#FFB81C")
         gw.write_tokens([tok])
-        tm = build_token_map([tok])  # key = "#ffb81c" (lowercased)
+        tm = index_tokens_by_value([tok])  # key = "#ffb81c" (lowercased)
         gw.write_component(self._style_comp("BtnLower", "#ffb81c"), tm)
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 1
@@ -350,7 +350,7 @@ class TestStyleTokenLinkage:
         # Three tokens all with same value — only one STYLE_USES_TOKEN edge
         toks = [self._token(f"tok{i}", "#ffb81c") for i in range(3)]
         gw.write_tokens(toks)
-        tm = build_token_map(toks)  # all 3 under key "#ffb81c"
+        tm = index_tokens_by_value(toks)  # all 3 under key "#ffb81c"
         gw.write_component(self._style_comp("BtnMulti", "#ffb81c"), tm)
         result = conn.execute(
             "MATCH (s:Style {id:'st_BtnMulti'})-[:STYLE_USES_TOKEN]->(t) RETURN count(t)"

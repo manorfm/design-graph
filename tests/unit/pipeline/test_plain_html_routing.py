@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from design_graph.capture.html_prototype import has_react_functions
+from design_graph.capture.html_prototype.html_capture import has_react_functions
 from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent.parent / "fixtures"

@@ -15,10 +15,10 @@ import logging
 
 from design_graph.core.graph_catalog import GraphDocumentName
 from design_graph.core.models import ComponentType, JsxSnippet, PropDefault, StyleState, TokenCategory
-from design_graph.extraction.component_extractor import extract_component
+from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
 from design_graph.graph.reader import GraphReader, NamedEntityResolution
 from design_graph.mcp.search import SearchResult, search
-from design_graph.parsing.js_parser import find_all_boundaries
+from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 
 logger = logging.getLogger(__name__)
 

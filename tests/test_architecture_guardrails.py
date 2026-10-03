@@ -1,12 +1,12 @@
 """
-Architecture guardrail tests (G1–G10).
+Architecture guardrail tests (G1–G12).
 
 These tests enforce the layered dependency rules defined in the project's
 backlog.md and docs/spec/00-overview.md. They run as part of the normal
 test suite so a CI failure gives immediate feedback on which rule was broken.
 
-G1  parsing/    must not import from extraction/, graph/, or mcp/
-G2  extraction/ must not import from graph/ or mcp/
+G1  capture/html_prototype/parsing/    must not import its extraction/, graph/, or mcp/
+G2  capture/html_prototype/extraction/ must not import from graph/ or mcp/
 G3  graph/reader.py must not contain write statements (CREATE/DELETE/MERGE)
 G4  extraction/ functions must be synchronous — async only in coordinator
 G5  GraphReader connection must open with read_only=True
@@ -17,8 +17,8 @@ G9  cli/ modules must not import directly from parsing/, extraction/, or graph/
     (CLI talks only to coordinator, paths, and mcp/tools — not to internals)
 G10 plain_html_component_extractor must not import from graph/ or mcp/
     (it is an extraction-layer module — same rules as G2)
-G11 cli/validate.py must not import from parsing/ or extraction/ at module level
-    (CLI only talks to graph/reader through validate_graph — not to internals)
+G12 format-specific code lives inside capture/, reached from outside only
+    through capture.base and capture.registry
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ from pathlib import Path
 # ── project root relative paths ───────────────────────────────────────────────
 
 SRC = Path(__file__).parent.parent / "src" / "design_graph"
-PARSING_DIR    = SRC / "parsing"
-EXTRACTION_DIR = SRC / "extraction"
+PARSING_DIR    = SRC / "capture" / "html_prototype" / "parsing"
+EXTRACTION_DIR = SRC / "capture" / "html_prototype" / "extraction"
 GRAPH_DIR      = SRC / "graph"
 PIPELINE_DIR   = SRC / "pipeline"
 CLI_DIR        = SRC / "cli"
@@ -72,14 +72,14 @@ def _contains_pattern(path: Path, pattern: str) -> list[int]:
 
 class TestG1ParsingLayerIsolation:
     FORBIDDEN_PREFIXES = (
-        "design_graph.extraction",
+        "design_graph.capture.html_prototype.extraction",
         "design_graph.graph",
         "design_graph.mcp",
         "design_graph.pipeline",
     )
 
     def test_no_parsing_module_imports_extraction(self):
-        violations = self._collect_violations("design_graph.extraction")
+        violations = self._collect_violations("design_graph.capture.html_prototype.extraction")
         assert not violations, self._fmt(violations)
 
     def test_no_parsing_module_imports_graph(self):
@@ -185,7 +185,7 @@ class TestG4ExtractionFunctionsAreSynchronous:
         self._check_file(EXTRACTION_DIR / "section_extractor.py", allowed=set())
 
     def test_no_async_functions_in_chunker(self):
-        self._check_file(EXTRACTION_DIR / "chunker.py", allowed=set())
+        self._check_file(CLI_DIR / "chunk_export.py", allowed=set())
 
     def test_no_async_functions_in_prop_extractor(self):
         self._check_file(EXTRACTION_DIR / "prop_extractor.py", allowed=set())
@@ -301,16 +301,13 @@ class TestG9CliDoesNotBypassLayers:
     mcp/tools, and its own _logging helper — never from parsing/, extraction/,
     or graph/ directly.
 
-    The only exception: cli/build.py's _build_and_export_chunks coroutine.
-    Capture itself goes through coordinator.capture_prototype (shared with the
-    main build pipeline, so both stay in sync) — but chunking
-    (extraction.chunker) has no coordinator equivalent, so a lazy local import
-    for it remains. This guardrail therefore checks top-level (module-level)
-    imports only via AST.
+    Chunk export captures through coordinator.capture_prototype — the same
+    path the build pipeline uses — and chunks with the CLI's own chunk_export
+    module. This guardrail checks top-level (module-level) imports via AST.
     """
     FORBIDDEN_FROM_CLI = (
-        "design_graph.parsing",
-        "design_graph.extraction",
+        "design_graph.capture.html_prototype.parsing",
+        "design_graph.capture.html_prototype.extraction",
         "design_graph.graph",
     )
 
@@ -349,34 +346,48 @@ class TestG9CliDoesNotBypassLayers:
         )
 
 
-# ── G11: cli/validate.py does not bypass layers ──────────────────────────────
+# ── G12: capture/ is sealed behind its contract ──────────────────────────────
 
-class TestG11ValidateLayerIsolation:
+CAPTURE_DIR = SRC / "capture"
+CAPTURE_CONTRACT = ("design_graph.capture.base", "design_graph.capture.registry")
+
+
+def _module_name(path: Path) -> str:
+    return "design_graph." + ".".join(path.relative_to(SRC).with_suffix("").parts)
+
+
+class TestG12CaptureIsSealed:
     """
-    cli/validate.py reads from the graph through GraphReader (which is in graph/).
-    It must not import from parsing/ or extraction/ at module level.
+    Every format-specific module lives inside capture/, and the rest of the
+    system reaches a capture only through its contract (capture.base) and the
+    registry — so adding a format never touches code outside capture/.
     """
-    VALIDATE_PATH = CLI_DIR / "validate.py"
-    FORBIDDEN = ("design_graph.parsing", "design_graph.extraction")
 
-    def _top_level_imports(self, path: Path) -> list[str]:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        modules: list[str] = []
-        for node in ast.iter_child_nodes(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    modules.append(alias.name)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                modules.append(node.module)
-        return modules
+    # validate_component_implementation re-captures an agent-submitted JSX
+    # fragment; it leaves this list once captures expose fragment capture.
+    KNOWN_EXCEPTIONS = {"mcp/tools.py"}
 
-    def test_validate_py_does_not_import_parsing_at_top_level(self):
-        violations = [mod for mod in self._top_level_imports(self.VALIDATE_PATH)
-                      if any(mod.startswith(p) for p in self.FORBIDDEN)]
-        assert not violations, (
-            "G11 violation — cli/validate.py imports from parsing/ or extraction/:\n  "
-            + "\n  ".join(violations)
-        )
+    def test_format_specific_packages_live_inside_capture(self):
+        stray = [name for name in ("parsing", "extraction") if (SRC / name).exists()]
+        assert not stray, f"G12 violation — format-specific packages outside capture/: {stray}"
 
-    def test_validate_py_exists(self):
-        assert self.VALIDATE_PATH.exists(), "cli/validate.py must exist"
+    def test_only_the_contract_is_imported_from_outside_capture(self):
+        violations = []
+        for path in SRC.rglob("*.py"):
+            relative = path.relative_to(SRC).as_posix()
+            if relative.startswith("capture/") or relative in self.KNOWN_EXCEPTIONS:
+                continue
+            for mod in _imports_in_file(path):
+                if mod.startswith("design_graph.capture.") and mod not in CAPTURE_CONTRACT:
+                    violations.append(f"{relative}: imports {mod!r}")
+        assert not violations, "G12 violation(s):\n  " + "\n  ".join(violations)
+
+    def test_capture_never_imports_storage_pipeline_or_interfaces(self):
+        forbidden = ("design_graph.graph", "design_graph.mcp", "design_graph.cli", "design_graph.pipeline")
+        violations = [
+            f"{_module_name(path)}: imports {mod!r}"
+            for path in CAPTURE_DIR.rglob("*.py")
+            for mod in _imports_in_file(path)
+            if mod.startswith(forbidden)
+        ]
+        assert not violations, "G12 violation(s):\n  " + "\n  ".join(violations)

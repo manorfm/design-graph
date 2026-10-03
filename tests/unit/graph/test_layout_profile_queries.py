@@ -21,7 +21,7 @@ from design_graph.core.models import (
 from design_graph.graph.reader import GraphReader, _build_layout_profile
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
-from design_graph.parsing.token_extractor import build_token_map
+from design_graph.core.models import index_tokens_by_value
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────

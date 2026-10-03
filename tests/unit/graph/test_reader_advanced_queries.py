@@ -32,7 +32,7 @@ from design_graph.core.models import (
 from design_graph.graph.reader import GraphReader, _best_fuzzy_matches
 from design_graph.graph.schema import initialize_schema
 from design_graph.graph.writer import GraphWriter
-from design_graph.parsing.token_extractor import build_token_map
+from design_graph.core.models import index_tokens_by_value
 
 
 # ── Shared populated fixture ──────────────────────────────────────────────────
@@ -57,7 +57,7 @@ def rich_graph(tmp_path_factory):
     color_token   = DesignToken(id="col_1", category="color",   label="primary",  value="#ffb81c", usage=8)
     spacing_token = DesignToken(id="spc_1", category="spacing", label="space_16", value="16px",    usage=4)
     gw.write_tokens([color_token, spacing_token])
-    tm = build_token_map([color_token, spacing_token])
+    tm = index_tokens_by_value([color_token, spacing_token])
 
     price_tag = ExtractedComponent(
         name="PriceTag", comp_type="badge",
