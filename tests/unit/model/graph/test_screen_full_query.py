@@ -295,7 +295,8 @@ class TestGetScreenFullQueryEfficiency:
         """
         get_screen_full must issue O(1) database queries — a fixed set of JOIN
         queries, not one query per component.  With 3 components the call must
-        stay well under 15 round-trips (actual target: ≤13).
+        stay a constant 15 round-trips — 13 for the screen itself plus 2 for its
+        relations to other screens (viewport, navigation and variant edges).
         """
         call_count = 0
         original_q = full_screen_graph._q
@@ -307,8 +308,8 @@ class TestGetScreenFullQueryEfficiency:
 
         monkeypatch.setattr(full_screen_graph, "_q", counting_q)
         full_screen_graph.get_screen_full("HomeScreen")
-        assert call_count <= 13, (
-            f"Expected ≤13 queries (O(1)), got {call_count}. "
+        assert call_count <= 15, (
+            f"Expected ≤15 queries (O(1)), got {call_count}. "
             "Likely regressed to per-component queries."
         )
 
@@ -434,4 +435,4 @@ class TestGetScreenFullExpandsNestedComponents:
 
         monkeypatch.setattr(nested_screen_graph, "_q", counting_q)
         nested_screen_graph.get_screen_full("DeepScreen")
-        assert call_count <= 13
+        assert call_count <= 15

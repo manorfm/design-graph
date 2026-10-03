@@ -39,6 +39,8 @@ _NODE_TABLES: list[str] = [
         "  source_code STRING,"
         "  source_lang STRING,"
         "  source_simplified BOOLEAN,"
+        "  viewport_width INT64,"
+        "  viewport_height INT64,"
         "  PRIMARY KEY(name)"
         ")"
     ),
@@ -137,6 +139,8 @@ _NODE_TABLES: list[str] = [
 _REL_TABLES: list[str] = [
     "CREATE REL TABLE USES_COMPONENT(FROM Screen TO Component)",
     "CREATE REL TABLE USES_SCREEN(FROM Screen TO Screen)",
+    "CREATE REL TABLE NAVIGATES_TO(FROM Screen TO Screen, label STRING)",
+    "CREATE REL TABLE VARIANT_OF(FROM Screen TO Screen, axis STRING)",
     "CREATE REL TABLE HAS_SECTION(FROM Screen TO Section)",
     "CREATE REL TABLE SECTION_USES(FROM Section TO Component)",
     "CREATE REL TABLE SECTION_USES_SCREEN(FROM Section TO Screen)",

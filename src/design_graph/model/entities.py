@@ -506,6 +506,18 @@ class ExtractedComponent:
         )
 
 
+@dataclass(frozen=True)
+class ScreenLink:
+    """A way out of a screen into another — a link, a "Next" button, a back arrow."""
+
+    target: str     # name of the screen it leads to
+    label: str = "" # what the user sees on it ("Começar", "Voltar")
+
+    def __post_init__(self) -> None:
+        if not self.target.strip():
+            raise ValueError("a screen link needs a target screen")
+
+
 @dataclass
 class ExtractedScreen:
     """
@@ -527,6 +539,11 @@ class ExtractedScreen:
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     source_lang: str = ""
     source_simplified: bool = False
+    viewport_width: int = 0                             # px the screen was designed for; 0 = unknown
+    viewport_height: int = 0
+    links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens
+    variant_of: str = ""                                # base screen this one varies, "" when it is a base
+    variant_axis: str = ""                              # what varies: "viewport", "mode", …
 
 
 @dataclass(frozen=True)

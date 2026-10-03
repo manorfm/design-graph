@@ -289,17 +289,38 @@ class GraphWriter:
     def _create_screen(self, screen: ExtractedScreen, *, component_count: int, sections_count: int) -> None:
         self._safe_execute(
             "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, "
-            "source_code:$s, source_lang:$sl, source_simplified:$ss})",
-            {"n": screen.name, "cc": component_count, "sc": sections_count, **self._screen_source(screen)},
+            "source_code:$s, source_lang:$sl, source_simplified:$ss, "
+            "viewport_width:$vw, viewport_height:$vh})",
+            {"n": screen.name, "cc": component_count, "sc": sections_count, **self._screen_properties(screen)},
         )
 
     @staticmethod
-    def _screen_source(screen: ExtractedScreen) -> dict:
+    def _screen_properties(screen: ExtractedScreen) -> dict:
         return {
             "s": _capped_source_code(screen.name, screen.source_code),
             "sl": screen.source_lang,
             "ss": screen.source_simplified,
+            "vw": screen.viewport_width,
+            "vh": screen.viewport_height,
         }
+
+    def _write_screen_relations(self, screen: ExtractedScreen) -> None:
+        """Navigation and variant edges — only toward screens this build declared."""
+        for link in dict.fromkeys(screen.links):
+            if link.target not in self._declared_screen_names:
+                logger.debug("writer: %s links to unknown screen %s — dropped", screen.name, link.target)
+                continue
+            self._safe_execute(
+                "MATCH (s:Screen {name:$sn}),(t:Screen {name:$tn}) CREATE (s)-[:NAVIGATES_TO {label:$l}]->(t)",
+                {"sn": screen.name, "tn": link.target, "l": link.label},
+            )
+        if screen.variant_of in self._declared_screen_names:
+            self._safe_execute(
+                "MATCH (s:Screen {name:$sn}),(b:Screen {name:$bn}) CREATE (s)-[:VARIANT_OF {axis:$a}]->(b)",
+                {"sn": screen.name, "bn": screen.variant_of, "a": screen.variant_axis},
+            )
+        elif screen.variant_of:
+            logger.debug("writer: %s varies unknown screen %s — dropped", screen.name, screen.variant_of)
 
     def write_component(self, comp: ExtractedComponent) -> None:
         """
@@ -478,9 +499,9 @@ class GraphWriter:
             self._safe_execute(
                 "MATCH (s:Screen {name:$n}) "
                 "SET s.component_count=$cc, s.sections_count=$sc, s.source_code=$s, "
-                "s.source_lang=$sl, s.source_simplified=$ss",
+                "s.source_lang=$sl, s.source_simplified=$ss, s.viewport_width=$vw, s.viewport_height=$vh",
                 {"n": screen.name, "cc": len(component_refs), "sc": len(sections),
-                 **self._screen_source(screen)},
+                 **self._screen_properties(screen)},
             )
         else:
             self._create_screen(screen, component_count=len(component_refs), sections_count=len(sections))
@@ -500,6 +521,8 @@ class GraphWriter:
                 "CREATE (s)-[:USES_COMPONENT]->(c)",
                 {"sn": screen.name, "cn": comp_name},
             )
+
+        self._write_screen_relations(screen)
 
         for section in sections:
             sec_source = _capped_source_code(f"section {section.id}", section.source_code)

@@ -24,6 +24,14 @@ from design_graph.model.entities import resolve_icon_markers, RE_ICON_MARKER
 
 logger = logging.getLogger(__name__)
 
+# (relationship, screen is the source end) → (result slot, the other end, edge property)
+_RELATION_SLOTS: dict[tuple[str, bool], tuple[str, str, str]] = {
+    ("NAVIGATES_TO", True):  ("navigates_to",   "target", "label"),
+    ("NAVIGATES_TO", False): ("navigated_from", "source", "label"),
+    ("VARIANT_OF", True):    ("variant_of",     "target", "axis"),
+    ("VARIANT_OF", False):   ("variants",       "source", "axis"),
+}
+
 # Every Component property a component read returns, in one place.
 _COMPONENT_FIELDS = (
     "c.name, c.comp_type, c.source_code, c.source_lang, c.source_simplified, "
@@ -129,12 +137,20 @@ class GraphReader:
             if len(bucket) < 5:
                 bucket.append(row["comp_name"])
 
+        base_of = {
+            row["variant"]: row["base"]
+            for row in self._q(
+                "MATCH (v:Screen)-[:VARIANT_OF]->(b:Screen) RETURN v.name AS variant, b.name AS base"
+            )
+        }
+
         return [
             {
                 "name":            r["s.name"],
                 "component_count": r["s.component_count"],
                 "sections_count":  r["s.sections_count"],
                 "top_components":  top_by_screen[r["s.name"]],
+                "variant_of":      base_of.get(r["s.name"], ""),
             }
             for r in screen_rows
         ]
@@ -178,6 +194,40 @@ class GraphReader:
             "components":      components,
             "sections":        sections,
             "texts":           texts,
+            "relations":       self.get_screen_relations(resolved),
+        }
+
+    def get_screen_relations(self, name: str) -> dict | None:
+        """
+        How a screen relates to other screens beyond composition: where it
+        navigates to and from, which screen it is a variant of (or which are
+        its variants), and the viewport it was designed for.
+        """
+        rows = self._q(
+            "MATCH (s:Screen {name:$n}) RETURN s.viewport_width, s.viewport_height", {"n": name},
+        )
+        if not rows:
+            return None
+        width, height = rows[0]["s.viewport_width"] or 0, rows[0]["s.viewport_height"] or 0
+
+        relations: dict[str, list[dict]] = {
+            "navigates_to": [], "navigated_from": [], "variant_of": [], "variants": [],
+        }
+        for r in self._q(
+            "MATCH (a:Screen)-[r:NAVIGATES_TO|VARIANT_OF]->(b:Screen) WHERE a.name = $n OR b.name = $n "
+            "RETURN label(r) AS kind, a.name AS source, b.name AS target, r.label AS label, r.axis AS axis "
+            "ORDER BY kind, source, target",
+            {"n": name},
+        ):
+            slot, other_end, prop = _RELATION_SLOTS[(r["kind"], r["source"] == name)]
+            relations[slot].append({"screen": r[other_end], prop: r[prop] or ""})
+
+        return {
+            "viewport":       {"width": width, "height": height} if width and height else None,
+            "navigates_to":   relations["navigates_to"],
+            "navigated_from": relations["navigated_from"],
+            "variant_of":     relations["variant_of"][0] if relations["variant_of"] else None,
+            "variants":       relations["variants"],
         }
 
     # ── Components ────────────────────────────────────────────────────────────
@@ -1142,7 +1192,7 @@ class GraphReader:
             "reader: get_screen_full(%s) — %d sections, %d components",
             resolved, len(section_rows), len(comp_rows),
         )
-        return _assemble_screen_full(
+        return {**_assemble_screen_full(
             screen_meta=s,
             section_rows=section_rows,
             sec_style_rows=sec_style_rows,
@@ -1154,7 +1204,7 @@ class GraphReader:
             comp_interact_rows=comp_interact_rows,
             comp_prop_rows=comp_prop_rows,
             comp_children_rows=comp_children_rows,
-        )
+        ), "relations": self.get_screen_relations(s["s.name"])}
 
     def get_screen_texts(self, name: str) -> dict | None:
         """Return every section and contained-component text for a screen."""
