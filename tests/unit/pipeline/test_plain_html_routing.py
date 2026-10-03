@@ -2,10 +2,10 @@
 Tests for the pipeline format routing logic.
 
 Verifies that:
-  - plain_html WITHOUT React functions → _extract_plain_html path
-  - plain_html WITH React functions   → _extract_react path (existing behavior)
-  - bundled_react / tailwind          → _extract_react path always
-  - _has_react_functions detects PascalCase function declarations correctly
+  - plain_html WITHOUT React functions → extract_plain_html path
+  - plain_html WITH React functions   → extract_react path (existing behavior)
+  - bundled_react / tailwind          → extract_react path always
+  - has_react_functions detects PascalCase function declarations correctly
 """
 
 from __future__ import annotations
@@ -15,41 +15,42 @@ from pathlib import Path
 
 import pytest
 
-from design_graph.pipeline.coordinator import _has_react_functions, run_pipeline
+from design_graph.capture.html_prototype import has_react_functions
+from design_graph.pipeline.coordinator import run_pipeline
 
 FIXTURE_DIR = Path(__file__).parent.parent.parent / "fixtures"
 
 
-# ── _has_react_functions ──────────────────────────────────────────────────────
+# ── has_react_functions ──────────────────────────────────────────────────────
 
 class TestHasReactFunctions:
     def test_detects_simple_pascalcase_function(self):
         js = "function BtnPrimary() { return <div/>; }"
-        assert _has_react_functions(js) is True
+        assert has_react_functions(js) is True
 
     def test_detects_multiple_component_functions(self):
         js = "function Card() {} function Modal() {} function BtnPrimary() {}"
-        assert _has_react_functions(js) is True
+        assert has_react_functions(js) is True
 
     def test_rejects_empty_js(self):
-        assert _has_react_functions("") is False
+        assert has_react_functions("") is False
 
     def test_rejects_js_without_pascalcase_functions(self):
         js = "function handleClick() {} function fetchData() {}"
-        assert _has_react_functions(js) is False
+        assert has_react_functions(js) is False
 
     def test_rejects_plain_html_without_scripts(self):
-        assert _has_react_functions("   ") is False
+        assert has_react_functions("   ") is False
 
     def test_detects_screen_components(self):
         js = "function RestaurantsPage() { return <div/>; }"
-        assert _has_react_functions(js) is True
+        assert has_react_functions(js) is True
 
     def test_min_name_length_enforced(self):
         # RE_COMP_FN requires at least 3 chars after first uppercase
         js = "function Ab() { return null; }"
         # "Ab" is 2 chars total — too short for RE_COMP_FN which needs 3+
-        result = _has_react_functions(js)
+        result = has_react_functions(js)
         # This may or may not match depending on the exact pattern — just no crash
         assert isinstance(result, bool)
 

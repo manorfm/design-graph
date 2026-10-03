@@ -1,8 +1,8 @@
 """
-Load and decompose an HTML prototype file into its raw JS, CSS, and HTML parts.
+Decompose an HTML prototype into its raw JS, CSS, and HTML parts.
 
-This is the only module with file I/O in the parsing layer.
-All extraction and analysis is done by other modules that receive RawSources.
+The file itself is read once by capture.base.PrototypeDocument; every
+extraction and analysis module downstream receives the RawSources built here.
 
 Supports three prototype formats (detected by format_detector):
   bundled_react — base64/gzip bundles embedded in <script> JSON
@@ -12,17 +12,14 @@ Supports three prototype formats (detected by format_detector):
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import gzip
-import hashlib
 import json
 import logging
-import sys
-from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from design_graph.capture.base import PrototypeDocument
 from design_graph.core.models import RawSources
 from design_graph.parsing.format_detector import BUNDLED_REACT, detect
 
@@ -32,45 +29,37 @@ logger = logging.getLogger(__name__)
 _MIN_BUNDLE_SCRIPT_LEN = 1_000
 
 
-async def load(html_path: Path) -> RawSources:
+def decompose(document: PrototypeDocument) -> RawSources:
     """
-    Read an HTML prototype file and return its decomposed sources.
+    Split an already-read prototype into its raw JS, CSS and HTML parts.
 
-    Raises FileNotFoundError if html_path does not exist.
     Never raises on malformed bundle JSON — logs a warning and continues.
     """
-    if not html_path.exists():
-        raise FileNotFoundError(f"Prototype not found: {html_path}")
-
-    raw_bytes = await asyncio.to_thread(html_path.read_bytes)
-    html_text = raw_bytes.decode("utf-8", errors="replace")
-    html_hash = hashlib.md5(raw_bytes, usedforsecurity=False).hexdigest()
-
-    soup = BeautifulSoup(html_text, "html.parser")
-    fmt  = detect(html_text, soup)
+    soup = BeautifulSoup(document.text, "html.parser")
+    fmt  = detect(document.text, soup)
 
     skipped_entries = 0
     if fmt == BUNDLED_REACT:
         js, css, inner_html, skipped_entries = _extract_bundled_react(soup)
     else:
-        js, css, inner_html = _extract_plain(html_text, soup)
+        js, css, inner_html = _extract_plain(document.text, soup)
 
     logger.info(
         "source_loader: loaded %s | format=%s | js=%d css=%d",
-        html_path.name, fmt, len(js), len(css),
+        document.path.name, fmt, len(js), len(css),
     )
     if skipped_entries:
         logger.warning(
             "source_loader: %d bundle entr%s failed to decode and were dropped "
             "from %s — extraction is incomplete for the affected files",
-            skipped_entries, "y" if skipped_entries == 1 else "ies", html_path.name,
+            skipped_entries, "y" if skipped_entries == 1 else "ies", document.path.name,
         )
 
     return RawSources(
         js=js,
         css=css,
         inner_html=inner_html,
-        html_hash=html_hash,
+        html_hash=document.digest,
         format=fmt,
         skipped_entries=skipped_entries,
     )

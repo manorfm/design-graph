@@ -255,7 +255,7 @@ def _run_build(argv: list[str]) -> None:
     except SystemExit:
         raise
 
-    from design_graph.pipeline.coordinator import run_pipeline
+    from design_graph.pipeline.coordinator import UnsupportedPrototypeError, run_pipeline
 
     configure_cli_logging(verbose=parsed.verbose, quiet=parsed.quiet)
 
@@ -297,12 +297,16 @@ def _run_build(argv: list[str]) -> None:
         else TerminalBuildReporter()
     )
 
-    stats = asyncio.run(run_pipeline(
-        parsed.html_path, db_path, state_path,
-        show_diff=parsed.show_diff,
-        force=effective_force,
-        reporter=reporter,
-    ))
+    try:
+        stats = asyncio.run(run_pipeline(
+            parsed.html_path, db_path, state_path,
+            show_diff=parsed.show_diff,
+            force=effective_force,
+            reporter=reporter,
+        ))
+    except UnsupportedPrototypeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     if stats is None:
         if parsed.json_output:
@@ -371,8 +375,6 @@ def _print_main_help() -> None:
 
 
 def _run_chunk(argv: list[str]) -> None:
-    from design_graph.extraction.chunker import chunk_extracted_data, export_chunks_jsonl
-
     try:
         parsed = parse_chunk_args(argv)
     except SystemExit:
@@ -384,31 +386,22 @@ def _run_chunk(argv: list[str]) -> None:
         print(f"error: file not found: {parsed.html_path}", file=sys.stderr)
         sys.exit(1)
 
-    count = asyncio.run(_build_and_export_chunks(parsed))
+    from design_graph.pipeline.coordinator import UnsupportedPrototypeError
+
+    try:
+        count = asyncio.run(_build_and_export_chunks(parsed))
+    except UnsupportedPrototypeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
     print(f"{count} chunks exported → {parsed.output_path}")
 
 
 async def _build_and_export_chunks(parsed: ChunkCliArgs) -> int:
     from design_graph.extraction.chunker import chunk_extracted_data, export_chunks_jsonl
-    from design_graph.parsing.format_detector import PLAIN_HTML
-    from design_graph.parsing.source_loader import load
-    from design_graph.pipeline.coordinator import (
-        EXTRACTION_CONCURRENCY,
-        _has_react_functions,
-        extract_plain_html,
-        extract_react,
-    )
+    from design_graph.pipeline.coordinator import capture_prototype
 
-    sources = await load(parsed.html_path)
-
-    if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
-        comps, screens, sections_map, _tokens, _module_texts = await extract_plain_html(
-            sources, concurrency=EXTRACTION_CONCURRENCY
-        )
-    else:
-        comps, screens, sections_map, _tokens, _module_texts = await extract_react(
-            sources, concurrency=EXTRACTION_CONCURRENCY
-        )
+    result = await capture_prototype(parsed.html_path)
+    comps, screens, sections_map = result.components, result.screens, result.sections
     # chunk export has no graph to resolve {[icon:id]} markers against —
     # unlike GraphReader, it reads straight off this in-memory extraction
     # pass — so markers are expanded here from the icons these same

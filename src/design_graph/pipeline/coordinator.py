@@ -1,15 +1,12 @@
 """
 Async pipeline coordinator.
 
-Orchestrates the six phases of a design-graph build:
-  Phase 1 — File I/O (sequential: one file)
-  Phase 2 — Parallel token extraction + function boundary detection
-  Phase 3 — Parallel component extraction (one coroutine per component)
-  Phase 4 — Parallel section extraction (one coroutine per screen)
-  Phase 5 — Sequential graph writes (Kuzu limitation)
-  Phase 6 — State persistence + stats
+Orchestrates a design-graph build, independent of the prototype format:
+  Phase 1   — Read the file once and pick the capture that recognizes it
+  Phase 2–4 — Capture (format-specific, may run its own work in parallel)
+  Phase 5   — Sequential graph writes (Kuzu limitation)
+  Phase 6   — State persistence + stats
 
-The JS string is immutable; concurrent reads in phases 2-4 are safe.
 Writes in phase 5 are always sequential — GraphWriter has no async methods.
 """
 
@@ -22,35 +19,27 @@ import shutil
 import sys
 import time
 from collections import Counter
-from dataclasses import replace
 from pathlib import Path
-from typing import Callable
 
 import kuzu
 
-from design_graph.core.models import BuildStats, ExtractedScreen, FunctionBoundary
-from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
-from design_graph.extraction.alias_extractor import apply_aliases, extract_component_aliases
-from design_graph.extraction.component_extractor import extract_all_components, select_renderable_boundaries
-from design_graph.extraction.module_text_extractor import extract_module_level_texts
-from design_graph.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
-from design_graph.extraction.screen_extractor import extract_screens, is_screen
-from design_graph.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
-from design_graph.graph.diff import compute_diff
-from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
-from design_graph.graph.writer import GraphWriteSession
-from design_graph.parsing.css_class_resolver import (
-    extract_css_rules,
-    extract_responsive_css_rules,
-    extract_tag_pseudo_rules,
+from design_graph.capture.base import (  # UnsupportedPrototypeError: re-exported for entry points
+    CaptureResult,
+    ComponentProgress,
+    PrototypeDocument,
+    UnsupportedPrototypeError,
 )
-from design_graph.parsing.format_detector import PLAIN_HTML
-from design_graph.parsing.js_parser import find_all_boundaries, find_module_level_constants
-from design_graph.parsing.palette_extractor import discover_prototype_palette
-from design_graph.parsing.source_loader import load
-from design_graph.parsing.token_extractor import build_token_map, extract_tokens
+from design_graph.capture.registry import capture_for
+from design_graph.core.models import BuildStats
+from design_graph.graph.diff import compute_diff
+from design_graph.graph.writer import GraphWriteSession
+from design_graph.parsing.token_extractor import build_token_map
+from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
+from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["UnsupportedPrototypeError", "capture_prototype", "run_pipeline"]
 
 EXTRACTION_CONCURRENCY = int(os.environ.get("DESIGN_GRAPH_CONCURRENCY", "8"))
 
@@ -106,34 +95,34 @@ async def run_pipeline(
     # ── Phase 1: Load ─────────────────────────────────────────────────────────
     _reporter.phase_started(f"Loading {html_path.name}", total=0)
     phase.start()
-    sources = await load(html_path)
-    logger.info("pipeline: loaded %s (hash=%s)", html_path.name, sources.html_hash[:8])
+    document = await asyncio.to_thread(PrototypeDocument.read, html_path)
     _reporter.phase_completed(f"Loading {html_path.name}", elapsed_seconds=phase.split())
+    capture = capture_for(document)
+    logger.info(
+        "pipeline: loaded %s (hash=%s, capture=%s)", html_path.name, document.digest[:8], capture.name,
+    )
 
     prev_state = load_build_state(state_path)
-    if not force and db_path.exists() and prev_state.html_hash == sources.html_hash:
+    if not force and db_path.exists() and prev_state.html_hash == document.digest:
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         _reporter.build_skipped("HTML unchanged — use --force to rebuild")
         return None
 
-    # ── Phase 2–4: Format-specific extraction ────────────────────────────────
-    # Use the plain HTML DOM-pattern path only when the file has NO React/JSX
-    # function definitions. A plain_html file with PascalCase functions (like
-    # simple.html with inline React) still uses the JS boundary extraction path.
+    # ── Phase 2–4: Capture ────────────────────────────────────────────────────
     _reporter.phase_started("Parsing boundaries and tokens", total=0)
     phase.start()
-    if sources.format == PLAIN_HTML and not _has_react_functions(sources.js):
-        extracted_comps, screens, sections_map, tokens, module_texts = await extract_plain_html(
-            sources, concurrency=concurrency
-        )
-    else:
-        extracted_comps, screens, sections_map, tokens, module_texts = await extract_react(
-            sources,
-            concurrency=concurrency,
-            on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
-                name, index=idx, total=total
-            ),
-        )
+    result = await capture.capture(
+        document,
+        concurrency=concurrency,
+        on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
+            name, index=idx, total=total
+        ),
+    )
+    extracted_comps = result.components
+    screens         = result.screens
+    sections_map    = result.sections
+    tokens          = result.tokens
+    module_texts    = result.module_texts
     _reporter.phase_completed(
         "Parsing boundaries and tokens",
         elapsed_seconds=phase.split(),
@@ -149,8 +138,8 @@ async def run_pipeline(
         screen.sections_count = len(sections_map.get(screen.name, []))
 
     logger.info(
-        "pipeline: %d screens, %d components, %d tokens, %d icons, %d module texts (format=%s)",
-        len(screens), len(extracted_comps), len(tokens), len(icons), len(module_texts), sources.format,
+        "pipeline: %d screens, %d components, %d tokens, %d icons, %d module texts (capture=%s)",
+        len(screens), len(extracted_comps), len(tokens), len(icons), len(module_texts), result.capture,
     )
 
     # ── Phase 5: Sequential graph writes (atomic via GraphWriteSession) ──────
@@ -200,9 +189,9 @@ async def run_pipeline(
     # happened to pass --diff on their last build.
     diff = compute_diff(prev_state, screens, comp_counter)
     save_build_state(state_path, build_new_state(
-        sources.html_hash, screens, comp_counter,
+        document.digest, screens, comp_counter,
         source_path=html_path, database_path=db_path, diff=diff,
-        skipped_entries=sources.skipped_entries,
+        skipped_entries=result.skipped_entries,
     ))
     elapsed = time.monotonic() - t_start
 
@@ -237,184 +226,19 @@ async def run_pipeline(
     return stats
 
 
+async def capture_prototype(
+    html_path: Path,
+    concurrency: int = EXTRACTION_CONCURRENCY,
+    on_component_extracted: ComponentProgress | None = None,
+) -> CaptureResult:
+    """Read a prototype and run the capture that recognizes it, without writing a graph."""
+    document = await asyncio.to_thread(PrototypeDocument.read, html_path)
+    return await capture_for(document).capture(
+        document, concurrency=concurrency, on_component_extracted=on_component_extracted,
+    )
+
+
 # ── Private helpers ───────────────────────────────────────────────────────────
-
-async def extract_react(
-    sources,
-    concurrency: int,
-    on_component_extracted: Callable[[str, int, int], None] | None = None,
-) -> tuple[list, list, dict, list, list]:
-    """
-    Phases 2–4 for bundled_react and tailwind formats.
-    Returns (extracted_comps, screens, sections_map, tokens, module_texts).
-
-    Public — also reused directly by cli/build.py's chunk-export path so both
-    entry points share one screen/component split (a screen boundary must
-    never also be extracted as a component) instead of each reimplementing it.
-
-    on_component_extracted: forwarded to extract_all_components so the caller
-        can display per-component extraction progress without importing extraction internals.
-    """
-    tokens_task     = asyncio.create_task(asyncio.to_thread(extract_tokens, sources))
-    boundaries_task = asyncio.create_task(asyncio.to_thread(find_all_boundaries, sources.js))
-    tokens, all_boundaries = await asyncio.gather(tokens_task, boundaries_task)
-
-    # UI copy from shared module-level constant arrays (const DETAIL_TABS =
-    # [...]) — outside every function boundary by construction, so it's the
-    # one text source component/section extraction can never see.
-    module_texts = extract_module_level_texts(sources.js, all_boundaries)
-
-    # The prototype's own color palette (const C = { bg: '#404040', ... }),
-    # if it has one — lets a style value written as a direct reference
-    # (`background: C.bg`) fold to its literal hex at extraction time, so
-    # it links to a Token exactly like a literal color would.
-    palette = discover_prototype_palette(sources.js)
-
-    # Every module-level `const NAME = {...}`/`[...]` in the whole file —
-    # a component whose own body references one by name (e.g. an
-    # icon-name -> SVG-path lookup table indexed as `ICONS[name]`) gets its
-    # literal content attached verbatim (see module_data_extractor.py,
-    # docs/changes/C39). Computed once here, same "outside every boundary"
-    # scan module_texts already needed above.
-    module_constants = find_module_level_constants(sources.js, all_boundaries)
-
-    token_map     = build_token_map(tokens)
-    rule_map      = extract_css_rules(sources.css) if sources.css else {}
-    tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
-    responsive_rule_map = extract_responsive_css_rules(sources.css) if sources.css else {}
-    visual_bounds = select_renderable_boundaries(sources.js, all_boundaries)
-    screen_flags  = [is_screen(b.name, sources.js[b.start:b.end]) for b in visual_bounds]
-    screen_bounds = [b for b, is_scr in zip(visual_bounds, screen_flags) if is_scr]
-    comp_bounds   = [b for b, is_scr in zip(visual_bounds, screen_flags) if not is_scr]
-    occurrences   = Counter(b.name for b in all_boundaries)
-
-    logger.info(
-        "pipeline: resolved %d CSS class rules, %d tag pseudo-class rules, "
-        "%d responsive (@media) class rules from stylesheet",
-        len(rule_map), len(tag_rule_map), len(responsive_rule_map),
-    )
-
-    extracted_comps = await extract_all_components(
-        sources.js, comp_bounds, occurrences, token_map,
-        concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
-        responsive_rule_map=responsive_rule_map,
-        palette=palette, module_constants=module_constants,
-        on_component_extracted=on_component_extracted,
-    )
-
-    screens = extract_screens(sources.js, all_boundaries)
-
-    known_component_names = {comp.name for comp in extracted_comps}
-    aliases = extract_component_aliases(sources.js, known_component_names)
-    if aliases:
-        logger.info("pipeline: resolved %d component aliases: %s", len(aliases), aliases)
-        extracted_comps = [
-            replace(comp, child_refs=apply_aliases(comp.child_refs, aliases))
-            for comp in extracted_comps
-        ]
-        screens = [
-            replace(screen, component_refs=apply_aliases(screen.component_refs, aliases))
-            for screen in screens
-        ]
-
-    screen_bound_map = {b.name: b for b in screen_bounds}
-    sem              = asyncio.Semaphore(concurrency)
-
-    async def _extract_sections_for(screen: ExtractedScreen):
-        boundary = screen_bound_map.get(screen.name)
-        if not boundary:
-            return screen.name, []
-        async with sem:
-            secs = await asyncio.to_thread(
-                extract_sections, sources.js, screen, boundary, rule_map,
-            )
-            return screen.name, secs
-
-    section_pairs = await asyncio.gather(*[_extract_sections_for(s) for s in screens])
-    sections_map  = dict(section_pairs)
-    if aliases:
-        sections_map = {
-            screen_name: [
-                replace(section, component_refs=apply_aliases(section.component_refs, aliases))
-                for section in sections
-            ]
-            for screen_name, sections in sections_map.items()
-        }
-
-    return extracted_comps, screens, sections_map, tokens, module_texts
-
-
-async def extract_plain_html(
-    sources,
-    concurrency: int,
-) -> tuple[list, list, dict, list, list]:
-    """
-    Phases 2–4 for plain_html format.
-
-    Uses html_parser to detect repeating DOM patterns (components) and
-    HTML5 semantic elements (sections). No JavaScript boundary detection.
-    Returns (extracted_comps, screens, sections_map, tokens, module_texts).
-    module_texts is always empty here — the module-level-constant-array
-    pattern it covers (const DETAIL_TABS = [...]) is a JS/JSX source
-    concept with no plain-HTML equivalent to detect.
-
-    Public — also reused directly by cli/build.py's chunk-export path.
-    """
-    from bs4 import BeautifulSoup
-
-    from design_graph.parsing.html_parser import extract_dom_patterns
-
-    tokens = await asyncio.to_thread(extract_tokens, sources)
-    soup   = await asyncio.to_thread(BeautifulSoup, sources.inner_html, "html.parser")
-
-    # Components: repeating DOM patterns treated as component definitions
-    patterns        = await asyncio.to_thread(extract_dom_patterns, soup)
-    extracted_comps = dom_patterns_to_extracted_components(patterns)
-
-    # Synthetic screen: the whole HTML document is one "page"
-    screen_name = _html_stem_to_screen_name(sources)
-    screen      = ExtractedScreen(
-        name=screen_name,
-        component_refs=[c.name for c in extracted_comps],
-        sections_count=0,
-    )
-
-    # Sections: HTML5 semantic elements
-    sections     = await asyncio.to_thread(extract_sections_for_plain_html, soup, screen_name)
-    sections_map = {screen_name: sections}
-
-    logger.info(
-        "plain_html: %d DOM patterns → %d components, %d semantic sections",
-        len(patterns), len(extracted_comps), len(sections),
-    )
-    return extracted_comps, [screen], sections_map, tokens, []
-
-
-def _has_react_functions(js: str) -> bool:
-    """Return True if the JS string contains PascalCase function definitions."""
-    from design_graph.core.patterns import RE_COMP_FN
-    return bool(RE_COMP_FN.search(js))
-
-
-def _html_stem_to_screen_name(sources) -> str:
-    """Derive a PascalCase screen name from the HTML content's title or fallback."""
-    try:
-        from bs4 import BeautifulSoup
-        soup  = BeautifulSoup(sources.inner_html, "html.parser")
-        title = soup.find("title")
-        if title:
-            text = title.get_text(strip=True)
-            # Convert "My App Title" → "MyAppTitle"
-            words = [w.capitalize() for w in text.split() if w.isalnum()]
-            if words:
-                name = "".join(words[:3])
-                if not name.endswith(("Page", "Screen")):
-                    name += "Page"
-                return name
-    except Exception:
-        pass
-    return "MainPage"
-
 
 def _rebuild_db(db_path: Path) -> None:
     """Remove any existing database at db_path before creating a fresh one."""

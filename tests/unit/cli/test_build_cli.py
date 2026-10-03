@@ -252,3 +252,33 @@ class TestChunkCliArgsContract:
         assert hasattr(args, "output_path")
         assert hasattr(args, "max_chars")
         assert hasattr(args, "verbose")
+
+
+# ── Unsupported prototype files ───────────────────────────────────────────────
+
+class TestUnsupportedPrototype:
+    """A file no capture recognizes is a user error: one clear line, exit 1, no graph."""
+
+    @pytest.fixture
+    def not_a_prototype(self, tmp_path):
+        path = tmp_path / "notes.html"
+        path.write_text("just some notes, no markup at all")
+        return path
+
+    def test_build_reports_error_and_exits_with_failure(self, not_a_prototype, tmp_path, capsys):
+        db_path = tmp_path / "notes.db"
+        with patch("sys.argv", ["design-graph", "--db", str(db_path), str(not_a_prototype)]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "error: notes.html" in err.splitlines()[-1]
+        assert "Traceback" not in err
+        assert not db_path.exists()
+
+    def test_chunk_reports_error_and_exits_with_failure(self, not_a_prototype, capsys):
+        with patch("sys.argv", ["design-graph", "chunk", str(not_a_prototype)]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 1
+        assert capsys.readouterr().err.startswith("error:")

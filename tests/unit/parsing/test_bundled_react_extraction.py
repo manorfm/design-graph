@@ -11,7 +11,6 @@ touching the file system by constructing minimal HTML strings in-memory.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import gzip
 import json
@@ -22,10 +21,11 @@ import pytest
 from bs4 import BeautifulSoup
 
 from design_graph.parsing.format_detector import BUNDLED_REACT
+from design_graph.capture.base import PrototypeDocument
 from design_graph.parsing.source_loader import (
     _decompress_bundle_map,
     _extract_bundled_react,
-    load,
+    decompose,
 )
 
 
@@ -262,7 +262,7 @@ class TestExtractBundledReact:
         assert skipped == 1
 
 
-# ── load() with bundled_react format fixture ─────────────────────────────────
+# ── decompose() with bundled_react format fixture ────────────────────────────
 
 class TestLoadBundledReactFormat:
     """Integration-level: build a minimal bundled_react HTML file and load it."""
@@ -298,35 +298,35 @@ class TestLoadBundledReactFormat:
         return html_path
 
     def test_format_detected_as_bundled_react(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert sources.format == BUNDLED_REACT
 
     def test_js_contains_component_functions(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert "BtnPrimary" in sources.js
         assert "RestaurantsPage" in sources.js
 
     def test_css_contains_styles(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert "#ffb81c" in sources.css
 
     def test_inner_html_contains_doctype(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert "<!DOCTYPE" in sources.inner_html or "root" in sources.inner_html
 
     def test_html_hash_is_deterministic(self, bundled_html_file):
-        a = asyncio.run(load(bundled_html_file))
-        b = asyncio.run(load(bundled_html_file))
+        a = decompose(PrototypeDocument.read(bundled_html_file))
+        b = decompose(PrototypeDocument.read(bundled_html_file))
         assert a.html_hash == b.html_hash
 
     def test_raw_sources_fields_are_strings(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert isinstance(sources.js, str)
         assert isinstance(sources.css, str)
         assert isinstance(sources.inner_html, str)
 
     def test_skipped_entries_is_zero_when_bundle_is_clean(self, bundled_html_file):
-        sources = asyncio.run(load(bundled_html_file))
+        sources = decompose(PrototypeDocument.read(bundled_html_file))
         assert sources.skipped_entries == 0
 
 
@@ -352,12 +352,12 @@ class TestLoadBundledReactFormatWithCorruptEntry:
         return html_path
 
     def test_skipped_entries_counted(self, corrupt_bundle_file):
-        sources = asyncio.run(load(corrupt_bundle_file))
+        sources = decompose(PrototypeDocument.read(corrupt_bundle_file))
         assert sources.skipped_entries == 1
         assert "BtnPrimary" in sources.js  # the good entry still made it through
 
     def test_logs_a_warning_visible_at_default_cli_log_level(self, corrupt_bundle_file, caplog):
         with caplog.at_level(logging.WARNING, logger="design_graph"):
-            asyncio.run(load(corrupt_bundle_file))
+            decompose(PrototypeDocument.read(corrupt_bundle_file))
 
         assert any(record.levelno >= logging.WARNING for record in caplog.records)
