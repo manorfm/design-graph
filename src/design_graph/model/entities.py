@@ -18,6 +18,9 @@ from enum import Enum, IntEnum
 # back into full markup by resolve_icon_markers.
 RE_ICON_MARKER = re.compile(r'\{\[icon:(icon_[0-9a-f]{8})\]\}')
 
+# A custom-property reference inside a CSS value: `var(--accent)`, `var( --rule , #000)`.
+RE_CUSTOM_PROPERTY_REFERENCE = re.compile(r"var\(\s*(--[\w-]+)")
+
 # A raw string candidate that reads as a code artifact rather than visible
 # copy: a lowercase/underscore identifier (`flex_start`, `overview`) or a
 # color literal (`#1a1a1a`, `rgba(0,0,0,.5)` — the latter caught by its
@@ -159,13 +162,21 @@ class PropDefault(str):
 
 @dataclass(frozen=True)
 class DesignToken:
-    """A reusable visual value extracted from CSS/JS (color, spacing, etc.)."""
+    """
+    A reusable visual value extracted from CSS/JS (color, spacing, etc.).
+
+    A custom-property token (category CSS_VAR) is named by the property
+    itself (`--accent`), so a style value that references it —
+    `var(--accent)` — resolves to it. A token defined once per mode (light,
+    dark…) is one DesignToken per mode, sharing the label.
+    """
 
     id: EntityId
     category: TokenCategory
-    label: str     # semantic name, e.g. "primary", "space_16", "text_base", "weight_bold"
+    label: str     # semantic name, e.g. "primary", "space_16", "--accent"
     value: str     # raw value, e.g. "#ffb81c", "16px", "700"
     usage: int     # occurrence count across css+js
+    mode: str = ""  # the mode this value belongs to ("claro", "dark"…); "" when the prototype has one
 
 
 @dataclass(frozen=True)

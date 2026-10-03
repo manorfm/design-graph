@@ -762,20 +762,20 @@ class GraphReader:
                 "MATCH (s:Screen {name:$screen})-[:USES_COMPONENT]->(top:Component)"
                 "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token) "
                 f"WHERE true {where}"
-                "RETURN DISTINCT t.category, t.label, t.value, t.usage "
+                "RETURN DISTINCT t.category, t.label, t.value, t.usage, t.mode "
                 "ORDER BY t.category, t.usage DESC",
                 params,
             )
         if category:
             return self._q(
                 "MATCH (t:Token {category:$cat}) "
-                "RETURN t.category, t.label, t.value, t.usage "
+                "RETURN t.category, t.label, t.value, t.usage, t.mode "
                 "ORDER BY t.usage DESC",
                 {"cat": category},
             )
         return self._q(
             "MATCH (t:Token) "
-            "RETURN t.category, t.label, t.value, t.usage "
+            "RETURN t.category, t.label, t.value, t.usage, t.mode "
             "ORDER BY t.category, t.usage DESC"
         )
 

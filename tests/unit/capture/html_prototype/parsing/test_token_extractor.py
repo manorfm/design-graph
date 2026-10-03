@@ -442,25 +442,24 @@ class TestExtractCssVars:
     def test_finds_primary_color_var(self):
         tokens = extract_tokens(_sources(css=REPEATED_CSS_VARS_CSS))
         labels = {t.label for t in tokens if t.category == "css_var"}
-        assert "primary_color" in labels
+        assert "--primary-color" in labels
 
     def test_finds_background_var(self):
         tokens = extract_tokens(_sources(css=REPEATED_CSS_VARS_CSS))
         labels = {t.label for t in tokens if t.category == "css_var"}
-        assert "background_dark" in labels
+        assert "--background-dark" in labels
 
     def test_var_value_preserved(self):
         tokens = extract_tokens(_sources(css=REPEATED_CSS_VARS_CSS))
-        t = next((t for t in tokens if t.label == "primary_color"), None)
+        t = next((t for t in tokens if t.label == "--primary-color"), None)
         assert t is not None
         assert "#ffb81c" in t.value
 
-    def test_label_is_var_name_without_dashes(self):
+    def test_label_is_the_custom_property_name(self):
         tokens = extract_tokens(_sources(css=REPEATED_CSS_VARS_CSS))
         for t in tokens:
             if t.category == "css_var":
-                assert "--" not in t.label
-                assert "-" not in t.label
+                assert t.label.startswith("--")
 
     def test_css_vars_from_js_detected(self):
         js = "--brand-color: #ab1234; --brand-color: #ab1234;"

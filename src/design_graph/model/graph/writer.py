@@ -30,8 +30,10 @@ from design_graph.model.entities import (
     ExtractedScreen,
     ExtractedSection,
     IconAsset,
+    RE_CUSTOM_PROPERTY_REFERENCE,
     StyleEntry,
     TextEntry,
+    TokenCategory,
 )
 from design_graph.model.graph.schema import initialize_schema, STATS_QUERIES
 
@@ -183,6 +185,8 @@ class GraphWriter:
         self._inserted_token_ids:  set[str] = set()
         # Lowercased value → tokens written so far: how a literal style value finds its token.
         self._tokens_by_value:     dict[str, list[DesignToken]] = {}
+        # Custom property name (`--accent`) → its tokens, one per mode.
+        self._tokens_by_custom_property: dict[str, list[DesignToken]] = {}
         self._inserted_icon_ids:   set[str] = set()
         self._inserted_style_ids:  set[str] = set()
         self._inserted_inter_ids:  set[str] = set()
@@ -209,9 +213,9 @@ class GraphWriter:
             if token.id in self._inserted_token_ids:
                 continue
             ok = self._safe_execute(
-                "CREATE (:Token {id:$id, category:$cat, label:$lbl, value:$val, usage:$use})",
+                "CREATE (:Token {id:$id, category:$cat, label:$lbl, value:$val, usage:$use, mode:$mode})",
                 {"id": token.id, "cat": token.category, "lbl": token.label,
-                 "val": token.value, "use": token.usage},
+                 "val": token.value, "use": token.usage, "mode": token.mode},
             )
             if ok:
                 self._inserted_token_ids.add(token.id)
@@ -221,6 +225,8 @@ class GraphWriter:
             else:
                 continue
             self._tokens_by_value.setdefault(token.value.lower(), []).append(token)
+            if token.category == TokenCategory.CSS_VAR:
+                self._tokens_by_custom_property.setdefault(token.label, []).append(token)
         logger.debug("writer: wrote %d tokens", inserted)
         return inserted
 
@@ -338,7 +344,7 @@ class GraphWriter:
                 {"cn": comp.name, "sid": style.id},
             )
             # Component-level token link (USES_TOKEN) + style-level link (STYLE_USES_TOKEN)
-            for token in self._tokens_by_value.get(style.value.lower(), []):
+            for token in self._tokens_by_value.get(style.value.lower(), []) + self._referenced_tokens(style.value):
                 rel_key = f"{comp.name}_{token.id}"
                 if rel_key not in self._token_rel_keys:
                     self._token_rel_keys.add(rel_key)
@@ -683,10 +689,22 @@ class GraphWriter:
 
     def _link_style_to_token(self, style: StyleEntry) -> None:
         """
-        Create a STYLE_USES_TOKEN edge (Style → Token) when the style value matches
-        a token value. Exact case-insensitive match takes priority over substring.
-        At most one edge is created per Style node (first match wins).
+        Create STYLE_USES_TOKEN edges (Style → Token). A value that references
+        custom properties (`var(--accent)`) uses each referenced token in
+        every mode it was defined in. Otherwise the value is matched against
+        token values — exact case-insensitive match first, then substring —
+        and at most one edge is created (first match wins).
         """
+        referenced = self._referenced_tokens(style.value)
+        if referenced:
+            for token in referenced:
+                self._safe_execute(
+                    "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
+                    "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
+                    {"sid": style.id, "tid": token.id},
+                )
+            return
+
         normalized = style.value.strip().lower()
 
         # Fast path: exact match via the value index (already lowercased)
@@ -708,6 +726,14 @@ class GraphWriter:
                     {"sid": style.id, "tid": tokens[0].id},
                 )
                 return
+
+    def _referenced_tokens(self, value: str) -> list[DesignToken]:
+        """Tokens of every custom property `value` references, in every mode."""
+        return [
+            token
+            for name in dict.fromkeys(RE_CUSTOM_PROPERTY_REFERENCE.findall(value))
+            for token in self._tokens_by_custom_property.get(name, [])
+        ]
 
     _MAX_TRACKED_WRITE_ERRORS = 50
 

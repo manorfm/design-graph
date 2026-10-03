@@ -374,16 +374,10 @@ def _extract_radii(combined: str) -> list[DesignToken]:
 
 # ── CSS custom-property extraction ────────────────────────────────────────────
 
-def _css_var_label(var_name: str) -> str:
-    """Convert a CSS variable name to a snake_case label without leading dashes."""
-    # "--primary-color" → "primary_color"
-    return var_name.lstrip("-").replace("-", "_")
-
-
 def _extract_css_vars(combined: str) -> list[DesignToken]:
     """
     Extract CSS custom properties (--name: value) as design tokens.
-    Label = variable name in snake_case; value = the declared value (trimmed).
+    Label = the custom property name itself (`--primary-color`); value = the declared value (trimmed).
     One occurrence is enough — variables are typically defined once.
     """
     # Each match is a full "--name: value" string
@@ -408,7 +402,7 @@ def _extract_css_vars(combined: str) -> list[DesignToken]:
         tokens.append(DesignToken(
             id=tid,
             category=TokenCategory.CSS_VAR,
-            label=_css_var_label(var_name),
+            label=var_name,
             value=value,
             usage=count,
         ))

@@ -1105,3 +1105,64 @@ class TestSourceFactsRoundTrip:
 
     def test_unknown_name_has_no_source(self, graph):
         assert graph.reader.get_full_source("Nothing") is None
+
+
+class TestTokenModesAndCustomProperties:
+    """
+    A token can hold one value per mode (light/dark…), and a style that
+    references a custom property — `var(--accent)` — uses that token in every
+    mode, wherever the reference sits inside the value.
+    """
+
+    @pytest.fixture()
+    def graph(self, tmp_path):
+        db = kuzu.Database(str(tmp_path / "modes.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn), conn=conn)
+
+    @staticmethod
+    def _accent(mode: str, value: str) -> DesignToken:
+        return DesignToken(id=f"cv_accent_{mode}", category="css_var", label="--accent",
+                           value=value, usage=1, mode=mode)
+
+    @staticmethod
+    def _styled(name: str, value: str) -> ExtractedComponent:
+        return ExtractedComponent(
+            name=name, comp_type="component", source_code="<div/>", occurrence=1, classes="",
+            styles=[StyleEntry.create(name, "color", value)],
+        )
+
+    def _linked_labels(self, graph, name: str) -> list[tuple[str, str]]:
+        rows = graph.conn.execute(
+            "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
+            "RETURN t.label, t.mode ORDER BY t.mode", {"n": name},
+        )
+        out = []
+        while rows.has_next():
+            out.append(tuple(rows.get_next()))
+        return out
+
+    def test_token_mode_survives_write_and_read(self, graph):
+        graph.writer.write_tokens([self._accent("escuro", "#5FB0B0")])
+        assert graph.reader.get_tokens()[0]["t.mode"] == "escuro"
+
+    def test_token_without_mode_reads_as_empty(self):
+        assert DesignToken(id="c1", category="color", label="x", value="#fff", usage=1).mode == ""
+
+    def test_custom_property_reference_uses_the_token_in_every_mode(self, graph):
+        graph.writer.write_tokens([self._accent("claro", "#0D5C63"), self._accent("escuro", "#5FB0B0")])
+        graph.writer.write_component(self._styled("Cta", "var(--accent)"))
+        assert self._linked_labels(graph, "Cta") == [("--accent", "claro"), ("--accent", "escuro")]
+        used = graph.conn.execute("MATCH (:Component {name:'Cta'})-[:USES_TOKEN]->(t) RETURN count(t)")
+        assert used.get_next()[0] == 2
+
+    def test_reference_inside_a_compound_value_is_found(self, graph):
+        graph.writer.write_tokens([self._accent("claro", "#0D5C63")])
+        graph.writer.write_component(self._styled("Box", "1px solid var( --accent , #000)"))
+        assert self._linked_labels(graph, "Box") == [("--accent", "claro")]
+
+    def test_reference_to_an_unknown_property_links_nothing(self, graph):
+        graph.writer.write_tokens([self._accent("claro", "#0D5C63")])
+        graph.writer.write_component(self._styled("Ghost", "var(--missing)"))
+        assert self._linked_labels(graph, "Ghost") == []

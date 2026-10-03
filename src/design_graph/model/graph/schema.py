@@ -78,6 +78,7 @@ _NODE_TABLES: list[str] = [
         "  label STRING,"
         "  value STRING,"
         "  usage INT64,"
+        "  mode STRING,"
         "  PRIMARY KEY(id)"
         ")"
     ),
