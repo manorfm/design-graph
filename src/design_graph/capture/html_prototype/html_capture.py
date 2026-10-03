@@ -13,7 +13,7 @@ import asyncio
 import logging
 import re
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from bs4 import BeautifulSoup
 
@@ -22,7 +22,9 @@ from design_graph.model.entities import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    IconAsset,
     index_tokens_by_value,
+    resolve_icon_markers,
 )
 from design_graph.capture.html_prototype.sources import FunctionBoundary, RawSources
 from design_graph.capture.html_prototype.patterns import RE_COMP_FN
@@ -31,6 +33,7 @@ from design_graph.capture.html_prototype.extraction.component_extractor import e
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.capture.html_prototype.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.capture.html_prototype.extraction.screen_extractor import extract_screens, is_screen
+from design_graph.capture.html_prototype.extraction.jsx_sanitizer import was_simplified
 from design_graph.capture.html_prototype.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.capture.html_prototype.parsing.css_class_resolver import (
     extract_css_rules,
@@ -148,7 +151,7 @@ async def extract_react(
             aliases, extracted_comps, screens, sections_map,
         )
 
-    return CaptureResult(
+    return _described(CaptureResult(
         capture=CAPTURE_NAME,
         components=extracted_comps,
         screens=screens,
@@ -156,7 +159,7 @@ async def extract_react(
         tokens=tokens,
         module_texts=module_texts,
         skipped_entries=sources.skipped_entries,
-    )
+    ), _JSX)
 
 
 def _split_screens_from_components(
@@ -234,14 +237,57 @@ async def extract_plain_html(sources: RawSources) -> CaptureResult:
         "html_prototype: %d DOM patterns → %d components, %d semantic sections",
         len(patterns), len(extracted_comps), len(sections),
     )
-    return CaptureResult(
+    return _described(CaptureResult(
         capture=CAPTURE_NAME,
         components=extracted_comps,
         screens=[screen],
         sections={screen_name: sections},
         tokens=tokens,
         skipped_entries=sources.skipped_entries,
-    )
+    ), _HTML)
+
+
+@dataclass(frozen=True)
+class _SourceLanguage:
+    """How this capture's stored sources are written, and how to read facts off them."""
+
+    name: str
+    inline_style_attribute: str  # what declares inline styling in this language
+    simplifies: bool             # whether the stored source went through sanitize_jsx
+
+
+_JSX  = _SourceLanguage(name="jsx", inline_style_attribute="style={", simplifies=True)
+_HTML = _SourceLanguage(name="html", inline_style_attribute='style="', simplifies=False)
+
+
+def _described(result: CaptureResult, language: _SourceLanguage) -> CaptureResult:
+    """State, on every captured source, its language and what storing it changed."""
+    def simplified(source: str) -> bool:
+        return language.simplifies and was_simplified(source)
+
+    result.components = [
+        replace(
+            comp,
+            source_lang=language.name,
+            source_simplified=simplified(comp.source_code),
+            declares_inline_styles=language.inline_style_attribute in _with_icons(comp.source_code, comp.icons),
+        )
+        for comp in result.components
+    ]
+    result.screens = [
+        replace(screen, source_lang=language.name, source_simplified=simplified(screen.source_code))
+        for screen in result.screens
+    ]
+    result.sections = {
+        screen_name: [replace(section, source_lang=language.name) for section in sections]
+        for screen_name, sections in result.sections.items()
+    }
+    return result
+
+
+def _with_icons(source: str, icons: list[IconAsset]) -> str:
+    """The source as rendered: icon markers expanded back into their markup."""
+    return resolve_icon_markers(source, {icon.id: icon.markup for icon in icons})
 
 
 def _document_screen_name(soup: BeautifulSoup) -> str:

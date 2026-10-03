@@ -941,7 +941,7 @@ class TestGetImpact:
 
 # ── JSX snippet size cap ───────────────────────────────────────────────────────
 
-class TestJsxSnippetSizeCap:
+class TestSourceCodeSizeCap:
     """
     GraphWriter must cap source_code before persisting so that oversized JSX
     cannot cause performance issues or exceed Kuzu string limits.
@@ -1015,19 +1015,19 @@ class TestJsxSnippetSizeCap:
             source_code=self._oversized_jsx(),
         )
         fresh_writer.writer.declare_screens([screen])
-        stored = fresh_writer.reader.get_full_jsx("BigScreen")
+        stored = fresh_writer.reader.get_full_source("BigScreen")["source_code"]
         assert stored.startswith("<div>"), "screen fallback did not return the stored source_code at all"
         assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
             f"Stored screen source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
         )
 
 
-class TestGetFullJsxFallsBackToScreen:
+class TestGetFullSourceFallsBackToScreen:
     """
-    get_full_jsx('ItemEditorV6') failed outright before this: a full-page
+    get_full_source('ItemEditorV6') failed outright before this: a full-page
     overlay shell is classified as a Screen and (deliberately) never also
     extracted as a Component, so a Component-only lookup always came up
-    empty for it. get_full_jsx must resolve a Screen's own source_code
+    empty for it. get_full_source must resolve a Screen's own source_code
     when no Component of that name exists — not report the screen's shell
     JSX as "unavailable" when it was captured, just filed differently.
     """
@@ -1045,7 +1045,7 @@ class TestGetFullJsxFallsBackToScreen:
             source_code="<div className='shell'>{tab === 'basic' && <BasicTab />}</div>",
         )
         fresh_writer.writer.declare_screens([screen])
-        result = fresh_writer.reader.get_full_jsx("ItemEditorV6")
+        result = fresh_writer.reader.get_full_source("ItemEditorV6")["source_code"]
         assert "shell" in result
         assert "BasicTab" in result
 
@@ -1063,8 +1063,50 @@ class TestGetFullJsxFallsBackToScreen:
             source_code="<div>should not surface</div>",
         )
         fresh_writer.writer.declare_screens([screen])
-        result = fresh_writer.reader.get_full_jsx("PricingPageV6")
+        result = fresh_writer.reader.get_full_source("PricingPageV6")["source_code"]
         assert result == "<div>component version</div>"
 
     def test_unknown_name_still_returns_empty(self, fresh_writer):
-        assert fresh_writer.reader.get_full_jsx("NoSuchThing") == ""
+        assert fresh_writer.reader.get_full_source("NoSuchThing") is None
+
+
+class TestSourceFactsRoundTrip:
+    """A stored source keeps the language and simplification facts its capture stated."""
+
+    @pytest.fixture()
+    def graph(self, tmp_path):
+        db = kuzu.Database(str(tmp_path / "facts.db"))
+        conn = kuzu.Connection(db)
+        initialize_schema(conn)
+        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+
+    def test_component_source_facts_survive_write_and_read(self, graph):
+        comp = ExtractedComponent(
+            name="CartList", comp_type="component", source_code="<ul>{[list:Item]}</ul>",
+            occurrence=1, classes="", source_lang="jsx", source_simplified=True,
+            declares_inline_styles=True,
+        )
+        graph.writer.write_component(comp, {})
+        full = graph.reader.get_full_source("CartList")
+        assert full == {"source_code": "<ul>{[list:Item]}</ul>", "source_lang": "jsx", "source_simplified": True}
+        assert graph.reader.get_component("CartList")["c.declares_inline_styles"] is True
+
+    def test_screen_source_facts_survive_write_and_read(self, graph):
+        screen = ExtractedScreen(
+            name="Welcome", source_code="<main>{{t}}</main>", source_lang="html-template",
+        )
+        graph.writer.declare_screens([screen])
+        full = graph.reader.get_full_source("Welcome")
+        assert full["source_lang"] == "html-template"
+        assert full["source_simplified"] is False
+
+    def test_section_keeps_its_source_language(self, graph):
+        section = ExtractedSection.create(
+            screen="Welcome", name="Header", styles={}, component_refs=[], texts=[],
+            source_code="<header>x</header>", detection_method="semantic", source_lang="html",
+        )
+        graph.writer.write_screen(ExtractedScreen(name="Welcome"), [section], {})
+        assert graph.reader.get_section("Welcome", "Header")["source_lang"] == "html"
+
+    def test_unknown_name_has_no_source(self, graph):
+        assert graph.reader.get_full_source("Nothing") is None

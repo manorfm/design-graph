@@ -272,11 +272,23 @@ class GraphWriter:
         for screen in screens:
             if screen.name in self._declared_screen_names:
                 continue
-            self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:0, sections_count:$sc, source_code:$s})",
-                {"n": screen.name, "sc": screen.sections_count, "s": _capped_source_code(screen.name, screen.source_code)},
-            )
+            self._create_screen(screen, component_count=0, sections_count=screen.sections_count)
             self._declared_screen_names.add(screen.name)
+
+    def _create_screen(self, screen: ExtractedScreen, *, component_count: int, sections_count: int) -> None:
+        self._safe_execute(
+            "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, "
+            "source_code:$s, source_lang:$sl, source_simplified:$ss})",
+            {"n": screen.name, "cc": component_count, "sc": sections_count, **self._screen_source(screen)},
+        )
+
+    @staticmethod
+    def _screen_source(screen: ExtractedScreen) -> dict:
+        return {
+            "s": _capped_source_code(screen.name, screen.source_code),
+            "sl": screen.source_lang,
+            "ss": screen.source_simplified,
+        }
 
     def write_component(
         self,
@@ -292,22 +304,27 @@ class GraphWriter:
             return
 
         component_exists = self._node_exists("Component", "name", comp.name)
-        jsx = _capped_source_code(comp.name, comp.source_code)
+        source = _capped_source_code(comp.name, comp.source_code)
         truncated = ",".join(sorted(comp.truncated_fields))
         referenced_data_json = json.dumps(comp.referenced_data) if comp.referenced_data else ""
+        properties = {
+            "n": comp.name, "t": comp.comp_type, "s": source, "o": comp.occurrence, "c": comp.classes,
+            "tf": truncated, "rd": referenced_data_json, "sl": comp.source_lang,
+            "ss": comp.source_simplified, "dis": comp.declares_inline_styles,
+        }
         if not component_exists:
             self._safe_execute(
                 "CREATE (:Component {name:$n, comp_type:$t, source_code:$s, occurrence:$o, "
-                "classes:$c, truncated_fields:$tf, referenced_data_json:$rd})",
-                {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
+                "classes:$c, truncated_fields:$tf, referenced_data_json:$rd, source_lang:$sl, "
+                "source_simplified:$ss, declares_inline_styles:$dis})",
+                properties,
             )
         else:
             self._safe_execute(
                 "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.source_code=$s, "
-                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf, c.referenced_data_json=$rd",
-                {"n": comp.name, "t": comp.comp_type, "s": jsx,
-                 "o": comp.occurrence, "c": comp.classes, "tf": truncated, "rd": referenced_data_json},
+                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf, c.referenced_data_json=$rd, "
+                "c.source_lang=$sl, c.source_simplified=$ss, c.declares_inline_styles=$dis",
+                properties,
             )
         self._known_comp_names.add(comp.name)
         self._resolved_comp_names.add(comp.name)
@@ -455,18 +472,16 @@ class GraphWriter:
         component_refs = [
             name for name in screen.component_refs if name not in self._declared_screen_names
         ]
-        jsx = _capped_source_code(screen.name, screen.source_code)
         if screen.name in self._declared_screen_names:
             self._safe_execute(
                 "MATCH (s:Screen {name:$n}) "
-                "SET s.component_count=$cc, s.sections_count=$sc, s.source_code=$s",
-                {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
+                "SET s.component_count=$cc, s.sections_count=$sc, s.source_code=$s, "
+                "s.source_lang=$sl, s.source_simplified=$ss",
+                {"n": screen.name, "cc": len(component_refs), "sc": len(sections),
+                 **self._screen_source(screen)},
             )
         else:
-            self._safe_execute(
-                "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, source_code:$s})",
-                {"n": screen.name, "cc": len(component_refs), "sc": len(sections), "s": jsx},
-            )
+            self._create_screen(screen, component_count=len(component_refs), sections_count=len(sections))
 
         for comp_name in screen.component_refs:
             if comp_name in self._declared_screen_names:
@@ -485,17 +500,18 @@ class GraphWriter:
             )
 
         for section in sections:
-            sec_jsx = _capped_source_code(f"section {section.id}", section.source_code)
+            sec_source = _capped_source_code(f"section {section.id}", section.source_code)
             self._safe_execute(
                 "CREATE (:Section {id:$id, screen:$sc, name:$nm, "
                 "styles_json:$sj, components_json:$cj, texts_json:$tj, "
-                "source_code:$jsx, detection_method:$dm})",
+                "source_code:$src, source_lang:$sl, detection_method:$dm})",
                 {
                     "id": section.id, "sc": section.screen, "nm": section.name,
                     "sj": json.dumps(section.styles),
                     "cj": json.dumps(section.component_refs),
                     "tj": json.dumps(section.texts),
-                    "jsx": sec_jsx,
+                    "src": sec_source,
+                    "sl": section.source_lang,
                     "dm": section.detection_method,
                 },
             )
@@ -643,7 +659,8 @@ class GraphWriter:
             self._known_comp_names.add(name)
             return
         ok = self._safe_execute(
-            "CREATE (:Component {name:$n, comp_type:$t, source_code:'', "
+            "CREATE (:Component {name:$n, comp_type:$t, source_code:'', source_lang:'', "
+            "source_simplified:false, declares_inline_styles:false, "
             "occurrence:$o, classes:'', truncated_fields:'', referenced_data_json:''})",
             {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
         )

@@ -25,7 +25,14 @@ instead of trusting a regex tail.
 
 from __future__ import annotations
 
-from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
+import pytest
+
+from design_graph.capture.html_prototype.extraction.jsx_sanitizer import (
+    JsxMarker,
+    JsxMarkerKind,
+    sanitize_jsx,
+    was_simplified,
+)
 
 
 class TestConditionalWithNestedBraceProp:
@@ -291,3 +298,66 @@ class TestExistingBehaviourUnchanged:
 
     def test_empty_input_returns_empty(self):
         assert sanitize_jsx("") == ""
+
+
+# ── JsxMarker ──────────────────────────────────────────────────────────────────
+
+class TestJsxMarker:
+    def test_list_marker_renders_single_name(self):
+        marker = JsxMarker(JsxMarkerKind.LIST, ("CartItem",))
+        assert str(marker) == "{[list:CartItem]}"
+
+    def test_conditional_marker_renders_single_name(self):
+        marker = JsxMarker(JsxMarkerKind.CONDITIONAL, ("Badge",))
+        assert str(marker) == "{[conditional:Badge]}"
+
+    def test_either_marker_renders_both_names_in_order(self):
+        marker = JsxMarker(JsxMarkerKind.EITHER, ("SuccessCard", "ErrorBanner"))
+        assert str(marker) == "{[either:SuccessCard|ErrorBanner]}"
+
+    def test_conditional_rejects_two_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.CONDITIONAL, ("A", "B"))
+
+    def test_list_rejects_zero_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.LIST, ())
+
+    def test_either_rejects_single_name(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.EITHER, ("A",))
+
+    def test_either_rejects_three_names(self):
+        with pytest.raises(ValueError):
+            JsxMarker(JsxMarkerKind.EITHER, ("A", "B", "C"))
+
+
+# ── was_simplified ────────────────────────────────────────────────────────────
+
+class TestWasSimplified:
+    def test_plain_jsx_is_not_simplified(self):
+        assert was_simplified("<button style={{color: '#fff'}}>Click</button>") is False
+
+    def test_empty_snippet_is_not_simplified(self):
+        assert was_simplified("") is False
+
+    def test_list_marker_marks_the_source_simplified(self):
+        assert was_simplified("<div>{[list:CartItem]}</div>") is True
+
+    def test_conditional_marker_marks_the_source_simplified(self):
+        assert was_simplified("<div>{[conditional:Badge]}</div>") is True
+
+    def test_either_marker_marks_the_source_simplified(self):
+        assert was_simplified("<div>{[either:A|B]}</div>") is True
+
+    def test_handler_marker_marks_the_source_simplified(self):
+        assert was_simplified("<input onChange={[handler]} />") is True
+
+    def test_arrow_fn_marker_marks_the_source_simplified(self):
+        assert was_simplified("{items.map.[fn]}") is True
+
+    def test_collapsed_style_block_marks_the_source_simplified(self):
+        assert was_simplified("style={{ color: red, ... }}") is True
+
+    def test_bare_expression_marker_marks_the_source_simplified(self):
+        assert was_simplified("<div>{...}</div>") is True

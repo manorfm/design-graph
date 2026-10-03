@@ -14,9 +14,6 @@ from design_graph.model.entities import (
     IconAsset,
     InteractionEntry,
     InteractionTrigger,
-    JsxMarker,
-    JsxMarkerKind,
-    JsxSnippet,
     PropDefault,
     StyleEntry,
     StyleState,
@@ -184,75 +181,6 @@ class TestPropDefault:
 
     def test_table_cell_is_backticked_value_when_declared(self):
         assert PropDefault("secondary").as_table_cell() == "`secondary`"
-
-
-# ── JsxMarker ──────────────────────────────────────────────────────────────────
-
-class TestJsxMarker:
-    def test_list_marker_renders_single_name(self):
-        marker = JsxMarker(JsxMarkerKind.LIST, ("CartItem",))
-        assert str(marker) == "{[list:CartItem]}"
-
-    def test_conditional_marker_renders_single_name(self):
-        marker = JsxMarker(JsxMarkerKind.CONDITIONAL, ("Badge",))
-        assert str(marker) == "{[conditional:Badge]}"
-
-    def test_either_marker_renders_both_names_in_order(self):
-        marker = JsxMarker(JsxMarkerKind.EITHER, ("SuccessCard", "ErrorBanner"))
-        assert str(marker) == "{[either:SuccessCard|ErrorBanner]}"
-
-    def test_conditional_rejects_two_names(self):
-        with pytest.raises(ValueError):
-            JsxMarker(JsxMarkerKind.CONDITIONAL, ("A", "B"))
-
-    def test_list_rejects_zero_names(self):
-        with pytest.raises(ValueError):
-            JsxMarker(JsxMarkerKind.LIST, ())
-
-    def test_either_rejects_single_name(self):
-        with pytest.raises(ValueError):
-            JsxMarker(JsxMarkerKind.EITHER, ("A",))
-
-    def test_either_rejects_three_names(self):
-        with pytest.raises(ValueError):
-            JsxMarker(JsxMarkerKind.EITHER, ("A", "B", "C"))
-
-
-# ── JsxSnippet ────────────────────────────────────────────────────────────────
-
-class TestJsxSnippet:
-    def test_plain_jsx_is_not_flagged_as_sanitized(self):
-        snippet = JsxSnippet("<button style={{color: '#fff'}}>Click</button>")
-        assert snippet.was_sanitized is False
-
-    def test_empty_snippet_is_not_flagged_as_sanitized(self):
-        assert JsxSnippet("").was_sanitized is False
-
-    def test_list_marker_flags_as_sanitized(self):
-        assert JsxSnippet("<div>{[list:CartItem]}</div>").was_sanitized is True
-
-    def test_conditional_marker_flags_as_sanitized(self):
-        assert JsxSnippet("<div>{[conditional:Badge]}</div>").was_sanitized is True
-
-    def test_either_marker_flags_as_sanitized(self):
-        assert JsxSnippet("<div>{[either:A|B]}</div>").was_sanitized is True
-
-    def test_handler_marker_flags_as_sanitized(self):
-        assert JsxSnippet("<input onChange={[handler]} />").was_sanitized is True
-
-    def test_arrow_fn_marker_flags_as_sanitized(self):
-        assert JsxSnippet("{items.map.[fn]}").was_sanitized is True
-
-    def test_collapsed_style_block_flags_as_sanitized(self):
-        assert JsxSnippet("style={{ color: red, ... }}").was_sanitized is True
-
-    def test_bare_expression_marker_flags_as_sanitized(self):
-        assert JsxSnippet("<div>{...}</div>").was_sanitized is True
-
-    def test_still_behaves_as_a_plain_string(self):
-        snippet = JsxSnippet("<div />")
-        assert snippet == "<div />"
-        assert "div" in snippet
 
 
 # ── Rich entity factories ─────────────────────────────────────────────────────

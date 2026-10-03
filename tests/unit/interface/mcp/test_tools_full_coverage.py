@@ -114,12 +114,17 @@ class RichMockReader:
             }]
         return []
 
-    def get_full_jsx(self, name):
+    def get_full_source(self, name):
         if name == "BtnPrimary":
-            return "<button style={{color:'#ffb81c'}}>Click</button>"
+            return {"source_code": "<button style={{color:'#ffb81c'}}>Click</button>",
+                    "source_lang": "jsx", "source_simplified": False}
         if name == "BasicTab":
-            return "<div>{[conditional:Chip]}</div>"
-        return ""
+            return {"source_code": "<div>{[conditional:Chip]}</div>",
+                    "source_lang": "jsx", "source_simplified": True}
+        if name == "Welcome":
+            return {"source_code": "<main>{{t}}</main>",
+                    "source_lang": "html", "source_simplified": False}
+        return None
 
     def get_impact(self, name):
         if name == "BtnPrimary":
@@ -336,6 +341,11 @@ class TestGetFullJsxTool:
         assert "sanitizado" in result.lower()
         assert "{[conditional:Chip]}" in result
 
+    def test_code_fence_uses_the_stored_source_language(self):
+        d = self._d()
+        r, _ = d.pick_reader(doc="doc", active_doc="")
+        assert "```html\n<main>{{t}}</main>" in d.get_full_jsx(r, "Welcome")
+
 
 # ── get_component_interactions ────────────────────────────────────────────────
 
@@ -518,7 +528,7 @@ class _CappedExtractionReader:
             "sections": [],
             "components": [{
                 "name": "CappedComp", "comp_type": "card", "occurrence": 1,
-                "source_code": "", "classes": "", "truncated_fields": ["classes"],
+                "source_code": "", "declares_inline_styles": False, "classes": "", "truncated_fields": ["classes"],
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -694,7 +704,7 @@ class _JsxOverflowReader:
             }],
             "components": [{
                 "name": "BigComp", "comp_type": "card", "occurrence": 1,
-                "source_code": self._LONG_JSX, "classes": "",
+                "source_code": self._LONG_JSX, "declares_inline_styles": False, "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],

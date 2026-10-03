@@ -80,4 +80,4 @@ class TestIconStoredOnceAcrossComponents:
 
     def test_get_full_jsx_expands_marker(self, icon_reader):
         reader, _ = icon_reader
-        assert ICON_SVG in reader.get_full_jsx("IconButtonA")
+        assert ICON_SVG in reader.get_full_source("IconButtonA")["source_code"]

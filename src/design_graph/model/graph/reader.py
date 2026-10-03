@@ -24,6 +24,12 @@ from design_graph.model.entities import resolve_icon_markers, RE_ICON_MARKER
 
 logger = logging.getLogger(__name__)
 
+# Every Component property a component read returns, in one place.
+_COMPONENT_FIELDS = (
+    "c.name, c.comp_type, c.source_code, c.source_lang, c.source_simplified, "
+    "c.declares_inline_styles, c.occurrence, c.classes, c.truncated_fields, c.referenced_data_json"
+)
+
 # CSS properties that describe spatial structure rather than visual appearance.
 # Used by GraphReader.get_component_layout_profile() to filter Style nodes.
 LAYOUT_CSS_PROPERTIES: frozenset[str] = frozenset({
@@ -183,8 +189,7 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
-            "c.truncated_fields, c.referenced_data_json",
+            "RETURN " + _COMPONENT_FIELDS,
             {"n": resolved},
         )
         if not rows:
@@ -264,8 +269,7 @@ class GraphReader:
 
         rows = self._q(
             "MATCH (c:Component {name:$n}) "
-            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
-            "c.truncated_fields, c.referenced_data_json",
+            "RETURN " + _COMPONENT_FIELDS,
             {"n": resolved},
         )
         if not rows:
@@ -402,9 +406,7 @@ class GraphReader:
         comp_rows = self._q(
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn}) "
-            "RETURN c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
-            "c.truncated_fields, c.referenced_data_json "
-            "ORDER BY c.name",
+            "RETURN " + _COMPONENT_FIELDS + " ORDER BY c.name",
             {"names": names},
         )
         for row in comp_rows:
@@ -499,6 +501,8 @@ class GraphReader:
                 "name":              cname,
                 "comp_type":         comp["c.comp_type"],
                 "source_code":       comp["c.source_code"] or "",
+                "source_lang":       comp["c.source_lang"] or "",
+                "declares_inline_styles": bool(comp["c.declares_inline_styles"]),
                 "occurrence":        comp["c.occurrence"],
                 "classes":           comp["c.classes"] or "",
                 "truncated_fields":  (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
@@ -571,7 +575,7 @@ class GraphReader:
             "MATCH (s:Screen {name:$sn})-[:HAS_SECTION]->(sec:Section) "
             "WHERE toLower(sec.name) CONTAINS toLower($sec) "
             "RETURN sec.id, sec.name, sec.styles_json, sec.components_json, "
-            "       sec.texts_json, sec.source_code, sec.detection_method",
+            "       sec.texts_json, sec.source_code, sec.source_lang, sec.detection_method",
             {"sn": screen, "sec": section_hint},
         )
         if not rows:
@@ -607,6 +611,7 @@ class GraphReader:
             "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
             "texts":             texts,
             "source_code":       self._resolve_icons(sec["sec.source_code"] or ""),
+            "source_lang":       sec["sec.source_lang"] or "",
         }
 
     def get_section_texts(self, section_id: str) -> list[dict]:
@@ -862,29 +867,29 @@ class GraphReader:
 
     # ── Full JSX ──────────────────────────────────────────────────────────────
 
-    def get_full_jsx(self, name: str) -> str:
+    def get_full_source(self, name: str) -> dict | None:
         """
-        A Component's source_code, or — when no Component of that name
-        exists — the source_code of a Screen by that name. A full-page
-        overlay shell (ItemEditorV6) is classified as a Screen and
-        deliberately never also extracted as a Component (a screen
-        boundary is never double-counted as a component), so without this
-        fallback its own root JSX — the shell around its children — would
-        never be reachable through this call at all.
+        A Component's stored source, or — when no Component of that name
+        exists — the source of a Screen by that name, with the language and
+        simplification facts its capture stated. A full-page overlay shell
+        (ItemEditorV6) is classified as a Screen and deliberately never also
+        extracted as a Component, so without this fallback its own root
+        markup would never be reachable through this call at all.
         """
-        comp_rows = self._q(
-            "MATCH (c:Component {name:$n}) RETURN c.source_code, c.comp_type",
-            {"n": name},
-        )
-        if comp_rows and comp_rows[0].get("c.source_code"):
-            return self._resolve_icons(comp_rows[0]["c.source_code"])
-
-        screen_rows = self._q(
-            "MATCH (s:Screen {name:$n}) RETURN s.source_code", {"n": name},
-        )
-        if screen_rows and screen_rows[0].get("s.source_code"):
-            return self._resolve_icons(screen_rows[0]["s.source_code"])
-        return ""
+        for label in ("Component", "Screen"):
+            rows = self._q(
+                f"MATCH (n:{label} {{name:$n}}) "
+                "RETURN n.source_code, n.source_lang, n.source_simplified",
+                {"n": name},
+            )
+            if rows and rows[0].get("n.source_code"):
+                row = rows[0]
+                return {
+                    "source_code": self._resolve_icons(row["n.source_code"]),
+                    "source_lang": row["n.source_lang"] or "",
+                    "source_simplified": bool(row["n.source_simplified"]),
+                }
+        return None
 
     # ── Impact analysis ───────────────────────────────────────────────────────
 
@@ -1042,9 +1047,7 @@ class GraphReader:
         comp_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
             "-[:CONTAINS*0..3]->(c:Component) "
-            "RETURN DISTINCT c.name, c.comp_type, c.source_code, c.occurrence, c.classes, "
-            "c.truncated_fields, c.referenced_data_json "
-            "ORDER BY c.name",
+            "RETURN DISTINCT " + _COMPONENT_FIELDS + " ORDER BY c.name",
             {"n": resolved},
         )
         for row in comp_rows:
@@ -1519,6 +1522,8 @@ def _assemble_screen_full(
             "name":           cname,
             "comp_type":      comp["c.comp_type"],
             "source_code":    comp["c.source_code"] or "",
+            "source_lang":    comp["c.source_lang"] or "",
+            "declares_inline_styles": bool(comp["c.declares_inline_styles"]),
             "occurrence":     comp["c.occurrence"],
             "classes":        comp["c.classes"] or "",
             "truncated_fields": (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],

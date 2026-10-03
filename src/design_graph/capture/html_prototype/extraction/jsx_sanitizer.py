@@ -2,7 +2,7 @@
 JSX sanitization for AI-agent consumption.
 
 sanitize_jsx() strips JavaScript control flow out of a component's return
-block, replacing dynamic expressions with typed markers (model.entities.JsxMarker)
+block, replacing dynamic expressions with typed markers (JsxMarker)
 that name which component renders there without exposing the logic around it.
 
 Every collapse here locates the *true* end of a `{...}` JSX expression with
@@ -18,14 +18,9 @@ from __future__ import annotations
 import logging
 import re
 
-from design_graph.model.entities import (
-    JSX_ARROW_FN_MARKER,
-    JSX_BARE_EXPRESSION_MARKER,
-    JSX_HANDLER_MARKER,
-    JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
-    JsxMarker,
-    JsxMarkerKind,
-)
+from dataclasses import dataclass
+
+from design_graph.model.entities import StrEnum
 from design_graph.capture.html_prototype.patterns import (
     RE_JSX_CONDITIONAL_HEAD,
     RE_JSX_EITHER_ELSE_BRANCH,
@@ -41,6 +36,70 @@ from design_graph.capture.html_prototype.patterns import (
 from design_graph.capture.html_prototype.parsing.js_parser import find_matching_delimiter
 
 logger = logging.getLogger(__name__)
+
+
+class JsxMarkerKind(StrEnum):
+    """The three ways sanitize_jsx collapses a dynamic JSX expression."""
+
+    LIST = "list"
+    CONDITIONAL = "conditional"
+    EITHER = "either"
+
+
+@dataclass(frozen=True)
+class JsxMarker:
+    """
+    A typed placeholder standing in for one dynamic JSX expression — a
+    `.map()` render, a `&&` short-circuit, or a `? :` ternary — so an AI
+    agent can see which component renders there without the surrounding
+    JS logic.
+
+    LIST and CONDITIONAL name exactly one component; EITHER names two, in
+    source order (then-branch, else-branch — e.g. `error ? <A/> : <B/>`
+    becomes `("A", "B")`). The count is validated on construction so a
+    caller can never assemble a marker that doesn't match its own kind.
+    """
+
+    kind: JsxMarkerKind
+    component_names: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        expected = 2 if self.kind is JsxMarkerKind.EITHER else 1
+        if len(self.component_names) != expected:
+            raise ValueError(
+                f"{self.kind} marker takes {expected} component name(s), "
+                f"got {self.component_names!r}"
+            )
+
+    def __str__(self) -> str:
+        return f"{{[{self.kind}:{'|'.join(self.component_names)}]}}"
+
+
+# Literal markers sanitize_jsx (extraction/jsx_sanitizer.py) leaves behind
+# for a collapsed region that isn't a named-component reference — JsxMarker
+# above covers list/conditional/either, which always name one or two
+# components. Defined once here so a marker's written form and its
+# detection in was_simplified can never drift apart.
+JSX_HANDLER_MARKER               = "={[handler]}"
+JSX_ARROW_FN_MARKER              = ".[fn]"
+JSX_STYLE_BLOCK_COLLAPSE_SUFFIX  = ", ... }}"
+JSX_BARE_EXPRESSION_MARKER       = "{...}"
+
+_SIMPLIFICATION_MARKERS: tuple[str, ...] = (
+    JSX_HANDLER_MARKER,
+    JSX_ARROW_FN_MARKER,
+    JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
+    JSX_BARE_EXPRESSION_MARKER,
+    *(f"{{[{kind}:" for kind in JsxMarkerKind),
+)
+
+
+def was_simplified(jsx: str) -> bool:
+    """
+    True when sanitize_jsx left at least one collapse marker in this JSX —
+    the stored source is then a simplification, not the original text.
+    """
+    return any(marker in jsx for marker in _SIMPLIFICATION_MARKERS)
 
 _STYLE_BLOCK_COLLAPSE_THRESHOLD = 400
 _STYLE_BLOCK_PREVIEW_PROP_COUNT = 6

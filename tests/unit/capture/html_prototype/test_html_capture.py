@@ -193,3 +193,77 @@ class TestExtractReactComponentAliasResolution:
         section = next(s for s in sections if s.name == "Lista")
         assert "Badge" not in section.component_refs
         assert "Pill" in section.component_refs
+
+
+class TestSourceDescription:
+    """
+    The capture — not the interfaces — states what language each stored
+    source is written in, whether it simplified the original while storing
+    it, and whether the source declares inline styling.
+    """
+
+    _JS = """
+    function Badge({ label }) {
+      return <span style={{ color: '#ff0000' }}>{label}</span>;
+    }
+    function Plain() {
+      return <p>static text here</p>;
+    }
+    function CartList({ items }) {
+      return (<ul>{items.map(item => <Badge label={item.name} />)}</ul>);
+    }
+    function HomePage() {
+      return (
+        <div>
+          {/* ── Header ── */}
+          <div style={{ padding: '16px' }}><Badge label="x" /></div>
+        </div>
+      );
+    }
+    """
+
+    def _result(self):
+        from design_graph.capture.html_prototype.html_capture import extract_react
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
+
+        sources = RawSources(js=self._JS, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        return asyncio.run(extract_react(sources, concurrency=1))
+
+    def _component(self, name):
+        return next(c for c in self._result().components if c.name == name)
+
+    def test_react_sources_are_jsx(self):
+        result = self._result()
+        assert {c.source_lang for c in result.components} == {"jsx"}
+        assert {s.source_lang for s in result.screens} == {"jsx"}
+        assert {sec.source_lang for secs in result.sections.values() for sec in secs} == {"jsx"}
+
+    def test_collapsed_list_render_marks_source_simplified(self):
+        assert self._component("CartList").source_simplified is True
+
+    def test_untouched_source_is_not_simplified(self):
+        assert self._component("Plain").source_simplified is False
+
+    def test_inline_style_object_is_declared(self):
+        assert self._component("Badge").declares_inline_styles is True
+        assert self._component("Plain").declares_inline_styles is False
+
+    def test_plain_html_sources_are_html(self):
+        from design_graph.capture.base import PrototypeDocument
+        from design_graph.capture.registry import capture_for
+        from pathlib import Path
+
+        document = PrototypeDocument.read(Path(__file__).parents[3] / "fixtures" / "plain.html")
+        result = asyncio.run(capture_for(document).capture(document, concurrency=1))
+        assert {c.source_lang for c in result.components} == {"html"}
+        assert {sec.source_lang for secs in result.sections.values() for sec in secs} <= {"html"}
+
+    def test_inline_styling_inside_an_icon_counts_as_declared(self):
+        from design_graph.capture.html_prototype.html_capture import extract_react
+        from design_graph.capture.html_prototype.sources import RawSources, SourceFormat
+
+        js = "function Glyph() { return <svg style={{ width: size }}><path d='M0 0'/></svg>; }"
+        sources = RawSources(js=js, css="", inner_html="", html_hash="x", format=SourceFormat.BUNDLED_REACT)
+        glyph = next(c for c in asyncio.run(extract_react(sources, concurrency=1)).components if c.name == "Glyph")
+        assert "{[icon:" in glyph.source_code
+        assert glyph.declares_inline_styles is True

@@ -52,7 +52,7 @@ class _PropsReader:
             "sections": [],
             "components": [{
                 "name": "Btn", "comp_type": "button", "occurrence": 1,
-                "source_code": "", "classes": "",
+                "source_code": "", "declares_inline_styles": False, "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": self._PROPS, "children": [],
             }],

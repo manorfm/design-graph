@@ -55,7 +55,8 @@ class MockReader:
         return []
 
     def get_interactions(self, name): return []
-    def get_full_jsx(self, name): return "<div>full jsx</div>"
+    def get_full_source(self, name):
+        return {"source_code": "<div>full jsx</div>", "source_lang": "jsx", "source_simplified": False}
     def get_impact(self, name):
         return {"found": True, "type": "card", "screens": ["RestaurantsPage"],
                 "sections": [], "tokens_used": []}
@@ -176,14 +177,14 @@ class MockReader:
             "root": name,
             "components": [
                 {
-                    "name": name, "comp_type": "card", "source_code": "<div/>",
+                    "name": name, "comp_type": "card", "source_code": "<div/>", "declares_inline_styles": False,
                     "occurrence": 2, "classes": "", "truncated_fields": [],
                     "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
                     "tokens": [], "texts": root_texts, "interactions": [], "props": [],
                     "children": ["Badge"],
                 },
                 {
-                    "name": "Badge", "comp_type": "badge", "source_code": "<span/>",
+                    "name": "Badge", "comp_type": "badge", "source_code": "<span/>", "declares_inline_styles": False,
                     "occurrence": 1, "classes": "", "truncated_fields": [],
                     "styles_by_state": {}, "tokens": [], "texts": [],
                     "interactions": [], "props": [], "children": [],

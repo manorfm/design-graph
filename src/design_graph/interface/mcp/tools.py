@@ -16,7 +16,6 @@ import logging
 from design_graph.model.graph.catalog import GraphDocumentName
 from design_graph.model.entities import (
     ComponentType,
-    JsxSnippet,
     PropDefault,
     StyleState,
     TokenCategory,
@@ -250,8 +249,8 @@ class ScreenStructureGap:
 
 class StyleExtractionGap:
     """
-    True when a component's JSX declares inline styles but the graph has no
-    structured Style rows for it — usually because every value is a runtime
+    True when a component's source declares inline styles (a fact its capture
+    recorded) but the graph has no structured Style rows for it — usually because every value is a runtime
     expression (`hsl(${hue}...)`, a ternary, a prop reference) rather than a
     literal the extractor can store. Only meaningful where styles are
     already known to be empty: an empty Styles section alone can't tell
@@ -260,8 +259,8 @@ class StyleExtractionGap:
 
     __slots__ = ("exists",)
 
-    def __init__(self, source_code: str) -> None:
-        self.exists = "style={" in (source_code or "")
+    def __init__(self, declares_inline_styles: bool) -> None:
+        self.exists = declares_inline_styles
 
     def notice(self) -> str | None:
         if not self.exists:
@@ -1060,7 +1059,7 @@ class ToolDispatcher:
                         if notice:
                             lines.append(notice)
                 if not any_styles:
-                    notice = StyleExtractionGap(comp["source_code"]).notice()
+                    notice = StyleExtractionGap(comp["declares_inline_styles"]).notice()
                     if notice:
                         lines.append(f"\n{notice}")
 
@@ -1194,7 +1193,7 @@ class ToolDispatcher:
                 if state in by_state:
                     lines.append(f"**{state}**: {' | '.join(by_state[state][:6])}")
         else:
-            notice = StyleExtractionGap(comp.get("c.source_code", "")).notice()
+            notice = StyleExtractionGap(bool(comp.get("c.declares_inline_styles"))).notice()
             if notice:
                 lines.append(f"\n{notice}")
         if comp.get("tokens"):
@@ -1459,12 +1458,11 @@ class ToolDispatcher:
         return "\n".join(lines)
 
     def get_full_jsx(self, reader: GraphReader, name: str) -> str:
-        raw = reader.get_full_jsx(name)
-        if not raw:
+        source = reader.get_full_source(name)
+        if not source:
             return f"JSX completo não disponível para '{name}'. Rode: design-graph --force <proto.html>"
 
-        jsx = JsxSnippet(raw)
-        if jsx.was_sanitized:
+        if source["source_simplified"]:
             header = f"# JSX de {name} (sanitizado na extração — não é o fonte original)"
             footer = (
                 "\n> Este snippet já passou por `sanitize_jsx` na extração — "
@@ -1475,7 +1473,7 @@ class ToolDispatcher:
         else:
             header = f"# JSX completo: {name}"
             footer = ""
-        return f"{header}\n\n```jsx\n{jsx}\n```{footer}"
+        return f"{header}\n\n```{source['source_lang']}\n{source['source_code']}\n```{footer}"
 
     def get_component_interactions(self, reader: GraphReader, name: str) -> str:
         interactions = reader.get_interactions(name)
@@ -1659,7 +1657,7 @@ class ToolDispatcher:
                 if notice:
                     lines.append(notice)
         else:
-            notice = StyleExtractionGap(spec.get("c.source_code", "")).notice()
+            notice = StyleExtractionGap(bool(spec.get("c.declares_inline_styles"))).notice()
             if notice:
                 lines.append(f"\n{notice}")
         if spec.get("responsive_styles_by_media"):
@@ -1765,7 +1763,7 @@ class ToolDispatcher:
                     if notice:
                         lines.append(notice)
             if not any_styles:
-                notice = StyleExtractionGap(comp["source_code"]).notice()
+                notice = StyleExtractionGap(comp["declares_inline_styles"]).notice()
                 if notice:
                     lines.append(f"\n{notice}")
 

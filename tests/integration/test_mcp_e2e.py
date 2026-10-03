@@ -402,7 +402,7 @@ def _make_stub_reader():
         def get_tokens(self, category=None): return []
         def find_token_usage(self, value): return []
         def get_interactions(self, name): return []
-        def get_full_jsx(self, name): return ""
+        def get_full_source(self, name): return None
         def get_impact(self, name): return {}
         def count_nodes(self): return {}
     return _StubReader()

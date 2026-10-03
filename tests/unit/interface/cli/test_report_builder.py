@@ -78,7 +78,7 @@ class _MockReader:
     def find_token_usage(self, v): return []
     def get_section(self, s, h): return None
     def get_interactions(self, n): return []
-    def get_full_jsx(self, n): return ""
+    def get_full_source(self, n): return None
     def find_screens_using_comp_transitively(self, n): return []
     def get_component_parents(self, n): return []
     def get_tokens_for_category(self, cat): return []

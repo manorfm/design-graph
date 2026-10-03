@@ -149,82 +149,12 @@ class PropDefault(str):
         return f"`{self}`" if self.was_declared else "—"
 
 
-class JsxMarkerKind(StrEnum):
-    """The three ways sanitize_jsx collapses a dynamic JSX expression."""
-
-    LIST = "list"
-    CONDITIONAL = "conditional"
-    EITHER = "either"
 
 
-@dataclass(frozen=True)
-class JsxMarker:
-    """
-    A typed placeholder standing in for one dynamic JSX expression — a
-    `.map()` render, a `&&` short-circuit, or a `? :` ternary — so an AI
-    agent can see which component renders there without the surrounding
-    JS logic.
-
-    LIST and CONDITIONAL name exactly one component; EITHER names two, in
-    source order (then-branch, else-branch — e.g. `error ? <A/> : <B/>`
-    becomes `("A", "B")`). The count is validated on construction so a
-    caller can never assemble a marker that doesn't match its own kind.
-    """
-
-    kind: JsxMarkerKind
-    component_names: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        expected = 2 if self.kind is JsxMarkerKind.EITHER else 1
-        if len(self.component_names) != expected:
-            raise ValueError(
-                f"{self.kind} marker takes {expected} component name(s), "
-                f"got {self.component_names!r}"
-            )
-
-    def __str__(self) -> str:
-        return f"{{[{self.kind}:{'|'.join(self.component_names)}]}}"
 
 
-# Literal markers sanitize_jsx (extraction/jsx_sanitizer.py) leaves behind
-# for a collapsed region that isn't a named-component reference — JsxMarker
-# above covers list/conditional/either, which always name one or two
-# components. Defined once here, and imported by jsx_sanitizer.py to build
-# its replacement text, so a marker's written form and its detection in
-# JsxSnippet.was_sanitized can never drift apart.
-JSX_HANDLER_MARKER               = "={[handler]}"
-JSX_ARROW_FN_MARKER              = ".[fn]"
-JSX_STYLE_BLOCK_COLLAPSE_SUFFIX  = ", ... }}"
-JSX_BARE_EXPRESSION_MARKER       = "{...}"
 
 
-class JsxSnippet(str):
-    """
-    A JSX snippet as stored on a Component/Section node — already passed
-    through sanitize_jsx during extraction, never the original source text.
-
-    `.was_sanitized` names whether any collapse marker survived censorship
-    in this particular snippet, so a caller (mcp.tools.get_full_jsx) can
-    tell a genuinely complete snippet from one where sanitize_jsx already
-    discarded part of the original JSX. CappedJsx (mcp/tools.py) captures
-    the same kind of fact for a *display-time* cut applied to an already-
-    stored snippet; this is the *extraction-time* cut baked into the
-    snippet itself, which no display-side limit can recover.
-    """
-
-    __slots__ = ()
-
-    _MARKERS: tuple[str, ...] = (
-        JSX_HANDLER_MARKER,
-        JSX_ARROW_FN_MARKER,
-        JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
-        JSX_BARE_EXPRESSION_MARKER,
-        *(f"{{[{kind}:" for kind in JsxMarkerKind),
-    )
-
-    @property
-    def was_sanitized(self) -> bool:
-        return any(marker in self for marker in self._MARKERS)
 
 
 @dataclass(frozen=True)
@@ -479,6 +409,9 @@ class ExtractedComponent:
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
     referenced_data: dict[str, object] = field(default_factory=dict)
+    source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
+    source_simplified: bool = False       # the capture replaced parts of the original with placeholders
+    declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
     # {const_name: value} for every module-level constant this component's
     # own body references by name (e.g. ICONS for a component that does
     # `ICONS[name]`) — see extraction/module_data_extractor.py and
@@ -564,6 +497,9 @@ class ExtractedComponent:
             icons=list(icons.values()),
             truncated_fields=truncated_fields,
             referenced_data=referenced_data,
+            source_lang=live_variant.source_lang,
+            source_simplified=any(variant.source_simplified for variant in variants),
+            declares_inline_styles=any(variant.declares_inline_styles for variant in variants),
         )
 
 
@@ -586,6 +522,8 @@ class ExtractedScreen:
     sections_count: int = 0
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
+    source_lang: str = ""
+    source_simplified: bool = False
 
 
 @dataclass(frozen=True)
@@ -609,19 +547,20 @@ class ExtractedSection:
     source_code: str
     detection_method: DetectionMethod
     element_styles: list[StyleEntry] = field(default_factory=list)  # CSS-class-resolved, one entry per (selector, property) — see `styles` above
+    source_lang: str = ""
 
     @classmethod
     def create(
         cls, screen: str, name: str, styles: dict, component_refs: list[str],
         texts: list[str], source_code: str, detection_method: DetectionMethod,
-        element_styles: list[StyleEntry] | None = None,
+        element_styles: list[StyleEntry] | None = None, source_lang: str = "",
     ) -> "ExtractedSection":
         """Comment or structural detection — id keyed by (screen, name)."""
         return cls(
             id=EntityId.derive("sec", f"{screen}_{name}"),
             screen=screen, name=name, styles=styles, component_refs=component_refs,
             texts=texts, source_code=source_code, detection_method=detection_method,
-            element_styles=element_styles or [],
+            element_styles=element_styles or [], source_lang=source_lang,
         )
 
     @classmethod
