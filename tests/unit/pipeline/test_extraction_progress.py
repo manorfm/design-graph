@@ -109,7 +109,7 @@ class TestExtractAllComponentsCallback:
             calls.append((name, index, total))
 
         asyncio.run(extract_all_components(
-            self._JS, boundaries, Counter(b.name for b in boundaries), {},
+            self._JS, boundaries, Counter(b.name for b in boundaries),
             on_component_extracted=on_extracted,
         ))
         assert len(calls) == len(boundaries)
@@ -120,7 +120,7 @@ class TestExtractAllComponentsCallback:
         totals: list[int] = []
 
         asyncio.run(extract_all_components(
-            self._JS, boundaries, Counter(b.name for b in boundaries), {},
+            self._JS, boundaries, Counter(b.name for b in boundaries),
             on_component_extracted=lambda name, idx, total: totals.append(total),
         ))
         assert all(t == len(boundaries) for t in totals)
@@ -131,7 +131,7 @@ class TestExtractAllComponentsCallback:
         indices: list[int] = []
 
         asyncio.run(extract_all_components(
-            self._JS, boundaries, Counter(b.name for b in boundaries), {},
+            self._JS, boundaries, Counter(b.name for b in boundaries),
             on_component_extracted=lambda name, idx, total: indices.append(idx),
         ))
         assert sorted(indices) == list(range(1, len(boundaries) + 1))
@@ -140,7 +140,7 @@ class TestExtractAllComponentsCallback:
         from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         boundaries = self._make_boundaries()
         result = asyncio.run(extract_all_components(
-            self._JS, boundaries, Counter(b.name for b in boundaries), {},
+            self._JS, boundaries, Counter(b.name for b in boundaries),
         ))
         assert len(result) > 0
 
@@ -148,7 +148,7 @@ class TestExtractAllComponentsCallback:
         from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components
         calls = []
         asyncio.run(extract_all_components(
-            self._JS, [], Counter(), {},
+            self._JS, [], Counter(),
             on_component_extracted=lambda n, i, t: calls.append(n),
         ))
         assert calls == []

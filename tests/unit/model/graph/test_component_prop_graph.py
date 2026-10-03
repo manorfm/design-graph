@@ -47,11 +47,11 @@ def prop_graph(tmp_path_factory):
             ComponentProp(id="p4", component_name="BtnPrimary", prop_name="variant", default_value="primary"),
         ],
     )
-    gw.write_component(navbar, {})
-    gw.write_component(btn, {})
+    gw.write_component(navbar)
+    gw.write_component(btn)
 
     screen = ExtractedScreen(name="DashboardPage", component_refs=["NavBar", "BtnPrimary"])
-    gw.write_screen(screen, [], {})
+    gw.write_screen(screen, [])
 
     return conn
 
@@ -105,7 +105,7 @@ class TestComponentPropWriter:
             name="BareIcon", comp_type="component", source_code="<svg/>",
             occurrence=1, classes="", props=[],
         )
-        gw.write_component(bare, {})
+        gw.write_component(bare)
         result = prop_graph.execute(
             "MATCH (c:Component {name:'BareIcon'})-[:HAS_PROP]->(p:ComponentProp) "
             "RETURN count(p) AS cnt"
@@ -121,7 +121,7 @@ class TestComponentPropWriter:
             occurrence=1, classes="",
             props=[ComponentProp(id="p1", component_name="NavBar", prop_name="title", default_value="")],
         )
-        gw.write_component(navbar, {})  # second write
+        gw.write_component(navbar)  # second write
         result = prop_graph.execute(
             "MATCH (c:Component {name:'NavBar'})-[:HAS_PROP]->"
             "(p:ComponentProp {prop_name:'title'}) RETURN count(p)"

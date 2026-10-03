@@ -22,7 +22,6 @@ from design_graph.model.entities import (
     InteractionEntry,
     StyleEntry,
     TextEntry,
-    index_tokens_by_value,
 )
 from design_graph.model.graph.schema import initialize_schema
 from design_graph.model.graph.writer import GraphWriter
@@ -68,14 +67,14 @@ class TestInsertedNamesProperty:
 
     def test_contains_written_component(self, writer):
         gw, _ = writer
-        gw.write_component(_comp("BtnPrimary"), {})
+        gw.write_component(_comp("BtnPrimary"))
         assert "BtnPrimary" in gw.inserted_names
 
     def test_is_read_only_snapshot(self, writer):
         gw, _ = writer
-        gw.write_component(_comp("Card"), {})
+        gw.write_component(_comp("Card"))
         snapshot = gw.inserted_names
-        gw.write_component(_comp("Badge"), {})
+        gw.write_component(_comp("Badge"))
         assert "Badge" not in snapshot  # snapshot is immutable
 
 
@@ -86,7 +85,7 @@ class TestDuplicateStyleGuard:
         gw, conn = writer
         style = _style("st_dup", "BtnX")
         comp_with_dup_styles = _comp("BtnX", styles=[style, style])  # same id twice
-        gw.write_component(comp_with_dup_styles, {})
+        gw.write_component(comp_with_dup_styles)
 
         result = conn.execute("MATCH (s:Style {id:'st_dup'}) RETURN count(s)")
         assert result.get_next()[0] == 1
@@ -107,8 +106,8 @@ class TestSharedStyleEdgeNotSkipped:
     def test_second_component_still_gets_the_edge(self, writer):
         gw, conn = writer
         shared = StyleEntry.from_css_class("chip", "color", "red")
-        gw.write_component(_comp("FirstUser", styles=[shared]), {})
-        gw.write_component(_comp("SecondUser", styles=[shared]), {})
+        gw.write_component(_comp("FirstUser", styles=[shared]))
+        gw.write_component(_comp("SecondUser", styles=[shared]))
 
         result = conn.execute(
             "MATCH (c:Component)-[:HAS_STYLE]->(s:Style {id:$id}) RETURN c.name",
@@ -122,8 +121,8 @@ class TestSharedStyleEdgeNotSkipped:
     def test_style_node_still_written_exactly_once(self, writer):
         gw, conn = writer
         shared = StyleEntry.from_css_class("chip", "color", "red")
-        gw.write_component(_comp("FirstUser", styles=[shared]), {})
-        gw.write_component(_comp("SecondUser", styles=[shared]), {})
+        gw.write_component(_comp("FirstUser", styles=[shared]))
+        gw.write_component(_comp("SecondUser", styles=[shared]))
 
         result = conn.execute("MATCH (s:Style {id:$id}) RETURN count(s)", {"id": shared.id})
         assert result.get_next()[0] == 1
@@ -136,7 +135,7 @@ class TestDuplicateInteractionGuard:
         gw, conn = writer
         inter = _interaction("int_dup")
         comp_with_dup = _comp("BtnY", interactions=[inter, inter])
-        gw.write_component(comp_with_dup, {})
+        gw.write_component(comp_with_dup)
 
         result = conn.execute("MATCH (i:Interaction {id:'int_dup'}) RETURN count(i)")
         assert result.get_next()[0] == 1
@@ -149,7 +148,7 @@ class TestDuplicateTextGuard:
         gw, conn = writer
         text = _text("tx_dup", "BtnZ")
         comp_with_dup = _comp("BtnZ", texts=[text, text])
-        gw.write_component(comp_with_dup, {})
+        gw.write_component(comp_with_dup)
 
         result = conn.execute("MATCH (t:UIText {id:'tx_dup'}) RETURN count(t)")
         assert result.get_next()[0] == 1
@@ -161,11 +160,11 @@ class TestDuplicateContainsGuard:
     def test_contains_inserted_only_once_for_duplicate_child_refs(self, writer):
         gw, conn = writer
         leaf = _comp("Badge")
-        gw.write_component(leaf, {})
+        gw.write_component(leaf)
 
         # Parent references Badge twice in child_refs
         parent = _comp("BtnWithBadge", child_refs=["Badge", "Badge"])
-        gw.write_component(parent, {})
+        gw.write_component(parent)
 
         result = conn.execute(
             "MATCH (:Component {name:'BtnWithBadge'})-[r:CONTAINS]->(:Component {name:'Badge'}) "
@@ -183,11 +182,11 @@ class TestDuplicateContainsGuard:
 
         # Write PARENT first — child doesn't exist yet
         parent = _comp("Container", child_refs=["InnerWidget"])
-        gw.write_component(parent, {})
+        gw.write_component(parent)
 
         # Write CHILD after parent
         child = _comp("InnerWidget")
-        gw.write_component(child, {})
+        gw.write_component(child)
 
         # Flush pending CONTAINS edges (child now exists)
         gw.flush_pending_contains()
@@ -202,8 +201,8 @@ class TestDuplicateContainsGuard:
         gw, conn = writer
         parent = _comp("Wrapper", child_refs=["Leaf"])
         child  = _comp("Leaf")
-        gw.write_component(child, {})
-        gw.write_component(parent, {})
+        gw.write_component(child)
+        gw.write_component(parent)
 
         gw.flush_pending_contains()
         gw.flush_pending_contains()  # second call must not duplicate edges
@@ -224,7 +223,7 @@ class TestUnresolvedChildBecomesShell:
     def test_edge_is_written_for_a_child_never_defined_anywhere(self, writer):
         gw, conn = writer
         parent = _comp("IconButton", child_refs=["ChevronRight"])
-        gw.write_component(parent, {})
+        gw.write_component(parent)
         gw.flush_pending_contains()
 
         result = conn.execute(
@@ -237,7 +236,7 @@ class TestUnresolvedChildBecomesShell:
         from design_graph.model.entities import ComponentDefinitionStatus
         gw, conn = writer
         parent = _comp("IconButton", child_refs=["ChevronRight"])
-        gw.write_component(parent, {})
+        gw.write_component(parent)
         gw.flush_pending_contains()
 
         result = conn.execute("MATCH (c:Component {name:'ChevronRight'}) RETURN c.occurrence")
@@ -250,7 +249,7 @@ class TestUnresolvedChildBecomesShell:
         conn = _kuzu.Connection(db)
         initialize_schema(conn)
         gw = GraphWriter(conn)
-        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]), {})
+        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]))
         gw.flush_pending_contains()
 
         reader = GraphReader(conn)
@@ -258,7 +257,7 @@ class TestUnresolvedChildBecomesShell:
 
     def test_stats_count_unresolved_components(self, writer):
         gw, conn = writer
-        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]), {})
+        gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]))
         gw.flush_pending_contains()
         stats = gw.get_stats()
         assert stats["unresolved_components"] == 1
@@ -273,7 +272,7 @@ class TestUnresolvedChildBecomesShell:
         gw.declare_screens([
             ExtractedScreen(name="RestaurantsPage", component_refs=[], sections_count=0),
         ])
-        gw.write_component(_comp("Sidebar", child_refs=["RestaurantsPage"]), {})
+        gw.write_component(_comp("Sidebar", child_refs=["RestaurantsPage"]))
         gw.flush_pending_contains()
 
         result = conn.execute("MATCH (c:Component {name:'RestaurantsPage'}) RETURN count(c)")
@@ -287,8 +286,8 @@ class TestUnresolvedChildBecomesShell:
         # Regression guard: a real, locally-extracted child must not be
         # affected by the shell-creation path meant for external ones.
         gw, conn = writer
-        gw.write_component(_comp("Wrapper", child_refs=["Leaf"]), {})
-        gw.write_component(_comp("Leaf"), {})
+        gw.write_component(_comp("Wrapper", child_refs=["Leaf"]))
+        gw.write_component(_comp("Leaf"))
         gw.flush_pending_contains()
 
         result = conn.execute("MATCH (c:Component {name:'Leaf'}) RETURN c.occurrence")
@@ -315,8 +314,7 @@ class TestStyleTokenLinkage:
         gw, conn = writer
         tok = self._token("primary", "#ffb81c")
         gw.write_tokens([tok])
-        tm = index_tokens_by_value([tok])  # {"#ffb81c": [tok]}
-        gw.write_component(self._style_comp("Btn", "#ffb81c"), tm)
+        gw.write_component(self._style_comp("Btn", "#ffb81c"))
         result = conn.execute(
             "MATCH (s:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
             "RETURN s.property, t.label"
@@ -330,8 +328,7 @@ class TestStyleTokenLinkage:
         gw, conn = writer
         tok = self._token("secondary", "#123456")
         gw.write_tokens([tok])
-        tm = index_tokens_by_value([tok])
-        gw.write_component(self._style_comp("Card", "14px"), tm)
+        gw.write_component(self._style_comp("Card", "14px"))
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
@@ -340,8 +337,7 @@ class TestStyleTokenLinkage:
         # Token stored as uppercase; style value is lowercase — should still match
         tok = self._token("primary_upper", "#FFB81C")
         gw.write_tokens([tok])
-        tm = index_tokens_by_value([tok])  # key = "#ffb81c" (lowercased)
-        gw.write_component(self._style_comp("BtnLower", "#ffb81c"), tm)
+        gw.write_component(self._style_comp("BtnLower", "#ffb81c"))
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 1
 
@@ -350,16 +346,15 @@ class TestStyleTokenLinkage:
         # Three tokens all with same value — only one STYLE_USES_TOKEN edge
         toks = [self._token(f"tok{i}", "#ffb81c") for i in range(3)]
         gw.write_tokens(toks)
-        tm = index_tokens_by_value(toks)  # all 3 under key "#ffb81c"
-        gw.write_component(self._style_comp("BtnMulti", "#ffb81c"), tm)
+        gw.write_component(self._style_comp("BtnMulti", "#ffb81c"))
         result = conn.execute(
             "MATCH (s:Style {id:'st_BtnMulti'})-[:STYLE_USES_TOKEN]->(t) RETURN count(t)"
         )
         assert result.get_next()[0] <= 1
 
-    def test_empty_token_map_creates_no_links(self, writer):
+    def test_no_written_tokens_creates_no_links(self, writer):
         gw, conn = writer
-        gw.write_component(self._style_comp("BtnNoMap", "#ffb81c"), {})
+        gw.write_component(self._style_comp("BtnNoMap", "#ffb81c"))
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
@@ -378,7 +373,7 @@ class TestSafeExecuteErrorHandling:
 
     def test_returns_true_on_successful_execute(self, writer):
         gw, _ = writer
-        gw.write_component(_comp("TestComp"), {})
+        gw.write_component(_comp("TestComp"))
         result = gw._safe_execute(
             "MATCH (c:Component {name:'TestComp'}) RETURN c.name"
         )

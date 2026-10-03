@@ -33,7 +33,6 @@ from design_graph.capture.registry import capture_for
 from design_graph.model.build import BuildStats
 from design_graph.model.graph.diff import compute_diff
 from design_graph.model.graph.writer import GraphWriteSession
-from design_graph.model.entities import index_tokens_by_value
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
 
@@ -129,7 +128,6 @@ async def run_pipeline(
         total=len(extracted_comps) + len(tokens),
     )
 
-    token_map = index_tokens_by_value(tokens)
     icons_by_id = {icon.id: icon for comp in extracted_comps for icon in comp.icons}
     icons_by_id.update({icon.id: icon for screen in screens for icon in screen.icons})
     icons = list(icons_by_id.values())
@@ -156,7 +154,7 @@ async def run_pipeline(
         item_index = len(tokens) + len(icons) + len(module_texts)
 
         for comp in extracted_comps:
-            writer.write_component(comp, token_map)
+            writer.write_component(comp)
             item_index += 1
             _reporter.item_written(comp.name, index=item_index, total=write_total)
 
@@ -165,7 +163,7 @@ async def run_pipeline(
             logger.debug("pipeline: flushed %d deferred CONTAINS edges", flushed)
 
         for screen in screens:
-            writer.write_screen(screen, sections_map.get(screen.name, []), token_map)
+            writer.write_screen(screen, sections_map.get(screen.name, []))
             item_index += 1
             _reporter.item_written(screen.name, index=item_index, total=write_total)
 

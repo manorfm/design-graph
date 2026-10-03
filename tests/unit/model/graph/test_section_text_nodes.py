@@ -48,7 +48,7 @@ def text_graph(tmp_path_factory):
         texts=[TextEntry(id="txt1", content="Confirm", text_type="button",
                          source="BtnPrimary", element="button")],
     )
-    gw.write_component(btn, {})
+    gw.write_component(btn)
 
     screen = ExtractedScreen(
         name="LandingPage", component_refs=["BtnPrimary"], sections_count=0
@@ -69,7 +69,7 @@ def text_graph(tmp_path_factory):
         source_code="<footer/>",
         detection_method="semantic",
     )
-    gw.write_screen(screen, [header, footer], {})
+    gw.write_screen(screen, [header, footer])
 
     return conn
 

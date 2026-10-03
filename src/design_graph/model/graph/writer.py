@@ -75,7 +75,7 @@ class GraphWriteSession:
         with GraphWriteSession(db_path) as writer:
             writer.write_tokens(tokens)
             for comp in components:
-                writer.write_component(comp, token_map)
+                writer.write_component(comp)
         # final path now holds the complete fresh graph
     """
 
@@ -181,6 +181,8 @@ class GraphWriter:
         self._resolved_comp_names: set[str] = set()
         self._declared_screen_names: set[str] = set()
         self._inserted_token_ids:  set[str] = set()
+        # Lowercased value → tokens written so far: how a literal style value finds its token.
+        self._tokens_by_value:     dict[str, list[DesignToken]] = {}
         self._inserted_icon_ids:   set[str] = set()
         self._inserted_style_ids:  set[str] = set()
         self._inserted_inter_ids:  set[str] = set()
@@ -216,6 +218,9 @@ class GraphWriter:
                 inserted += 1
             elif self._node_exists("Token", "id", token.id):
                 self._inserted_token_ids.add(token.id)
+            else:
+                continue
+            self._tokens_by_value.setdefault(token.value.lower(), []).append(token)
         logger.debug("writer: wrote %d tokens", inserted)
         return inserted
 
@@ -290,11 +295,7 @@ class GraphWriter:
             "ss": screen.source_simplified,
         }
 
-    def write_component(
-        self,
-        comp: ExtractedComponent,
-        token_map: dict[str, list[DesignToken]],
-    ) -> None:
+    def write_component(self, comp: ExtractedComponent) -> None:
         """
         Insert Component node with its Style, Interaction, UIText sub-nodes
         and the CONTAINS relationships to child components.
@@ -337,7 +338,7 @@ class GraphWriter:
                 {"cn": comp.name, "sid": style.id},
             )
             # Component-level token link (USES_TOKEN) + style-level link (STYLE_USES_TOKEN)
-            for token in token_map.get(style.value.lower(), []):
+            for token in self._tokens_by_value.get(style.value.lower(), []):
                 rel_key = f"{comp.name}_{token.id}"
                 if rel_key not in self._token_rel_keys:
                     self._token_rel_keys.add(rel_key)
@@ -346,7 +347,7 @@ class GraphWriter:
                         "CREATE (c)-[:USES_TOKEN]->(t)",
                         {"cn": comp.name, "tid": token.id},
                     )
-            self._link_style_to_token(style, token_map)
+            self._link_style_to_token(style)
 
         # Interactions
         for inter in comp.interactions:
@@ -459,12 +460,7 @@ class GraphWriter:
         )
         return True
 
-    def write_screen(
-        self,
-        screen: ExtractedScreen,
-        sections: list[ExtractedSection],
-        token_map: dict[str, list[DesignToken]],
-    ) -> None:
+    def write_screen(self, screen: ExtractedScreen, sections: list[ExtractedSection]) -> None:
         """
         Insert Screen node, USES_COMPONENT edges, Section nodes, and SECTION_USES edges.
         Creates "shell" Component nodes for references that were never extracted as functions.
@@ -685,11 +681,7 @@ class GraphWriter:
             logger.debug("writer: existence check failed for %s.%s=%s: %s", label, key, value, exc)
             return False
 
-    def _link_style_to_token(
-        self,
-        style: StyleEntry,
-        token_map: dict[str, list[DesignToken]],
-    ) -> None:
+    def _link_style_to_token(self, style: StyleEntry) -> None:
         """
         Create a STYLE_USES_TOKEN edge (Style → Token) when the style value matches
         a token value. Exact case-insensitive match takes priority over substring.
@@ -697,8 +689,8 @@ class GraphWriter:
         """
         normalized = style.value.strip().lower()
 
-        # Fast path: exact match via token_map index (already lowercased)
-        exact_tokens = token_map.get(normalized, [])
+        # Fast path: exact match via the value index (already lowercased)
+        exact_tokens = self._tokens_by_value.get(normalized, [])
         if exact_tokens:
             self._safe_execute(
                 "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
@@ -708,7 +700,7 @@ class GraphWriter:
             return
 
         # Substring match: token value appears inside style value (e.g. rgba with hex)
-        for token_value_lower, tokens in token_map.items():
+        for token_value_lower, tokens in self._tokens_by_value.items():
             if token_value_lower and len(token_value_lower) >= 4 and token_value_lower in normalized:
                 self._safe_execute(
                     "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "

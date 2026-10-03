@@ -42,7 +42,7 @@ class TestStyleValueFiltering:
     def test_reserved_style_value_not_in_extracted_styles(self, val):
         js = self._make_js(val)
         b  = _boundary(js, "BtnTest")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         values = {s.value for s in comp.styles}
         assert val not in values
 
@@ -67,7 +67,7 @@ class TestInteractionCap:
         }}
         """
         b = _boundary(js, "HoverHeavy")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.interactions) <= MAX_INTERACTIONS_PER_COMPONENT
 
 
@@ -86,7 +86,7 @@ class TestFocusInteractions:
         }
         """
         b = _boundary(js, "InputField")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         focus_interactions = [i for i in comp.interactions if i.trigger == "focus"]
         assert len(focus_interactions) >= 1
 
@@ -101,7 +101,7 @@ class TestFocusInteractions:
         }
         """
         b = _boundary(js, "SearchInput")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         for inter in comp.interactions:
             if inter.trigger == "focus":
                 assert inter.css_prop
@@ -119,7 +119,7 @@ class TestFocusInteractions:
         }
         """
         b = _boundary(js, "EmptyFocusInput")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert not any(i.trigger == "focus" for i in comp.interactions)
 
     def test_focus_interactions_capped_at_max(self):
@@ -138,7 +138,7 @@ class TestFocusInteractions:
         }}
         """
         b = _boundary(js, "FocusHeavy")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.interactions) <= MAX_INTERACTIONS_PER_COMPONENT
 
 
@@ -161,7 +161,7 @@ class TestStateToggleEdgeCases:
         }
         """
         b = _boundary(js, "SearchField")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         focus = next((i for i in comp.interactions if i.trigger == "focus"), None)
         assert focus is not None
         assert focus.css_prop == "borderColor"
@@ -180,7 +180,7 @@ class TestStateToggleEdgeCases:
         }
         """
         b = _boundary(js, "EmptyTernaryBranch")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert not any(i.css_prop == "color" for i in comp.interactions)
 
     def test_state_toggle_loop_stops_when_cap_already_reached(self):
@@ -205,7 +205,7 @@ class TestStateToggleEdgeCases:
         }}
         """
         b = _boundary(js, "CapReachedBeforeState")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
         assert not any(i.css_prop == "color" for i in comp.interactions)
 
@@ -234,7 +234,7 @@ class TestStateToggleEdgeCases:
         }}
         """
         b = _boundary(js, "TernaryCapMidComponent")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
 
 
@@ -249,7 +249,7 @@ class TestTextFiltering:
         }
         """
         b = _boundary(js, "BtnShort")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         texts = [t.content for t in comp.texts]
         assert "OK" not in texts
 
@@ -261,7 +261,7 @@ class TestTextFiltering:
         }}
         """
         b = _boundary(js, "BtnLong")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         texts = [t.content for t in comp.texts]
         assert long_text not in texts
 
@@ -272,7 +272,7 @@ class TestTextFiltering:
         }
         """
         b = _boundary(js, "BtnLower")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         texts = [t.content for t in comp.texts]
         assert "lowercase_only" not in texts
 
@@ -283,7 +283,7 @@ class TestTextFiltering:
         }
         """
         b = _boundary(js, "BtnHex")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         texts = [t.content for t in comp.texts]
         assert "#ffb81c" not in texts
 
@@ -327,7 +327,7 @@ function NavBar() {
     );
 }
 """
-        comp = extract_component(js, self._boundary("NavBar", js), 1, {})
+        comp = extract_component(js, self._boundary("NavBar", js), 1)
         assert "UserMenu" in comp.child_refs
 
     def test_list_comp_in_child_refs(self):
@@ -338,7 +338,7 @@ function ItemList() {
     );
 }
 """
-        comp = extract_component(js, self._boundary("ItemList", js), 1, {})
+        comp = extract_component(js, self._boundary("ItemList", js), 1)
         assert "CartItem" in comp.child_refs
 
     def test_ternary_both_comps_in_child_refs(self):
@@ -349,7 +349,7 @@ function StatusView() {
     );
 }
 """
-        comp = extract_component(js, self._boundary("StatusView", js), 1, {})
+        comp = extract_component(js, self._boundary("StatusView", js), 1)
         assert "SuccessCard" in comp.child_refs
         assert "ErrorBanner" in comp.child_refs
 
@@ -361,7 +361,7 @@ function CartView() {
     );
 }
 """
-        comp = extract_component(js, self._boundary("CartView", js), 1, {})
+        comp = extract_component(js, self._boundary("CartView", js), 1)
         assert comp.child_refs.count("CartItem") == 1
 
 
@@ -374,7 +374,7 @@ function ItemsPageV6() {
     );
 }
 """
-        comp = extract_component(js, _boundary(js, "ItemsPageV6"), 1, {})
+        comp = extract_component(js, _boundary(js, "ItemsPageV6"), 1)
         assert "ItemCardV6" in comp.child_refs
 
 
@@ -389,14 +389,14 @@ class TestCssClassResolutionInExtractor:
         js = 'function Btn() { return <button className="flex gap-4" />; }'
         b = self._simple_boundary("Btn", js)
         rule_map = {"flex": [CssRule(".flex", "display", "flex")]}
-        comp = extract_component(js, b, 1, {}, rule_map=rule_map)
+        comp = extract_component(js, b, 1, rule_map=rule_map)
         props = {s.property: s.value for s in comp.styles}
         assert props.get("display") == "flex"
 
     def test_tailwind_builtin_resolved_when_no_custom_map(self):
         js = 'function Card() { return <div className="flex items-center" />; }'
         b = self._simple_boundary("Card", js)
-        comp = extract_component(js, b, 1, {}, rule_map={})
+        comp = extract_component(js, b, 1, rule_map={})
         props = {s.property: s.value for s in comp.styles}
         assert props.get("display") == "flex"
         assert props.get("align-items") == "center"
@@ -404,8 +404,8 @@ class TestCssClassResolutionInExtractor:
     def test_no_class_styles_when_rule_map_is_none(self):
         js = 'function Card() { return <div className="flex gap-4" />; }'
         b = self._simple_boundary("Card", js)
-        comp_no_map = extract_component(js, b, 1, {}, rule_map=None)
-        comp_with_map = extract_component(js, b, 1, {}, rule_map={})
+        comp_no_map = extract_component(js, b, 1, rule_map=None)
+        comp_with_map = extract_component(js, b, 1, rule_map={})
         # With no rule_map: no class styles added
         # With rule_map={}: Tailwind built-ins are resolved
         class_style_count_no_map = sum(1 for s in comp_no_map.styles if "class:" in s.element)
@@ -416,7 +416,7 @@ class TestCssClassResolutionInExtractor:
     def test_class_styles_have_class_prefix_in_element(self):
         js = 'function Btn() { return <button className="flex" />; }'
         b = self._simple_boundary("Btn", js)
-        comp = extract_component(js, b, 1, {}, rule_map={})
+        comp = extract_component(js, b, 1, rule_map={})
         class_styles = [s for s in comp.styles if s.element.startswith("class:")]
         assert len(class_styles) > 0
         for s in class_styles:
@@ -430,7 +430,7 @@ class TestCssClassResolutionInExtractor:
         )
         js = f'function BigBtn() {{ return <button {inline_parts} className="flex" />; }}'
         b = self._simple_boundary("BigBtn", js)
-        comp = extract_component(js, b, 1, {}, rule_map={})
+        comp = extract_component(js, b, 1, rule_map={})
         assert len(comp.styles) <= MAX_STYLES_PER_COMPONENT
 
 
@@ -453,7 +453,7 @@ class TestResponsiveClassResolutionInExtractor:
             "page-title": [CssRule(".page-title", "font-size", "21px", media="(max-width:600px)")],
         }
         comp = extract_component(
-            js, b, 1, {}, rule_map=rule_map, responsive_rule_map=responsive_rule_map,
+            js, b, 1, rule_map=rule_map, responsive_rule_map=responsive_rule_map,
         )
         by_media = {s.media: s.value for s in comp.styles if s.property == "font-size"}
         assert by_media[None] == "25px"
@@ -463,7 +463,7 @@ class TestResponsiveClassResolutionInExtractor:
         js = 'function Title() { return <h1 className="page-title" />; }'
         b = self._boundary("Title", js)
         rule_map = {"page-title": [CssRule(".page-title", "font-size", "25px")]}
-        comp = extract_component(js, b, 1, {}, rule_map=rule_map, responsive_rule_map=None)
+        comp = extract_component(js, b, 1, rule_map=rule_map, responsive_rule_map=None)
         assert all(s.media is None for s in comp.styles)
 
 
@@ -482,7 +482,7 @@ class TestTagPseudoClassResolutionInExtractor:
         js = 'function NumInput() { return <input type="number" />; }'
         b = self._boundary("NumInput", js)
         tag_rule_map = {"input": {"focus": [CssRule("input:focus", "border-color", "#FFB81C")]}}
-        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        comp = extract_component(js, b, 1, tag_rule_map=tag_rule_map)
         focus_styles = {s.property: s.value for s in comp.styles if s.state == "focus"}
         assert focus_styles.get("border-color") == "#FFB81C"
 
@@ -490,7 +490,7 @@ class TestTagPseudoClassResolutionInExtractor:
         js = 'function Card() { return <div className="card" />; }'
         b = self._boundary("Card", js)
         tag_rule_map = {"input": {"focus": [CssRule("input:focus", "border-color", "#FFB81C")]}}
-        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        comp = extract_component(js, b, 1, tag_rule_map=tag_rule_map)
         assert not any(s.state == "focus" for s in comp.styles)
 
     def test_multiple_tags_sharing_one_rule_each_resolve_independently(self):
@@ -509,13 +509,13 @@ class TestTagPseudoClassResolutionInExtractor:
             "input":  {"focus": [CssRule("input:focus", "outline", "none")]},
             "select": {"focus": [CssRule("select:focus", "outline", "none")]},
         }
-        comp = extract_component(js, b, 1, {}, tag_rule_map=tag_rule_map)
+        comp = extract_component(js, b, 1, tag_rule_map=tag_rule_map)
         assert sum(1 for s in comp.styles if s.property == "outline" and s.state == "focus") == 2
 
     def test_no_tag_rule_map_leaves_extraction_unaffected(self):
         js = 'function NumInput() { return <input type="number" />; }'
         b = self._boundary("NumInput", js)
-        comp = extract_component(js, b, 1, {}, tag_rule_map=None)
+        comp = extract_component(js, b, 1, tag_rule_map=None)
         assert not any(s.state == "focus" for s in comp.styles)
 
 
@@ -538,7 +538,7 @@ class TestStyleSpreadResolution:
         }
         """
         b = self._boundary("NumInput", js)
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         props = {s.property: s.value for s in comp.styles}
         assert props.get("height") == "34"
         assert props.get("padding") == "0 12px"
@@ -552,7 +552,7 @@ class TestStyleSpreadResolution:
         }
         """
         b = self._boundary("NumInput", js)
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         widths = [s.value for s in comp.styles if s.property == "width"]
         assert widths == ["34"]
 
@@ -563,14 +563,14 @@ class TestStyleSpreadResolution:
         }
         """
         b = self._boundary("NumInput", js)
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         props = {s.property: s.value for s in comp.styles}
         assert props.get("width") == "34"
 
     def test_no_spread_present_is_unaffected(self):
         js = 'function Card() { return <div style={{color: "red"}} />; }'
         b = self._boundary("Card", js)
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         props = {s.property: s.value for s in comp.styles}
         assert props.get("color") == "red"
 
@@ -591,8 +591,8 @@ class TestStyleSpreadResolution:
         """
         b_a = self._boundary("CardA", js)
         b_b = self._boundary("CardB", js)
-        comp_a = extract_component(js, b_a, 1, {})
-        comp_b = extract_component(js, b_b, 1, {})
+        comp_a = extract_component(js, b_a, 1)
+        comp_b = extract_component(js, b_b, 1)
         colors_a = [s.value for s in comp_a.styles if s.property == "color"]
         colors_b = [s.value for s in comp_b.styles if s.property == "color"]
         assert colors_a == ["red"]
@@ -605,7 +605,7 @@ class TestTruncationLogging:
         js = _make_js_with_many_styles("BigComp", limit + 5)
         b  = _boundary(js, "BigComp")
         with caplog.at_level(logging.DEBUG, logger="design_graph.capture.html_prototype.extraction.component_extractor"):
-            extract_component(js, b, 1, {})
+            extract_component(js, b, 1)
         assert any("capped" in r.message.lower() or "cap" in r.message.lower()
                    for r in caplog.records), \
             "Expected a debug log mentioning cap/capped when styles exceed limit"
@@ -614,7 +614,7 @@ class TestTruncationLogging:
         js = _make_js_with_many_styles("SmallComp", 2)
         b  = _boundary(js, "SmallComp")
         with caplog.at_level(logging.DEBUG, logger="design_graph.capture.html_prototype.extraction.component_extractor"):
-            extract_component(js, b, 1, {})
+            extract_component(js, b, 1)
         cap_records = [r for r in caplog.records if "capped" in r.message.lower()]
         assert not cap_records
 
@@ -635,7 +635,7 @@ class TestChildRefsOrder:
         }
         """
         b = _boundary(js, "Parent")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert comp.child_refs == ["Zebra", "Alpha", "Mango"]
 
     def test_duplicate_reference_kept_only_at_first_position(self):
@@ -651,7 +651,7 @@ class TestChildRefsOrder:
         }
         """
         b = _boundary(js, "Parent")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert comp.child_refs == ["Zebra", "Alpha"]
 
 
@@ -671,7 +671,7 @@ class TestHoverEnterLeavePairingByProperty:
         }
         """
         b = _boundary(js, "BtnTest")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
         assert by_prop["color"] == ("black", "red")
         assert by_prop["background"] == ("gray", "blue")
@@ -690,7 +690,7 @@ class TestHoverEnterLeavePairingByProperty:
         }
         """
         b = _boundary(js, "BtnTest")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
         assert by_prop["color"] == ("black", "red")
 
@@ -704,7 +704,7 @@ class TestHoverEnterLeavePairingByProperty:
         }
         """
         b = _boundary(js, "BtnTest")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
         assert by_prop["color"] == ("black", "red")
         # Only one interaction for `color` — not one per assignment.
@@ -724,7 +724,7 @@ class TestHoverEnterLeavePairingByProperty:
         }
         """
         b = _boundary(js, "BtnTest")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
         assert by_prop["color"] == ("black", "red")
         assert by_prop["transform"] == ("", "scale(1.05)")
@@ -737,27 +737,27 @@ class TestTruncatedFields:
         limit = MAX_STYLES_PER_COMPONENT
         js = _make_js_with_many_styles("BigComp", limit + 5)
         b  = _boundary(js, "BigComp")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "styles" in comp.truncated_fields
 
     def test_styles_within_limit_not_in_truncated_fields(self):
         js = _make_js_with_many_styles("SmallComp", 2)
         b  = _boundary(js, "SmallComp")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "styles" not in comp.truncated_fields
 
     def test_classes_cap_recorded_in_truncated_fields(self):
         many_classes = " ".join(f"cls{i}" for i in range(MAX_CLASSES_PER_COMPONENT + 5))
         js = f'function ManyClasses() {{ return <div className="{many_classes}" />; }}'
         b  = _boundary(js, "ManyClasses")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "classes" in comp.truncated_fields
         assert "styles" not in comp.truncated_fields
 
     def test_no_caps_hit_yields_empty_truncated_fields(self):
         js = 'function Plain() { return <div className="a b" style={{color: "red"}} />; }'
         b  = _boundary(js, "Plain")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert comp.truncated_fields == frozenset()
 
     def test_consolidate_unions_truncated_fields_across_variants(self):

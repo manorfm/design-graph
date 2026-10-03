@@ -168,14 +168,6 @@ class DesignToken:
     usage: int     # occurrence count across css+js
 
 
-def index_tokens_by_value(tokens: list[DesignToken]) -> dict[str, list[DesignToken]]:
-    """Tokens grouped by lowercased value — how a literal style value finds the token it uses."""
-    index: dict[str, list[DesignToken]] = {}
-    for token in tokens:
-        index.setdefault(token.value.lower(), []).append(token)
-    return index
-
-
 @dataclass(frozen=True)
 class IconAsset:
     """

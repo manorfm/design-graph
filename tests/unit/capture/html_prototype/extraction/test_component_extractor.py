@@ -5,7 +5,7 @@ from collections import Counter
 
 import pytest
 
-from design_graph.model.entities import DesignToken, index_tokens_by_value
+from design_graph.model.entities import DesignToken
 from design_graph.capture.html_prototype.extraction.component_extractor import (
     extract_all_components,
     extract_component,
@@ -69,17 +69,17 @@ def _boundary(js: str, name: str):
 class TestExtractComponent:
     def test_name_matches_boundary_name(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert comp.name == "BtnPrimary"
 
     def test_comp_type_inferred_as_button(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert comp.comp_type == "button"
 
     def test_source_code_captured(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert "button" in comp.source_code.lower()
         assert "Confirmar" in comp.source_code
 
@@ -94,7 +94,7 @@ class TestExtractComponent:
         }
         """
         b = _boundary(js, "IconButton")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
 
         assert len(comp.icons) == 1
         assert "<svg" not in comp.source_code
@@ -102,25 +102,25 @@ class TestExtractComponent:
 
     def test_default_style_found(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         default_props = {s.property for s in comp.styles if s.state == "default"}
         assert "backgroundColor" in default_props
 
     def test_hover_interaction_captured(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert any(i.trigger == "hover" for i in comp.interactions)
 
     def test_hover_has_from_and_to_values(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         hover = next(i for i in comp.interactions if i.trigger == "hover")
         assert hover.to_val != ""
         assert hover.from_val != ""
 
     def test_button_text_extracted(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert any("Confirmar" in t.content for t in comp.texts)
 
 
@@ -148,14 +148,14 @@ class TestExtractComponentReferencedModuleData:
     def test_referenced_constant_is_attached_when_module_constants_given(self):
         b = _boundary(ICON_COMPONENT_JS, "Icon")
         module_constants = find_module_level_constants(ICON_COMPONENT_JS, find_all_boundaries(ICON_COMPONENT_JS))
-        comp = extract_component(ICON_COMPONENT_JS, b, 1, {}, module_constants=module_constants)
+        comp = extract_component(ICON_COMPONENT_JS, b, 1, module_constants=module_constants)
         assert comp.referenced_data["ICONS"] == {"lock": "M21 2l-2 2", "trash": "M3 6h18"}
 
     def test_referenced_data_empty_without_module_constants(self):
         # Backward-compatible default: every existing call site that never
         # passes module_constants keeps getting an empty dict, not a crash.
         b = _boundary(ICON_COMPONENT_JS, "Icon")
-        comp = extract_component(ICON_COMPONENT_JS, b, 1, {})
+        comp = extract_component(ICON_COMPONENT_JS, b, 1)
         assert comp.referenced_data == {}
 
     def test_unrelated_component_does_not_get_the_data_attached(self):
@@ -163,7 +163,7 @@ class TestExtractComponentReferencedModuleData:
         boundaries = find_all_boundaries(js)
         module_constants = find_module_level_constants(js, boundaries)
         b = next(x for x in boundaries if x.name == "Btn")
-        comp = extract_component(js, b, 1, {}, module_constants=module_constants)
+        comp = extract_component(js, b, 1, module_constants=module_constants)
         assert comp.referenced_data == {}
 
 
@@ -213,7 +213,7 @@ class TestHoverInteractionWithNonLiteralValues:
 
     def test_hover_value_from_token_reference_is_captured(self):
         b = _boundary(TOKEN_HOVER_JS, "OptRow")
-        comp = extract_component(TOKEN_HOVER_JS, b, 1, {})
+        comp = extract_component(TOKEN_HOVER_JS, b, 1)
 
         hover = next((i for i in comp.interactions if i.trigger == "hover"), None)
         assert hover is not None
@@ -223,7 +223,7 @@ class TestHoverInteractionWithNonLiteralValues:
 
     def test_hover_value_from_expression_is_captured(self):
         b = _boundary(EXPRESSION_HOVER_JS, "GroupCard")
-        comp = extract_component(EXPRESSION_HOVER_JS, b, 1, {})
+        comp = extract_component(EXPRESSION_HOVER_JS, b, 1)
 
         hover = next((i for i in comp.interactions if i.trigger == "hover"), None)
         assert hover is not None
@@ -233,7 +233,7 @@ class TestHoverInteractionWithNonLiteralValues:
         # Backward-compat guard: plain string literals must render the same
         # as before this pattern also matched identifiers/expressions.
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
 
         hover = next(i for i in comp.interactions if i.trigger == "hover")
         assert "'" not in hover.to_val
@@ -241,7 +241,7 @@ class TestHoverInteractionWithNonLiteralValues:
 
     def test_focus_value_from_token_reference_is_captured(self):
         b = _boundary(FOCUS_TOKEN_JS, "TextInput")
-        comp = extract_component(FOCUS_TOKEN_JS, b, 1, {})
+        comp = extract_component(FOCUS_TOKEN_JS, b, 1)
 
         focus = next((i for i in comp.interactions if i.trigger == "focus"), None)
         assert focus is not None
@@ -249,19 +249,19 @@ class TestHoverInteractionWithNonLiteralValues:
 
     def test_hover_state_style_entry_uses_cleaned_value(self):
         b = _boundary(TOKEN_HOVER_JS, "OptRow")
-        comp = extract_component(TOKEN_HOVER_JS, b, 1, {})
+        comp = extract_component(TOKEN_HOVER_JS, b, 1)
 
         hover_styles = [s for s in comp.styles if s.state == "hover"]
         assert any(s.value == "C.red" for s in hover_styles)
 
     def test_class_names_captured(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert "btn-primary" in comp.classes or "action-btn" in comp.classes
 
     def test_child_refs_captured(self):
         b = _boundary(CARD_WITH_CHILDREN_JS, "RestCard")
-        comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1, {})
+        comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1)
         assert "Badge" in comp.child_refs
         assert "StarRating" in comp.child_refs
 
@@ -285,7 +285,7 @@ class TestHoverInteractionWithNonLiteralValues:
         }
         """
         b = _boundary(js, "BasicTab")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "Card" in comp.child_refs
         assert "Field" in comp.child_refs
         assert "Segmented" in comp.child_refs
@@ -294,50 +294,50 @@ class TestHoverInteractionWithNonLiteralValues:
     def test_namespace_prefix_itself_is_not_captured_as_a_child(self):
         js = 'function Comp() { return (<K.Chip label="x" />) }'
         b = _boundary(js, "Comp")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "K" not in comp.child_refs
 
     def test_self_not_in_child_refs(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert "BtnPrimary" not in comp.child_refs
 
     def test_react_internals_not_in_child_refs(self):
         js = "function Comp() { return (<React.Fragment><div/></React.Fragment>) }"
         b = _boundary(js, "Comp")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert "Fragment" not in comp.child_refs
         assert "React" not in comp.child_refs
 
     def test_occurrence_stored_correctly(self):
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 42, {})
+        comp = extract_component(BTN_JS, b, 42)
         assert comp.occurrence == 42
 
     def test_token_map_accepted_without_error(self):
         token = DesignToken(id="c1", category="color",
                             label="primary", value="#ffb81c", usage=5)
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, index_tokens_by_value([token]))
+        comp = extract_component(BTN_JS, b, 1)
         assert comp is not None
 
     def test_styles_capped_at_limit(self):
         many = " ".join(f"style={{{{p{i}: 'v{i}'}}}}" for i in range(60))
         js = f"function ManyStyles() {{ return (<div>{many}</div>) }}"
         b = _boundary(js, "ManyStyles")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.styles) <= 40
 
     def test_texts_capped_at_limit(self):
         texts = " ".join(f'"Texto {i} é longo"' for i in range(40))
         js = f"function TextHeavy() {{ return (<div>{texts}</div>) }}"
         b = _boundary(js, "TextHeavy")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert len(comp.texts) <= 30
 
     def test_child_refs_contain_no_empty_strings(self):
         b = _boundary(CARD_WITH_CHILDREN_JS, "RestCard")
-        comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1, {})
+        comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1)
         assert all(ref for ref in comp.child_refs)
 
 
@@ -421,13 +421,13 @@ class TestMultiStatementHoverHandlers:
 
     def test_both_mutated_properties_captured(self):
         b = _boundary(MULTI_MUTATION_HOVER_JS, "OptionButton")
-        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1, {})
+        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1)
         hover_props = {i.css_prop for i in comp.interactions if i.trigger == "hover"}
         assert hover_props == {"borderColor", "background"}
 
     def test_second_property_pairs_enter_with_matching_leave(self):
         b = _boundary(MULTI_MUTATION_HOVER_JS, "OptionButton")
-        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1, {})
+        comp = extract_component(MULTI_MUTATION_HOVER_JS, b, 1)
         background = next(i for i in comp.interactions if i.css_prop == "background")
         assert background.to_val == "o.color + '0c'"
         assert background.from_val == "#2e2e2e"
@@ -435,7 +435,7 @@ class TestMultiStatementHoverHandlers:
     def test_single_statement_handler_still_works(self):
         # Backward-compat guard: BTN_JS has one mutation per handler, no braces.
         b = _boundary(BTN_JS, "BtnPrimary")
-        comp = extract_component(BTN_JS, b, 1, {})
+        comp = extract_component(BTN_JS, b, 1)
         assert any(i.trigger == "hover" for i in comp.interactions)
 
 
@@ -450,7 +450,7 @@ class TestStateToggleHoverInteractions:
 
     def test_ternary_inside_template_literal_captured(self):
         b = _boundary(STATE_TOGGLE_HOVER_JS, "RestCard")
-        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1, {})
+        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1)
         border = next((i for i in comp.interactions if i.css_prop == "border"), None)
         assert border is not None
         assert border.trigger == "hover"
@@ -459,7 +459,7 @@ class TestStateToggleHoverInteractions:
 
     def test_direct_ternary_value_captured(self):
         b = _boundary(STATE_TOGGLE_HOVER_JS, "RestCard")
-        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1, {})
+        comp = extract_component(STATE_TOGGLE_HOVER_JS, b, 1)
         shadow = next((i for i in comp.interactions if i.css_prop == "boxShadow"), None)
         assert shadow is not None
         assert shadow.to_val == "`0 0 0 1px ${C.accent}22, 0 4px 20px #0005`"
@@ -467,7 +467,7 @@ class TestStateToggleHoverInteractions:
 
     def test_both_properties_from_same_state_var_captured(self):
         b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
-        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})
+        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1)
         props = {i.css_prop for i in comp.interactions if i.trigger == "hover"}
         assert props == {"border", "transform"}
 
@@ -502,7 +502,7 @@ class TestRootStyleSurvivesTemplateLiteralInSiblingBlock:
 
     def test_root_button_styles_are_captured(self):
         b = _boundary(CHIP_LIKE_JS, "Chip")
-        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        comp = extract_component(CHIP_LIKE_JS, b, 1)
         default_props = {s.property for s in comp.styles if s.state == "default"}
         assert "display" in default_props
         assert "borderRadius" in default_props
@@ -510,7 +510,7 @@ class TestRootStyleSurvivesTemplateLiteralInSiblingBlock:
 
     def test_both_root_and_child_blocks_are_captured(self):
         b = _boundary(CHIP_LIKE_JS, "Chip")
-        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        comp = extract_component(CHIP_LIKE_JS, b, 1)
         default_props = {s.property for s in comp.styles if s.state == "default"}
         # Root <button> block:
         assert {"display", "cursor", "background"} <= default_props
@@ -519,7 +519,7 @@ class TestRootStyleSurvivesTemplateLiteralInSiblingBlock:
 
     def test_ternary_value_kept_whole_not_truncated_at_condition(self):
         b = _boundary(CHIP_LIKE_JS, "Chip")
-        comp = extract_component(CHIP_LIKE_JS, b, 1, {})
+        comp = extract_component(CHIP_LIKE_JS, b, 1)
         background = next(s for s in comp.styles if s.property == "background" and s.state == "default")
         assert background.value == "on ? color + '1e' : '#2e2e2e'"
         assert not background.value.rstrip().endswith("?")
@@ -556,26 +556,26 @@ class TestPaletteReferenceFoldedIntoStyleValue:
 
     def test_direct_reference_resolved_to_literal_hex(self):
         b = _boundary(PALETTE_JS, "PricingPageV6")
-        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        comp = extract_component(PALETTE_JS, b, 1, palette=self._palette())
         background = next(s for s in comp.styles if s.property == "background")
         assert background.value == "#404040"
 
     def test_resolution_applies_to_nested_elements_too(self):
         b = _boundary(PALETTE_JS, "PricingPageV6")
-        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        comp = extract_component(PALETTE_JS, b, 1, palette=self._palette())
         color = next(s for s in comp.styles if s.property == "color")
         assert color.value == "#9ca3af"
 
     def test_non_palette_literal_values_are_left_alone(self):
         b = _boundary(PALETTE_JS, "PricingPageV6")
-        comp = extract_component(PALETTE_JS, b, 1, {}, palette=self._palette())
+        comp = extract_component(PALETTE_JS, b, 1, palette=self._palette())
         border = next(s for s in comp.styles if s.property == "border")
         assert border.value == "1px solid gray"
 
     def test_no_palette_leaves_reference_unresolved(self):
         # Backward-compatible default — palette is optional.
         b = _boundary(PALETTE_JS, "PricingPageV6")
-        comp = extract_component(PALETTE_JS, b, 1, {})
+        comp = extract_component(PALETTE_JS, b, 1)
         background = next(s for s in comp.styles if s.property == "background")
         assert background.value == "C.bg"
 
@@ -584,14 +584,14 @@ class TestPaletteReferenceFoldedIntoStyleValue:
 
         token = DesignToken(id="col_bg", category="color", label="bg", value="#404040", usage=5)
         b = _boundary(PALETTE_JS, "PricingPageV6")
-        comp = extract_component(PALETTE_JS, b, 1, index_tokens_by_value([token]), palette=self._palette())
+        comp = extract_component(PALETTE_JS, b, 1, palette=self._palette())
         assert comp.name == "PricingPageV6"
         background = next(s for s in comp.styles if s.property == "background")
         assert background.value.lower() == token.value.lower()
 
     def test_hover_state_style_entry_recorded(self):
         b = _boundary(STATE_TOGGLE_DIRECT_JS, "ItemCard")
-        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1, {})
+        comp = extract_component(STATE_TOGGLE_DIRECT_JS, b, 1)
         hover_styles = [s for s in comp.styles if s.state == "hover"]
         assert any(s.property == "transform" and s.value == "translateY(-2px)" for s in hover_styles)
 
@@ -599,8 +599,8 @@ class TestPaletteReferenceFoldedIntoStyleValue:
         bounds = find_all_boundaries(TWO_SIBLINGS_SAME_STATE_NAME_JS)
         card_a = next(b for b in bounds if b.name == "CardA")
         card_b = next(b for b in bounds if b.name == "CardB")
-        comp_a = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_a, 1, {})
-        comp_b = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_b, 1, {})
+        comp_a = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_a, 1)
+        comp_b = extract_component(TWO_SIBLINGS_SAME_STATE_NAME_JS, card_b, 1)
         a_hover = next(i for i in comp_a.interactions if i.trigger == "hover")
         b_hover = next(i for i in comp_b.interactions if i.trigger == "hover")
         assert a_hover.to_val == "C.red"
@@ -616,7 +616,7 @@ class TestPaletteReferenceFoldedIntoStyleValue:
         }
         """
         b = _boundary(js, "Toggle")
-        comp = extract_component(js, b, 1, {})
+        comp = extract_component(js, b, 1)
         assert not any(i.trigger == "hover" for i in comp.interactions)
 
 
@@ -641,13 +641,13 @@ class TestTooltipTextExtraction:
 
     def test_title_attribute_captured_as_tooltip(self):
         b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
-        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1)
         tooltips = [t.content for t in comp.texts if t.text_type == "tooltip"]
         assert "Fechar" in tooltips
 
     def test_aria_label_attribute_captured_as_tooltip(self):
         b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
-        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1)
         tooltips = [t.content for t in comp.texts if t.text_type == "tooltip"]
         assert "Fechar modal" in tooltips
 
@@ -656,7 +656,7 @@ class TestTooltipTextExtraction:
         # The tooltip pass must run before the generic UI-string pass so it wins
         # the dedup — otherwise "Fechar" would appear twice, once per type.
         b = _boundary(TOOLTIP_ICON_BUTTON_JS, "CloseButton")
-        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1, {})
+        comp = extract_component(TOOLTIP_ICON_BUTTON_JS, b, 1)
         fechar_entries = [t for t in comp.texts if t.content == "Fechar"]
         assert len(fechar_entries) == 1
         assert fechar_entries[0].text_type == "tooltip"
@@ -667,7 +667,7 @@ class TestExtractAllComponents:
         js = BTN_JS + CARD_WITH_CHILDREN_JS
         bounds = find_all_boundaries(js)
         occ = Counter(b.name for b in bounds)
-        comps = asyncio.run(extract_all_components(js, bounds, occ, {}))
+        comps = asyncio.run(extract_all_components(js, bounds, occ))
         names = {c.name for c in comps}
         assert "BtnPrimary" in names
         assert "RestCard" in names
@@ -679,7 +679,7 @@ class TestExtractAllComponents:
         )
         bounds = find_all_boundaries(funcs)
         occ = Counter(b.name for b in bounds)
-        comps = asyncio.run(extract_all_components(funcs, bounds, occ, {}))
+        comps = asyncio.run(extract_all_components(funcs, bounds, occ))
         names = [c.name for c in comps]
         assert len(names) == len(set(names))
 
@@ -695,7 +695,7 @@ class TestExtractAllComponents:
         bounds = find_all_boundaries(js)
 
         components = asyncio.run(
-            extract_all_components(js, bounds, Counter(b.name for b in bounds), {})
+            extract_all_components(js, bounds, Counter(b.name for b in bounds))
         )
 
         assert len(components) == 1
@@ -713,7 +713,7 @@ class TestExtractAllComponents:
     def test_palette_forwarded_to_every_component(self):
         bounds = find_all_boundaries(PALETTE_JS)
         comps = asyncio.run(extract_all_components(
-            PALETTE_JS, bounds, Counter(b.name for b in bounds), {},
+            PALETTE_JS, bounds, Counter(b.name for b in bounds),
             palette=discover_prototype_palette(PALETTE_JS),
         ))
         pricing = next(c for c in comps if c.name == "PricingPageV6")
@@ -736,7 +736,7 @@ class TestExtractAllComponents:
         '''
         bounds = find_all_boundaries(js)
         components = asyncio.run(
-            extract_all_components(js, bounds, Counter(b.name for b in bounds), {})
+            extract_all_components(js, bounds, Counter(b.name for b in bounds))
         )
         component = components[0]
 
@@ -752,11 +752,11 @@ class TestExtractAllComponents:
     def test_works_with_concurrency_one(self):
         bounds = find_all_boundaries(BTN_JS)
         occ = Counter(b.name for b in bounds)
-        comps = asyncio.run(extract_all_components(BTN_JS, bounds, occ, {}, concurrency=1))
+        comps = asyncio.run(extract_all_components(BTN_JS, bounds, occ, concurrency=1))
         assert len(comps) >= 1
 
     def test_empty_boundaries_returns_empty(self):
-        comps = asyncio.run(extract_all_components("", [], Counter(), {}))
+        comps = asyncio.run(extract_all_components("", [], Counter()))
         assert comps == []
 
 

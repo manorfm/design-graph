@@ -17,7 +17,6 @@ from design_graph.model.entities import (
     ExtractedScreen,
     ExtractedSection,
     StyleEntry,
-    index_tokens_by_value,
 )
 from design_graph.model.graph.reader import GraphReader, _build_layout_profile
 from design_graph.model.graph.schema import initialize_schema
@@ -71,9 +70,9 @@ def layout_graph(tmp_path_factory):
         styles=[],
     )
 
-    gw.write_component(flex_card, {})
-    gw.write_component(grid_list, {})
-    gw.write_component(bare_comp, {})
+    gw.write_component(flex_card)
+    gw.write_component(grid_list)
+    gw.write_component(bare_comp)
 
     screen = ExtractedScreen(
         name="DashboardPage",
@@ -85,7 +84,7 @@ def layout_graph(tmp_path_factory):
         styles={}, component_refs=["FlexCard"], texts=[], source_code="",
         detection_method="semantic",
     )
-    gw.write_screen(screen, [section], {})
+    gw.write_screen(screen, [section])
 
     return GraphReader(conn)
 
@@ -238,7 +237,7 @@ def section_only_layout_graph(tmp_path_factory):
             StyleEntry.from_css_class("audit-rail", "flexDirection", "column"),
         ],
     )
-    gw.write_screen(screen, [section], {})
+    gw.write_screen(screen, [section])
 
     return GraphReader(conn)
 

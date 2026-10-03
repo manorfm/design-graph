@@ -2,7 +2,7 @@
 
 import pytest
 
-from design_graph.model.entities import DesignToken, index_tokens_by_value
+from design_graph.model.entities import DesignToken
 from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.html_prototype.parsing.token_extractor import extract_tokens
 
@@ -478,27 +478,3 @@ class TestExtractCssVars:
                   if t.category == "css_var"]
         ids = [t.id for t in tokens]
         assert len(ids) == len(set(ids))
-
-
-class TestBuildTokenMap:
-    def test_maps_lowercase_value_to_token(self):
-        token = DesignToken(id="c1", category="color",
-                            label="primary", value="#ffb81c", usage=5)
-        m = index_tokens_by_value([token])
-        assert token in m.get("#ffb81c", [])
-
-    def test_key_is_always_lowercase(self):
-        token = DesignToken(id="c1", category="color",
-                            label="x", value="#FFB81C", usage=2)
-        m = index_tokens_by_value([token])
-        assert "#ffb81c" in m
-
-    def test_multiple_tokens_same_value_all_mapped(self):
-        t1 = DesignToken(id="c1", category="color", label="a", value="#abc", usage=2)
-        t2 = DesignToken(id="c2", category="color", label="b", value="#abc", usage=3)
-        m = index_tokens_by_value([t1, t2])
-        assert t1 in m["#abc"]
-        assert t2 in m["#abc"]
-
-    def test_empty_input_returns_empty_map(self):
-        assert index_tokens_by_value([]) == {}

@@ -91,9 +91,9 @@ def full_screen_graph(tmp_path_factory):
     )
 
     # Badge first so CONTAINS edges can be created immediately
-    gw.write_component(badge, {})
-    gw.write_component(top_nav, {})
-    gw.write_component(content_card, {})
+    gw.write_component(badge)
+    gw.write_component(top_nav)
+    gw.write_component(content_card)
     gw.flush_pending_contains()
 
     hero = ExtractedSection(
@@ -115,7 +115,7 @@ def full_screen_graph(tmp_path_factory):
         component_refs=["TopNav", "ContentCard", "Badge"],
         sections_count=2,
     )
-    gw.write_screen(screen, [hero, content], {})
+    gw.write_screen(screen, [hero, content])
 
     return GraphReader(conn)
 
@@ -333,7 +333,7 @@ def undecomposed_screen_graph(tmp_path_factory):
         name="BareScreen", component_refs=[], sections_count=0,
         source_code='<div className="bare"><span className="bare-title">Hello</span></div>',
     )
-    gw.write_screen(screen, [], {})
+    gw.write_screen(screen, [])
 
     return GraphReader(conn)
 
@@ -390,13 +390,13 @@ def nested_screen_graph(tmp_path_factory):
         child_refs=["MidBadge"],
     )
 
-    gw.write_component(deep_icon, {})
-    gw.write_component(mid_badge, {})
-    gw.write_component(top_card, {})
+    gw.write_component(deep_icon)
+    gw.write_component(mid_badge)
+    gw.write_component(top_card)
     gw.flush_pending_contains()
 
     screen = ExtractedScreen(name="DeepScreen", component_refs=["TopCard"], sections_count=0)
-    gw.write_screen(screen, [], {})
+    gw.write_screen(screen, [])
 
     return GraphReader(conn)
 

@@ -15,7 +15,6 @@ from design_graph.model.entities import (
     InteractionEntry,
     StyleEntry,
     TextEntry,
-    index_tokens_by_value,
 )
 from design_graph.model.graph.reader import GraphReader
 from design_graph.model.graph.schema import initialize_schema
@@ -54,13 +53,12 @@ def populated_db(tmp_path):
     token = DesignToken(id="col_1", category="color",
                         label="primary", value="#ffb81c", usage=5)
     gw.write_tokens([token])
-    tm = index_tokens_by_value([token])
 
     badge = ExtractedComponent(
         name="Badge", comp_type="badge", source_code="<span>badge</span>",
         occurrence=3, classes="badge", styles=[], interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(badge, tm)
+    gw.write_component(badge)
 
     btn = ExtractedComponent(
         name="BtnWithBadge", comp_type="button",
@@ -70,13 +68,13 @@ def populated_db(tmp_path):
                            property="backgroundColor", value="#ffb81c")],
         interactions=[], texts=[],
     )
-    gw.write_component(btn, tm)
+    gw.write_component(btn)
 
     card = ExtractedComponent(
         name="SectionCard", comp_type="card", source_code="<div>card</div>",
         occurrence=4, classes="card", styles=[], interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(card, tm)
+    gw.write_component(card)
 
     section = ExtractedSection(
         id="sec_hdr", screen="RestaurantsPage", name="Header",
@@ -88,7 +86,7 @@ def populated_db(tmp_path):
         component_refs=["SectionCard", "BtnWithBadge"],
         sections_count=1,
     )
-    gw.write_screen(screen, [section], tm)
+    gw.write_screen(screen, [section])
 
     # Re-open read-only for the reader
     ro_db = kuzu.Database(str(tmp_path / "p.db"), read_only=True)
@@ -208,7 +206,7 @@ class TestWriteComponent:
 
     def test_inserts_component_node(self, writer):
         gw, conn = writer
-        gw.write_component(self._make_comp("TestComp"), {})
+        gw.write_component(self._make_comp("TestComp"))
         result = conn.execute("MATCH (c:Component {name:'TestComp'}) RETURN c.name")
         assert result.get_next()[0] == "TestComp"
 
@@ -219,20 +217,20 @@ class TestWriteComponent:
             occurrence=1, classes="", styles=[], interactions=[], texts=[],
             child_refs=[], truncated_fields=frozenset({"texts", "styles"}),
         )
-        gw.write_component(comp, {})
+        gw.write_component(comp)
         result = conn.execute("MATCH (c:Component {name:'Truncated'}) RETURN c.truncated_fields")
         assert result.get_next()[0] == "styles,texts"
 
     def test_no_truncation_persisted_as_empty_string(self, writer):
         gw, conn = writer
-        gw.write_component(self._make_comp("Clean"), {})
+        gw.write_component(self._make_comp("Clean"))
         result = conn.execute("MATCH (c:Component {name:'Clean'}) RETURN c.truncated_fields")
         assert result.get_next()[0] == ""
 
     def test_idempotent_on_duplicate(self, writer):
         gw, conn = writer
-        gw.write_component(self._make_comp("DupComp"), {})
-        gw.write_component(self._make_comp("DupComp"), {})
+        gw.write_component(self._make_comp("DupComp"))
+        gw.write_component(self._make_comp("DupComp"))
         result = conn.execute("MATCH (c:Component {name:'DupComp'}) RETURN count(c)")
         assert result.get_next()[0] == 1
 
@@ -240,9 +238,9 @@ class TestWriteComponent:
         gw, conn = writer
         screen = ExtractedScreen(name="ShellFirstPage",
                                  component_refs=["MenuFormModal"], sections_count=0)
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
 
-        gw.write_component(self._make_comp("MenuFormModal"), {})
+        gw.write_component(self._make_comp("MenuFormModal"))
 
         result = conn.execute("MATCH (c:Component {name:'MenuFormModal'}) RETURN count(c)")
         assert result.get_next()[0] == 1
@@ -260,7 +258,7 @@ class TestWriteComponent:
             name="ShellPage", component_refs=["MissingCard"], sections_count=0
         )
 
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
 
         occurrence = conn.execute(
             "MATCH (c:Component {name:'MissingCard'}) RETURN c.occurrence"
@@ -273,7 +271,7 @@ class TestWriteComponent:
         free = ExtractedScreen("FreeDashboard", [], 0)
         gw.declare_screens([dashboard, free])
 
-        gw.write_screen(dashboard, [], {})
+        gw.write_screen(dashboard, [])
 
         component_count = conn.execute(
             "MATCH (c:Component {name:'FreeDashboard'}) RETURN count(c)"
@@ -296,7 +294,7 @@ class TestWriteComponent:
         )
         gw.declare_screens([parent, child])
 
-        gw.write_screen(parent, [section], {})
+        gw.write_screen(parent, [section])
 
         links = conn.execute(
             "MATCH (:Section {id:'sectors'})-[:SECTION_USES_SCREEN]->"
@@ -306,8 +304,8 @@ class TestWriteComponent:
 
     def test_creates_contains_relation(self, writer):
         gw, conn = writer
-        gw.write_component(self._make_comp("ChildComp"), {})
-        gw.write_component(self._make_comp("ParentComp", child_refs=["ChildComp"]), {})
+        gw.write_component(self._make_comp("ChildComp"))
+        gw.write_component(self._make_comp("ParentComp", child_refs=["ChildComp"]))
         result = conn.execute(
             "MATCH (p:Component {name:'ParentComp'})-[:CONTAINS]->(c:Component) "
             "RETURN c.name"
@@ -316,7 +314,7 @@ class TestWriteComponent:
 
     def test_contains_not_created_for_missing_child(self, writer):
         gw, conn = writer
-        gw.write_component(self._make_comp("OrphanParent", child_refs=["Nonexistent"]), {})
+        gw.write_component(self._make_comp("OrphanParent", child_refs=["Nonexistent"]))
         result = conn.execute("MATCH ()-[:CONTAINS]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
@@ -329,7 +327,7 @@ class TestWriteComponent:
                                state="default", property="color", value="red")],
             interactions=[], texts=[], child_refs=[],
         )
-        gw.write_component(comp, {})
+        gw.write_component(comp)
         result = conn.execute(
             "MATCH (c:Component {name:'StyledComp'})-[:HAS_STYLE]->(s:Style) "
             "RETURN s.property"
@@ -341,7 +339,6 @@ class TestWriteComponent:
         token = DesignToken(id="col_x", category="color",
                             label="primary", value="#ffb81c", usage=5)
         gw.write_tokens([token])
-        tm = index_tokens_by_value([token])
         comp = ExtractedComponent(
             name="TokenComp", comp_type="button", source_code="",
             occurrence=1, classes="",
@@ -349,7 +346,7 @@ class TestWriteComponent:
                                state="default", property="bg", value="#ffb81c")],
             interactions=[], texts=[], child_refs=[],
         )
-        gw.write_component(comp, tm)
+        gw.write_component(comp)
         result = conn.execute(
             "MATCH (c:Component {name:'TokenComp'})-[:USES_TOKEN]->(t:Token) "
             "RETURN t.label"
@@ -361,7 +358,7 @@ class TestWriteScreen:
     def test_inserts_screen_node(self, writer):
         gw, conn = writer
         screen = ExtractedScreen(name="TestPage", component_refs=[], sections_count=0)
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
         result = conn.execute("MATCH (s:Screen {name:'TestPage'}) RETURN s.name")
         assert result.get_next()[0] == "TestPage"
 
@@ -369,7 +366,7 @@ class TestWriteScreen:
         gw, conn = writer
         screen = ExtractedScreen(name="ShellPage",
                                  component_refs=["UnknownWidget"], sections_count=0)
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
         result = conn.execute(
             "MATCH (c:Component {name:'UnknownWidget'}) RETURN c.source_code"
         )
@@ -383,7 +380,7 @@ class TestWriteScreen:
             styles={}, component_refs=[], texts=[], source_code="<div/>",
             detection_method="comment",
         )
-        gw.write_screen(screen, [section], {})
+        gw.write_screen(screen, [section])
         result = conn.execute(
             "MATCH (s:Screen {name:'SectionPage'})-[:HAS_SECTION]->(sec:Section) "
             "RETURN sec.name"
@@ -405,10 +402,9 @@ class TestGetStats:
 
     def test_distinguishes_extracted_and_unresolved_components(self, writer):
         gw, _ = writer
-        gw.write_component(TestWriteComponent()._make_comp("KnownCard"), {})
+        gw.write_component(TestWriteComponent()._make_comp("KnownCard"))
         gw.write_screen(
-            ExtractedScreen("ShellPage", ["KnownCard", "MissingCard"], 0), [], {}
-        )
+            ExtractedScreen("ShellPage", ["KnownCard", "MissingCard"], 0), [])
 
         stats = gw.get_stats()
 
@@ -520,8 +516,8 @@ class TestOrderIndex:
 
     def test_order_index_persisted_in_declared_order(self, fresh):
         for name in ("Zebra", "Alpha", "Mango"):
-            fresh.writer.write_component(self._comp(name), {})
-        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]), {})
+            fresh.writer.write_component(self._comp(name))
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]))
         rows = fresh.conn.execute(
             "MATCH (p:Component {name:'Parent'})-[r:CONTAINS]->(c:Component) "
             "RETURN c.name, r.order_index ORDER BY r.order_index"
@@ -534,25 +530,25 @@ class TestOrderIndex:
 
     def test_get_component_children_returns_render_order_not_alphabetical(self, fresh):
         for name in ("Zebra", "Alpha", "Mango"):
-            fresh.writer.write_component(self._comp(name), {})
-        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]), {})
+            fresh.writer.write_component(self._comp(name))
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]))
         assert fresh.reader.get_component_children("Parent") == ["Zebra", "Alpha", "Mango"]
 
     def test_deferred_contains_edge_keeps_its_order_index(self, fresh):
         # Parent written before its children exist — order_index must
         # survive the deferred/flush_pending_contains path too.
-        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]), {})
-        fresh.writer.write_component(self._comp("Zebra"), {})
-        fresh.writer.write_component(self._comp("Alpha"), {})
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]))
+        fresh.writer.write_component(self._comp("Zebra"))
+        fresh.writer.write_component(self._comp("Alpha"))
         fresh.writer.flush_pending_contains()
         assert fresh.reader.get_component_children("Parent") == ["Zebra", "Alpha"]
 
     def test_screen_full_children_follow_render_order(self, fresh):
         for name in ("Zebra", "Alpha"):
-            fresh.writer.write_component(self._comp(name), {})
-        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]), {})
+            fresh.writer.write_component(self._comp(name))
+        fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha"]))
         screen = ExtractedScreen(name="OrderScreen", component_refs=["Parent"], sections_count=0)
-        fresh.writer.write_screen(screen, [], {})
+        fresh.writer.write_screen(screen, [])
         full = fresh.reader.get_screen_full("OrderScreen")
         parent = next(c for c in full["components"] if c["name"] == "Parent")
         assert parent["children"] == ["Zebra", "Alpha"]
@@ -659,9 +655,9 @@ class TestGetComponentFull:
         assert fresh.reader.get_component_full("Nonexistent") is None
 
     def test_includes_root_and_descendants(self, fresh):
-        fresh.writer.write_component(self._comp("Grandchild"), {})
-        fresh.writer.write_component(self._comp("Child", ["Grandchild"]), {})
-        fresh.writer.write_component(self._comp("Root", ["Child"]), {})
+        fresh.writer.write_component(self._comp("Grandchild"))
+        fresh.writer.write_component(self._comp("Child", ["Grandchild"]))
+        fresh.writer.write_component(self._comp("Root", ["Child"]))
         full = fresh.reader.get_component_full("Root")
         names = {c["name"] for c in full["components"]}
         assert names == {"Root", "Child", "Grandchild"}
@@ -669,8 +665,8 @@ class TestGetComponentFull:
 
     def test_children_in_render_order(self, fresh):
         for name in ("Zebra", "Alpha"):
-            fresh.writer.write_component(self._comp(name), {})
-        fresh.writer.write_component(self._comp("Root", ["Zebra", "Alpha"]), {})
+            fresh.writer.write_component(self._comp(name))
+        fresh.writer.write_component(self._comp("Root", ["Zebra", "Alpha"]))
         full = fresh.reader.get_component_full("Root")
         root = next(c for c in full["components"] if c["name"] == "Root")
         assert root["children"] == ["Zebra", "Alpha"]
@@ -678,14 +674,14 @@ class TestGetComponentFull:
     def test_each_component_carries_its_own_styles(self, fresh):
         style = StyleEntry(id="st_x", element="Child", state="default",
                             property="color", value="red")
-        fresh.writer.write_component(self._comp("Child", styles=[style]), {})
-        fresh.writer.write_component(self._comp("Root", ["Child"]), {})
+        fresh.writer.write_component(self._comp("Child", styles=[style]))
+        fresh.writer.write_component(self._comp("Root", ["Child"]))
         full = fresh.reader.get_component_full("Root")
         child = next(c for c in full["components"] if c["name"] == "Child")
         assert child["styles_by_state"]["default"] == [{"property": "color", "value": "red"}]
 
     def test_fuzzy_match_resolves_root(self, fresh):
-        fresh.writer.write_component(self._comp("RestaurantCard"), {})
+        fresh.writer.write_component(self._comp("RestaurantCard"))
         full = fresh.reader.get_component_full("Restaurant")
         assert full["root"] == "RestaurantCard"
 
@@ -709,24 +705,24 @@ class TestTruncatedFieldsRoundTrip:
         )
 
     def test_get_component_surfaces_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Trunc", frozenset({"styles"})), {})
+        fresh.writer.write_component(self._comp("Trunc", frozenset({"styles"})))
         comp = fresh.reader.get_component("Trunc")
         assert comp["c.truncated_fields"] == "styles"
 
     def test_get_component_spec_surfaces_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Trunc2", frozenset({"texts", "classes"})), {})
+        fresh.writer.write_component(self._comp("Trunc2", frozenset({"texts", "classes"})))
         spec = fresh.reader.get_component_spec("Trunc2")
         assert spec["c.truncated_fields"] == "classes,texts"
 
     def test_clean_component_has_empty_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Clean2"), {})
+        fresh.writer.write_component(self._comp("Clean2"))
         comp = fresh.reader.get_component("Clean2")
         assert comp["c.truncated_fields"] == ""
 
     def test_get_screen_full_surfaces_truncated_fields_as_list(self, fresh):
-        fresh.writer.write_component(self._comp("TruncOnScreen", frozenset({"interactions"})), {})
+        fresh.writer.write_component(self._comp("TruncOnScreen", frozenset({"interactions"})))
         screen = ExtractedScreen(name="TruncScreen", component_refs=["TruncOnScreen"], sections_count=0)
-        fresh.writer.write_screen(screen, [], {})
+        fresh.writer.write_screen(screen, [])
         full = fresh.reader.get_screen_full("TruncScreen")
         comp = next(c for c in full["components"] if c["name"] == "TruncOnScreen")
         assert comp["truncated_fields"] == ["interactions"]
@@ -811,7 +807,6 @@ def two_screen_db(tmp_path):
     primary = DesignToken(id="col_primary", category="color", label="primary", value="#ffb81c", usage=5)
     dark = DesignToken(id="col_dark", category="color", label="dark", value="#111111", usage=3)
     gw.write_tokens([primary, dark])
-    tm = index_tokens_by_value([primary, dark])
 
     btn = ExtractedComponent(
         name="BtnWithBadge", comp_type="button", source_code="<button/>",
@@ -820,7 +815,7 @@ def two_screen_db(tmp_path):
                            property="backgroundColor", value="#ffb81c")],
         interactions=[], texts=[],
     )
-    gw.write_component(btn, tm)
+    gw.write_component(btn)
 
     dark_card = ExtractedComponent(
         name="DarkCard", comp_type="card", source_code="<div/>",
@@ -829,12 +824,12 @@ def two_screen_db(tmp_path):
                            property="backgroundColor", value="#111111")],
         interactions=[], texts=[],
     )
-    gw.write_component(dark_card, tm)
+    gw.write_component(dark_card)
 
     restaurants = ExtractedScreen(name="RestaurantsPage", component_refs=["BtnWithBadge"], sections_count=0)
     orders = ExtractedScreen(name="OrdersPage", component_refs=["DarkCard"], sections_count=0)
-    gw.write_screen(restaurants, [], tm)
-    gw.write_screen(orders, [], tm)
+    gw.write_screen(restaurants, [])
+    gw.write_screen(orders, [])
 
     ro_db = kuzu.Database(str(tmp_path / "two_screen.db"), read_only=True)
     ro_conn = kuzu.Connection(ro_db)
@@ -971,7 +966,7 @@ class TestSourceCodeSizeCap:
             name="BigComp", comp_type="card", source_code=self._oversized_jsx(),
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
-        fresh_writer.writer.write_component(comp, {})
+        fresh_writer.writer.write_component(comp)
         result = fresh_writer.reader.get_component("BigComp")
         assert result is not None
         stored = result.get("c.source_code", "")
@@ -988,7 +983,7 @@ class TestSourceCodeSizeCap:
             source_code=self._oversized_jsx(), detection_method="comment",
         )
         screen = ExtractedScreen(name="BigPage", component_refs=[], sections_count=1)
-        fresh_writer.writer.write_screen(screen, [section], {})
+        fresh_writer.writer.write_screen(screen, [section])
         sec = fresh_writer.reader.get_section("BigPage", "BigSection")
         assert sec is not None
         stored = sec.get("source_code", "")
@@ -1003,7 +998,7 @@ class TestSourceCodeSizeCap:
             name="SmallComp", comp_type="button", source_code=jsx,
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
-        fresh_writer.writer.write_component(comp, {})
+        fresh_writer.writer.write_component(comp)
         result = fresh_writer.reader.get_component("SmallComp")
         assert result["c.source_code"] == jsx
 
@@ -1057,7 +1052,7 @@ class TestGetFullSourceFallsBackToScreen:
             name="PricingPageV6", comp_type="card", source_code="<div>component version</div>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
-        fresh_writer.writer.write_component(comp, {})
+        fresh_writer.writer.write_component(comp)
         screen = ExtractedScreen(
             name="PricingPageV6", component_refs=[], sections_count=0,
             source_code="<div>should not surface</div>",
@@ -1086,7 +1081,7 @@ class TestSourceFactsRoundTrip:
             occurrence=1, classes="", source_lang="jsx", source_simplified=True,
             declares_inline_styles=True,
         )
-        graph.writer.write_component(comp, {})
+        graph.writer.write_component(comp)
         full = graph.reader.get_full_source("CartList")
         assert full == {"source_code": "<ul>{[list:Item]}</ul>", "source_lang": "jsx", "source_simplified": True}
         assert graph.reader.get_component("CartList")["c.declares_inline_styles"] is True
@@ -1105,7 +1100,7 @@ class TestSourceFactsRoundTrip:
             screen="Welcome", name="Header", styles={}, component_refs=[], texts=[],
             source_code="<header>x</header>", detection_method="semantic", source_lang="html",
         )
-        graph.writer.write_screen(ExtractedScreen(name="Welcome"), [section], {})
+        graph.writer.write_screen(ExtractedScreen(name="Welcome"), [section])
         assert graph.reader.get_section("Welcome", "Header")["source_lang"] == "html"
 
     def test_unknown_name_has_no_source(self, graph):

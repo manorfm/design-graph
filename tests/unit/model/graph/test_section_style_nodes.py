@@ -46,7 +46,7 @@ def section_graph(tmp_path_factory):
         name="NavItem", comp_type="component", source_code="<a/>",
         occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(comp, {})
+    gw.write_component(comp)
 
     screen = ExtractedScreen(name="LandingPage", component_refs=["NavItem"], sections_count=0)
     header = ExtractedSection(
@@ -65,7 +65,7 @@ def section_graph(tmp_path_factory):
         source_code="<footer/>",
         detection_method="semantic",
     )
-    gw.write_screen(screen, [header, footer], {})
+    gw.write_screen(screen, [header, footer])
 
     return conn
 

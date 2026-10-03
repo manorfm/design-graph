@@ -28,7 +28,6 @@ from design_graph.model.entities import (
     InteractionEntry,
     StyleEntry,
     TextEntry,
-    index_tokens_by_value,
 )
 from design_graph.model.graph.reader import GraphReader, _best_fuzzy_matches
 from design_graph.model.graph.schema import initialize_schema
@@ -57,7 +56,6 @@ def rich_graph(tmp_path_factory):
     color_token   = DesignToken(id="col_1", category="color",   label="primary",  value="#ffb81c", usage=8)
     spacing_token = DesignToken(id="spc_1", category="spacing", label="space_16", value="16px",    usage=4)
     gw.write_tokens([color_token, spacing_token])
-    tm = index_tokens_by_value([color_token, spacing_token])
 
     price_tag = ExtractedComponent(
         name="PriceTag", comp_type="badge",
@@ -69,7 +67,7 @@ def rich_graph(tmp_path_factory):
                                          source="PriceTag", element="span")],
         child_refs=[],
     )
-    gw.write_component(price_tag, tm)
+    gw.write_component(price_tag)
 
     cart_item = ExtractedComponent(
         name="CartItem", comp_type="card",
@@ -81,7 +79,7 @@ def rich_graph(tmp_path_factory):
                                        from_val="1", to_val="0.8", transition="all 0.2s")],
         texts=[], child_refs=["PriceTag"],
     )
-    gw.write_component(cart_item, tm)
+    gw.write_component(cart_item)
 
     btn = ExtractedComponent(
         name="BtnPrimary", comp_type="button",
@@ -89,7 +87,7 @@ def rich_graph(tmp_path_factory):
         occurrence=5, classes="btn",
         styles=[], interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(btn, tm)
+    gw.write_component(btn)
 
     # C35 — a component with both an unconditional and an @media-scoped
     # style for the same property, to verify every reader method other than
@@ -107,7 +105,7 @@ def rich_graph(tmp_path_factory):
         ],
         interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(responsive_card, tm)
+    gw.write_component(responsive_card)
 
     section = ExtractedSection(
         id="sec_hdr", screen="RestaurantsPage", name="Header",
@@ -120,7 +118,7 @@ def rich_graph(tmp_path_factory):
         component_refs=["BtnPrimary", "CartItem", "ResponsiveCard"],
         sections_count=1,
     )
-    gw.write_screen(screen, [section], tm)
+    gw.write_screen(screen, [section])
 
     ro_db   = kuzu.Database(str(tmp / "adv.db"), read_only=True)
     ro_conn = kuzu.Connection(ro_db)
@@ -613,10 +611,10 @@ class TestGetComponentSpecScreensUsingDepth:
             child_refs=["DeepMid"],
         )
         for comp in (leaf, deep, mid):
-            gw.write_component(comp, {})
+            gw.write_component(comp)
 
         screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
 
         ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
@@ -682,10 +680,10 @@ class TestGetComponentScreensUsingDepth:
             child_refs=["DeepMid"],
         )
         for comp in (leaf, deep, mid):
-            gw.write_component(comp, {})
+            gw.write_component(comp)
 
         screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
-        gw.write_screen(screen, [], {})
+        gw.write_screen(screen, [])
 
         ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)

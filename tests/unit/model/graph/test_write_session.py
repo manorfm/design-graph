@@ -53,7 +53,7 @@ class TestGraphWriteSessionSuccess:
             styles=[], interactions=[], texts=[], child_refs=[],
         )
         with GraphWriteSession(final) as writer:
-            writer.write_component(comp, {})
+            writer.write_component(comp)
         # Verify component is readable after session closes
         db = kuzu.Database(str(final), read_only=True)
         conn = kuzu.Connection(db)

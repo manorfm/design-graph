@@ -23,7 +23,6 @@ from design_graph.model.entities import (
     ExtractedScreen,
     ExtractedSection,
     IconAsset,
-    index_tokens_by_value,
     resolve_icon_markers,
 )
 from design_graph.capture.html_prototype.sources import FunctionBoundary, RawSources
@@ -118,7 +117,6 @@ async def extract_react(
     # docs/changes/C39).
     module_constants = find_module_level_constants(sources.js, all_boundaries)
 
-    token_map     = index_tokens_by_value(tokens)
     rule_map      = extract_css_rules(sources.css) if sources.css else {}
     tag_rule_map  = extract_tag_pseudo_rules(sources.css) if sources.css else {}
     responsive_rule_map = extract_responsive_css_rules(sources.css) if sources.css else {}
@@ -132,7 +130,7 @@ async def extract_react(
     )
 
     extracted_comps = await extract_all_components(
-        sources.js, comp_bounds, occurrences, token_map,
+        sources.js, comp_bounds, occurrences,
         concurrency=concurrency, rule_map=rule_map, tag_rule_map=tag_rule_map,
         responsive_rule_map=responsive_rule_map,
         palette=palette, module_constants=module_constants,

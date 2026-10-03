@@ -142,7 +142,7 @@ class TestCheckNoOrphanedComponents:
             name="OrphanComp", comp_type="card", source_code="<div/>",
             occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
         )
-        gw.write_component(orphan, {})
+        gw.write_component(orphan)
         # No write_screen() call → OrphanComp has no USES_COMPONENT relationship
         ro_db   = kuzu.Database(str(tmp_path / "orphan.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)

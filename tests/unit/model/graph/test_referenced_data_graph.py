@@ -37,11 +37,11 @@ def icon_graph(tmp_path_factory):
         name="Btn", comp_type="button", source_code="<button/>",
         occurrence=2, classes="",
     )
-    gw.write_component(icon, {})
-    gw.write_component(plain, {})
+    gw.write_component(icon)
+    gw.write_component(plain)
 
     screen = ExtractedScreen(name="LoginScreen", component_refs=["Icon", "Btn"])
-    gw.write_screen(screen, [], {})
+    gw.write_screen(screen, [])
 
     return conn
 

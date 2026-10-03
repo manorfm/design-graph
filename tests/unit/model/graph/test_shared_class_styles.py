@@ -52,7 +52,7 @@ def shared_class_graph(tmp_path_factory):
         occurrence=1, classes="chip", styles=[chip_style, lonely_style],
         interactions=[], texts=[], child_refs=[],
     )
-    gw.write_component(page_title, {})
+    gw.write_component(page_title)
 
     history_screen = ExtractedScreen(name="HistoryView", component_refs=[], sections_count=0)
     row_section = ExtractedSection(
@@ -60,7 +60,7 @@ def shared_class_graph(tmp_path_factory):
         styles={}, component_refs=[], texts=[], source_code="",
         detection_method="list_item", element_styles=[chip_style],
     )
-    gw.write_screen(history_screen, [row_section], {})
+    gw.write_screen(history_screen, [row_section])
 
     return GraphReader(conn)
 

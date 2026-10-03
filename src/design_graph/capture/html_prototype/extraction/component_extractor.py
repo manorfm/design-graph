@@ -28,7 +28,6 @@ from design_graph.capture.html_prototype.constants import (
 )
 from design_graph.model.entities import (
     ComponentType,
-    DesignToken,
     ExtractedComponent,
     InteractionEntry,
     InteractionTrigger,
@@ -143,7 +142,6 @@ def extract_component(
     js: str,
     boundary: FunctionBoundary,
     occurrence: int,
-    token_map: dict[str, list[DesignToken]],
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
     responsive_rule_map: dict[str, list[CssRule]] | None = None,
@@ -509,7 +507,6 @@ async def extract_all_components(
     js: str,
     boundaries: list[FunctionBoundary],
     occurrences: Counter,
-    token_map: dict[str, list[DesignToken]],
     concurrency: int = 8,
     rule_map: dict[str, list[CssRule]] | None = None,
     tag_rule_map: dict[str, dict[str, list[CssRule]]] | None = None,
@@ -545,7 +542,7 @@ async def extract_all_components(
         async with semaphore:
             result = await asyncio.to_thread(
                 extract_component,
-                js, boundary, occurrences.get(boundary.name, 1), token_map,
+                js, boundary, occurrences.get(boundary.name, 1),
                 rule_map, tag_rule_map, responsive_rule_map, palette, module_constants,
             )
         completed[0] += 1
