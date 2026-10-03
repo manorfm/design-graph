@@ -35,7 +35,7 @@ from design_graph.model.entities import (
     TextEntry,
     TokenCategory,
 )
-from design_graph.model.graph.schema import initialize_schema, STATS_QUERIES
+from design_graph.model.graph.schema import MODEL_VERSION, STATS_QUERIES, initialize_schema
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +205,12 @@ class GraphWriter:
         return frozenset(self._resolved_comp_names)
 
     # ── Public write API ──────────────────────────────────────────────────────
+
+    def record_model(self, capture: str) -> None:
+        """Record the model version this graph is written in and the capture that produced it."""
+        self._safe_execute(
+            "CREATE (:Model {version:$v, capture:$c})", {"v": MODEL_VERSION, "c": capture},
+        )
 
     def write_tokens(self, tokens: list[DesignToken]) -> int:
         """Insert Token nodes. Returns the number of tokens successfully inserted."""

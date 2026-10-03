@@ -72,7 +72,14 @@ def _load_readers(graph_dir: Path) -> list[tuple[str, GraphReader]]:
             # Same <db>.state.json naming GraphDatabase.state_path uses
             # (model/graph/catalog.py) — lets get_build_diff() find it.
             state_path = db_path.parent / f"{db_path.name}.state.json"
-            readers.append((db_path.stem, GraphReader(kuzu.Connection(db), state_path=state_path)))
+            reader = GraphReader(kuzu.Connection(db), state_path=state_path)
+            if not reader.is_current_model():
+                sys.stderr.write(
+                    f"[design-graph] skipped {db_path.name}: built with another design-graph model "
+                    f"version — rebuild it: design-graph --force <prototype.html>\n"
+                )
+                continue
+            readers.append((db_path.stem, reader))
             sys.stderr.write(f"[design-graph] loaded: {db_path.name}\n")
         except Exception as exc:
             sys.stderr.write(f"[design-graph] failed to open {db_path.name}: {exc}\n")

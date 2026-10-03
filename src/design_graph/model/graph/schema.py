@@ -15,6 +15,10 @@ Schema changes:
        value} for every module-level constant this component's own body
        references by name, e.g. an icon-name -> SVG-path lookup table —
        empty string when none apply; see extraction/module_data_extractor.py)
+  v10 — format-neutral model: source_code/source_lang/source_simplified on
+       Screen, Section and Component; declares_inline_styles on Component;
+       Token.mode; Screen viewport; NAVIGATES_TO and VARIANT_OF between
+       screens; a Model node recording this version and the capture used
 """
 
 from __future__ import annotations
@@ -28,9 +32,20 @@ from design_graph.model.entities import ComponentDefinitionStatus
 
 logger = logging.getLogger(__name__)
 
+# The version of the model a graph is written in. A graph from another version
+# is rebuilt by the pipeline and refused by readers instead of half-working.
+MODEL_VERSION = 10
+
 # ── Node table definitions ─────────────────────────────────────────────────────
 
 _NODE_TABLES: list[str] = [
+    (
+        "CREATE NODE TABLE Model("
+        "  version INT64,"
+        "  capture STRING,"
+        "  PRIMARY KEY(version)"
+        ")"
+    ),
     (
         "CREATE NODE TABLE Screen("
         "  name STRING,"

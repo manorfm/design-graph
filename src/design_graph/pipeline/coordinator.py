@@ -32,6 +32,7 @@ from design_graph.capture.base import (  # UnsupportedPrototypeError: re-exporte
 from design_graph.capture.registry import capture_for
 from design_graph.model.build import BuildStats
 from design_graph.model.graph.diff import compute_diff
+from design_graph.model.graph.schema import MODEL_VERSION
 from design_graph.model.graph.writer import GraphWriteSession
 from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
 from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
@@ -102,7 +103,11 @@ async def run_pipeline(
     )
 
     prev_state = load_build_state(state_path)
-    if not force and db_path.exists() and prev_state.html_hash == document.digest:
+    if (
+        not force and db_path.exists()
+        and prev_state.html_hash == document.digest
+        and prev_state.schema_version == MODEL_VERSION
+    ):
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         _reporter.build_skipped("HTML unchanged — use --force to rebuild")
         return None
@@ -147,6 +152,7 @@ async def run_pipeline(
 
     raw_stats: dict[str, int] = {}
     with GraphWriteSession(db_path) as writer:
+        writer.record_model(result.capture)
         writer.write_tokens(tokens)
         writer.write_icons(icons)
         writer.write_module_texts(module_texts)

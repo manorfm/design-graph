@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from design_graph.model.graph.schema import MODEL_VERSION
 from design_graph.model.build import BuildDiff, BuildState
 from design_graph.model.entities import ExtractedScreen
 from design_graph.model.graph.diff import compute_screen_hash
@@ -158,7 +159,7 @@ def build_new_state(
         components=dict(comp_counts.most_common(200)),
         source_path=str(source_path.resolve()) if source_path else "",
         database_path=str(database_path.resolve()) if database_path else "",
-        schema_version=2,
+        schema_version=MODEL_VERSION,
         last_diff=diff,
         skipped_entries=skipped_entries,
     )

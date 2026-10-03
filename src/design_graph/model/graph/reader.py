@@ -20,7 +20,8 @@ from typing import Literal
 import kuzu
 
 
-from design_graph.model.entities import resolve_icon_markers, RE_ICON_MARKER
+from design_graph.model.entities import RE_ICON_MARKER, resolve_icon_markers
+from design_graph.model.graph.schema import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,22 @@ class GraphReader:
         # "what changed since the last build" by reading the diff already
         # persisted there, without comparing two Kuzu databases from scratch.
         self._state_path = state_path
+
+    def model_info(self) -> dict | None:
+        """The model version and capture this graph was written with; None for a graph that predates them."""
+        try:
+            rows = self._conn.execute("MATCH (m:Model) RETURN m.version, m.capture")
+        except RuntimeError:
+            return None
+        if not rows.has_next():
+            return None
+        version, capture = rows.get_next()
+        return {"version": version, "capture": capture}
+
+    def is_current_model(self) -> bool:
+        """True when this graph was written in the model version this code reads."""
+        info = self.model_info()
+        return bool(info) and info["version"] == MODEL_VERSION
 
     # ── Screens ───────────────────────────────────────────────────────────────
 
