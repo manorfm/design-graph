@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from design_graph.model.entities import StyleState
+from design_graph.model.entities import ExtractedComponent, StyleState
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.notices import truncation_notice
 from design_graph.pipeline.coordinator import UnsupportedPrototypeError, capture_fragment
@@ -61,47 +61,46 @@ def validate_component_implementation(reader: GraphReader, name: str, source: st
         "de correspondência pixel-perfeita.\n",
     ]
 
-    stored_children = set(spec.get("children", []))
-    candidate_children = set(candidate.child_refs)
-    missing_children = sorted(stored_children - candidate_children)
-    extra_children = sorted(candidate_children - stored_children)
-    if missing_children:
-        lines.append(f"⚠ **Filhos ausentes na implementação**: {', '.join(missing_children)}")
-    if extra_children:
-        lines.append(f"ℹ **Filhos novos (não estavam na spec original)**: {', '.join(extra_children)}")
-    if not missing_children and not extra_children and stored_children:
-        lines.append("✅ Filhos batem com a spec.")
-
-    stored_default = {
-        (s["property"], s["value"])
-        for s in spec.get("styles_by_state", {}).get("default", [])
-    }
-    candidate_default = {
-        (s.property, s.value) for s in candidate.styles if s.state == StyleState.DEFAULT
-    }
-    missing_styles = sorted(stored_default - candidate_default)
-    if missing_styles:
-        lines.append("\n⚠ **Estilos default ausentes na implementação** (property, value):")
-        for prop, val in missing_styles[:15]:
-            lines.append(f"- `{prop}`: `{val}`")
-        notice = truncation_notice(len(missing_styles), 15, recoverable_via=cname)
-        if notice:
-            lines.append(notice)
-    elif stored_default:
-        lines.append("\n✅ Estilos default inline batem com a spec (dentro do que é verificável).")
-
-    stored_texts = {t["t.content"] for t in spec.get("texts", [])}
-    candidate_texts = {t.content for t in candidate.texts}
-    missing_texts = sorted(stored_texts - candidate_texts)
-    if missing_texts:
-        lines.append("\n⚠ **Textos ausentes na implementação**:")
-        for t in missing_texts[:10]:
-            lines.append(f'- "{t}"')
-        notice = truncation_notice(len(missing_texts), 10, recoverable_via=cname, tool="get_full_texts")
-        if notice:
-            lines.append(notice)
-    elif stored_texts:
-        lines.append("\n✅ Textos batem com a spec.")
+    lines.extend(_children_lines(spec, candidate))
+    lines.extend(_style_lines(spec, candidate, cname))
+    lines.extend(_text_lines(spec, candidate, cname))
 
     logger.debug("tools: validate_component_implementation(%s) — rendered", cname)
     return "\n".join(lines)
+
+
+def _children_lines(spec: dict, candidate: ExtractedComponent) -> list[str]:
+    stored, written = set(spec.get("children", [])), set(candidate.child_refs)
+    missing, extra = sorted(stored - written), sorted(written - stored)
+    lines = []
+    if missing:
+        lines.append(f"⚠ **Filhos ausentes na implementação**: {', '.join(missing)}")
+    if extra:
+        lines.append(f"ℹ **Filhos novos (não estavam na spec original)**: {', '.join(extra)}")
+    if not missing and not extra and stored:
+        lines.append("✅ Filhos batem com a spec.")
+    return lines
+
+
+def _style_lines(spec: dict, candidate: ExtractedComponent, cname: str) -> list[str]:
+    stored = {(s["property"], s["value"]) for s in spec.get("styles_by_state", {}).get("default", [])}
+    written = {(s.property, s.value) for s in candidate.styles if s.state == StyleState.DEFAULT}
+    missing = sorted(stored - written)
+    if not missing:
+        return ["\n✅ Estilos default inline batem com a spec (dentro do que é verificável)."] if stored else []
+    lines = ["\n⚠ **Estilos default ausentes na implementação** (property, value):"]
+    lines.extend(f"- `{prop}`: `{val}`" for prop, val in missing[:15])
+    notice = truncation_notice(len(missing), 15, recoverable_via=cname)
+    return lines + ([notice] if notice else [])
+
+
+def _text_lines(spec: dict, candidate: ExtractedComponent, cname: str) -> list[str]:
+    stored = {t["t.content"] for t in spec.get("texts", [])}
+    missing = sorted(stored - {t.content for t in candidate.texts})
+    if not missing:
+        return ["\n✅ Textos batem com a spec."] if stored else []
+    lines = ["\n⚠ **Textos ausentes na implementação**:"]
+    lines.extend(f'- "{t}"' for t in missing[:10])
+    notice = truncation_notice(len(missing), 10, recoverable_via=cname, tool="get_full_texts")
+    return lines + ([notice] if notice else [])
+
