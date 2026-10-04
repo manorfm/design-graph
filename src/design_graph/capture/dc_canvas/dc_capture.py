@@ -11,7 +11,9 @@ from design_graph.capture.base import CaptureResult, ComponentProgress, Prototyp
 from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
+from design_graph.capture.dc_canvas.sections import page_sections
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
+from design_graph.capture.dc_canvas.template import SOURCE_LANG
 from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
 from design_graph.model.entities import ExtractedComponent, ExtractedScreen
 
@@ -43,16 +45,18 @@ class DcCanvasCapture:
             _screen(board, pages[board.page_id], boards, board_variants)
             for board in boards
         ]
+        sections = {
+            board.name: page_sections(board.name, pages[board.page_id].markup) for board in boards
+        }
+        for screen in screens:
+            screen.sections_count = len(sections[screen.name])
         return CaptureResult(
-            capture=CAPTURE_NAME, components=[], screens=screens, sections={},
+            capture=CAPTURE_NAME, components=[], screens=screens, sections=sections,
             tokens=extract_canvas_tokens(list(pages.values())), skipped_entries=skipped,
         )
 
     def capture_fragment(self, source: str) -> ExtractedComponent | None:
         return None
-
-
-SOURCE_LANG = "html-template"
 
 
 def _boards_with_pages(bundle: Bundle | None) -> tuple[list[Board], dict[str, DcPage], int]:
