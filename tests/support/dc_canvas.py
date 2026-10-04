@@ -34,6 +34,7 @@ class Page:
     props: dict = field(default_factory=lambda: {"tema": {"editor": "enum", "options": ["claro", "escuro"],
                                                           "default": "claro"}})
     font_family: str = "IBM Plex Sans"
+    is_dc: bool = True              # False writes an ordinary page instead of a DC one
 
 
 def _entry(content: bytes, mime: str) -> dict:
@@ -67,10 +68,11 @@ def page_html(page: Page) -> str:
         f"  src: url(\"{font_id}\") format('woff2');\n}}\n"
     )
     props = {**page.props, "$preview": {"width": page.width, "height": page.height}}
+    root = "x-dc" if page.is_dc else "div"
     template = (
         f"<!DOCTYPE html>\n<html lang=\"pt-BR\"><head>\n<meta charset=\"utf-8\">\n<title>{html.escape(page.title)}</title>\n"
-        f"<script src=\"{runtime_id}\"></script>\n</head>\n<body>\n<x-dc>\n<helmet>\n"
-        f"<style>{font_face}</style>\n<style>{page.helmet_css}</style>\n</helmet>\n{page.body}\n</x-dc>\n"
+        f"<script src=\"{runtime_id}\"></script>\n</head>\n<body>\n<{root}>\n<helmet>\n"
+        f"<style>{font_face}</style>\n<style>{page.helmet_css}</style>\n</helmet>\n{page.body}\n</{root}>\n"
         f"<script type=\"text/x-dc\" data-dc-script=\"\" data-props=\"{html.escape(json.dumps(props))}\">\n"
         f"{page.logic}\n</script>\n</body></html>"
     )
