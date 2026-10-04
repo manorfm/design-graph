@@ -41,7 +41,12 @@ def element_children(element: Tag) -> list[Tag]:
 
 def visible_texts(element: Tag) -> list[str]:
     """The literal copy an element shows, in reading order, each once."""
-    texts: dict[str, None] = {}
+    return [text for text, _ in visible_text_nodes(element)]
+
+
+def visible_text_nodes(element: Tag) -> list[tuple[str, str]]:
+    """Each literal copy an element shows, once, with the tag of the element showing it."""
+    found: dict[str, str] = {}
     for node in element.descendants:
         if not isinstance(node, NavigableString) or isinstance(node, Comment):
             continue
@@ -49,8 +54,17 @@ def visible_texts(element: Tag) -> list[str]:
             continue
         text = " ".join(node.split())
         if text and INTERPOLATION not in text and TextEntry.is_plausible_content(text):
-            texts[text] = None
-    return list(texts)
+            found.setdefault(text, tag_of(node.parent))
+    return list(found.items())
+
+
+def rendered_descendants(element: Tag) -> list[Tag]:
+    """Every rendered element below `element`, in document order."""
+    found: list[Tag] = []
+    for child in element_children(element):
+        found.append(child)
+        found.extend(rendered_descendants(child))
+    return found
 
 
 def inline_styles(element: Tag) -> dict[str, str]:

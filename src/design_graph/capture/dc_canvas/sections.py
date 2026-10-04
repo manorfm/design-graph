@@ -6,6 +6,8 @@ the blocks a reader sees.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from bs4 import Tag
 
 from design_graph.capture.dc_canvas.template import (
@@ -25,12 +27,15 @@ _HEADINGS = ("h1", "h2", "h3")
 _MAX_NAME_CHARS = 40
 
 
-def page_sections(screen: str, markup: str) -> list[ExtractedSection]:
+def page_sections(
+    screen: str, blocks: list[Tag], components_in: Callable[[Tag], list[str]],
+) -> list[ExtractedSection]:
+    """One section per block, referencing the components found inside it."""
     sections, used = [], set()
-    for index, block in enumerate(page_blocks(markup)):
+    for index, block in enumerate(blocks):
         name = _unique(_block_name(block, index), used)
         sections.append(ExtractedSection.create(
-            screen=screen, name=name, styles=inline_styles(block), component_refs=[],
+            screen=screen, name=name, styles=inline_styles(block), component_refs=components_in(block),
             texts=visible_texts(block), source_code=str(block),
             detection_method=DetectionMethod.SEMANTIC if tag_of(block) in _SEMANTIC_NAMES
             else DetectionMethod.STRUCTURAL,
