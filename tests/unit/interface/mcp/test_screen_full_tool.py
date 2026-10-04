@@ -37,14 +37,14 @@ def _make_screen_full_spec() -> dict:
                 },
                 "component_refs":   ["TopNav"],
                 "texts":            ["Welcome", "Get started"],
-                "source_code":      "<section>Hero</section>",
+                "source_code":      "<section>Hero</section>", "source_lang": "jsx",
             }
         ],
         "components": [
             {
                 "name":       "TopNav",
                 "comp_type":  "navigation",
-                "source_code": "<nav>Home</nav>",
+                "source_code": "<nav>Home</nav>", "source_lang": "jsx",
                 "occurrence": 1,
                 "classes":    "nav-bar",
                 "styles_by_state": {

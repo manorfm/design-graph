@@ -7,7 +7,7 @@ cascade found no comment marker, no padding-styled div and no raw-markup
 list to anchor a Section on, and its content is silently unreachable here".
 
 Real case: HistoryView (toToggle prototype) used to report exactly this
-before section_extractor gained its inline-list fallback — get_full_jsx
+before section_extractor gained its inline-list fallback — get_full_source
 could still recover the real markup, but get_screen_full gave no hint that
 anything was missing. One StyleExtractionGap-shaped check, mirroring the
 existing pattern for the same class of problem (get_component/
@@ -32,7 +32,7 @@ class _NothingDecomposedReader:
     def get_screen_full(self, name):
         return {
             "name": "HistoryView", "component_count": 0, "sections_count": 0,
-            "source_code": _SUBSTANTIAL_JSX,
+            "source_code": _SUBSTANTIAL_JSX, "source_lang": "jsx",
             "sections": [], "components": [],
         }
 
@@ -43,7 +43,7 @@ class _TrivialScreenReader:
     def get_screen_full(self, name):
         return {
             "name": "EmptyScreen", "component_count": 0, "sections_count": 0,
-            "source_code": "<div />",
+            "source_code": "<div />", "source_lang": "jsx",
             "sections": [], "components": [],
         }
 
@@ -54,10 +54,10 @@ class _DecomposedScreenReader:
     def get_screen_full(self, name):
         return {
             "name": "NormalScreen", "component_count": 0, "sections_count": 1,
-            "source_code": _SUBSTANTIAL_JSX,
+            "source_code": _SUBSTANTIAL_JSX, "source_lang": "jsx",
             "sections": [{
                 "id": "s1", "name": "Hero", "detection_method": "comment",
-                "styles_by_element": {}, "component_refs": [], "texts": [], "source_code": "",
+                "styles_by_element": {}, "component_refs": [], "texts": [], "source_code": "", "source_lang": "jsx",
             }],
             "components": [],
         }
@@ -71,17 +71,17 @@ class TestScreenStructureGapNotice:
         out = self._dispatcher(_NothingDecomposedReader).dispatch(
             "get_screen_full", {"name": "HistoryView"}, "proto"
         )
-        assert "get_full_jsx" in out
+        assert "get_full_source" in out
         assert "HistoryView" in out
 
     def test_stays_silent_when_screen_genuinely_has_nothing(self):
         out = self._dispatcher(_TrivialScreenReader).dispatch(
             "get_screen_full", {"name": "EmptyScreen"}, "proto"
         )
-        assert "get_full_jsx" not in out
+        assert "get_full_source" not in out
 
     def test_stays_silent_when_sections_were_found(self):
         out = self._dispatcher(_DecomposedScreenReader).dispatch(
             "get_screen_full", {"name": "NormalScreen"}, "proto"
         )
-        assert "get_full_jsx" not in out
+        assert "get_full_source" not in out

@@ -7,7 +7,7 @@ Covers:
   - get_component: with styles, tokens, children present
   - find_token_usage: token found vs not found
   - impact: component path vs token path
-  - get_full_jsx: found vs not found
+  - get_full_source: found vs not found
   - get_component_interactions: with data
   - _find_reader: substring match fallback
 """
@@ -61,7 +61,7 @@ class RichMockReader:
                 },
                 "component_refs": ["BtnPrimary"],
                 "texts": ["Restaurantes"],
-                "source_code": "<div>header jsx</div>",
+                "source_code": "<div>header jsx</div>", "source_lang": "jsx",
             }
         return None
 
@@ -69,7 +69,7 @@ class RichMockReader:
         if name == "BtnWithStyles":
             return {
                 "c.name": "BtnWithStyles", "c.comp_type": "button",
-                "c.source_code": "<button>OK</button>",
+                "c.source_code": "<button>OK</button>", "c.source_lang": "jsx",
                 "c.occurrence": 3, "c.classes": "btn",
                 "styles": [
                     {"s.state": "default",    "s.property": "backgroundColor", "s.value": "#ffb81c"},
@@ -82,7 +82,7 @@ class RichMockReader:
                 "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"],
             }
-        return {"c.name": name, "c.comp_type": "card", "c.source_code": "",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "", "c.source_lang": "jsx",
                 "c.occurrence": 1, "c.classes": "",
                 "styles": [], "tokens": [], "children": [], "texts": [],
                 "interactions": [], "screens_using": []}
@@ -119,13 +119,13 @@ class RichMockReader:
 
     def get_full_source(self, name):
         if name == "BtnPrimary":
-            return {"source_code": "<button style={{color:'#ffb81c'}}>Click</button>",
+            return {"source_code": "<button style={{color:'#ffb81c'}}>Click</button>", "source_lang": "jsx",
                     "source_lang": "jsx", "source_simplified": False}
         if name == "BasicTab":
-            return {"source_code": "<div>{[conditional:Chip]}</div>",
+            return {"source_code": "<div>{[conditional:Chip]}</div>", "source_lang": "jsx",
                     "source_lang": "jsx", "source_simplified": True}
         if name == "Welcome":
-            return {"source_code": "<main>{{t}}</main>",
+            return {"source_code": "<main>{{t}}</main>", "source_lang": "jsx",
                     "source_lang": "html", "source_simplified": False}
         return None
 
@@ -307,47 +307,47 @@ class TestImpactTool:
         assert "não encontrado" in result.lower() or "totally_unknown" in result
 
 
-# ── get_full_jsx ──────────────────────────────────────────────────────────────
+# ── get_full_source ──────────────────────────────────────────────────────────────
 
-class TestGetFullJsxTool:
+class TestGetFullSourceTool:
     def _d(self):
         return ToolDispatcher([("doc", RichMockReader())])
 
-    def test_found_jsx_renders_code_block(self):
+    def test_found_source_renders_code_block_in_its_language(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = full_tools.get_full_jsx(r, "BtnPrimary")
+        result = full_tools.get_full_source(r, "BtnPrimary")
         assert "```jsx" in result
         assert "button" in result
 
     def test_not_found_returns_helpful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = full_tools.get_full_jsx(r, "ComponentWithNoJSX")
+        result = full_tools.get_full_source(r, "ComponentWithNoSource")
         assert "force" in result.lower() or "disponível" in result.lower()
 
-    def test_clean_jsx_keeps_complete_header_unflagged(self):
+    def test_untouched_source_keeps_complete_header_unflagged(self):
         # No marker survived sanitize_jsx for this snippet — must not carry
         # a false-positive "this was cut" warning.
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = full_tools.get_full_jsx(r, "BtnPrimary")
-        assert "sanitizado" not in result.lower()
+        result = full_tools.get_full_source(r, "BtnPrimary")
+        assert "simplificado" not in result.lower()
 
-    def test_sanitized_jsx_carries_explicit_warning(self):
+    def test_simplified_source_carries_explicit_warning(self):
         # The stored snippet already went through sanitize_jsx at
         # extraction time — a caller must be told this isn't the original
         # source, instead of reading "JSX completo" and stopping there.
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = full_tools.get_full_jsx(r, "BasicTab")
-        assert "sanitizado" in result.lower()
+        result = full_tools.get_full_source(r, "BasicTab")
+        assert "simplificado" in result.lower()
         assert "{[conditional:Chip]}" in result
 
     def test_code_fence_uses_the_stored_source_language(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        assert "```html\n<main>{{t}}</main>" in full_tools.get_full_jsx(r, "Welcome")
+        assert "```html\n<main>{{t}}</main>" in full_tools.get_full_source(r, "Welcome")
 
 
 # ── get_component_interactions ────────────────────────────────────────────────
@@ -434,13 +434,13 @@ class _OverflowReader:
             "styles_by_element": self._STYLES_9_BY_ELEMENT,
             "component_refs": ["BtnPrimary"],
             "texts": self._TEXTS_9,
-            "source_code": "",
+            "source_code": "", "source_lang": "jsx",
         }
 
     def get_component_spec(self, name):
         return {
             "c.name": "OverflowComp", "c.comp_type": "card",
-            "c.occurrence": 3, "c.source_code": "",
+            "c.occurrence": 3, "c.source_code": "", "c.source_lang": "jsx",
             "c.classes": "",
             "styles_by_state": self._STYLES_15_BY_STATE,
             "tokens": [],
@@ -497,7 +497,7 @@ class TestTruncationWarnings:
                 return {
                     "id": "s", "name": "Small", "detection_method": "comment",
                     "styles_by_element": {"(estilo da seção)": [{"property": "padding", "value": "4px"}]},
-                    "component_refs": [], "texts": ["Hello"], "source_code": "",
+                    "component_refs": [], "texts": ["Hello"], "source_code": "", "source_lang": "jsx",
                 }
         d = ToolDispatcher([("proto", SmallReader())])
         result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
@@ -511,7 +511,7 @@ class TestTruncationWarnings:
 class _CappedExtractionReader:
     def get_component(self, name):
         return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "<div/>",
+            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "<div/>", "c.source_lang": "jsx",
             "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "styles,texts",
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
@@ -519,7 +519,7 @@ class _CappedExtractionReader:
 
     def get_component_spec(self, name):
         return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "",
+            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "", "c.source_lang": "jsx",
             "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "interactions",
             "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
             "children": [], "parents": [], "screens_using": [],
@@ -531,7 +531,7 @@ class _CappedExtractionReader:
             "sections": [],
             "components": [{
                 "name": "CappedComp", "comp_type": "card", "occurrence": 1,
-                "source_code": "", "declares_inline_styles": False, "classes": "", "truncated_fields": ["classes"],
+                "source_code": "", "source_lang": "jsx", "declares_inline_styles": False, "classes": "", "truncated_fields": ["classes"],
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -644,11 +644,11 @@ class TestTruncatedFieldsNoticeHelper:
 
     def test_recoverable_via_suggests_get_full_jsx(self):
         notice = truncated_fields_notice("styles", recoverable_via="MyComp")
-        assert "get_full_jsx('MyComp')" in notice
+        assert "get_full_source('MyComp')" in notice
 
     def test_no_recoverable_via_omits_suggestion(self):
         notice = truncated_fields_notice("styles")
-        assert "get_full_jsx" not in notice
+        assert "get_full_source" not in notice
 
 
 class TestTruncatedFieldsNotice:
@@ -658,17 +658,17 @@ class TestTruncatedFieldsNotice:
     def test_get_component_shows_truncated_fields(self):
         result = self._dispatcher().dispatch("get_component", {"name": "CappedComp"}, "")
         assert "styles" in result and "texts" in result
-        assert "get_full_jsx" in result
+        assert "get_full_source" in result
 
     def test_get_component_spec_shows_truncated_fields(self):
         result = self._dispatcher().dispatch("get_component_spec", {"name": "CappedComp"}, "")
         assert "interactions" in result
-        assert "get_full_jsx" in result
+        assert "get_full_source" in result
 
     def test_get_screen_full_shows_truncated_fields(self):
         result = self._dispatcher().dispatch("get_screen_full", {"name": "CappedScreen"}, "")
         assert "classes" in result
-        assert "get_full_jsx" in result
+        assert "get_full_source" in result
 
     def test_no_notice_when_nothing_truncated(self):
         class CleanReader(_CappedExtractionReader):
@@ -683,7 +683,7 @@ class TestTruncatedFieldsNotice:
 
 
 # ── JSX truncation: agent must know a snippet was cut, and whether it can ────
-# ── recover the rest via get_full_jsx (components only, not sections) ───────
+# ── recover the rest via get_full_source (components only, not sections) ───────
 
 class _JsxOverflowReader:
     """source_code longer than every render-time cap (2000/2500/3000/4000)."""
@@ -694,7 +694,7 @@ class _JsxOverflowReader:
         return {
             "id": "sec_x", "name": "BigSection", "detection_method": "comment",
             "styles_by_element": {}, "component_refs": [], "texts": [],
-            "source_code": self._LONG_JSX,
+            "source_code": self._LONG_JSX, "source_lang": "jsx",
         }
 
     def get_screen_full(self, name):
@@ -703,11 +703,11 @@ class _JsxOverflowReader:
             "sections": [{
                 "name": "BigSection", "detection_method": "comment",
                 "styles_by_element": {}, "component_refs": [], "texts": [],
-                "source_code": self._LONG_JSX,
+                "source_code": self._LONG_JSX, "source_lang": "jsx",
             }],
             "components": [{
                 "name": "BigComp", "comp_type": "card", "occurrence": 1,
-                "source_code": self._LONG_JSX, "declares_inline_styles": False, "classes": "",
+                "source_code": self._LONG_JSX, "source_lang": "jsx", "declares_inline_styles": False, "classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -716,7 +716,7 @@ class _JsxOverflowReader:
     def get_component(self, name):
         return {
             "c.name": "BigComp", "c.comp_type": "card", "c.occurrence": 1,
-            "c.source_code": self._LONG_JSX, "c.classes": "",
+            "c.source_code": self._LONG_JSX, "c.source_lang": "jsx", "c.classes": "",
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
         }
@@ -726,7 +726,7 @@ class _JsxOverflowReader:
 
 
 class TestJsxTruncationWarnings:
-    """A capped JSX snippet must say so — and must only point to get_full_jsx
+    """A capped JSX snippet must say so — and must only point to get_full_source
     where that tool can actually recover the rest (Component nodes; sections
     have no such lookup)."""
 
@@ -736,21 +736,21 @@ class TestJsxTruncationWarnings:
     def test_get_component_notice_is_visible_and_actionable(self):
         result = self._dispatcher().dispatch("get_component", {"name": "BigComp"}, "proto")
         assert "+" in result
-        assert "get_full_jsx('BigComp')" in result
+        assert "get_full_source('BigComp')" in result
 
     def test_get_section_notice_is_visible_without_a_false_lead(self):
         result = self._dispatcher().dispatch(
             "get_section", {"screen": "X", "section": "BigSection"}, "proto"
         )
         assert "+" in result
-        assert "get_full_jsx" not in result
+        assert "get_full_source" not in result
 
     def test_get_screen_full_component_notice_is_actionable(self):
         result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
-        assert "get_full_jsx('BigComp')" in result
+        assert "get_full_source('BigComp')" in result
 
     def test_get_screen_full_section_notice_has_no_false_lead(self):
         result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
-        # Only the component-level cut may reference get_full_jsx; the
+        # Only the component-level cut may reference get_full_source; the
         # section-level cut must not carry the same (false) claim.
-        assert result.count("get_full_jsx") == 1
+        assert result.count("get_full_source") == 1

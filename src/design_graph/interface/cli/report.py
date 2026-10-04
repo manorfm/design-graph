@@ -66,7 +66,6 @@ class ReportConfig:
     """Controls what is included when building and rendering a prototype report."""
     prototype_name:            str
     include_tokens:            bool = True
-    include_jsx:               bool = False
     max_components_per_screen: int  = 20
 
 

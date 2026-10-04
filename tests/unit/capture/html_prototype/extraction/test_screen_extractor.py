@@ -194,7 +194,7 @@ class TestExtractScreens:
 
 class TestScreenJsxSnippet:
     """
-    get_full_jsx('ItemEditorV6') failed outright — reader.get_full_jsx only
+    get_full_source('ItemEditorV6') failed outright — reader.get_full_source only
     ever queried :Component nodes, and a full-page overlay shell like
     ItemEditorV6 is classified as a Screen and (deliberately) never also
     extracted as a Component (coordinator.extract_react: "a screen boundary

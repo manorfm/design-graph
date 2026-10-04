@@ -28,7 +28,7 @@ TOOL_DEFINITIONS: list[dict] = [
         "name": "get_screen",
         "description": (
             "Returns a screen's structural overview: section names, component list (names and types) "
-            "and screen-level texts. Does NOT include component styles, props or JSX. "
+            "and screen-level texts. Does NOT include component styles, props or source. "
             "Use get_screen_full when you need to implement or replicate the screen. "
             "Always pass 'doc' when multiple prototypes are loaded."
         ),
@@ -57,7 +57,7 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "get_component",
         "description": (
-            "Returns a component's implementation: JSX, styles (default/hover/focus), "
+            "Returns a component's implementation: source, styles (default/hover/focus), "
             "design tokens used, texts, interactions, and child components."
         ),
         "inputSchema": {
@@ -134,8 +134,8 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
-        "name": "get_full_jsx",
-        "description": "Returns a component's complete sanitized JSX, without the display length cap other tools apply. Dynamic expressions (.map/&&/ternary) still appear as typed markers ({[conditional:X]} etc) — this recovers what CappedJsx truncated, not the original pre-sanitization source. Use when get_component truncated details.",
+        "name": "get_full_source",
+        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. When the capture simplified the source while storing it (e.g. collapsing dynamic expressions into markers like {[conditional:X]}), the response says so — this recovers what the display cap cut, not what the capture left out. Use when another tool truncated the source.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -147,7 +147,7 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "get_full_styles",
-        "description": "Returns a component's or a screen section's complete style list, without the display cap other tools apply ('+N mais'). The get_full_jsx equivalent for styles. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec truncated a style table.",
+        "description": "Returns a component's or a screen section's complete style list, without the display cap other tools apply ('+N mais'). The get_full_source equivalent for styles. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec truncated a style table.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -340,7 +340,7 @@ TOOL_DEFINITIONS: list[dict] = [
         "description": (
             "Compares an implementation you wrote against a component's stored spec (children, "
             "default-state styles, texts) and reports discrepancies. The source is read by the same "
-            "capture that built this prototype, in the same format get_full_jsx returns. Best-effort, "
+            "capture that built this prototype, in the same format get_full_source returns. Best-effort, "
             "not a full re-extraction: it reliably catches missing/extra child components and missing "
             "inline styles/texts, but CANNOT verify styles that came from the prototype's own "
             "stylesheet classes or utility classes (e.g. bg-blue-500), which a standalone fragment "
@@ -393,7 +393,7 @@ TOOL_DEFINITIONS: list[dict] = [
         "name": "get_screen_full",
         "description": (
             "Returns everything needed to implement or reconstruct a screen from the prototype: "
-            "all sections (with styles, texts, component refs and JSX), "
+            "all sections (with styles, texts, component refs and source), "
             "all components (with styles grouped by state, design tokens, texts, "
             "interactions, props and children), and layout profiles for spatial structure. "
             "Use this as the first call when asked to implement, replicate or evolve a screen."

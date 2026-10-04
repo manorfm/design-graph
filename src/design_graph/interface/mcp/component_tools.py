@@ -13,7 +13,12 @@ from design_graph.interface.mcp.markdown import (
     referenced_data_lines,
     render_referenced_data_value,
 )
-from design_graph.interface.mcp.notices import CappedJsx, StyleExtractionGap, truncated_fields_notice, truncation_notice
+from design_graph.interface.mcp.notices import (
+    StyleExtractionGap,
+    source_block_lines,
+    truncated_fields_notice,
+    truncation_notice,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +43,9 @@ def get_component(reader: GraphReader, name: str) -> str:
     if trunc_notice:
         lines.append(trunc_notice)
     if comp.get("c.source_code"):
-        jsx = CappedJsx(comp["c.source_code"], 4000)
-        lines += ["", "## JSX", "```jsx", jsx, "```"]
-        notice = jsx.notice(recoverable_via=cname)
-        if notice:
-            lines.append(notice)
+        lines += ["", *source_block_lines(
+            comp["c.source_code"], comp["c.source_lang"], 4000, recoverable_via=cname, heading="## Fonte",
+        )]
     if comp.get("styles"):
         lines.append("\n## Estilos")
         by_state: dict[str, list[str]] = {}
@@ -157,13 +160,9 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
         )
         lines.extend(referenced_data_lines(spec["referenced_data"], recoverable_via=cname))
     if spec.get("c.source_code"):
-        jsx = CappedJsx(spec["c.source_code"], 3000)
-        lines.append("\n## JSX\n```jsx")
-        lines.append(jsx)
-        lines.append("```")
-        notice = jsx.notice(recoverable_via=cname)
-        if notice:
-            lines.append(notice)
+        lines.extend(source_block_lines(
+            spec["c.source_code"], spec["c.source_lang"], 3000, recoverable_via=cname, heading="\n## Fonte",
+        ))
     logger.debug("tools: get_component_spec(%s) — rendered", cname)
     return "\n".join(lines)
 
@@ -181,7 +180,7 @@ def _render_shared_css_class_spec(
     owners = reader.find_class_owners(class_name)
     lines = [
         f"# Spec: .{class_name}",
-        "**Tipo**: classe CSS (não é um componente React nomeado)",
+        "**Tipo**: classe CSS (não é um componente nomeado)",
     ]
     used_in = [*owners["components"], *(f'{o["screen"]} / {o["section"]}' for o in owners["sections"])]
     if used_in:
@@ -268,13 +267,8 @@ def get_component_full(reader: GraphReader, name: str) -> str:
             lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
 
         if comp["source_code"]:
-            jsx = CappedJsx(comp["source_code"], 2500)
-            lines.append("\n```jsx")
-            lines.append(jsx)
-            lines.append("```")
-            notice = jsx.notice(recoverable_via=cname)
-            if notice:
-                lines.append(notice)
+            lines.append("")
+            lines.extend(source_block_lines(comp["source_code"], comp["source_lang"], 2500, recoverable_via=cname))
         lines.append("")
 
     logger.debug("tools: get_component_full(%s) — %d components", root_name, len(full["components"]))

@@ -20,7 +20,6 @@ Commands:
   design-graph report --output <file>           write report to a Markdown file
   design-graph report --name <name>             override prototype name in report
   design-graph report --no-tokens               exclude design token table
-  design-graph report --jsx                     include JSX snippets in report
   design-graph init [path]                       configure the UI-context skill for an AI coding tool (interactive)
   design-graph init [path] --tool claude,cursor  configure it for specific tools without prompting
 """
@@ -84,7 +83,6 @@ class ReportCliArgs:
     output_path:    Path | None   # None → write to stdout
     prototype_name: str | None    # None → infer from selected db stem
     include_tokens: bool
-    include_jsx:    bool
     verbose:        bool
     document:       str | None = None
 
@@ -210,8 +208,6 @@ def parse_report_args(argv: list[str]) -> ReportCliArgs:
                    metavar="NAME", help="Prototype name shown in the report title")
     p.add_argument("--no-tokens", dest="include_tokens", action="store_false", default=True,
                    help="Exclude the design-token table from the report")
-    p.add_argument("--jsx",      dest="include_jsx",    action="store_true",
-                   help="Include JSX snippets in component sections")
     p.add_argument("--verbose",  action="store_true",   help="Show debug-level logs")
     ns = p.parse_args(argv)
     return ReportCliArgs(
@@ -219,7 +215,6 @@ def parse_report_args(argv: list[str]) -> ReportCliArgs:
         output_path=ns.output_path,
         prototype_name=ns.prototype_name,
         include_tokens=ns.include_tokens,
-        include_jsx=ns.include_jsx,
         verbose=ns.verbose,
         document=ns.document,
     )
@@ -497,7 +492,6 @@ def _build_report_from_graph(
     config = ReportConfig(
         prototype_name=prototype_name,
         include_tokens=parsed.include_tokens,
-        include_jsx=parsed.include_jsx,
     )
     db     = kuzu.Database(str(db_path), read_only=True)
     conn   = kuzu.Connection(db)

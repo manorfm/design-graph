@@ -1,6 +1,6 @@
 ---
 name: design-graph-ui-context
-description: Antes de criar, alterar, atualizar, corrigir ou revisar uma tela, componente ou detalhe visual — inclusive quando o pedido for só "atualizar a tela/o frontend a partir do protótipo" — consulte o servidor MCP design-graph para buscar o contexto exato (JSX, estilos por estado, tokens, props, hierarquia) em vez de reler o protótipo HTML inteiro ou adivinhar. Qualquer menção a "protótipo" junto de UI já é sinal de usar este skill. Use sempre que a tarefa envolver UI e houver um protótipo rastreado pelo design-graph disponível — pular esta checagem quando a tarefa não tiver nenhuma relação com tela/componente/estilo/protótipo.
+description: Antes de criar, alterar, atualizar, corrigir ou revisar uma tela, componente ou detalhe visual — inclusive quando o pedido for só "atualizar a tela/o frontend a partir do protótipo" — consulte o servidor MCP design-graph para buscar o contexto exato (fonte, estilos por estado, tokens, props, hierarquia) em vez de reler o protótipo HTML inteiro ou adivinhar. Qualquer menção a "protótipo" junto de UI já é sinal de usar este skill. Use sempre que a tarefa envolver UI e houver um protótipo rastreado pelo design-graph disponível — pular esta checagem quando a tarefa não tiver nenhuma relação com tela/componente/estilo/protótipo.
 ---
 
 # Contexto de UI via design-graph
@@ -68,7 +68,7 @@ list_components(comp_type="modal")         # filtra por tipo semântico
 | Só a estrutura/layout de uma tela, sem detalhe visual completo | `get_screen_layout(name)` | Mais leve, só profile de layout por componente |
 | Um componente isolado (botão, card, input) | `get_component_spec(name)` | Spec única focada em reconstrução: estilos por estado, tokens, hierarquia, telas que usam |
 | Um componente complexo com filhos aninhados (modal, form, card com sub-widgets) | `get_component_full(name)` | Componente + toda a subárvore (até 3 níveis) numa chamada só, sem precisar subir nível por nível com `get_component_children` |
-| Uma seção específica de uma tela | `get_section(screen, section)` | Estilos, textos, componentes e JSX só daquela seção |
+| Uma seção específica de uma tela | `get_section(screen, section)` | Estilos, textos, componentes e fonte só daquela seção |
 | Interações de hover/focus específicas | `get_component_interactions(name)` | Isolado, quando só isso importa |
 
 **Sempre chame `get_tokens(category?, screen?)` antes de escrever um valor
@@ -83,7 +83,7 @@ Uma resposta que traga um aviso `⚠ Extração truncada em: ...` está
 coube no limite de extração. Antes de confiar na spec como completa, chame:
 
 ```
-get_full_jsx(name)   # JSX bruto, sem sanitização nem corte
+get_full_source(name)   # fonte completo, na linguagem do protótipo, sem corte
 ```
 
 ## Passo 5 — depois de implementar, valide (opcional, mas recomendado)
@@ -92,7 +92,7 @@ get_full_jsx(name)   # JSX bruto, sem sanitização nem corte
 validate_component_implementation(name, source)
 ```
 
-Compara o JSX que você escreveu contra a spec já no grafo (filhos, estilos
+Compara o fonte que você escreveu contra a spec já no grafo (filhos, estilos
 default, textos) e aponta divergências. É *best-effort*: pega com confiança
 filhos/estilos inline/textos ausentes, mas **não** verifica estilos vindos de
 classes CSS customizadas do protótipo nem cores utilitárias do Tailwind (ex.

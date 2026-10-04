@@ -50,7 +50,7 @@ def validate_component_implementation(reader: GraphReader, name: str, source: st
     if candidate is None:
         return (
             f"Não foi possível ler `source` no formato deste protótipo ({info['capture']}) — "
-            "passe o fonte do componente no mesmo formato que get_full_jsx devolve."
+            "passe o fonte do componente no mesmo formato que get_full_source devolve."
         )
 
     lines = [

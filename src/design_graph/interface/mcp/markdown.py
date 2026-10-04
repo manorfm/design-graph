@@ -25,12 +25,12 @@ def props_table_lines(props: list[dict]) -> list[str]:
     """
     A one-line honesty note plus a Prop/Default Markdown table.
 
-    No "Required" column: JSX has no required/optional prop system, so a
-    missing default is not proof a prop is required — only PropDefault's
+    No "Required" column: prototype sources don't declare which props are
+    required, so a missing default is not proof a prop is required — only PropDefault's
     verifiable fact (whether a default exists, and what it is) is shown.
     """
     lines = [
-        "> A missing default does not mean the prop is required — JSX enforces no such contract; check real usage before assuming.",
+        "> A missing default does not mean the prop is required — the prototype declares no such contract; check real usage before assuming.",
         "| Prop | Default |",
         "|---|---|",
     ]

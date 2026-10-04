@@ -65,7 +65,7 @@ class _MockReader:
         ]
 
     def get_component(self, name):
-        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>", "c.source_lang": "jsx",
                 "c.occurrence": 2, "c.classes": "card",
                 "styles": [], "tokens": [], "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"], "children": []}
@@ -122,12 +122,10 @@ class TestDomainObjectContracts:
     def test_report_config_defaults(self):
         cfg = ReportConfig(prototype_name="myapp")
         assert cfg.include_tokens is True
-        assert cfg.include_jsx is False
         assert cfg.max_components_per_screen > 0
 
-    def test_report_config_customizable(self):
-        cfg = ReportConfig(prototype_name="myapp", include_jsx=True, include_tokens=False)
-        assert cfg.include_jsx is True
+    def test_report_config_tokens_can_be_excluded(self):
+        cfg = ReportConfig(prototype_name="myapp", include_tokens=False)
         assert cfg.include_tokens is False
 
 

@@ -8,7 +8,7 @@ never factored into a named component like `UserRow`/`MemberRow` — with no
 screen. Both existing detection strategies (comment, structural) find nothing,
 so the whole block — containers, classes, conditional icon, texts — silently
 disappears from get_screen_full/get_screen_layout/list_components even though
-get_full_jsx still recovers the raw JSX untouched.
+get_full_source still recovers the raw JSX untouched.
 
 This strategy recognizes `x.map((item[, i]) => (<lowercaseTag ...>` — raw
 markup, never a named-component call — as a third, last-resort anchor to

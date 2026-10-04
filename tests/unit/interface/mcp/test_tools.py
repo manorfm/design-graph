@@ -36,7 +36,7 @@ class MockReader:
         return {"name": name, "texts": []}
 
     def get_component(self, name):
-        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>",
+        return {"c.name": name, "c.comp_type": "card", "c.source_code": "<div/>", "c.source_lang": "jsx",
                 "c.occurrence": 2, "c.classes": "card",
                 "styles": [], "tokens": [], "texts": [], "interactions": [],
                 "screens_using": ["RestaurantsPage"], "children": []}
@@ -75,7 +75,7 @@ class MockReader:
                 ".audit-item": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(10)],
                 ".audit-dot": [{"property": "display", "value": "flex"}],
             },
-            "component_refs": [], "texts": [f"text{i}" for i in range(10)], "source_code": "",
+            "component_refs": [], "texts": [f"text{i}" for i in range(10)], "source_code": "", "source_lang": "jsx",
         }
     def count_nodes(self): return {}
     def find_screens_using_comp_transitively(self, name): return []
@@ -96,7 +96,7 @@ class MockReader:
         if name == "ManyStylesComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {
                     "default": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
                 },
@@ -106,7 +106,7 @@ class MockReader:
         if name == "ManyTextsComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {},
                 "tokens": [], "interactions": [],
                 "texts": [{"t.content": f"text{i}", "t.text_type": "label"} for i in range(10)],
@@ -115,7 +115,7 @@ class MockReader:
         if name == "Icon":
             return {
                 "c.name": name, "c.comp_type": "component",
-                "c.source_code": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<svg/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
                 "children": [], "parents": [], "screens_using": [],
                 "referenced_data": {"ICONS": {"lock": "M21 2l-2 2", "trash": "M3 6h18"}},
@@ -123,7 +123,7 @@ class MockReader:
         if name == "ResponsiveOnlyComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {},
                 "responsive_styles_by_media": {
                     "(max-width: 600px)": [{"property": f"prop{i}", "value": f"val{i}"} for i in range(15)],
@@ -134,7 +134,7 @@ class MockReader:
         if name == "MixedResponsiveComp":
             return {
                 "c.name": name, "c.comp_type": "card",
-                "c.source_code": "<div/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<div/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
                 "responsive_styles_by_media": {
                     "(max-width: 600px)": [{"property": "color", "value": "blue"}],
@@ -145,14 +145,14 @@ class MockReader:
         if name == "ManyRefDataComp":
             return {
                 "c.name": name, "c.comp_type": "component",
-                "c.source_code": "<svg/>", "c.occurrence": 1, "c.classes": "",
+                "c.source_code": "<svg/>", "c.source_lang": "jsx", "c.occurrence": 1, "c.classes": "",
                 "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
                 "children": [], "parents": [], "screens_using": [],
                 "referenced_data": {"ICONS": {f"icon{i}": f"M{i} 0 0" for i in range(35)}},
             }
         return {
             "c.name": name, "c.comp_type": "button",
-            "c.source_code": "<button/>", "c.occurrence": 5, "c.classes": "",
+            "c.source_code": "<button/>", "c.source_lang": "jsx", "c.occurrence": 5, "c.classes": "",
             "styles_by_state": {"default": [{"property": "color", "value": "red"}]},
             "tokens": [], "texts": [], "interactions": [],
             "children": [], "parents": [], "screens_using": ["RestaurantsPage"],
@@ -182,14 +182,14 @@ class MockReader:
             "root": name,
             "components": [
                 {
-                    "name": name, "comp_type": "card", "source_code": "<div/>", "declares_inline_styles": False,
+                    "name": name, "comp_type": "card", "source_code": "<div/>", "source_lang": "jsx", "declares_inline_styles": False,
                     "occurrence": 2, "classes": "", "truncated_fields": [],
                     "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
                     "tokens": [], "texts": root_texts, "interactions": [], "props": [],
                     "children": ["Badge"],
                 },
                 {
-                    "name": "Badge", "comp_type": "badge", "source_code": "<span/>", "declares_inline_styles": False,
+                    "name": "Badge", "comp_type": "badge", "source_code": "<span/>", "source_lang": "jsx", "declares_inline_styles": False,
                     "occurrence": 1, "classes": "", "truncated_fields": [],
                     "styles_by_state": {}, "tokens": [], "texts": [],
                     "interactions": [], "props": [], "children": [],
@@ -434,7 +434,7 @@ class TestGetComponentSpecFallsBackToSharedCssClass:
 
 class TestGetFullStylesTool:
     """
-    get_full_jsx has no style equivalent — get_section/get_screen_full/
+    get_full_source has no style equivalent — get_section/get_screen_full/
     get_component_spec all truncate their style tables (`+N mais`) with no
     way to recover what was cut. get_full_styles renders the reader's
     already-complete data (the cap is a display-layer slice, not a query
@@ -789,7 +789,7 @@ class TestToolDefinitions:
         expected = {
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full_jsx", "get_full_styles", "get_component_interactions",
+            "get_full_source", "get_full_styles", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
             "get_component_full", "set_prototype",
         }

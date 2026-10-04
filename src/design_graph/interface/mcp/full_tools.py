@@ -6,28 +6,28 @@ from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import dedupe_styles_by_property, named_entity_resolution_error
 
 
-def get_full_jsx(reader: GraphReader, name: str) -> str:
+def get_full_source(reader: GraphReader, name: str) -> str:
     source = reader.get_full_source(name)
     if not source:
-        return f"JSX completo não disponível para '{name}'. Rode: design-graph --force <proto.html>"
+        return f"Fonte não disponível para '{name}'. Rode: design-graph --force <proto.html>"
 
+    lang = source["source_lang"]
     if source["source_simplified"]:
-        header = f"# JSX de {name} (sanitizado na extração — não é o fonte original)"
+        header = f"# Fonte de {name} ({lang}, simplificado pela captura — não é o original)"
         footer = (
-            "\n> Este snippet já passou por `sanitize_jsx` na extração — "
-            "handlers longos e ramos de lista/condicional/ternária foram "
-            "substituídos por marcadores. Chamar `get_full_jsx` de novo não "
-            "recupera o restante: o texto original não fica armazenado."
+            "\n> A captura substituiu partes do original por marcadores ao gravar este fonte "
+            "(ex.: ramos de lista/condicional e handlers longos). Chamar `get_full_source` de "
+            "novo não recupera o restante: o texto original não fica armazenado."
         )
     else:
-        header = f"# JSX completo: {name}"
+        header = f"# Fonte completo de {name} ({lang})"
         footer = ""
-    return f"{header}\n\n```{source['source_lang']}\n{source['source_code']}\n```{footer}"
+    return f"{header}\n\n```{lang}\n{source['source_code']}\n```{footer}"
 
 
 def get_full_styles(reader: GraphReader, name: str, screen: str, section: str) -> str:
     """
-    Uncapped style list — the get_full_jsx equivalent for styles.
+    Uncapped style list — the get_full_source equivalent for styles.
 
     The reader already returns every style row; get_section/
     get_screen_full/get_component_spec only ever slice it for display

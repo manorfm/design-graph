@@ -14,9 +14,9 @@ from design_graph.interface.mcp.markdown import (
     section_style_group_lines,
 )
 from design_graph.interface.mcp.notices import (
-    CappedJsx,
     ScreenStructureGap,
     StyleExtractionGap,
+    source_block_lines,
     truncated_fields_notice,
     truncation_notice,
 )
@@ -72,8 +72,8 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
 
     Output structure:
       # Screen heading + counts
-      ## Sections — each with styles, component refs, texts and JSX
-      ## Components — each with styles-by-state, tokens, interactions, props, children, JSX
+      ## Sections — each with styles, component refs, texts and source
+      ## Components — each with styles-by-state, tokens, interactions, props, children, source
 
     Layout data (display, align-items, ...) lives in each component's own
     "Styles — default" table, not a separate section — get_screen_layout
@@ -124,13 +124,8 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
                 if notice:
                     lines.append(notice)
             if sec["source_code"]:
-                jsx = CappedJsx(sec["source_code"], 2000)
-                lines.append("\n```jsx")
-                lines.append(jsx)
-                lines.append("```")
-                notice = jsx.notice(recoverable_via=None)  # sections aren't Component nodes
-                if notice:
-                    lines.append(notice)
+                lines.append("")
+                lines.extend(source_block_lines(sec["source_code"], sec["source_lang"], 2000, recoverable_via=None))
             lines.append("")
 
     # ── Components ────────────────────────────────────────────────────────
@@ -196,13 +191,8 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
                 lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
 
             if comp["source_code"]:
-                jsx = CappedJsx(comp["source_code"], 2500)
-                lines.append("\n```jsx")
-                lines.append(jsx)
-                lines.append("```")
-                notice = jsx.notice(recoverable_via=cname)
-                if notice:
-                    lines.append(notice)
+                lines.append("")
+                lines.extend(source_block_lines(comp["source_code"], comp["source_lang"], 2500, recoverable_via=cname))
             lines.append("")
 
     logger.debug("tools: get_screen_full(%s) — rendered", spec["name"])
@@ -275,11 +265,7 @@ def get_section(reader: GraphReader, screen: str, section: str) -> str:
         if notice:
             lines.append(notice)
     if sec["source_code"]:
-        jsx = CappedJsx(sec["source_code"], 3000)
-        lines.append("\n## JSX\n```jsx")
-        lines.append(jsx)
-        lines.append("```")
-        notice = jsx.notice(recoverable_via=None)  # sections aren't Component nodes
-        if notice:
-            lines.append(notice)
+        lines.extend(source_block_lines(
+            sec["source_code"], sec["source_lang"], 3000, recoverable_via=None, heading="\n## Fonte",
+        ))
     return "\n".join(lines)

@@ -152,7 +152,7 @@ class TestGetScreenFullMetadata:
         """
         The screen's own root JSX (the shell around its sections/components)
         must be reachable from get_screen_full itself — not only via a
-        separate get_full_jsx call — so a renderer can tell whether a screen
+        separate get_full_source call — so a renderer can tell whether a screen
         with zero Sections and zero Components genuinely has nothing of its
         own, or has real markup no detection strategy could anchor on.
         """

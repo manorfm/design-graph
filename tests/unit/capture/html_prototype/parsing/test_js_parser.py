@@ -176,7 +176,7 @@ class TestExtractReturnBlockMultipleGuardClauses:
     to lose every branch except whichever `return` the regex matched first
     — textually the FIRST guard, not the branch that actually renders the
     screen's real content. Reproduces the `App` root-component bug from
-    docs/changes/C36 (get_full_jsx("App") returned only one early return).
+    docs/changes/C36 (get_full_source("App") returned only one early return).
 
     body_start is required to opt into this path — omitting it (as every
     pre-existing call above does) keeps the old single-match behavior

@@ -280,7 +280,7 @@ _AGENT_INSTRUCTIONS = (
     "writing a literal color/spacing/typography/shadow/radius value — "
     "reuse the token instead of inventing one. A response carrying a "
     "'truncated' notice is incomplete for the fields it names; call "
-    "get_full_jsx for the raw source before treating it as complete. When a "
+    "get_full_source for the raw source before treating it as complete. When a "
     "component's spec shows a 'Dados referenciados'/'Referenced data' "
     "section (e.g. an icon-name -> SVG-path lookup table), reuse those exact "
     "values — call get_component_data for the complete, uncapped table "

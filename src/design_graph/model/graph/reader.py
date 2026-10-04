@@ -1082,7 +1082,7 @@ class GraphReader:
         section_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section) "
             "RETURN sec.id, sec.name, sec.components_json, sec.texts_json, "
-            "       sec.styles_json, sec.source_code, sec.detection_method",
+            "       sec.styles_json, sec.source_code, sec.source_lang, sec.detection_method",
             {"n": resolved},
         )
         for row in section_rows:
@@ -1538,6 +1538,7 @@ def _assemble_screen_full(
             "component_refs":    json.loads(sec["sec.components_json"] or "[]"),
             "texts":             list(texts),
             "source_code":       sec["sec.source_code"] or "",
+            "source_lang":       sec["sec.source_lang"] or "",
         })
 
     # ── Component data ────────────────────────────────────────────────────────

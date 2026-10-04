@@ -463,3 +463,23 @@ class TestG15ModelHasNoFormatVocabulary:
             if self.FORMAT_WORDS.search(word)
         ]
         assert not violations, "G15 violation(s):\n  " + "\n  ".join(violations)
+
+
+# ── G16: interfaces speak design, not a source format ─────────────────────────
+
+class TestG16InterfacesHaveNoFormatVocabulary:
+    """
+    What an agent or a user reads — tool names, descriptions, Markdown, CLI
+    flags — never assumes a source format; the language of a stored source
+    comes from the graph (source_lang), not from the interface.
+    """
+
+    def test_interface_code_carries_no_format_vocabulary(self):
+        g15 = TestG15ModelHasNoFormatVocabulary
+        violations = [
+            f"{path.relative_to(SRC)}:{line}: {word[:60]!r}"
+            for path in INTERFACE_DIR.rglob("*.py")
+            for line, word in g15._code_words(path)
+            if g15.FORMAT_WORDS.search(word)
+        ]
+        assert not violations, "G16 violation(s):\n  " + "\n  ".join(violations)

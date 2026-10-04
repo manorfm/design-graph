@@ -172,15 +172,9 @@ class TestReportOutputFile:
         assert "# Prototype Report" not in stdout  # content goes to file, not stdout
 
 
-# ── --jsx and --verbose flags ─────────────────────────────────────────────────
+# ── --verbose flag ────────────────────────────────────────────────────────────
 
 class TestReportAdditionalFlags:
-    def test_jsx_flag_accepted_without_crash(self, built_graph, capsys):
-        _, db_path = built_graph
-        _invoke_report(["--db", str(db_path), "--jsx"])
-        out = capsys.readouterr().out
-        assert "# Prototype Report" in out
-
     def test_verbose_flag_accepted_without_crash(self, built_graph, capsys):
         _, db_path = built_graph
         _invoke_report(["--db", str(db_path), "--verbose"])

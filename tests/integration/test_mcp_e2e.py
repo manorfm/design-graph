@@ -98,7 +98,7 @@ class TestServerOwnResponsibility:
         expected = {
             "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full_jsx", "get_component_interactions",
+            "get_full_source", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
             "get_component_props", "get_screen_layout",
             "set_prototype",
@@ -237,15 +237,15 @@ class TestGetTokensTool:
         assert isinstance(_text(resp), str)
 
 
-# ── get_full_jsx tool ─────────────────────────────────────────────────────────
+# ── get_full_source tool ─────────────────────────────────────────────────────────
 
 class TestGetFullJsxTool:
     def test_known_component_returns_jsx(self, single_server):
-        resp = _call(single_server, "get_full_jsx", {"name": "RestaurantsPage"})
+        resp = _call(single_server, "get_full_source", {"name": "RestaurantsPage"})
         assert isinstance(_text(resp), str)
 
     def test_nonexistent_returns_graceful_message(self, single_server):
-        resp = _call(single_server, "get_full_jsx", {"name": "Ghost999"})
+        resp = _call(single_server, "get_full_source", {"name": "Ghost999"})
         text = _text(resp)
         assert isinstance(text, str)
 

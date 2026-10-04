@@ -55,7 +55,7 @@ class ChunkEnvelope:
     parent_id: Optional[str]
     sibling_ids: list[str]
     child_ids: list[str]
-    content: str             # sanitized JSX or structured HTML
+    content: str             # the stored source, as its capture wrote it
     tokens_est: int          # len(content) // 4
     component_refs: list[str]
     context_summary: str     # one-line description
@@ -72,7 +72,7 @@ def chunk_extracted_data(
     Build a hierarchical list of ChunkEnvelopes from extracted prototype data.
 
     Strategy:
-    - Screen without sections → 1 chunk containing component JSX snippets
+    - Screen without sections → 1 chunk containing its components' sources
     - Screen with small sections → 1 chunk per section
     - Screen with large sections → break into per-component chunks
     """
@@ -244,7 +244,7 @@ def _split_section_by_components(
         comp = components.get(comp_name)
         content = (comp.source_code if comp else "")[:max_chars]
         if not content:
-            content = f"/* {comp_name} — no JSX available */"
+            content = f"/* {comp_name} — no source available */"
 
         cid = _unique_chunk_id(f"{screen_name}__{section.name}__{comp_name}", used_ids)
         chunks.append(ChunkEnvelope(

@@ -23,7 +23,7 @@ class _DynamicStyleReader:
     def get_component(self, name):
         return {
             "c.name": "RestaurantAvatar", "c.comp_type": "component", "c.occurrence": 1,
-            "c.source_code": DYNAMIC_STYLE_JSX, "c.classes": "", "c.declares_inline_styles": True,
+            "c.source_code": DYNAMIC_STYLE_JSX, "c.source_lang": "jsx", "c.classes": "", "c.declares_inline_styles": True,
             "styles": [], "tokens": [], "texts": [], "interactions": [],
             "screens_using": [], "children": [],
         }
@@ -34,7 +34,7 @@ class _DynamicStyleReader:
             "sections": [],
             "components": [{
                 "name": "RestaurantAvatar", "comp_type": "component", "occurrence": 1,
-                "source_code": DYNAMIC_STYLE_JSX, "classes": "", "declares_inline_styles": True,
+                "source_code": DYNAMIC_STYLE_JSX, "source_lang": "jsx", "classes": "", "declares_inline_styles": True,
                 "styles_by_state": {}, "tokens": [], "texts": [],
                 "interactions": [], "props": [], "children": [],
             }],
@@ -43,7 +43,7 @@ class _DynamicStyleReader:
     def get_component_spec(self, name):
         return {
             "c.name": "RestaurantAvatar", "c.comp_type": "component", "c.occurrence": 1,
-            "c.source_code": DYNAMIC_STYLE_JSX, "c.classes": "", "c.declares_inline_styles": True,
+            "c.source_code": DYNAMIC_STYLE_JSX, "c.source_lang": "jsx", "c.classes": "", "c.declares_inline_styles": True,
             "screens_using": [], "parents": [], "children": [],
             "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [], "props": [],
         }
@@ -80,7 +80,7 @@ class TestStyleGapNoticeAppearsAcrossAllRenderSites:
         out = self._dispatcher(_DynamicStyleReader).dispatch(
             "get_component", {"name": "RestaurantAvatar"}, "proto"
         )
-        assert "JSX" in out and "runtime" in out.lower()
+        assert "source" in out.lower() and "runtime" in out.lower()
 
     def test_get_screen_full_warns_on_dynamic_only_styles(self):
         out = self._dispatcher(_DynamicStyleReader).dispatch(

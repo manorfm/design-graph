@@ -206,7 +206,7 @@ Validation checks database readability and graph integrity conditions such as or
 design-graph report
 design-graph report --doc "prototype"
 design-graph report --db /path/to/prototype.db --output report.md
-design-graph report --name "Admin" --no-tokens --jsx
+design-graph report --name "Admin" --no-tokens
 ```
 
 Without `--output`, the report is written to stdout.

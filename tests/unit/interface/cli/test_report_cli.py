@@ -21,42 +21,35 @@ class TestReportCliArgsContract:
     def test_has_db_path_field(self):
         args = ReportCliArgs(
             db_path=None, output_path=None, prototype_name=None,
-            include_tokens=True, include_jsx=False, verbose=False,
+            include_tokens=True, verbose=False,
         )
         assert hasattr(args, "db_path")
 
     def test_has_output_path_field(self):
         args = ReportCliArgs(
             db_path=None, output_path=None, prototype_name=None,
-            include_tokens=True, include_jsx=False, verbose=False,
+            include_tokens=True, verbose=False,
         )
         assert hasattr(args, "output_path")
 
     def test_has_prototype_name_field(self):
         args = ReportCliArgs(
             db_path=None, output_path=None, prototype_name="myapp",
-            include_tokens=True, include_jsx=False, verbose=False,
+            include_tokens=True, verbose=False,
         )
         assert args.prototype_name == "myapp"
 
     def test_has_include_tokens_field(self):
         args = ReportCliArgs(
             db_path=None, output_path=None, prototype_name=None,
-            include_tokens=False, include_jsx=False, verbose=False,
+            include_tokens=False, verbose=False,
         )
         assert args.include_tokens is False
-
-    def test_has_include_jsx_field(self):
-        args = ReportCliArgs(
-            db_path=None, output_path=None, prototype_name=None,
-            include_tokens=True, include_jsx=True, verbose=False,
-        )
-        assert args.include_jsx is True
 
     def test_has_verbose_field(self):
         args = ReportCliArgs(
             db_path=None, output_path=None, prototype_name=None,
-            include_tokens=True, include_jsx=False, verbose=True,
+            include_tokens=True, verbose=True,
         )
         assert args.verbose is True
 
@@ -79,10 +72,6 @@ class TestParseReportArgsDefaults:
     def test_include_tokens_is_true_by_default(self):
         args = parse_report_args([])
         assert args.include_tokens is True
-
-    def test_include_jsx_is_false_by_default(self):
-        args = parse_report_args([])
-        assert args.include_jsx is False
 
     def test_verbose_is_false_by_default(self):
         args = parse_report_args([])
@@ -113,10 +102,6 @@ class TestParseReportArgsFlags:
         args = parse_report_args(["--no-tokens"])
         assert args.include_tokens is False
 
-    def test_jsx_enables_include_jsx(self):
-        args = parse_report_args(["--jsx"])
-        assert args.include_jsx is True
-
     def test_verbose_sets_verbose(self):
         args = parse_report_args(["--verbose"])
         assert args.verbose is True
@@ -126,13 +111,12 @@ class TestParseReportArgsFlags:
         out = tmp_path / "r.md"
         args = parse_report_args([
             "--db", str(db), "--output", str(out),
-            "--name", "iPede", "--no-tokens", "--jsx", "--verbose",
+            "--name", "iPede", "--no-tokens", "--verbose",
         ])
         assert args.db_path       == db
         assert args.output_path   == out
         assert args.prototype_name == "iPede"
         assert args.include_tokens is False
-        assert args.include_jsx    is True
         assert args.verbose        is True
 
     def test_unknown_flag_raises_system_exit(self):
