@@ -89,3 +89,11 @@ class Capture(Protocol):
         concurrency: int,
         on_component_extracted: ComponentProgress | None = None,
     ) -> CaptureResult: ...
+
+    def capture_fragment(self, source: str) -> ExtractedComponent | None:
+        """
+        Read a standalone fragment written in this capture's format (e.g. an
+        implementation an agent wants checked) the way a component of a whole
+        prototype is read; None when the fragment can't be read as one.
+        """
+        ...

@@ -28,7 +28,11 @@ from design_graph.model.entities import (
 from design_graph.capture.html_prototype.sources import FunctionBoundary, RawSources
 from design_graph.capture.html_prototype.patterns import RE_COMP_FN
 from design_graph.capture.html_prototype.extraction.alias_extractor import apply_aliases, extract_component_aliases
-from design_graph.capture.html_prototype.extraction.component_extractor import extract_all_components, select_renderable_boundaries
+from design_graph.capture.html_prototype.extraction.component_extractor import (
+    extract_all_components,
+    extract_component,
+    select_renderable_boundaries,
+)
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.capture.html_prototype.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.capture.html_prototype.extraction.screen_extractor import extract_screens, is_screen
@@ -73,6 +77,32 @@ class HtmlPrototypeCapture:
         if sources.format == PLAIN_HTML and not has_react_functions(sources.js):
             return await extract_plain_html(sources)
         return await extract_react(sources, concurrency, on_component_extracted)
+
+
+    def capture_fragment(self, source: str) -> ExtractedComponent | None:
+        """
+        Read a bare JSX expression as a component, with the same extractor a
+        whole bundle goes through — wrapped in a synthetic function so its
+        boundary can be found.
+
+        No stylesheet, palette or module constants exist for a standalone
+        fragment, so class-resolved styles and spread references resolve to
+        nothing here; inline styles, child references and texts are read
+        exactly as in a build.
+        """
+        if not source.strip():
+            return None
+        js = f"function {_FRAGMENT_WRAPPER_NAME}() {{\n  return (\n{source}\n  );\n}}"
+        boundaries = find_all_boundaries(js)
+        if not boundaries:
+            return None
+        return extract_component(js, boundaries[0], 1)
+
+
+# A fragment is wrapped in a function of this name to be read. Plain PascalCase
+# with no leading underscore — find_all_boundaries only recognizes names that
+# follow the convention real component names use.
+_FRAGMENT_WRAPPER_NAME = "DesignGraphFragment"
 
 
 def has_react_functions(js: str) -> bool:

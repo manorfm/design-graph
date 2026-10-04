@@ -12,6 +12,9 @@ from design_graph.interface.mcp.tools import ToolDispatcher
 # ── Mock reader ───────────────────────────────────────────────────────────────
 
 class MockReader:
+    def model_info(self):
+        return {"version": 10, "capture": "html_prototype"}
+
     """Minimal GraphReader stub for MCP unit tests."""
 
     def list_screens(self):
@@ -688,52 +691,26 @@ class TestGetComponentFullTool:
         assert "(raiz)" in result
 
 
-class TestExtractValidationCandidate:
-    def test_wraps_bare_jsx_and_extracts_inline_style(self):
-        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
-        candidate = _extract_validation_candidate('<button style={{color: "red"}}>OK</button>')
-        assert candidate is not None
-        assert any(s.property == "color" and s.value == "red" for s in candidate.styles)
-
-    def test_captures_child_refs(self):
-        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
-        candidate = _extract_validation_candidate("<div><Sparkline /><Badge /></div>")
-        assert candidate is not None
-        assert set(candidate.child_refs) == {"Sparkline", "Badge"}
-
-    def test_spread_reference_is_not_resolved_without_whole_file_context(self):
-        # Documented limitation (C33 spike finding): a spread referencing a
-        # shared style object can't resolve for an isolated snippet — no
-        # "rest of the file" to search for the const declaration.
-        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
-        candidate = _extract_validation_candidate('<div style={{...sharedStyle, width: 34}} />')
-        assert candidate is not None
-        props = {s.property for s in candidate.styles}
-        assert "width" in props
-        # sharedStyle's own properties are simply absent, not wrong — this
-        # is exactly the documented gap, not a crash or false data.
-
-
 class TestValidateComponentImplementationTool:
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
         assert "validate_component_implementation" in names
 
-    def test_tool_requires_name_and_jsx_source(self):
+    def test_tool_requires_name_and_source(self):
         tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "validate_component_implementation")
         required = tool["inputSchema"].get("required", [])
-        assert "name" in required and "jsx_source" in required
+        assert "name" in required and "source" in required
 
-    def test_empty_jsx_source_reports_nothing_to_compare(self):
+    def test_empty_source_reports_nothing_to_compare(self):
         result = _dispatcher(1).dispatch(
-            "validate_component_implementation", {"name": "BtnPrimary", "jsx_source": ""}, "doc1",
+            "validate_component_implementation", {"name": "BtnPrimary", "source": ""}, "doc1",
         )
         assert "vazio" in result.lower()
 
     def test_unknown_component_reports_not_found(self):
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "GhostComp", "jsx_source": "<div/>"}, "doc1",
+            {"name": "GhostComp", "source": "<div/>"}, "doc1",
         )
         assert "não encontrado" in result.lower() or "ghostcomp" in result.lower()
 
@@ -741,7 +718,7 @@ class TestValidateComponentImplementationTool:
         # MockReader.get_component_spec returns styles_by_state.default = [{"property": "color", "value": "red"}]
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "BtnPrimary", "jsx_source": '<button style={{color: "red"}}>OK</button>'},
+            {"name": "BtnPrimary", "source": '<button style={{color: "red"}}>OK</button>'},
             "doc1",
         )
         assert "✅" in result
@@ -750,28 +727,28 @@ class TestValidateComponentImplementationTool:
     def test_missing_style_is_flagged(self):
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "BtnPrimary", "jsx_source": "<button>OK</button>"},
+            {"name": "BtnPrimary", "source": "<button>OK</button>"},
             "doc1",
         )
         assert "ausentes" in result.lower()
         assert "color" in result and "red" in result
 
-    def test_oversized_jsx_source_is_rejected_before_extraction(self):
-        # C34: jsx_source is agent-submitted text re-run through the same
+    def test_oversized_source_is_rejected_before_extraction(self):
+        # C34: source is agent-submitted text re-run through the same
         # regex extractor used for a whole prototype bundle — must be
         # bounded, unlike a local file whose size the project doesn't control.
         from design_graph.interface.mcp.validation_tool import MAX_VALIDATION_SOURCE_CHARS
         oversized = "<div>" + ("x" * MAX_VALIDATION_SOURCE_CHARS) + "</div>"
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "BtnPrimary", "jsx_source": oversized}, "doc1",
+            {"name": "BtnPrimary", "source": oversized}, "doc1",
         )
         assert "muito grande" in result.lower()
 
-    def test_jsx_source_within_limit_is_processed_normally(self):
+    def test_source_within_limit_is_processed_normally(self):
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "BtnPrimary", "jsx_source": '<button style={{color: "red"}}>OK</button>'},
+            {"name": "BtnPrimary", "source": '<button style={{color: "red"}}>OK</button>'},
             "doc1",
         )
         assert "muito grande" not in result.lower()
@@ -779,11 +756,32 @@ class TestValidateComponentImplementationTool:
     def test_output_carries_best_effort_caveat(self):
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
-            {"name": "BtnPrimary", "jsx_source": "<button>OK</button>"},
+            {"name": "BtnPrimary", "source": "<button>OK</button>"},
             "doc1",
         )
         assert "best-effort" in result.lower() or "não verifica" in result.lower()
 
+
+
+    def test_graph_without_a_recorded_capture_asks_for_a_rebuild(self):
+        class LegacyReader(MockReader):
+            def model_info(self):
+                return None
+
+        result = ToolDispatcher([("doc1", LegacyReader())]).dispatch(
+            "validate_component_implementation", {"name": "BtnPrimary", "source": "<div/>"}, "doc1",
+        )
+        assert "--force" in result
+
+    def test_unreadable_fragment_is_reported(self):
+        class OtherCaptureReader(MockReader):
+            def model_info(self):
+                return {"version": 10, "capture": "no_such_capture"}
+
+        result = ToolDispatcher([("doc1", OtherCaptureReader())]).dispatch(
+            "validate_component_implementation", {"name": "BtnPrimary", "source": "<div/>"}, "doc1",
+        )
+        assert "no_such_capture" in result
 
 class TestToolDefinitions:
     def test_all_standard_tools_defined(self):

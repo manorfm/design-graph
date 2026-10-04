@@ -90,3 +90,38 @@ class TestHtmlPrototypeCapture:
 
     def test_skipped_entries_defaults_to_zero_for_unbundled_html(self):
         assert self._capture("simple.html").skipped_entries == 0
+
+
+class TestCaptureByName:
+    def test_capture_is_found_by_its_name(self):
+        from design_graph.capture.registry import capture_named
+        assert capture_named("html_prototype").name == "html_prototype"
+
+    def test_unknown_capture_name_is_unsupported(self):
+        from design_graph.capture.registry import capture_named
+        with pytest.raises(UnsupportedPrototypeError, match="no_such_capture"):
+            capture_named("no_such_capture")
+
+
+class TestHtmlPrototypeFragment:
+    """An agent-written fragment is read the same way the capture reads a whole prototype."""
+
+    def _fragment(self, source):
+        from design_graph.capture.registry import capture_named
+        return capture_named("html_prototype").capture_fragment(source)
+
+    def test_fragment_yields_its_inline_styles_children_and_texts(self):
+        comp = self._fragment('<button style={{color: "red"}}><Icon />Save draft</button>')
+        assert ("color", "red") in {(s.property, s.value) for s in comp.styles}
+        assert "Icon" in comp.child_refs
+        assert "Save draft" in {t.content for t in comp.texts}
+
+    @pytest.mark.parametrize("source", ["", "   \n  "])
+    def test_blank_fragment_yields_nothing(self, source):
+        assert self._fragment(source) is None
+
+    def test_spread_style_reference_stays_unresolved_without_the_rest_of_the_file(self):
+        # A spread of a shared style object can't resolve in an isolated
+        # fragment — its own properties are absent, never wrong.
+        comp = self._fragment('<div style={{...sharedStyle, width: 34}} />')
+        assert "width" in {s.property for s in comp.styles}

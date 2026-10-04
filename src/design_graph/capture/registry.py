@@ -26,3 +26,11 @@ def capture_for(document: PrototypeDocument) -> Capture:
     raise UnsupportedPrototypeError(
         f"{document.path.name} is not a prototype any capture recognizes (supported: {supported})"
     )
+
+
+def capture_named(name: str) -> Capture:
+    """The capture registered under `name` — the one a graph records it was built with."""
+    for capture in CAPTURES:
+        if capture.name == name:
+            return capture
+    raise UnsupportedPrototypeError(f"no capture named {name!r} is available")

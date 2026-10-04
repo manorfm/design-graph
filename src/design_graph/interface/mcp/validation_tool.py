@@ -6,69 +6,36 @@ import logging
 
 from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
-from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
-from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 from design_graph.interface.mcp.notices import truncation_notice
+from design_graph.pipeline.coordinator import UnsupportedPrototypeError, capture_fragment
 
 logger = logging.getLogger(__name__)
 
 
-# validate_component_implementation re-runs the same regex-based extractor
-# used for a whole prototype bundle, but over agent-submitted text instead
-# of a local file — the one MCP tool whose input isn't bounded by "however
-# big this local prototype happens to be". A real component's stored
-# source_code is itself capped at MAX_SOURCE_CODE_CHARS (8_000); this is a
-# generous multiple of that, not a tight fit, so it never rejects a
-# legitimate submission while still bounding the computational cost of an
-# oversized jsx_source (accidental or adversarial, e.g. an agent misled by
-# prompt injection inside the prototype's own HTML).
+# The one tool whose input is agent-submitted text rather than a local file:
+# it is read by the same extractor a whole prototype goes through, so its
+# size is bounded here. A stored component source is capped at 8_000 chars;
+# this generous multiple never rejects a real submission while bounding the
+# cost of an oversized one (accidental or adversarial, e.g. an agent misled by
+# prompt injection inside the prototype itself).
 MAX_VALIDATION_SOURCE_CHARS = 20_000
 
 
-# Synthetic wrapper name for validate_component_implementation. Must be
-# plain PascalCase, no leading underscore — find_all_boundaries only
-# recognizes function names matching the same convention real React
-# component names use, exactly as it would for any bundle it parses.
-_VALIDATION_WRAPPER_NAME = "DesignGraphValidationCandidate"
-
-
-def _extract_validation_candidate(jsx_source: str):
-    """
-    Re-extract an agent-submitted JSX expression using the same
-    component_extractor.extract_component the build pipeline itself uses —
-    wrapped in a synthetic function declaration so find_all_boundaries can
-    locate it (extract_component has no entry point for bare JSX; a real
-    prototype bundle never contains one either).
-
-    No rule_map/tag_rule_map/palette is passed: those come from the whole
-    prototype's own stylesheet, which doesn't exist for a standalone
-    snippet. Concretely, this means className-resolved styles (custom CSS
-    classes and Tailwind color utilities) are NOT captured here even when
-    they would be in a real build — only inline style={{}} objects, JSX
-    child references, and text content are reliably extracted. Spread
-    references (style={{...shared}}) also resolve to nothing, for the same
-    "no whole-file context" reason component_extractor's own spread
-    resolution already documents.
-    """
-    synthetic_js = f"function {_VALIDATION_WRAPPER_NAME}() {{\n  return (\n{jsx_source}\n  );\n}}"
-    boundaries = find_all_boundaries(synthetic_js)
-    if not boundaries:
-        return None
-    return extract_component(synthetic_js, boundaries[0], 1, {})
-
-
-
-
-def validate_component_implementation(
-    reader: GraphReader, name: str, jsx_source: str,
-) -> str:
-    if not jsx_source.strip():
-        return "jsx_source vazio — nada para comparar."
-    if len(jsx_source) > MAX_VALIDATION_SOURCE_CHARS:
+def validate_component_implementation(reader: GraphReader, name: str, source: str) -> str:
+    if not source.strip():
+        return "source vazio — nada para comparar."
+    if len(source) > MAX_VALIDATION_SOURCE_CHARS:
         return (
-            f"jsx_source muito grande ({len(jsx_source)} caracteres, limite "
-            f"{MAX_VALIDATION_SOURCE_CHARS}). Passe só a expressão JSX do "
-            f"componente, não o arquivo inteiro."
+            f"source muito grande ({len(source)} caracteres, limite "
+            f"{MAX_VALIDATION_SOURCE_CHARS}). Passe só o fonte do componente, "
+            f"não o arquivo inteiro."
+        )
+
+    info = reader.model_info()
+    if not info:
+        return (
+            "Este protótipo foi gerado sem registrar sua captura — reconstrua com "
+            "`design-graph --force <proto.html>` para validar implementações."
         )
 
     spec = reader.get_component_spec(name)
@@ -76,12 +43,14 @@ def validate_component_implementation(
         return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
     cname = spec["c.name"]
 
-    candidate = _extract_validation_candidate(jsx_source)
+    try:
+        candidate = capture_fragment(info["capture"], source)
+    except UnsupportedPrototypeError:
+        return f"Validação indisponível: a captura '{info['capture']}' deste protótipo não está instalada."
     if candidate is None:
         return (
-            "Não foi possível interpretar jsx_source como JSX válido "
-            "(passe a expressão JSX, ex.: o que get_full_jsx devolve, não uma "
-            "declaração de função completa)."
+            f"Não foi possível ler `source` no formato deste protótipo ({info['capture']}) — "
+            "passe o fonte do componente no mesmo formato que get_full_jsx devolve."
         )
 
     lines = [

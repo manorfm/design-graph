@@ -118,7 +118,7 @@ class ToolDispatcher:
             "get_component_full":        lambda: component_tools.get_component_full(reader, name),
             "get_build_diff":            lambda: build_tools.get_build_diff(reader),
             "validate_component_implementation": lambda: validation_tool.validate_component_implementation(
-                reader, name, args.get("jsx_source", ""),
+                reader, name, args.get("source", ""),
             ),
         }
 

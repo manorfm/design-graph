@@ -89,7 +89,7 @@ get_full_jsx(name)   # JSX bruto, sem sanitização nem corte
 ## Passo 5 — depois de implementar, valide (opcional, mas recomendado)
 
 ```
-validate_component_implementation(name, jsx_source)
+validate_component_implementation(name, source)
 ```
 
 Compara o JSX que você escreveu contra a spec já no grafo (filhos, estilos

@@ -332,10 +332,6 @@ class TestG12CaptureIsSealed:
     registry — so adding a format never touches code outside capture/.
     """
 
-    # validate_component_implementation re-captures an agent-submitted JSX
-    # fragment; it leaves this list once captures expose fragment capture.
-    KNOWN_EXCEPTIONS = {"interface/mcp/validation_tool.py"}
-
     def test_format_specific_packages_live_inside_capture(self):
         stray = [name for name in ("parsing", "extraction") if (SRC / name).exists()]
         assert not stray, f"G12 violation — format-specific packages outside capture/: {stray}"
@@ -344,7 +340,7 @@ class TestG12CaptureIsSealed:
         violations = []
         for path in SRC.rglob("*.py"):
             relative = path.relative_to(SRC).as_posix()
-            if relative.startswith("capture/") or relative in self.KNOWN_EXCEPTIONS:
+            if relative.startswith("capture/"):
                 continue
             for mod in _imports_in_file(path):
                 if mod.startswith("design_graph.capture.") and mod not in CAPTURE_CONTRACT:
@@ -419,7 +415,6 @@ class TestG14InterfacesAreThinAdapters:
             for path in INTERFACE_DIR.rglob("*.py")
             for mod in _imports_in_file(path)
             if mod.startswith("design_graph") and not mod.startswith(self.ALLOWED)
-            and path.relative_to(SRC).as_posix() not in TestG12CaptureIsSealed.KNOWN_EXCEPTIONS
         ]
         assert not violations, "G14 violation(s):\n  " + "\n  ".join(violations)
 

@@ -29,8 +29,9 @@ from design_graph.capture.base import (  # UnsupportedPrototypeError: re-exporte
     PrototypeDocument,
     UnsupportedPrototypeError,
 )
-from design_graph.capture.registry import capture_for
+from design_graph.capture.registry import capture_for, capture_named
 from design_graph.model.build import BuildStats
+from design_graph.model.entities import ExtractedComponent
 from design_graph.model.graph.diff import compute_diff
 from design_graph.model.graph.schema import MODEL_VERSION
 from design_graph.model.graph.writer import GraphWriteSession
@@ -39,7 +40,7 @@ from design_graph.pipeline.state import build_new_state, load_build_state, save_
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["UnsupportedPrototypeError", "capture_prototype", "run_pipeline"]
+__all__ = ["UnsupportedPrototypeError", "capture_fragment", "capture_prototype", "run_pipeline"]
 
 EXTRACTION_CONCURRENCY = int(os.environ.get("DESIGN_GRAPH_CONCURRENCY", "8"))
 
@@ -240,6 +241,14 @@ async def capture_prototype(
     return await capture_for(document).capture(
         document, concurrency=concurrency, on_component_extracted=on_component_extracted,
     )
+
+
+def capture_fragment(capture_name: str, source: str) -> ExtractedComponent | None:
+    """
+    Read a standalone fragment with the capture a prototype was built with.
+    Raises UnsupportedPrototypeError when no capture of that name exists.
+    """
+    return capture_named(capture_name).capture_fragment(source)
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────

@@ -338,24 +338,23 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "validate_component_implementation",
         "description": (
-            "Compares JSX you wrote against a component's stored spec (children, default-state "
-            "styles, texts) and reports discrepancies. Best-effort, not a full re-extraction: "
-            "it re-parses jsx_source in isolation, so it reliably catches missing/extra child "
-            "components and missing inline styles/texts, but CANNOT verify styles that came from "
-            "the prototype's own CSS classes or Tailwind color utilities (e.g. bg-blue-500) — "
-            "those require the original stylesheet, which isn't available for a standalone "
-            "snippet. Treat a clean report as 'no red flags found', not proof of a pixel-perfect "
-            "match. Pass jsx_source as the JSX expression only (what get_full_jsx returns), not "
-            f"a full function declaration, and under {MAX_VALIDATION_SOURCE_CHARS} characters."
+            "Compares an implementation you wrote against a component's stored spec (children, "
+            "default-state styles, texts) and reports discrepancies. The source is read by the same "
+            "capture that built this prototype, in the same format get_full_jsx returns. Best-effort, "
+            "not a full re-extraction: it reliably catches missing/extra child components and missing "
+            "inline styles/texts, but CANNOT verify styles that came from the prototype's own "
+            "stylesheet classes or utility classes (e.g. bg-blue-500), which a standalone fragment "
+            "doesn't carry. Treat a clean report as 'no red flags found', not proof of a pixel-perfect "
+            f"match. Keep source under {MAX_VALIDATION_SOURCE_CHARS} characters."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Component name to compare against (partial name accepted)"},
-                "jsx_source": {"type": "string", "description": "The JSX expression you implemented, e.g. '<button style={{color: \"red\"}}>OK</button>'"},
+                "source": {"type": "string", "description": "The component source you implemented, e.g. '<button style={{color: \"red\"}}>OK</button>'"},
                 "doc": _doc_param(),
             },
-            "required": ["name", "jsx_source"],
+            "required": ["name", "source"],
         },
     },
     {
