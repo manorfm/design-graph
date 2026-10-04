@@ -5,6 +5,7 @@ Commit-driven semantic versioner for design-graph.
 Reads the latest git tag, parses the last commit message prefix, and creates
 a new annotated tag following semver bump rules:
 
+  type!:    → major bump  (0.34.0 → 1.0.0) — any type marked breaking with "!"
   feat:     → minor bump  (0.1.0 → 0.2.0, patch resets to 0)
   fix:      → patch bump  (0.1.0 → 0.1.1)
   chore:    → patch bump
@@ -15,8 +16,13 @@ Unknown prefixes (docs, ci, test, …) produce no tag.
 Usage (called by .githooks/post-commit):
   python scripts/auto_version.py
 
+The current version is the highest vX.Y.Z tag in the repository, not the
+nearest one reachable from HEAD — a release tagged on another line of history
+must never make the next tag go backwards.
+
 Pure functions (parse_version, format_version, parse_commit_prefix,
-compute_next_version) are importable for unit testing without git.
+is_breaking_change, compute_next_version, latest_version_tag) are importable
+for unit testing without git.
 """
 
 from __future__ import annotations
@@ -34,7 +40,8 @@ _PATCH_PREFIXES: frozenset[str] = frozenset({"fix", "chore", "refactor"})
 # ── Pure functions (testable without git) ─────────────────────────────────────
 
 _RE_VERSION = re.compile(r'^v?(\d+)\.(\d+)\.(\d+)$')
-_RE_PREFIX  = re.compile(r'^(feat|fix|chore|refactor)(?:\([^)]*\))?:')
+_RE_PREFIX  = re.compile(r'^(feat|fix|chore|refactor)(?:\([^)]*\))?!?:')
+_RE_BREAKING = re.compile(r'^[a-z]+(?:\([^)]*\))?!:')
 
 
 def parse_version(tag: str) -> tuple[int, int, int]:
@@ -63,12 +70,32 @@ def parse_commit_prefix(message: str) -> str | None:
     return m.group(1) if m else None
 
 
-def compute_next_version(current: str, prefix: str | None) -> str:
+def is_breaking_change(message: str) -> bool:
+    """True for a Conventional Commits breaking subject: `type!:` or `type(scope)!:`."""
+    return bool(_RE_BREAKING.match(message))
+
+
+def latest_version_tag(tags: list[str]) -> str:
+    """The highest vX.Y.Z among `tags`, compared numerically; '0.0.0' when there is none."""
+    versions = []
+    for tag in tags:
+        try:
+            versions.append((parse_version(tag), tag))
+        except ValueError:
+            continue
+    return max(versions)[1] if versions else "0.0.0"
+
+
+def compute_next_version(current: str, prefix: str | None, breaking: bool = False) -> str:
     """Apply semver bump rules and return the new version string (no 'v' prefix).
 
-    Returns the current version unchanged when the prefix is unknown or None.
+    A breaking change bumps major whatever its type. Otherwise returns the
+    current version unchanged when the prefix is unknown or None.
     """
     major, minor, patch = parse_version(current)
+
+    if breaking:
+        return f"{major + 1}.0.0"
 
     if prefix in _MINOR_PREFIXES:
         return f"{major}.{minor + 1}.0"
@@ -112,12 +139,10 @@ def _git(*args: str) -> str:
 
 
 def _current_version_tag() -> str:
-    """Return the latest semver git tag, or '0.0.0' when none exists."""
+    """Return the highest semver git tag, or '0.0.0' when none exists."""
     try:
-        tag = _git("describe", "--tags", "--abbrev=0", "--match", "v*")
-        parse_version(tag)   # validate it looks like a version
-        return tag
-    except (subprocess.CalledProcessError, ValueError):
+        return latest_version_tag(_git("tag", "--list", "v*").split())
+    except subprocess.CalledProcessError:
         return "0.0.0"
 
 
@@ -141,15 +166,16 @@ def _create_annotated_tag(tag: str, message: str) -> None:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> int:
-    subject = _last_commit_subject()
-    prefix  = parse_commit_prefix(subject)
+    subject  = _last_commit_subject()
+    prefix   = parse_commit_prefix(subject)
+    breaking = is_breaking_change(subject)
 
-    if prefix not in (_MINOR_PREFIXES | _PATCH_PREFIXES):
+    if not breaking and prefix not in (_MINOR_PREFIXES | _PATCH_PREFIXES):
         print(f"auto_version: no bump — prefix {prefix!r} not in bump rules", file=sys.stderr)
         return 0
 
     current_tag    = _current_version_tag()
-    next_version   = compute_next_version(current_tag, prefix)
+    next_version   = compute_next_version(current_tag, prefix, breaking)
     next_tag       = format_version(*parse_version(next_version))
 
     if _tag_exists(next_tag):
@@ -157,7 +183,7 @@ def main() -> int:
         return 0
 
     _create_annotated_tag(next_tag, subject)
-    print(f"auto_version: {current_tag} → {next_tag}  ({prefix})", file=sys.stderr)
+    print(f"auto_version: {current_tag} → {next_tag}  ({prefix}{'!' if breaking else ''})", file=sys.stderr)
 
     readme = Path("README.md")
     if update_readme_version(next_tag, readme):
@@ -173,7 +199,7 @@ def _dry_run() -> int:
     subject = _last_commit_subject()
     prefix  = parse_commit_prefix(subject)
     current = _current_version_tag()
-    next_v  = compute_next_version(current, prefix)
+    next_v  = compute_next_version(current, prefix, is_breaking_change(subject))
     next_tag = format_version(*parse_version(next_v))
     print(f"current: {current}  prefix: {prefix!r}  next: {next_tag}")
     return 0

@@ -6,6 +6,8 @@ Responsibilities under test:
   - compute_next_version: applies semver bump rules given a prefix
   - parse_version: parses a "v1.2.3" or "1.2.3" tag string into (major, minor, patch)
   - format_version: formats (major, minor, patch) as "v1.2.3"
+  - is_breaking_change: a Conventional Commits `type!:` subject marks a major bump
+  - latest_version_tag: the highest released version among every tag, not the nearest one
 """
 
 from __future__ import annotations
@@ -20,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).parents[3] / "scripts"))
 from auto_version import (
     compute_next_version,
     format_version,
+    is_breaking_change,
+    latest_version_tag,
     parse_commit_prefix,
     parse_version,
     update_readme_version,
@@ -195,3 +199,46 @@ class TestUpdateReadmeVersion:
         readme = self._make_readme(tmp_path, "v1.0.0")
         update_readme_version("v1.0.0", readme)
         assert readme.read_text(encoding="utf-8").count("v1.0.0") == 1
+
+
+# ── Breaking changes ──────────────────────────────────────────────────────────
+
+class TestBreakingChange:
+    @pytest.mark.parametrize("message", [
+        "feat!: replace the capture contract",
+        "fix(model)!: rename source fields",
+        "refactor!: move packages",
+        "docs!: drop the legacy flag from the guide",
+    ])
+    def test_bang_before_the_colon_marks_a_breaking_change(self, message):
+        assert is_breaking_change(message) is True
+
+    @pytest.mark.parametrize("message", [
+        "feat: add a capture", "fix: no bang", "feat! missing colon", "Feat!: wrong case", "chore: bump to v1!",
+    ])
+    def test_other_subjects_are_not_breaking(self, message):
+        assert is_breaking_change(message) is False
+
+    @pytest.mark.parametrize("current,expected", [("0.34.0", "1.0.0"), ("1.4.2", "2.0.0"), ("0.0.0", "1.0.0")])
+    def test_breaking_change_bumps_major_and_resets_the_rest(self, current, expected):
+        assert compute_next_version(current, "feat", breaking=True) == expected
+
+    def test_breaking_change_bumps_major_whatever_the_type(self):
+        assert compute_next_version("0.34.0", "docs", breaking=True) == "1.0.0"
+
+
+# ── Current version ───────────────────────────────────────────────────────────
+
+class TestLatestVersionTag:
+    def test_highest_semver_wins_over_tag_order(self):
+        assert latest_version_tag(["v0.33.0", "v0.34.0", "v0.9.0", "v0.33.1"]) == "v0.34.0"
+
+    def test_numeric_not_lexical_comparison(self):
+        assert latest_version_tag(["v0.9.0", "v0.10.0"]) == "v0.10.0"
+
+    def test_non_version_tags_are_ignored(self):
+        assert latest_version_tag(["release-candidate", "v1.2", "v1.0.0"]) == "v1.0.0"
+
+    def test_no_version_tag_means_zero(self):
+        assert latest_version_tag([]) == "0.0.0"
+

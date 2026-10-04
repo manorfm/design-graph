@@ -580,7 +580,7 @@ Developer-oriented targets include `install-hooks`, `version`, `push` and `relea
 
 ## Releasing & security
 
-Versioning is commit-driven: `make install-hooks` installs a post-commit hook (`scripts/auto_version.py`) that reads the conventional-commit prefix (`feat`/`fix`/`chore`/`refactor`) and creates an annotated `vX.Y.Z` tag automatically.
+Versioning is commit-driven: `make install-hooks` installs a post-commit hook (`scripts/auto_version.py`) that reads the conventional-commit prefix and creates an annotated `vX.Y.Z` tag automatically — `feat` bumps minor, `fix`/`chore`/`refactor` bump patch, and any type marked breaking with `!` (`feat!:`, `refactor(model)!:`) bumps major. The next version is computed from the highest `vX.Y.Z` tag in the repository.
 
 To ship a release:
 
