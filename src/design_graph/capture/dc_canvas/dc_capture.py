@@ -11,10 +11,12 @@ from design_graph.capture.base import CaptureResult, ComponentProgress, Prototyp
 from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
-from design_graph.capture.dc_canvas.components import infer_components
+from design_graph.capture.dc_canvas.components import fragment_component, infer_components
+from design_graph.capture.dc_canvas.logic import literal_lists
 from design_graph.capture.dc_canvas.sections import page_blocks, page_sections
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
-from design_graph.capture.dc_canvas.template import SOURCE_LANG
+from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup
+from design_graph.capture.html_prototype.parsing.css_class_resolver import extract_tag_pseudo_rules
 from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
 from design_graph.model.entities import ExtractedComponent, ExtractedScreen
 
@@ -43,7 +45,12 @@ class DcCanvasCapture:
         boards, pages, skipped = _boards_with_pages(bundle)
         board_variants = variants(boards, pages)
         blocks = {board.name: page_blocks(pages[board.page_id].markup) for board in boards}
-        found = infer_components(blocks)
+        lists_by_screen = {board.name: literal_lists(pages[board.page_id].logic) for board in boards}
+        found = infer_components(
+            blocks,
+            tag_rules=extract_tag_pseudo_rules("\n".join(dict.fromkeys(p.styles for p in pages.values()))),
+            loop_data=lambda screen, name: lists_by_screen[screen].get(name),
+        )
         screens = [_screen(board, pages[board.page_id], boards, board_variants) for board in boards]
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
         for screen in screens:
@@ -57,7 +64,9 @@ class DcCanvasCapture:
         )
 
     def capture_fragment(self, source: str) -> ExtractedComponent | None:
-        return None
+        """Read a template fragment — e.g. an implementation to check — as one component."""
+        roots = element_children(parse_markup(source))
+        return fragment_component(roots[0]) if roots else None
 
 
 def _boards_with_pages(bundle: Bundle | None) -> tuple[list[Board], dict[str, DcPage], int]:

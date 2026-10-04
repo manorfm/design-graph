@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Callable
 
 from bs4 import Tag
 
@@ -25,10 +26,12 @@ from design_graph.capture.dc_canvas.template import (
     tag_of,
     visible_text_nodes,
 )
+from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule
 from design_graph.model.entities import (
     ComponentType,
     ExtractedComponent,
     StyleEntry,
+    StyleState,
     TextEntry,
     TextType,
 )
@@ -49,6 +52,7 @@ _TEXT_TYPE_BY_TAG = {
     **{f"h{n}": TextType.HEADING for n in range(1, 7)},
     "button": TextType.BUTTON, "a": TextType.BUTTON, "p": TextType.DESCRIPTION,
 }
+_STATES = {"hover": StyleState.HOVER, "focus": StyleState.FOCUS, "focus-visible": StyleState.FOCUS}
 _RE_INTERPOLATION = re.compile(r"\{\{[^}]*\}\}")
 _RE_LOOP_LIST = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 _MAX_NAME_WORDS = 3
@@ -69,22 +73,54 @@ class CanvasComponents:
         return list(names)
 
 
-def infer_components(blocks_by_screen: dict[str, list[Tag]]) -> CanvasComponents:
+TagRules = dict[str, dict[str, list[CssRule]]]  # tag → state → rules, e.g. a → hover → [color: …]
+LoopData = Callable[[str, str], object]          # (screen, list name) → the list's literal value, or None
+
+
+def infer_components(
+    blocks_by_screen: dict[str, list[Tag]],
+    tag_rules: TagRules | None = None,
+    loop_data: LoopData | None = None,
+) -> CanvasComponents:
+    """
+    tag_rules: pseudo-class rules the pages' styles declare for a bare tag
+        (`a:hover`), applied to every component rendered as that tag.
+    loop_data: where a loop item's list is looked up, to attach its values.
+    """
     occurrences, loop_lists = _occurrences(blocks_by_screen)
-    promoted = [
-        signature for signature, found in occurrences.items()
-        if signature in loop_lists or len({screen for screen, _ in found}) >= MIN_PAGES
-    ]
+    promoted = [signature for signature in occurrences if _is_repeated(signature, occurrences, loop_lists)]
     result = CanvasComponents(components=[])
     used: set[str] = set()
     for signature in promoted:
         elements = [element for _, element in occurrences[signature]]
         name = _unique(_name(elements, loop_lists.get(signature), result.name_of), used)
         result.name_of.update({id(element): name for element in elements})
+    details = _Details(tag_rules or {}, loop_data or _no_loop_data)
     result.components = [
-        _component(occurrences[signature][0][1], len(occurrences[signature]), result) for signature in promoted
+        _component(occurrences[signature], result, details, loop_lists.get(signature)) for signature in promoted
     ]
     return result
+
+
+@dataclass(frozen=True)
+class _Details:
+    tag_rules: TagRules
+    loop_data: LoopData
+
+
+def fragment_component(root: Tag) -> ExtractedComponent:
+    """A standalone fragment read as one component, outside any canvas."""
+    found = CanvasComponents(components=[], name_of={id(root): "Fragment"})
+    return _component([("", root)], found, _Details({}, _no_loop_data), None)
+
+
+def _no_loop_data(screen: str, name: str) -> None:
+    return None
+
+
+def _is_repeated(signature: str, occurrences: dict, loop_lists: dict[str, str]) -> bool:
+    """A loop item repeats by construction; anything else must recur on MIN_PAGES pages."""
+    return signature in loop_lists or len({screen for screen, _ in occurrences[signature]}) >= MIN_PAGES
 
 
 def _occurrences(
@@ -186,20 +222,33 @@ def _unique(name: str, used: set[str]) -> str:
     return candidate
 
 
-def _component(example: Tag, occurrence: int, found: CanvasComponents) -> ExtractedComponent:
+def _component(
+    occurrences: list[tuple[str, Tag]], found: CanvasComponents, details: _Details, loop_list: str | None,
+) -> ExtractedComponent:
+    screen, example = occurrences[0]
     name = found.name_of[id(example)]
+    data = details.loop_data(screen, loop_list) if loop_list else None
     return ExtractedComponent(
         name=name,
         comp_type=_TYPE_BY_ROLE.get(example.get("role") or "", _TYPE_BY_TAG.get(tag_of(example), ComponentType.COMPONENT)),
         source_code=str(example),
         source_lang=SOURCE_LANG,
-        occurrence=occurrence,
+        occurrence=len(occurrences),
         classes=" ".join(c for c in (example.get("class") or []) if INTERPOLATION not in c),
-        styles=[StyleEntry.create(name, prop, value) for prop, value in inline_styles(example).items()],
+        styles=_styles(name, example, details.tag_rules),
         texts=_texts(name, example),
         child_refs=list(dict.fromkeys(ref for child in element_children(example) for ref in found.outermost_in(child))),
         declares_inline_styles=bool(example.get("style")),
+        referenced_data={loop_list: data} if data is not None else {},
     )
+
+
+def _styles(name: str, example: Tag, tag_rules: TagRules) -> list[StyleEntry]:
+    styles = [StyleEntry.create(name, prop, value) for prop, value in inline_styles(example).items()]
+    for state, rules in tag_rules.get(tag_of(example), {}).items():
+        if state in _STATES:
+            styles.extend(StyleEntry.create(name, rule.property, rule.value, _STATES[state]) for rule in rules)
+    return styles
 
 
 def _texts(name: str, example: Tag) -> list[TextEntry]:
