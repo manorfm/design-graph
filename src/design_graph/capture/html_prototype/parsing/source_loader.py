@@ -12,14 +12,13 @@ Supports three prototype formats (detected by format_detector):
 
 from __future__ import annotations
 
-import base64
-import gzip
 import json
 import logging
 
 from bs4 import BeautifulSoup
 
 from design_graph.capture.base import PrototypeDocument
+from design_graph.capture.bundler import BundleEntryError, decode_entry
 from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
@@ -144,11 +143,8 @@ def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str, int]:
         if not isinstance(val, dict) or not val.get("data"):
             continue
         try:
-            decoded = base64.b64decode(val["data"])
-            if val.get("compressed"):
-                decoded = gzip.decompress(decoded)
-            content = decoded.decode("utf-8", errors="replace")
-        except Exception as exc:  # noqa: BLE001
+            content = decode_entry(val).decode("utf-8", errors="replace")
+        except BundleEntryError as exc:
             skipped += 1
             logger.warning(
                 "source_loader: bundle entry %r (mime=%s) failed to decode — "
