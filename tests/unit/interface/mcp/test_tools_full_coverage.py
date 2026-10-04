@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import pytest
 
-from design_graph.interface.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher, _truncated_fields_notice
+from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
+from design_graph.interface.mcp.tools import ToolDispatcher
+from design_graph.interface.mcp import component_tools, discovery_tools, full_tools, screen_tools
+from design_graph.interface.mcp.notices import truncated_fields_notice
 
 
 # ── Rich mock reader ──────────────────────────────────────────────────────────
@@ -170,37 +173,37 @@ class TestGetSectionTool:
     def test_found_section_contains_section_name(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "Header")
+        result = screen_tools.get_section(r, "RestaurantsPage", "Header")
         assert "Header" in result
 
     def test_section_with_styles_included(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "Header")
+        result = screen_tools.get_section(r, "RestaurantsPage", "Header")
         assert "padding" in result or "16px" in result
 
     def test_section_with_component_refs_listed(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "Header")
+        result = screen_tools.get_section(r, "RestaurantsPage", "Header")
         assert "BtnPrimary" in result
 
     def test_section_with_texts_included(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "Header")
+        result = screen_tools.get_section(r, "RestaurantsPage", "Header")
         assert "Restaurantes" in result
 
     def test_section_with_source_code_included(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "Header")
+        result = screen_tools.get_section(r, "RestaurantsPage", "Header")
         assert "header jsx" in result
 
     def test_section_not_found_returns_graceful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_section(r, "RestaurantsPage", "FooterXXX999")
+        result = screen_tools.get_section(r, "RestaurantsPage", "FooterXXX999")
         assert "FooterXXX999" in result or "não encontrad" in result.lower()
 
 
@@ -213,25 +216,25 @@ class TestGetComponentRichRendering:
     def test_component_with_styles_shows_state_groups(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component(r, "BtnWithStyles")
+        result = component_tools.get_component(r, "BtnWithStyles")
         assert "default" in result or "hover" in result
 
     def test_component_with_tokens_listed(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component(r, "BtnWithStyles")
+        result = component_tools.get_component(r, "BtnWithStyles")
         assert "primary" in result
 
     def test_component_with_children_listed(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component(r, "BtnWithStyles")
+        result = component_tools.get_component(r, "BtnWithStyles")
         assert "Badge" in result
 
     def test_component_with_source_code_rendered(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component(r, "BtnWithStyles")
+        result = component_tools.get_component(r, "BtnWithStyles")
         assert "button" in result.lower()
 
 
@@ -244,25 +247,25 @@ class TestFindTokenUsageTool:
     def test_found_token_includes_value(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.find_token_usage(r, "#ffb81c")
         assert "#ffb81c" in result
 
     def test_found_token_includes_components(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.find_token_usage(r, "#ffb81c")
         assert "BtnPrimary" in result
 
     def test_found_token_includes_screens(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.find_token_usage(r, "#ffb81c")
         assert "RestaurantsPage" in result
 
     def test_not_found_returns_graceful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.find_token_usage(r, "zzz_unknown_token")
+        result = discovery_tools.find_token_usage(r, "zzz_unknown_token")
         assert "zzz_unknown_token" in result or "não encontrado" in result.lower()
 
 
@@ -275,32 +278,32 @@ class TestImpactTool:
     def test_component_impact_shows_type(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.impact(r, "BtnPrimary")
+        result = discovery_tools.impact(r, "BtnPrimary")
         assert "button" in result
 
     def test_component_impact_shows_affected_screens(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.impact(r, "BtnPrimary")
+        result = discovery_tools.impact(r, "BtnPrimary")
         assert "RestaurantsPage" in result
 
     def test_token_impact_shows_label_and_value(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.impact(r, "primary")
+        result = discovery_tools.impact(r, "primary")
         assert "primary" in result
         assert "#ffb81c" in result
 
     def test_token_impact_shows_using_components(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.impact(r, "primary")
+        result = discovery_tools.impact(r, "primary")
         assert "BtnPrimary" in result
 
     def test_not_found_returns_graceful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.impact(r, "totally_unknown_xyz")
+        result = discovery_tools.impact(r, "totally_unknown_xyz")
         assert "não encontrado" in result.lower() or "totally_unknown" in result
 
 
@@ -313,14 +316,14 @@ class TestGetFullJsxTool:
     def test_found_jsx_renders_code_block(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_full_jsx(r, "BtnPrimary")
+        result = full_tools.get_full_jsx(r, "BtnPrimary")
         assert "```jsx" in result
         assert "button" in result
 
     def test_not_found_returns_helpful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_full_jsx(r, "ComponentWithNoJSX")
+        result = full_tools.get_full_jsx(r, "ComponentWithNoJSX")
         assert "force" in result.lower() or "disponível" in result.lower()
 
     def test_clean_jsx_keeps_complete_header_unflagged(self):
@@ -328,7 +331,7 @@ class TestGetFullJsxTool:
         # a false-positive "this was cut" warning.
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_full_jsx(r, "BtnPrimary")
+        result = full_tools.get_full_jsx(r, "BtnPrimary")
         assert "sanitizado" not in result.lower()
 
     def test_sanitized_jsx_carries_explicit_warning(self):
@@ -337,14 +340,14 @@ class TestGetFullJsxTool:
         # source, instead of reading "JSX completo" and stopping there.
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_full_jsx(r, "BasicTab")
+        result = full_tools.get_full_jsx(r, "BasicTab")
         assert "sanitizado" in result.lower()
         assert "{[conditional:Chip]}" in result
 
     def test_code_fence_uses_the_stored_source_language(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        assert "```html\n<main>{{t}}</main>" in d.get_full_jsx(r, "Welcome")
+        assert "```html\n<main>{{t}}</main>" in full_tools.get_full_jsx(r, "Welcome")
 
 
 # ── get_component_interactions ────────────────────────────────────────────────
@@ -356,27 +359,27 @@ class TestGetComponentInteractionsTool:
     def test_component_with_interactions_rendered(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component_interactions(r, "BtnHover")
+        result = component_tools.get_component_interactions(r, "BtnHover")
         assert "HOVER" in result or "hover" in result
         assert "backgroundColor" in result
 
     def test_from_and_to_values_shown(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component_interactions(r, "BtnHover")
+        result = component_tools.get_component_interactions(r, "BtnHover")
         assert "#ffb81c" in result
         assert "#f59e0b" in result
 
     def test_transition_shown(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component_interactions(r, "BtnHover")
+        result = component_tools.get_component_interactions(r, "BtnHover")
         assert "0.2s" in result
 
     def test_no_interactions_returns_graceful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = d.get_component_interactions(r, "SectionCard")
+        result = component_tools.get_component_interactions(r, "SectionCard")
         assert "nenhuma" in result.lower() or "não detectada" in result.lower()
 
 
@@ -623,28 +626,28 @@ class TestGetBuildDiffTool:
 
 class TestTruncatedFieldsNoticeHelper:
     def test_none_returns_none(self):
-        assert _truncated_fields_notice(None) is None
+        assert truncated_fields_notice(None) is None
 
     def test_empty_string_returns_none(self):
-        assert _truncated_fields_notice("") is None
+        assert truncated_fields_notice("") is None
 
     def test_empty_list_returns_none(self):
-        assert _truncated_fields_notice([]) is None
+        assert truncated_fields_notice([]) is None
 
     def test_string_input_lists_fields(self):
-        notice = _truncated_fields_notice("styles,texts")
+        notice = truncated_fields_notice("styles,texts")
         assert "styles" in notice and "texts" in notice
 
     def test_list_input_lists_fields(self):
-        notice = _truncated_fields_notice(["classes"])
+        notice = truncated_fields_notice(["classes"])
         assert "classes" in notice
 
     def test_recoverable_via_suggests_get_full_jsx(self):
-        notice = _truncated_fields_notice("styles", recoverable_via="MyComp")
+        notice = truncated_fields_notice("styles", recoverable_via="MyComp")
         assert "get_full_jsx('MyComp')" in notice
 
     def test_no_recoverable_via_omits_suggestion(self):
-        notice = _truncated_fields_notice("styles")
+        notice = truncated_fields_notice("styles")
         assert "get_full_jsx" not in notice
 
 

@@ -13,7 +13,7 @@ the reader back at the source instead of letting the gap pass in silence.
 
 from __future__ import annotations
 
-from design_graph.interface.mcp.tools import StyleExtractionGap
+from design_graph.interface.mcp.notices import StyleExtractionGap
 
 
 class TestStyleExtractionGap:

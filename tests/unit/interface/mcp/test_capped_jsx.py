@@ -11,7 +11,7 @@ notice for free instead of re-deriving it from a raw length comparison.
 
 from __future__ import annotations
 
-from design_graph.interface.mcp.tools import CappedJsx
+from design_graph.interface.mcp.notices import CappedJsx
 
 
 class TestCappedJsx:

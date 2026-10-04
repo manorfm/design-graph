@@ -13,7 +13,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from design_graph.model.graph.reader import GraphReader
-from design_graph.interface.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher
+from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
+from design_graph.interface.mcp.tools import ToolDispatcher
 
 
 # ── Shared fixture data ───────────────────────────────────────────────────────

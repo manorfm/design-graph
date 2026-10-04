@@ -334,7 +334,7 @@ class TestG12CaptureIsSealed:
 
     # validate_component_implementation re-captures an agent-submitted JSX
     # fragment; it leaves this list once captures expose fragment capture.
-    KNOWN_EXCEPTIONS = {"interface/mcp/tools.py"}
+    KNOWN_EXCEPTIONS = {"interface/mcp/validation_tool.py"}
 
     def test_format_specific_packages_live_inside_capture(self):
         stray = [name for name in ("parsing", "extraction") if (SRC / name).exists()]

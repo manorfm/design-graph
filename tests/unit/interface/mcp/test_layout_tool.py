@@ -75,12 +75,12 @@ def dispatcher(reader_with_layout):
 
 class TestGetScreenLayoutTool:
     def test_tool_exists_in_tool_definitions(self):
-        from design_graph.interface.mcp.tools import TOOL_DEFINITIONS
+        from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
         names = {t["name"] for t in TOOL_DEFINITIONS}
         assert "get_screen_layout" in names
 
     def test_requires_name_parameter(self):
-        from design_graph.interface.mcp.tools import TOOL_DEFINITIONS
+        from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
         tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen_layout")
         assert "name" in tool["inputSchema"]["required"]
 

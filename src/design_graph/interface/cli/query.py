@@ -21,7 +21,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from design_graph.interface.cli._logging import configure_cli_logging
 from design_graph.model.entities import TokenCategory
@@ -138,53 +138,41 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
 
 # ── Command dispatch (pure, testable — no I/O, takes injected dispatcher) ─────
 
+# Each query command is one MCP tool call — the CLI answers exactly what the MCP server would.
+_QUERY_TOOLS: dict[str, Callable[["QueryCliArgs"], tuple[str, dict]]] = {
+    "screens":      lambda a: ("list_screens", {}),
+    "tokens":       lambda a: ("get_tokens", {"category": a.category}),
+    "search":       lambda a: ("search", {"query": a.query}),
+    "inspect":      lambda a: ("get_component", {"name": a.name}),
+    "impact":       lambda a: ("impact", {"name": a.name}),
+    "screen":       lambda a: ("get_screen", {"name": a.name}),
+    "interactions": lambda a: ("get_component_interactions", {"name": a.name}),
+    "children":     lambda a: ("get_component_children", {"name": a.name}),
+    "metrics":      lambda a: ("get_metrics", {
+        "doc": a.document, "tool": a.tool, "outcome": a.outcome,
+        "since": a.since, "until": a.until, "limit": a.limit, "raw": a.raw,
+    }),
+}
+
+
 def dispatch_query_command(
     args: QueryCliArgs,
     dispatcher: "ToolDispatcher",
-    reader,
+    document: str,
 ) -> None:
     """
-    Route a parsed query command to the correct ToolDispatcher method and
+    Run a parsed query command as its MCP tool call against `document` and
     print the result to stdout.
 
     Raises SystemExit(1) for unknown commands (should never happen after argparse
-    validation, but guards against future additions that forget to add a branch).
+    validation, but guards against future additions that forget to add a route).
     """
-    cmd = args.command
-
-    if cmd == "screens":
-        print(dispatcher.list_screens())
-
-    elif cmd == "tokens":
-        print(dispatcher.get_tokens(reader, args.category))
-
-    elif cmd == "search":
-        print(dispatcher.tool_search(args.query))
-
-    elif cmd == "inspect":
-        print(dispatcher.get_component(reader, args.name))
-
-    elif cmd == "impact":
-        print(dispatcher.impact(reader, args.name))
-
-    elif cmd == "screen":
-        print(dispatcher.get_screen(reader, args.name))
-
-    elif cmd == "interactions":
-        print(dispatcher.get_component_interactions(reader, args.name))
-
-    elif cmd == "children":
-        print(dispatcher.get_component_children(reader, args.name))
-
-    elif cmd == "metrics":
-        print(dispatcher.get_metrics(
-            doc=args.document, tool=args.tool, outcome=args.outcome,
-            since=args.since, until=args.until, limit=args.limit, raw=args.raw,
-        ))
-
-    else:
-        print(f"error: unknown command '{cmd}'", file=sys.stderr)
+    route = _QUERY_TOOLS.get(args.command)
+    if route is None:
+        print(f"error: unknown command '{args.command}'", file=sys.stderr)
         sys.exit(1)
+    tool, tool_args = route(args)
+    print(dispatcher.dispatch(tool, tool_args, document))
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -202,7 +190,7 @@ def main() -> None:
     if args.command == "metrics":
         # Metrics live in a flat log file, not a graph database — skip the
         # .db discovery/loading below entirely, unlike every other command.
-        dispatch_query_command(args, ToolDispatcher([]), reader=None)
+        dispatch_query_command(args, ToolDispatcher([]), document="")
         return
 
     from design_graph.model.graph.catalog import GraphCatalogError
@@ -218,11 +206,7 @@ def main() -> None:
         print("Run: design-graph <prototype.html>", file=sys.stderr)
         sys.exit(1)
 
-    dispatcher = ToolDispatcher(readers)
-    doc        = readers[0][0]
-    reader, _  = dispatcher.pick_reader(doc=doc, active_doc=doc)
-
-    dispatch_query_command(args, dispatcher, reader)
+    dispatch_query_command(args, ToolDispatcher(readers), document=readers[0][0])
 
 
 def _open_graph_reader(db_path: Path) -> list:

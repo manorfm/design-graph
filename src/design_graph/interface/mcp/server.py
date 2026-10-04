@@ -133,7 +133,7 @@ class MCPServer:
         self._metrics_disabled = os.environ.get("DESIGN_GRAPH_METRICS_DISABLED", "").strip().lower() in ("1", "true", "on")
 
     def tool_definitions(self) -> list[dict]:
-        from design_graph.interface.mcp.tools import TOOL_DEFINITIONS
+        from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
         return TOOL_DEFINITIONS
 
     def startup_description(self) -> str:

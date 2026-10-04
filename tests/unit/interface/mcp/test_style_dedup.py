@@ -10,20 +10,21 @@ of just seeing fewer of the same thing.
 
 from __future__ import annotations
 
-from design_graph.interface.mcp.tools import ToolDispatcher, _dedupe_styles_by_property
+from design_graph.interface.mcp.tools import ToolDispatcher
+from design_graph.interface.mcp.markdown import dedupe_styles_by_property
 
 
 class TestDedupeStylesByProperty:
     def test_no_duplicates_returns_equivalent_list(self):
         styles = [{"property": "color", "value": "red"}, {"property": "gap", "value": "8px"}]
-        assert _dedupe_styles_by_property(styles) == styles
+        assert dedupe_styles_by_property(styles) == styles
 
     def test_duplicate_property_different_values_merged_into_one_row(self):
         styles = [
             {"property": "color", "value": "white"},
             {"property": "color", "value": "#f00"},
         ]
-        result = _dedupe_styles_by_property(styles)
+        result = dedupe_styles_by_property(styles)
         assert len(result) == 1
         assert result[0]["property"] == "color"
         assert result[0]["value"] == "white | #f00"
@@ -33,7 +34,7 @@ class TestDedupeStylesByProperty:
             {"property": "color", "value": "white"},
             {"property": "color", "value": "white"},
         ]
-        result = _dedupe_styles_by_property(styles)
+        result = dedupe_styles_by_property(styles)
         assert len(result) == 1
         assert result[0]["value"] == "white"
 
@@ -43,11 +44,11 @@ class TestDedupeStylesByProperty:
             {"property": "color", "value": "red"},
             {"property": "gap", "value": "12px"},
         ]
-        result = _dedupe_styles_by_property(styles)
+        result = dedupe_styles_by_property(styles)
         assert [r["property"] for r in result] == ["gap", "color"]
 
     def test_empty_list_returns_empty_list(self):
-        assert _dedupe_styles_by_property([]) == []
+        assert dedupe_styles_by_property([]) == []
 
 
 class MockReaderWithCrowdedStyles:

@@ -6,31 +6,32 @@ no required/optional prop system: Btn's own real-world usage passes `icon`,
 `label`, `small` and `disabled` at different call sites without ever
 supplying all of them, none of which have declared defaults — so that
 column asserted something the extractor cannot actually know. All three
-render sites shared one _props_table_lines() helper so the fix (and this
+render sites shared one props_table_lines() helper so the fix (and this
 coverage) only has to exist once.
 """
 
 from __future__ import annotations
 
-from design_graph.interface.mcp.tools import ToolDispatcher, _props_table_lines
+from design_graph.interface.mcp.tools import ToolDispatcher
+from design_graph.interface.mcp.markdown import props_table_lines
 
 
 class TestPropsTableLines:
     def test_declared_default_renders_backticked_value(self):
-        lines = _props_table_lines([{"prop_name": "variant", "default_value": "secondary"}])
+        lines = props_table_lines([{"prop_name": "variant", "default_value": "secondary"}])
         assert "| `variant` | `secondary` |" in lines
 
     def test_missing_default_renders_a_dash(self):
-        lines = _props_table_lines([{"prop_name": "icon", "default_value": ""}])
+        lines = props_table_lines([{"prop_name": "icon", "default_value": ""}])
         assert "| `icon` | — |" in lines
 
     def test_has_no_required_column(self):
-        lines = "\n".join(_props_table_lines([{"prop_name": "icon", "default_value": ""}]))
+        lines = "\n".join(props_table_lines([{"prop_name": "icon", "default_value": ""}]))
         assert "Required" not in lines
 
     def test_includes_one_honesty_note_regardless_of_prop_count(self):
         props = [{"prop_name": f"p{i}", "default_value": ""} for i in range(5)]
-        lines = "\n".join(_props_table_lines(props))
+        lines = "\n".join(props_table_lines(props))
         assert lines.count("required") == 1  # the note, not a per-row marker
 
 

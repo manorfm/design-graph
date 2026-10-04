@@ -4,7 +4,9 @@ import pytest
 
 from design_graph.model.graph.reader import NamedEntity, NamedEntityResolution
 from design_graph.interface.mcp.server import MCPServer
-from design_graph.interface.mcp.tools import TOOL_DEFINITIONS, ToolDispatcher
+from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
+from design_graph.interface.mcp import build_tools
+from design_graph.interface.mcp.tools import ToolDispatcher
 
 
 # ── Mock reader ───────────────────────────────────────────────────────────────
@@ -639,26 +641,26 @@ class TestGetBuildDiffSkippedEntriesNotice:
             return self._diff
 
     def test_warns_on_first_build_when_entries_were_skipped(self):
-        result = _dispatcher(1).get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 2}))
+        result = build_tools.get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 2}))
         assert "2 entrada" in result
         assert "falharam ao decodificar" in result
 
     def test_warns_when_no_screen_or_component_changes(self):
         diff = {"is_first_build": False, "screens_added": [], "screens_removed": [],
                 "comps_added": [], "comps_removed": [], "skipped_entries": 1}
-        result = _dispatcher(1).get_build_diff(self._StubReader(diff))
+        result = build_tools.get_build_diff(self._StubReader(diff))
         assert "1 entrada" in result
         assert "Nenhuma mudança" in result
 
     def test_warns_alongside_a_real_diff(self):
         diff = {"is_first_build": False, "screens_added": ["NewPage"], "screens_removed": [],
                 "comps_added": [], "comps_removed": [], "skipped_entries": 1}
-        result = _dispatcher(1).get_build_diff(self._StubReader(diff))
+        result = build_tools.get_build_diff(self._StubReader(diff))
         assert "1 entrada" in result
         assert "NewPage" in result
 
     def test_no_notice_when_nothing_was_skipped(self):
-        result = _dispatcher(1).get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 0}))
+        result = build_tools.get_build_diff(self._StubReader({"is_first_build": True, "skipped_entries": 0}))
         assert "falharam ao decodificar" not in result
 
 
@@ -688,13 +690,13 @@ class TestGetComponentFullTool:
 
 class TestExtractValidationCandidate:
     def test_wraps_bare_jsx_and_extracts_inline_style(self):
-        from design_graph.interface.mcp.tools import _extract_validation_candidate
+        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
         candidate = _extract_validation_candidate('<button style={{color: "red"}}>OK</button>')
         assert candidate is not None
         assert any(s.property == "color" and s.value == "red" for s in candidate.styles)
 
     def test_captures_child_refs(self):
-        from design_graph.interface.mcp.tools import _extract_validation_candidate
+        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
         candidate = _extract_validation_candidate("<div><Sparkline /><Badge /></div>")
         assert candidate is not None
         assert set(candidate.child_refs) == {"Sparkline", "Badge"}
@@ -703,7 +705,7 @@ class TestExtractValidationCandidate:
         # Documented limitation (C33 spike finding): a spread referencing a
         # shared style object can't resolve for an isolated snippet — no
         # "rest of the file" to search for the const declaration.
-        from design_graph.interface.mcp.tools import _extract_validation_candidate
+        from design_graph.interface.mcp.validation_tool import _extract_validation_candidate
         candidate = _extract_validation_candidate('<div style={{...sharedStyle, width: 34}} />')
         assert candidate is not None
         props = {s.property for s in candidate.styles}
@@ -758,8 +760,8 @@ class TestValidateComponentImplementationTool:
         # C34: jsx_source is agent-submitted text re-run through the same
         # regex extractor used for a whole prototype bundle — must be
         # bounded, unlike a local file whose size the project doesn't control.
-        from design_graph.interface.mcp.tools import _MAX_VALIDATION_JSX_SOURCE_CHARS
-        oversized = "<div>" + ("x" * _MAX_VALIDATION_JSX_SOURCE_CHARS) + "</div>"
+        from design_graph.interface.mcp.validation_tool import MAX_VALIDATION_SOURCE_CHARS
+        oversized = "<div>" + ("x" * MAX_VALIDATION_SOURCE_CHARS) + "</div>"
         result = _dispatcher(1).dispatch(
             "validate_component_implementation",
             {"name": "BtnPrimary", "jsx_source": oversized}, "doc1",
