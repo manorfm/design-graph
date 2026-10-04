@@ -4,7 +4,7 @@
 [![Security](https://github.com/manorfm/design-graph/actions/workflows/security.yml/badge.svg)](https://github.com/manorfm/design-graph/actions/workflows/security.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-v0.34.0-green.svg)](https://github.com/manorfm/design-graph/tags)
+[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg)](https://github.com/manorfm/design-graph/tags)
 
 `design-graph` parses standalone HTML prototypes into a typed Kuzu knowledge graph and exposes screens, sections, components, props, styles, design tokens, interactions, text, layout and screen-to-screen navigation through a CLI and an MCP server.
 
