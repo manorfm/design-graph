@@ -7,6 +7,7 @@ import logging
 from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import (
+    component_lines,
     dedupe_styles_by_property,
     named_entity_resolution_error,
     props_table_lines,
@@ -209,67 +210,8 @@ def get_component_full(reader: GraphReader, name: str) -> str:
         f"**Componentes na árvore**: {len(full['components'])}\n",
     ]
     for comp in full["components"]:
-        cname = comp["name"]
-        marker = " (raiz)" if cname == root_name else ""
-        lines.append(f"## {cname}{marker}")
-        lines.append(f"**Tipo**: {comp['comp_type']} | **Ocorrências**: {comp['occurrence']}")
-        trunc_notice = truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
-        if trunc_notice:
-            lines.append(trunc_notice)
-        if comp["children"]:
-            lines.append(f"**Filhos**: {', '.join(comp['children'])}")
-
-        if comp["props"]:
-            lines.append("\n#### Props")
-            lines.extend(props_table_lines(comp["props"]))
-
-        any_styles = False
-        for state, raw_styles in sorted(comp["styles_by_state"].items()):
-            styles = dedupe_styles_by_property(raw_styles)
-            if styles:
-                any_styles = True
-                lines.append(f"\n#### Estilos — {state}")
-                lines.append("| Propriedade | Valor |")
-                lines.append("|---|---|")
-                for s in styles[:12]:
-                    lines.append(f"| {s['property']} | {s['value']} |")
-                notice = truncation_notice(len(styles), 12, recoverable_via=cname)
-                if notice:
-                    lines.append(notice)
-        if not any_styles:
-            notice = StyleExtractionGap(comp["declares_inline_styles"]).notice()
-            if notice:
-                lines.append(f"\n{notice}")
-
-        if comp["tokens"]:
-            lines.append("\n#### Tokens")
-            for t in comp["tokens"]:
-                lines.append(f"- **{t['label']}** = `{t['value']}` ({t['category']})")
-
-        if comp["interactions"]:
-            lines.append("\n#### Interações")
-            for i in comp["interactions"]:
-                lines.append(
-                    f"- **{i['trigger']}**: `{i['css_prop']}` "
-                    f"`{i['from_val']}` → `{i['to_val']}` ({i['transition']})"
-                )
-
-        if comp["texts"]:
-            lines.append("\n#### Textos")
-            for t in comp["texts"][:8]:
-                lines.append(f'- "{t["content"]}" ({t["text_type"]})')
-            notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
-            if notice:
-                lines.append(notice)
-
-        if comp.get("referenced_data"):
-            lines.append("\n#### Dados referenciados")
-            lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
-
-        if comp["source_code"]:
-            lines.append("")
-            lines.extend(source_block_lines(comp["source_code"], comp["source_lang"], 2500, recoverable_via=cname))
-        lines.append("")
+        marker = " (raiz)" if comp["name"] == root_name else ""
+        lines.extend(component_lines(comp, heading=f"## {comp['name']}{marker}"))
 
     logger.debug("tools: get_component_full(%s) — %d components", root_name, len(full["components"]))
     return "\n".join(lines)

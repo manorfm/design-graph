@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import json
 
-from design_graph.model.entities import PropDefault
+from design_graph.model.entities import PropDefault, StyleState
 from design_graph.model.graph.reader import NamedEntityResolution
-from design_graph.interface.mcp.notices import truncation_notice
+from design_graph.interface.mcp.notices import (
+    StyleExtractionGap,
+    source_block_lines,
+    truncated_fields_notice,
+    truncation_notice,
+)
 
 
 def named_entity_resolution_error(name: str, resolution: NamedEntityResolution) -> str | None:
@@ -127,3 +132,68 @@ def referenced_data_lines(referenced_data: dict[str, object], recoverable_via: s
         if notice:
             lines.append(f"  {notice}")
     return lines
+
+
+def component_lines(comp: dict, heading: str) -> list[str]:
+    """
+    One component as rendered inside a screen or a component tree: type,
+    children, props, styles by state, tokens, interactions, texts,
+    referenced data and source — each cap with its recovery notice.
+    """
+    cname = comp["name"]
+    lines = [heading, f"**Tipo**: {comp['comp_type']} | **Ocorrências**: {comp['occurrence']}"]
+    trunc_notice = truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
+    if trunc_notice:
+        lines.append(trunc_notice)
+    if comp["children"]:
+        lines.append(f"**Filhos**: {', '.join(comp['children'])}")
+    if comp["props"]:
+        lines.append("\n#### Props")
+        lines.extend(props_table_lines(comp["props"]))
+    lines.extend(_component_style_lines(comp))
+    if comp["tokens"]:
+        lines.append("\n#### Tokens")
+        lines.extend(f"- **{t['label']}** = `{t['value']}` ({t['category']})" for t in comp["tokens"])
+    if comp["interactions"]:
+        lines.append("\n#### Interações")
+        lines.extend(
+            f"- **{i['trigger']}**: `{i['css_prop']}` `{i['from_val']}` → `{i['to_val']}` ({i['transition']})"
+            for i in comp["interactions"]
+        )
+    lines.extend(_component_text_lines(comp))
+    if comp.get("referenced_data"):
+        lines.append("\n#### Dados referenciados")
+        lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
+    if comp["source_code"]:
+        lines.append("")
+        lines.extend(source_block_lines(comp["source_code"], comp["source_lang"], 2500, recoverable_via=cname))
+    lines.append("")
+    return lines
+
+
+def _component_style_lines(comp: dict) -> list[str]:
+    lines: list[str] = []
+    for state in StyleState:
+        styles = dedupe_styles_by_property(comp["styles_by_state"].get(state, []))
+        if not styles:
+            continue
+        lines += [f"\n#### Estilos — {state}", "| Propriedade | Valor |", "|---|---|"]
+        lines.extend(f"| {s['property']} | {s['value']} |" for s in styles[:12])
+        notice = truncation_notice(len(styles), 12, recoverable_via=comp["name"])
+        if notice:
+            lines.append(notice)
+    if not lines:
+        notice = StyleExtractionGap(comp["declares_inline_styles"]).notice()
+        if notice:
+            lines.append(f"\n{notice}")
+    return lines
+
+
+def _component_text_lines(comp: dict) -> list[str]:
+    if not comp["texts"]:
+        return []
+    lines = ["\n#### Textos"]
+    lines.extend(f'- "{t["content"]}" ({t["text_type"]})' for t in comp["texts"][:8])
+    notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=comp["name"], tool="get_full_texts")
+    return lines + ([notice] if notice else [])
+

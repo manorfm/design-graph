@@ -5,19 +5,14 @@ from __future__ import annotations
 import json
 import logging
 
-from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import (
-    dedupe_styles_by_property,
-    props_table_lines,
-    referenced_data_lines,
+    component_lines,
     section_style_group_lines,
 )
 from design_graph.interface.mcp.notices import (
     ScreenStructureGap,
-    StyleExtractionGap,
     source_block_lines,
-    truncated_fields_notice,
     truncation_notice,
 )
 
@@ -101,102 +96,45 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
             lines.append(gap_notice)
             lines.append("")
 
-    # ── Sections ──────────────────────────────────────────────────────────
     if spec["sections"]:
         lines.append("## Sections\n")
         for sec in spec["sections"]:
-            lines.append(f"### {sec['name']}")
-            lines.append(f"*Detection*: {sec['detection_method']}")
-            if sec["component_refs"]:
-                lines.append(f"**Components**: {', '.join(sec['component_refs'])}")
-            if sec["styles_by_element"]:
-                lines.append("**Styles**:")
-                lines.extend(section_style_group_lines(
-                    sec["styles_by_element"], recoverable_via=f'screen="{spec["name"]}", section="{sec["name"]}"',
-                ))
-            if sec["texts"]:
-                for t in sec["texts"][:6]:
-                    lines.append(f'- "{t}"')
-                notice = truncation_notice(
-                    len(sec["texts"]), 6,
-                    recoverable_via=f'screen="{spec["name"]}", section="{sec["name"]}"', tool="get_full_texts",
-                )
-                if notice:
-                    lines.append(notice)
-            if sec["source_code"]:
-                lines.append("")
-                lines.extend(source_block_lines(sec["source_code"], sec["source_lang"], 2000, recoverable_via=None))
-            lines.append("")
+            lines.extend(_section_lines(spec["name"], sec))
 
-    # ── Components ────────────────────────────────────────────────────────
     if spec["components"]:
         lines.append("---\n## Components\n")
         for comp in spec["components"]:
-            cname = comp["name"]
-            lines.append(f"### {cname}")
-            lines.append(f"**Type**: {comp['comp_type']} | **Occurrences**: {comp['occurrence']}")
-            trunc_notice = truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
-            if trunc_notice:
-                lines.append(trunc_notice)
-            if comp["children"]:
-                lines.append(f"**Children**: {', '.join(comp['children'])}")
-
-            if comp["props"]:
-                lines.append("\n#### Props")
-                lines.extend(props_table_lines(comp["props"]))
-
-            any_styles = False
-            for state in StyleState:
-                state_styles = dedupe_styles_by_property(comp["styles_by_state"].get(state, []))
-                if state_styles:
-                    any_styles = True
-                    lines.append(f"\n#### Styles — {state}")
-                    lines.append("| Property | Value |")
-                    lines.append("|---|---|")
-                    for s in state_styles[:12]:
-                        lines.append(f"| {s['property']} | {s['value']} |")
-                    notice = truncation_notice(len(state_styles), 12, recoverable_via=cname)
-                    if notice:
-                        lines.append(notice)
-            if not any_styles:
-                notice = StyleExtractionGap(comp["declares_inline_styles"]).notice()
-                if notice:
-                    lines.append(f"\n{notice}")
-
-            if comp["tokens"]:
-                lines.append("\n#### Tokens")
-                lines.append("| Label | Value | Category |")
-                lines.append("|---|---|---|")
-                for t in comp["tokens"]:
-                    lines.append(f"| {t['label']} | {t['value']} | {t['category']} |")
-
-            if comp["interactions"]:
-                lines.append("\n#### Interactions")
-                for i in comp["interactions"]:
-                    lines.append(
-                        f"- **{i['trigger']}**: `{i['css_prop']}` "
-                        f"`{i['from_val']}` → `{i['to_val']}` ({i['transition']})"
-                    )
-
-            if comp["texts"]:
-                lines.append("\n#### Texts")
-                for t in comp["texts"][:8]:
-                    lines.append(f'- "{t["content"]}" ({t["text_type"]})')
-                notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
-                if notice:
-                    lines.append(notice)
-
-            if comp.get("referenced_data"):
-                lines.append("\n#### Referenced data")
-                lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
-
-            if comp["source_code"]:
-                lines.append("")
-                lines.extend(source_block_lines(comp["source_code"], comp["source_lang"], 2500, recoverable_via=cname))
-            lines.append("")
+            lines.extend(component_lines(comp, heading=f"### {comp['name']}"))
 
     logger.debug("tools: get_screen_full(%s) — rendered", spec["name"])
     return "\n".join(lines)
+
+
+def _section_lines(screen_name: str, sec: dict) -> list[str]:
+    lines: list[str] = []
+    lines.append(f"### {sec['name']}")
+    lines.append(f"*Detection*: {sec['detection_method']}")
+    if sec["component_refs"]:
+        lines.append(f"**Components**: {', '.join(sec['component_refs'])}")
+    if sec["styles_by_element"]:
+        lines.append("**Styles**:")
+        lines.extend(section_style_group_lines(
+            sec["styles_by_element"], recoverable_via=f'screen="{screen_name}", section="{sec["name"]}"',
+        ))
+    if sec["texts"]:
+        for t in sec["texts"][:6]:
+            lines.append(f'- "{t}"')
+        notice = truncation_notice(
+            len(sec["texts"]), 6,
+            recoverable_via=f'screen="{screen_name}", section="{sec["name"]}"', tool="get_full_texts",
+        )
+        if notice:
+            lines.append(notice)
+    if sec["source_code"]:
+        lines.append("")
+        lines.extend(source_block_lines(sec["source_code"], sec["source_lang"], 2000, recoverable_via=None))
+    lines.append("")
+    return lines
 
 
 def get_screen_layout(reader: GraphReader, name: str) -> str:

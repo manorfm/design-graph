@@ -17,7 +17,6 @@ OR >= 3 style properties. This prevents empty sections from polluting the graph.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 

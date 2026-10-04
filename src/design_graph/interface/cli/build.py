@@ -36,8 +36,8 @@ from design_graph.interface.cli._logging import configure_cli_logging
 from design_graph.model.graph.catalog import GraphDocumentName
 from design_graph.model.entities import resolve_icon_markers
 from design_graph.paths import default_db_for
-from design_graph.interface.cli.databases import DatabaseCliArgs, parse_database_args
-from design_graph.interface.cli.init import InitCliArgs, parse_init_args
+from design_graph.interface.cli.databases import parse_database_args
+from design_graph.interface.cli.init import parse_init_args
 
 
 # ── Typed argument containers ─────────────────────────────────────────────────

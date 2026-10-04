@@ -14,7 +14,6 @@ import fcntl
 import json
 import logging
 import shutil
-import sys
 from pathlib import Path
 from typing import TextIO
 
