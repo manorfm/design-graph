@@ -104,7 +104,9 @@ class ToolDispatcher:
             "get_screen":                lambda: screen_tools.get_screen(reader, name),
             "get_section":               lambda: screen_tools.get_section(reader, screen, section),
             "get_component":             lambda: component_tools.get_component(reader, name),
-            "get_tokens":                lambda: discovery_tools.get_tokens(reader, args.get("category"), args.get("screen")),
+            "get_tokens":                lambda: discovery_tools.get_tokens(
+                reader, args.get("category"), args.get("screen"), args.get("mode"),
+            ),
             "find_token_usage":          lambda: discovery_tools.find_token_usage(reader, args.get("value", "")),
             "impact":                    lambda: discovery_tools.impact(reader, name),
             "get_full_source":              lambda: full_tools.get_full_source(reader, name),

@@ -947,3 +947,30 @@ class TestGetMetricsTool:
         monkeypatch.setattr("design_graph.interface.mcp.metrics.query_calls", lambda **kwargs: records)
         result = ToolDispatcher([]).dispatch("get_metrics", {"raw": True, "limit": 2}, "")
         assert "+3 mais" in result
+
+
+class TestGetTokensModes:
+    class _Reader(MockReader):
+        def __init__(self):
+            self.calls = []
+
+        def get_tokens(self, category=None, screen=None, mode=None):
+            self.calls.append((category, screen, mode))
+            return [
+                {"t.category": "css_var", "t.label": "--accent", "t.value": "#5FB0B0", "t.usage": 3, "t.mode": "escuro"},
+                {"t.category": "spacing", "t.label": "space_16", "t.value": "16px", "t.usage": 4, "t.mode": ""},
+            ]
+
+    def test_mode_argument_reaches_the_reader(self):
+        reader = self._Reader()
+        ToolDispatcher([("doc1", reader)]).dispatch("get_tokens", {"mode": "escuro"}, "doc1")
+        assert reader.calls == [(None, None, "escuro")]
+
+    def test_each_token_shows_its_mode_when_it_has_one(self):
+        out = ToolDispatcher([("doc1", self._Reader())]).dispatch("get_tokens", {}, "doc1")
+        assert "- **--accent** [escuro]: `#5FB0B0`" in out
+        assert "- **space_16**: `16px`" in out
+
+    def test_mode_is_an_input_of_the_tool(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_tokens")
+        assert "mode" in tool["inputSchema"]["properties"]

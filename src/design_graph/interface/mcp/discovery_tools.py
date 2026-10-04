@@ -24,8 +24,10 @@ def _hierarchy_tag(item: SearchResult) -> str:
     return f" _({'; '.join(bits)})_" if bits else ""
 
 
-def get_tokens(reader: GraphReader, category: str | None, screen: str | None = None) -> str:
-    rows = reader.get_tokens(category, screen)
+def get_tokens(
+    reader: GraphReader, category: str | None, screen: str | None = None, mode: str | None = None,
+) -> str:
+    rows = reader.get_tokens(category, screen, mode)
     if not rows:
         return (
             f"Nenhum token encontrado para a tela '{screen}'." if screen
@@ -38,7 +40,8 @@ def get_tokens(reader: GraphReader, category: str | None, screen: str | None = N
     for cat, tokens in sorted(by_cat.items()):
         lines.append(f"## {cat}")
         for t in tokens:
-            lines.append(f"- **{t.get('t.label')}**: `{t.get('t.value')}` ({t.get('t.usage')} usos)")
+            mode_tag = f" [{t['t.mode']}]" if t.get("t.mode") else ""
+            lines.append(f"- **{t.get('t.label')}**{mode_tag}: `{t.get('t.value')}` ({t.get('t.usage')} usos)")
         lines.append("")
     return "\n".join(lines)
 

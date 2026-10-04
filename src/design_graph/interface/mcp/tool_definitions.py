@@ -92,6 +92,14 @@ TOOL_DEFINITIONS: list[dict] = [
                     "type": "string",
                     "description": "Screen name. Omit for every token in the prototype.",
                 },
+                "mode": {
+                    "type": "string",
+                    "description": (
+                        "Mode (e.g. a light or dark theme name) to keep: that mode's values plus "
+                        "tokens shared by every mode. Omit for every mode; tokens with a mode show it "
+                        "in brackets."
+                    ),
+                },
                 "doc": _doc_param(),
             },
             "required": [],

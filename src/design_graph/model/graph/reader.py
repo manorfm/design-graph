@@ -807,7 +807,9 @@ class GraphReader:
             {"n": resolved},
         )
 
-    def get_tokens(self, category: str | None = None, screen: str | None = None) -> list[dict]:
+    def get_tokens(
+        self, category: str | None = None, screen: str | None = None, mode: str | None = None,
+    ) -> list[dict]:
         """
         Every token (optionally filtered by category), or — when screen is
         given — only the tokens actually reachable from that screen's own
@@ -819,31 +821,30 @@ class GraphReader:
         Expands through the same USES_COMPONENT → CONTAINS* closure
         find_token_usage's screen listing uses, so a token used only by a
         nested component still counts toward the screen that renders it.
+
+        mode keeps that mode's values plus the tokens every mode shares
+        (mode ""), dropping the values of other modes.
         """
+        conditions, params = ["true"], {}
+        if category:
+            conditions.append("t.category = $cat")
+            params["cat"] = category
+        if mode:
+            conditions.append("(t.mode = $mode OR t.mode = '')")
+            params["mode"] = mode
         if screen:
-            where = "AND t.category=$cat " if category else ""
-            params: dict = {"screen": screen}
-            if category:
-                params["cat"] = category
-            return self._q(
+            params["screen"] = screen
+            match = (
                 "MATCH (s:Screen {name:$screen})-[:USES_COMPONENT]->(top:Component)"
                 "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token) "
-                f"WHERE true {where}"
-                "RETURN DISTINCT t.category, t.label, t.value, t.usage, t.mode "
-                "ORDER BY t.category, t.usage DESC",
-                params,
             )
-        if category:
-            return self._q(
-                "MATCH (t:Token {category:$cat}) "
-                "RETURN t.category, t.label, t.value, t.usage, t.mode "
-                "ORDER BY t.usage DESC",
-                {"cat": category},
-            )
+        else:
+            match = "MATCH (t:Token) "
         return self._q(
-            "MATCH (t:Token) "
-            "RETURN t.category, t.label, t.value, t.usage, t.mode "
-            "ORDER BY t.category, t.usage DESC"
+            f"{match}WHERE {' AND '.join(conditions)} "
+            "RETURN DISTINCT t.category, t.label, t.value, t.usage, t.mode "
+            "ORDER BY t.category, t.usage DESC, t.label",
+            params,
         )
 
     def list_texts(self) -> list[dict]:

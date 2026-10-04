@@ -1166,3 +1166,28 @@ class TestTokenModesAndCustomProperties:
         graph.writer.write_tokens([self._accent("claro", "#0D5C63")])
         graph.writer.write_component(self._styled("Ghost", "var(--missing)"))
         assert self._linked_labels(graph, "Ghost") == []
+
+
+class TestTokensByMode:
+    """Asking for one mode returns that mode's values plus the tokens every mode shares."""
+
+    @pytest.fixture()
+    def reader(self, tmp_path):
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "bymode.db")))
+        initialize_schema(conn)
+        GraphWriter(conn).write_tokens([
+            DesignToken(id="a_c", category="css_var", label="--accent", value="#0D5C63", usage=1, mode="claro"),
+            DesignToken(id="a_e", category="css_var", label="--accent", value="#5FB0B0", usage=1, mode="escuro"),
+            DesignToken(id="gap", category="spacing", label="space_16", value="16px", usage=4),
+        ])
+        return GraphReader(conn)
+
+    def test_one_mode_keeps_shared_tokens_and_drops_other_modes(self, reader):
+        values = {r["t.value"] for r in reader.get_tokens(mode="escuro")}
+        assert values == {"#5FB0B0", "16px"}
+
+    def test_no_mode_returns_every_mode(self, reader):
+        assert len(reader.get_tokens()) == 3
+
+    def test_mode_combines_with_category(self, reader):
+        assert [r["t.value"] for r in reader.get_tokens("css_var", mode="claro")] == ["#0D5C63"]
