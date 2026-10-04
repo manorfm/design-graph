@@ -10,9 +10,11 @@ pipeline changes.
 from __future__ import annotations
 
 from design_graph.capture.base import Capture, PrototypeDocument, UnsupportedPrototypeError
+from design_graph.capture.dc_canvas.dc_capture import DcCanvasCapture
 from design_graph.capture.html_prototype.html_capture import HtmlPrototypeCapture
 
 CAPTURES: tuple[Capture, ...] = (
+    DcCanvasCapture(),
     HtmlPrototypeCapture(),
 )
 
