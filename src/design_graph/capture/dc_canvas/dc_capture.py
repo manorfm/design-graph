@@ -12,6 +12,7 @@ from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
+from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
 from design_graph.model.entities import ExtractedComponent, ExtractedScreen
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,8 @@ class DcCanvasCapture:
             for board in boards
         ]
         return CaptureResult(
-            capture=CAPTURE_NAME, components=[], screens=screens, sections={}, tokens=[],
-            skipped_entries=skipped,
+            capture=CAPTURE_NAME, components=[], screens=screens, sections={},
+            tokens=extract_canvas_tokens(list(pages.values())), skipped_entries=skipped,
         )
 
     def capture_fragment(self, source: str) -> ExtractedComponent | None:
