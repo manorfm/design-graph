@@ -8,6 +8,7 @@ import logging
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import (
     component_lines,
+    screen_relation_lines,
     section_style_group_lines,
 )
 from design_graph.interface.mcp.notices import (
@@ -28,7 +29,8 @@ def list_screens(readers: list[tuple[str, GraphReader]]) -> str:
         lines.append(f"## {doc_name}")
         for s in screens:
             top = ", ".join(s.get("top_components", []))
-            lines.append(f"**{s['name']}** ({s['component_count']} componentes)")
+            variant = f" — variante de {s['variant_of']}" if s.get("variant_of") else ""
+            lines.append(f"**{s['name']}** ({s['component_count']} componentes){variant}")
             if top:
                 lines.append(f"  → {top}")
         lines.append("")
@@ -44,6 +46,7 @@ def get_screen(reader: GraphReader, name: str) -> str:
     lines = [
         f"# Tela: {screen['name']}",
         f"Componentes: {screen['component_count']}  |  Seções: {screen['sections_count']}",
+        *screen_relation_lines(screen.get("relations")),
         "",
     ]
     for sec in screen.get("sections", []):
@@ -85,6 +88,7 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
     lines = [
         f"# Screen: {spec['name']}",
         f"**Components**: {spec['component_count']}  |  **Sections**: {spec['sections_count']}",
+        *screen_relation_lines(spec.get("relations")),
         "",
     ]
 

@@ -197,3 +197,29 @@ def _component_text_lines(comp: dict) -> list[str]:
     notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=comp["name"], tool="get_full_texts")
     return lines + ([notice] if notice else [])
 
+
+def screen_relation_lines(relations: dict | None) -> list[str]:
+    """
+    How a screen relates to other screens — viewport, where it leads and
+    where it is reached from, what it varies — one line each, only when known.
+    """
+    if not relations:
+        return []
+    lines: list[str] = []
+    if relations["viewport"]:
+        lines.append(f"**Viewport**: {relations['viewport']['width']}×{relations['viewport']['height']}")
+    for key, title in (("navigates_to", "Navega para"), ("navigated_from", "Chega de")):
+        if relations[key]:
+            links = ", ".join(_screen_link(r["screen"], r["label"]) for r in relations[key])
+            lines.append(f"**{title}**: {links}")
+    if relations["variant_of"]:
+        lines.append(f"**Variante de**: {relations['variant_of']['screen']} ({relations['variant_of']['axis']})")
+    if relations["variants"]:
+        variants = ", ".join(f"{v['screen']} ({v['axis']})" for v in relations["variants"])
+        lines.append(f"**Variantes**: {variants}")
+    return lines
+
+
+def _screen_link(screen: str, label: str) -> str:
+    return f"{screen} («{label}»)" if label else screen
+
