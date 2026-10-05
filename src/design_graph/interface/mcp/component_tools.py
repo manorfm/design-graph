@@ -6,6 +6,7 @@ import logging
 
 from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
+from design_graph.interface.mcp.full_tools import get_full_source
 from design_graph.interface.mcp.markdown import (
     mode_tag,
     component_lines,
@@ -30,10 +31,33 @@ logger = logging.getLogger(__name__)
 DEFAULT_LIST_COMPONENTS_LIMIT = 100
 
 
+def _not_found(name: str) -> str:
+    return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+
+
+def _screen_instead(reader: GraphReader, name: str) -> str | None:
+    """
+    The answer for a component tool asked about a screen: the screen's own
+    source, the components it uses directly and where to get the whole page.
+    None when `name` is not a screen.
+    """
+    entity = reader.resolve_named_entity(name).entity
+    if entity is None or entity.kind != "screen":
+        return None
+    screen = reader.get_screen(entity.name) or {}
+    components = ", ".join(c["c.name"] for c in screen.get("components", [])) or "nenhum"
+    return "\n".join([
+        f"# '{entity.name}' é uma tela, não um componente",
+        f"**Componentes diretos**: {components}",
+        f"> Para a tela inteira (seções, estilos e cada componente): get_screen_full('{entity.name}').\n",
+        get_full_source(reader, entity.name),
+    ])
+
+
 def get_component(reader: GraphReader, name: str) -> str:
     comp = reader.get_component(name)
     if not comp:
-        return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+        return _screen_instead(reader, name) or _not_found(name)
 
     cname = comp.get("c.name", name)
     lines = [
@@ -82,7 +106,7 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
         class_styles = reader.find_styles_by_class(name)
         if class_styles:
             return _render_shared_css_class_spec(reader, name, class_styles)
-        return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+        return _screen_instead(reader, name) or _not_found(name)
 
     cname = spec["c.name"]
     lines = [
@@ -205,7 +229,7 @@ def get_component_full(reader: GraphReader, name: str) -> str:
     """
     full = reader.get_component_full(name)
     if not full:
-        return f"Componente '{name}' não encontrado. Use search('{name}') para explorar."
+        return _screen_instead(reader, name) or _not_found(name)
 
     root_name = full["root"]
     lines = [
