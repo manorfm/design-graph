@@ -46,53 +46,36 @@ de design e hierarquias de telas de forma cirúrgica, sem injetar o HTML inteiro
 design-graph/
 ├── src/
 │   └── design_graph/
-│       ├── core/               # tipos compartilhados, patterns, constantes
-│       │   ├── models.py       # dataclasses: Component, Screen, Section, Token, ...
-│       │   ├── patterns.py     # todos os RE_* centralizados
-│       │   └── constants.py    # INTERNALS, COLOR_LABELS, SEMANTIC_KEYWORDS
-│       ├── parsing/            # HTML → dados brutos (leitura pura, sem side-effects)
-│       │   ├── source_loader.py    # HTML → (js, css, inner_html, html_hash)
-│       │   ├── format_detector.py  # bundled_react | tailwind | plain_html
-│       │   ├── js_parser.py        # limites de função, JSX return block
-│       │   ├── html_parser.py      # DOM analysis para plain HTML
-│       │   └── token_extractor.py  # cores, espaçamentos, tipografia, sombras
-│       ├── extraction/         # js/html parsed → entidades de domínio
-│       │   ├── component_extractor.py  # single-pass: styles+interactions+texts+jsx
-│       │   ├── screen_extractor.py     # screens + hierarquia de filhos
-│       │   ├── section_extractor.py    # seções (comentário + fallback estrutural)
-│       │   └── chunker.py              # HTML → chunks com envelope de contexto
-│       ├── graph/              # leitura e escrita no Kuzu
-│       │   ├── schema.py       # DDL das tabelas e relações
-│       │   ├── writer.py       # insere nós e arestas (síncrono — Kuzu limitação)
-│       │   ├── reader.py       # queries — usado pelo MCP e CLI
-│       │   └── diff.py         # estado incremental e detecção de mudanças
-│       ├── pipeline/           # orquestração assíncrona
-│       │   ├── coordinator.py  # pipeline completo (async/await + semaphore)
-│       │   └── state.py        # load/save de .graph-state.json
-│       └── mcp/                # servidor MCP (JSON-RPC 2.0 via stdio)
-│           ├── server.py       # loop de leitura/escrita stdio + dispatch
-│           ├── tools.py        # implementação de cada tool
-│           ├── search.py       # busca com score + aliases
-│           └── aliases.py      # mapa PT/EN
+│       ├── capture/                 # formato do protótipo → entidades do modelo (plugável)
+│       │   ├── base.py              # protocolo Capture
+│       │   ├── registry.py          # escolhe a captura pelo conteúdo do arquivo
+│       │   ├── markup.py            # texto visível de markup (comum às capturas)
+│       │   ├── html_prototype/      # React empacotado, Tailwind e HTML puro
+│       │   │   ├── patterns.py      # todos os RE_* da captura
+│       │   │   ├── constants.py
+│       │   │   ├── parsing/         # HTML → dados brutos (source_loader, js_parser, token_extractor…)
+│       │   │   └── extraction/      # dados brutos → entidades (component, screen, section extractors…)
+│       │   └── dc_canvas/           # canvas DC (páginas, blocos, componentes inferidos)
+│       ├── model/                   # modelo estável, sem dependências de captura ou interface
+│       │   ├── entities.py          # entidades e value objects (Component, Screen, Section, Token…)
+│       │   └── graph/               # Kuzu: schema, writer, reader, diff, catalog
+│       ├── pipeline/                # orquestração assíncrona (coordinator, state)
+│       └── interface/               # interfaces finas sobre o reader
+│           ├── cli/                 # design-graph, design-query, chunk export
+│           └── mcp/                 # servidor MCP: tools.py (dispatcher) + *_tools.py, search, aliases
 ├── tests/
 │   ├── conftest.py
-│   ├── fixtures/
-│   │   ├── simple.html         # fixture existente
-│   │   ├── plain.html          # nova: HTML semântico puro
-│   │   └── large_bundle.html   # nova: stress test com 50+ componentes
-│   ├── unit/
-│   │   ├── parsing/
-│   │   ├── extraction/
-│   │   ├── graph/
-│   │   └── mcp/
-│   └── integration/
-│       ├── test_pipeline.py
-│       └── test_mcp_e2e.py
+│   ├── fixtures/                    # protótipos sintéticos (simple, plain, large_bundle…)
+│   ├── support/                     # geradores de fixture (ex.: canvas DC)
+│   ├── test_architecture_guardrails.py
+│   ├── unit/                        # espelha src/: capture/, model/, pipeline/, interface/
+│   └── integration/                 # pipeline, CLI e MCP de ponta a ponta
 ├── docs/
 │   ├── spec/       ← este diretório
 │   ├── plan/
-│   └── tasks/
-└── pyproject.toml  (entry points atualizados)
+│   ├── tasks/
+│   └── changes/
+└── pyproject.toml
 ```
 
 ## Entry points (CLI)
@@ -105,7 +88,7 @@ design-graph/
 
 ## Invariantes do sistema
 
-1. **Leitura imutável**: nenhum módulo de parsing/extraction modifica o string `js` ou `html`.
+1. **Leitura imutável**: nenhum módulo de captura (`parsing/`, `extraction/`) modifica o string `js` ou `html`.
    Toda extração retorna novos objetos. Isso é o que torna a paralelização segura.
 
 2. **Escrita serializada**: todas as escritas no Kuzu acontecem na fase final, de forma
@@ -135,9 +118,9 @@ design-graph/
 
 ## Referências
 
-- Spec 01: Módulo `parsing/`
-- Spec 02: Módulo `extraction/`
-- Spec 03: Módulo `graph/`
-- Spec 04: Módulo `mcp/`
-- Spec 05: Módulo `extraction/chunker.py`
+- Spec 01: Módulo `capture/html_prototype/parsing/`
+- Spec 02: Módulo `capture/html_prototype/extraction/`
+- Spec 03: Módulo `model/graph/`
+- Spec 04: Módulo `interface/mcp/`
+- Spec 05: Módulo `interface/cli/chunk_export.py`
 - Spec 06: Design de concorrência do `pipeline/coordinator.py`

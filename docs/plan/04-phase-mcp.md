@@ -1,5 +1,8 @@
 # Plan 04 — Fase 5: MCP
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Objetivo
 
 Separar o servidor MCP em 4 módulos com responsabilidades claras.
@@ -13,7 +16,7 @@ Fase 3 completa: `GraphReader` disponível.
 ## Entregáveis
 
 ```
-src/design_graph/mcp/
+src/design_graph/interface/mcp/
   __init__.py
   aliases.py
   search.py
@@ -164,7 +167,7 @@ class MockReader:
 ## Critério de aceite
 
 ```bash
-pytest tests/unit/mcp/ -v
+pytest tests/unit/interface/mcp/ -v
 pytest tests/integration/test_mcp_e2e.py -v
 # search retorna resultados em ordem de score
 # get_component_children funciona end-to-end

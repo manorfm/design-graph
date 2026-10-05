@@ -1,8 +1,8 @@
-# Spec 02 — Módulo `extraction/`
+# Spec 02 — Módulo `capture/html_prototype/extraction/`
 
 ## Responsabilidade
 
-Transformar dados brutos de `parsing/` em entidades de domínio semânticas:
+Transformar dados brutos de `capture/html_prototype/parsing/` em entidades de domínio semânticas:
 `Component`, `Screen`, `Section`, `Chunk`. Estes módulos são os únicos que
 interpretam significado — um `div` com `role=navigation` se torna um `Component`
 do tipo `"navigation"` aqui, não no parsing.
@@ -158,7 +158,7 @@ RE_SCREEN_NAME = re.compile(
 )
 ```
 
-Este regex fica em `core/patterns.py` — não duplicado em screen_extractor.
+Este regex fica em `capture/html_prototype/patterns.py` — não duplicado em screen_extractor.
 
 ### Coleta de referências
 

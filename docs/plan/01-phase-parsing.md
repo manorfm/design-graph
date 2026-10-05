@@ -1,5 +1,8 @@
 # Plan 01 — Fase 1: Parsing
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Objetivo
 
 Extrair toda a lógica de leitura e parsing de HTML/JS/CSS para módulos com
@@ -9,13 +12,13 @@ sem side-effects.
 ## Entregáveis
 
 ```
-src/design_graph/core/
-  __init__.py
-  models.py        ← dataclasses de domínio
+src/design_graph/model/
+  entities.py      ← dataclasses de domínio
+src/design_graph/capture/html_prototype/
   patterns.py      ← todos os RE_* centralizados
   constants.py     ← INTERNALS, COLOR_LABELS, SEMANTIC_KEYWORDS
 
-src/design_graph/parsing/
+src/design_graph/capture/html_prototype/parsing/
   __init__.py
   source_loader.py
   format_detector.py
@@ -23,7 +26,7 @@ src/design_graph/parsing/
   html_parser.py
   token_extractor.py
 
-tests/unit/parsing/
+tests/unit/capture/html_prototype/parsing/
   __init__.py
   test_source_loader.py
   test_format_detector.py
@@ -39,7 +42,7 @@ Para cada módulo, a ordem é:
 2. Implementar a função mínima (GREEN)
 3. Refatorar sem quebrar (REFACTOR)
 
-### 1.1 `core/models.py`
+### 1.1 `model/entities.py`
 
 Sem lógica — apenas dataclasses. Teste trivial: instanciar e verificar campos.
 Mas os modelos estabelecem o contrato de dados para toda a fase 2+.
@@ -50,7 +53,7 @@ Mas os modelos estabelecem o contrato de dados para toda a fase 2+.
 - `DesignToken(frozen=True)`
 - `StyleEntry`, `InteractionEntry`, `TextEntry` (para Fase 2)
 
-### 1.2 `core/patterns.py`
+### 1.2 `capture/html_prototype/patterns.py`
 
 Mover todos os `RE_*` de `build_graph.py` para cá.
 Testes verificam que os patterns compilam e casam com exemplos conhecidos.
@@ -84,15 +87,15 @@ Testes:
 ## Critério de aceite
 
 ```bash
-pytest tests/unit/parsing/ -v   # 100% verde
-pytest tests/unit/parsing/ --cov=src/design_graph/parsing --cov-report=term
+pytest tests/unit/capture/html_prototype/parsing/ -v   # 100% verde
+pytest tests/unit/capture/html_prototype/parsing/ --cov=src/design_graph/capture/html_prototype/parsing --cov-report=term
 # cobertura >= 90% em cada módulo
 ```
 
 ## Guardrails desta fase
 
-1. Nenhum módulo de `parsing/` importa de `extraction/`, `graph/` ou `mcp/`
-2. Nenhuma função em `parsing/` modifica seus argumentos
+1. Nenhum módulo de `capture/html_prototype/parsing/` importa de `capture/html_prototype/extraction/`, `model/graph/` ou `interface/mcp/`
+2. Nenhuma função em `capture/html_prototype/parsing/` modifica seus argumentos
 3. `source_loader.py` é o único com I/O de arquivo — tudo o mais opera em strings
 4. Todos os `RE_*` ficam em `patterns.py` — nenhum regex inline em outros módulos
 

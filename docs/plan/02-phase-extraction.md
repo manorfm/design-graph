@@ -1,5 +1,8 @@
 # Plan 02 — Fase 2: Extraction
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Objetivo
 
 Implementar o single-pass extractor, a hierarquia de composição (`child_refs`)
@@ -13,7 +16,7 @@ Fase 1 completa: `FunctionBoundary`, `RawSources`, `patterns.py` disponíveis.
 ## Entregáveis
 
 ```
-src/design_graph/extraction/
+src/design_graph/capture/html_prototype/extraction/
   __init__.py
   component_extractor.py
   screen_extractor.py
@@ -29,7 +32,7 @@ src/design_graph/extraction/
 `styles`, `interactions`, `texts` que o legado para o mesmo JS de entrada.
 
 ```python
-# tests/unit/extraction/test_component_extractor.py
+# tests/unit/capture/html_prototype/extraction/test_component_extractor.py
 
 SIMPLE_COMPONENT_JS = """
 function BtnPrimary() {
@@ -134,7 +137,7 @@ class TestSectionExtractor:
 Para garantir que os resultados não regridem, criar um teste de paridade:
 
 ```python
-# tests/unit/extraction/test_parity.py
+# tests/unit/capture/html_prototype/extraction/test_parity.py
 """
 Verifica que os novos extractors produzem resultados equivalentes ao legado
 para o fixture simple.html.
@@ -155,7 +158,7 @@ class TestParity:
 ## Critério de aceite
 
 ```bash
-pytest tests/unit/extraction/ -v
+pytest tests/unit/capture/html_prototype/extraction/ -v
 # Paridade com legado para simple.html
 # child_refs populados corretamente
 # detection_method registrado em cada seção

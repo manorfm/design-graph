@@ -1,9 +1,9 @@
-# Spec 03 — Módulo `graph/`
+# Spec 03 — Módulo `model/graph/`
 
 ## Responsabilidade
 
 Definir o schema do grafo, escrever entidades extraídas no Kuzu e fornecer
-uma camada de leitura tipada. Nenhum módulo de `graph/` faz parsing ou extração.
+uma camada de leitura tipada. Nenhum módulo de `model/graph/` faz parsing ou extração.
 
 ## Princípio central
 
@@ -225,7 +225,7 @@ def _write_contains(self, parent: str, child: str, weight: int = 1) -> None:
 
 ### Responsabilidade
 
-Camada de consulta tipada. Usada por `mcp/tools.py` e `cli/query.py`.
+Camada de consulta tipada. Usada por `interface/mcp/tools.py` e `interface/cli/query.py`.
 Read-only. Nunca recebe uma `kuzu.Connection` de write.
 
 ### Contrato
@@ -242,7 +242,7 @@ class GraphReader:
     def get_tokens(self, category: str | None = None) -> list[dict]: ...
     def find_token_usage(self, value: str) -> list[dict]: ...
     def get_interactions(self, comp_name: str) -> list[dict]: ...
-    def get_full_jsx(self, name: str) -> str: ...
+    def get_full_source(self, name: str) -> dict | None: ...  # componente ou, na falta, tela
     def get_impact(self, name: str) -> dict: ...
     def count_nodes(self) -> dict[str, int]: ...
 

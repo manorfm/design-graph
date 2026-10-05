@@ -1,5 +1,8 @@
 # Plan 05 — Fase 6: Chunker
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Objetivo
 
 Implementar o chunker de HTML para contexto de IA. Deve funcionar tanto
@@ -14,9 +17,9 @@ Fase 2 completa: `ExtractedScreen`, `ExtractedSection`, `ExtractedComponent`.
 ## Entregáveis
 
 ```
-src/design_graph/extraction/chunker.py
-src/design_graph/cli/build.py  (cmd_chunk adicionado)
-tests/unit/extraction/test_chunker.py
+src/design_graph/interface/cli/chunk_export.py
+src/design_graph/interface/cli/build.py  (cmd_chunk adicionado)
+tests/unit/interface/cli/test_chunk_export.py
 tests/fixtures/plain.html       (nova fixture)
 tests/fixtures/large_bundle.html (nova fixture)
 ```
@@ -41,7 +44,7 @@ HTML com bundle React simulando 50+ componentes para testar:
 ## Sequência TDD
 
 ```python
-# tests/unit/extraction/test_chunker.py
+# tests/unit/interface/cli/test_chunk_export.py
 
 class TestChunkId:
     def test_snake_case_conversion(self):
@@ -156,7 +159,7 @@ class TestExportChunksJsonl:
 ## Critério de aceite
 
 ```bash
-pytest tests/unit/extraction/test_chunker.py -v
+pytest tests/unit/interface/cli/test_chunk_export.py -v
 design-graph chunk tests/fixtures/simple.html --output /tmp/chunks.jsonl
 # Verificar que chunks.jsonl tem linhas válidas, breadcrumbs fazem sentido,
 # nenhum chunk tem content vazio

@@ -1,5 +1,8 @@
 # Plan 00 — Estratégia de Migração
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Princípio
 
 Migração incremental sem quebrar o sistema existente.
@@ -15,12 +18,12 @@ são aposentados.
 
 | Fase | Entrega | Depende de |
 |---|---|---|
-| **1 — Parsing** | `src/design_graph/parsing/` + testes unitários | — |
-| **2 — Extraction** | `src/design_graph/extraction/` + single-pass + CONTAINS | Fase 1 |
-| **3 — Graph** | `src/design_graph/graph/` + schema CONTAINS | Fase 2 |
+| **1 — Parsing** | `src/design_graph/capture/html_prototype/parsing/` + testes unitários | — |
+| **2 — Extraction** | `src/design_graph/capture/html_prototype/extraction/` + single-pass + CONTAINS | Fase 1 |
+| **3 — Graph** | `src/design_graph/model/graph/` + schema CONTAINS | Fase 2 |
 | **4 — Pipeline** | `src/design_graph/pipeline/coordinator.py` (async) | Fases 1-3 |
-| **5 — MCP** | `src/design_graph/mcp/` com search scoring | Fase 3 |
-| **6 — Chunker** | `src/design_graph/extraction/chunker.py` + CLI | Fase 2 |
+| **5 — MCP** | `src/design_graph/interface/mcp/` com search scoring | Fase 3 |
+| **6 — Chunker** | `src/design_graph/interface/cli/chunk_export.py` + CLI | Fase 2 |
 | **7 — Cutover** | Aposentar arquivos raiz, atualizar pyproject.toml | Fases 1-6 |
 
 ---
@@ -49,12 +52,12 @@ para reconstruir o grafo.
 
 | Fase | Critério |
 |---|---|
-| 1 | `pytest tests/unit/parsing/` verde |
-| 2 | `pytest tests/unit/extraction/` verde; single-pass == resultados do legado |
-| 3 | `pytest tests/unit/graph/` verde; banco inclui relações CONTAINS |
+| 1 | `pytest tests/unit/capture/html_prototype/parsing/` verde |
+| 2 | `pytest tests/unit/capture/html_prototype/extraction/` verde; single-pass == resultados do legado |
+| 3 | `pytest tests/unit/model/graph/` verde; banco inclui relações CONTAINS |
 | 4 | `pytest tests/integration/test_pipeline.py` verde; build é mais rápido |
-| 5 | `pytest tests/unit/mcp/` verde; search retorna resultados ordenados por score |
-| 6 | `pytest tests/unit/extraction/test_chunker.py` verde; CLI `chunk` funciona |
+| 5 | `pytest tests/unit/interface/mcp/` verde; search retorna resultados ordenados por score |
+| 6 | `pytest tests/unit/interface/cli/test_chunk_export.py` verde; CLI `chunk` funciona |
 | 7 | `pytest` completo verde; `design-graph`, `design-mcp`, `design-query` funcionam |
 
 ---
@@ -64,31 +67,32 @@ para reconstruir o grafo.
 ```
 Fase 1:
   src/design_graph/__init__.py
-  src/design_graph/core/{models,patterns,constants}.py
-  src/design_graph/parsing/{source_loader,format_detector,js_parser,html_parser,token_extractor}.py
-  tests/unit/parsing/test_*.py
+  src/design_graph/model/entities.py
+  src/design_graph/capture/html_prototype/{patterns,constants}.py
+  src/design_graph/capture/html_prototype/parsing/{source_loader,format_detector,js_parser,html_parser,token_extractor}.py
+  tests/unit/capture/html_prototype/parsing/test_*.py
 
 Fase 2:
-  src/design_graph/extraction/{component_extractor,screen_extractor,section_extractor}.py
-  tests/unit/extraction/test_{component,screen,section}_extractor.py
+  src/design_graph/capture/html_prototype/extraction/{component_extractor,screen_extractor,section_extractor}.py
+  tests/unit/capture/html_prototype/extraction/test_{component,screen,section}_extractor.py
 
 Fase 3:
-  src/design_graph/graph/{schema,writer,reader,diff}.py
-  tests/unit/graph/test_{schema,writer,reader,diff}.py
+  src/design_graph/model/graph/{schema,writer,reader,diff}.py
+  tests/unit/model/graph/test_{schema,writer,reader,diff}.py
 
 Fase 4:
   src/design_graph/pipeline/{coordinator,state}.py
   tests/integration/test_pipeline.py
 
 Fase 5:
-  src/design_graph/mcp/{server,tools,search,aliases}.py
-  tests/unit/mcp/test_{tools,search}.py
+  src/design_graph/interface/mcp/{server,tools,search,aliases}.py
+  tests/unit/interface/mcp/test_{tools,search}.py
   tests/integration/test_mcp_e2e.py
 
 Fase 6:
-  src/design_graph/extraction/chunker.py
-  src/design_graph/cli/{build,query}.py  (atualizado com cmd_chunk)
-  tests/unit/extraction/test_chunker.py
+  src/design_graph/interface/cli/chunk_export.py
+  src/design_graph/interface/cli/{build,query}.py  (atualizado com cmd_chunk)
+  tests/unit/interface/cli/test_chunk_export.py
   tests/fixtures/{plain.html,large_bundle.html}
 
 Fase 7:

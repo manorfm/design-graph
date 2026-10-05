@@ -1,4 +1,4 @@
-# Spec 01 — Módulo `parsing/`
+# Spec 01 — Módulo `capture/html_prototype/parsing/`
 
 ## Responsabilidade
 
@@ -308,7 +308,7 @@ def _extract_css_vars(combined: str) -> dict[str, str]: ...
 
 ---
 
-## Diagrama de dependências do módulo `parsing/`
+## Diagrama de dependências do módulo `capture/html_prototype/parsing/`
 
 ```
 html_path (Path)

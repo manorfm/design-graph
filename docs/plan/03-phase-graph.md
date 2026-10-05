@@ -1,5 +1,8 @@
 # Plan 03 — Fase 3: Graph
 
+> **Plano concluído** — registro histórico da migração. Os caminhos foram atualizados para a
+> estrutura atual (`capture/`, `model/`, `interface/`); o código legado citado não existe mais.
+
 ## Objetivo
 
 Separar schema, writer e reader em módulos distintos. Adicionar a relação
@@ -13,7 +16,7 @@ disponíveis.
 ## Entregáveis
 
 ```
-src/design_graph/graph/
+src/design_graph/model/graph/
   __init__.py
   schema.py
   writer.py
@@ -114,7 +117,7 @@ class TestGraphReader:
 ### 3.4 `diff.py`
 
 Testes já cobertos pelo legado `test_build.py::TestDiffState`.
-Migrar esses testes para `tests/unit/graph/test_diff.py` sem mudança de lógica.
+Migrar esses testes para `tests/unit/model/graph/test_schema_and_diff.py` sem mudança de lógica.
 
 ## Fixture `populated_db`
 
@@ -145,7 +148,7 @@ def populated_db(tmp_path):
 ## Critério de aceite
 
 ```bash
-pytest tests/unit/graph/ -v
+pytest tests/unit/model/graph/ -v
 # writer idempotente — sem duplicatas
 # reader.get_component_children funciona
 # reader.find_screens_using_comp_transitively funciona
