@@ -101,3 +101,14 @@ class TestInteractiveNames:
         components = _components(tmp_path, pages)
         assert components["Relatório"].child_refs == ["RelatórioLink", "FixoLink"]
 
+
+
+class TestEveryElementStyle:
+    def test_descendant_styles_are_kept_with_their_path(self, tmp_path):
+        sidebar = _components(tmp_path)["Sidebar"]
+        assert {(s.element, s.property, s.value) for s in sidebar.styles} >= {
+            ("Sidebar", "width", "248px"),
+            ("Sidebar > nav", "display", "flex"),
+            ("Sidebar > nav > a:1", "background", "var(--accent-soft)"),
+            ("Sidebar > nav > a:2", "color", "var(--ink2)"),
+        }

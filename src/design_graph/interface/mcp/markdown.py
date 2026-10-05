@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from design_graph.model.entities import PropDefault, StyleState
-from design_graph.model.graph.reader import NamedEntityResolution
+from design_graph.model.graph.reader import SECTION_OWN_STYLES, NamedEntityResolution
 from design_graph.interface.mcp.notices import (
     StyleExtractionGap,
     source_block_lines,
@@ -83,9 +83,17 @@ def section_style_group_lines(
     "Styles — {state}" grouping, grouped by selector instead of state (see
     docs/changes/C36: a flat property list gave no way to tell which of a
     section's several nested selectors a given value belonged to).
+
+    The section's own styles and its CSS classes are listed; styles of its
+    nested elements (one selector per element — hundreds in a heatmap) are
+    summed up in one line naming the call that lists every one of them.
     """
     lines: list[str] = []
+    nested = 0
     for selector, raw_styles in sorted(styles_by_element.items()):
+        if selector != SECTION_OWN_STYLES and not selector.startswith("."):
+            nested += 1
+            continue
         styles = dedupe_styles_by_property(raw_styles)
         lines.append(f"- **{selector}**")
         for s in styles[:_SECTION_STYLE_GROUP_CAP]:
@@ -93,6 +101,8 @@ def section_style_group_lines(
         notice = truncation_notice(len(styles), _SECTION_STYLE_GROUP_CAP, recoverable_via=recoverable_via)
         if notice:
             lines.append(f"  {notice}")
+    if nested:
+        lines.append(f"- {nested} elementos internos com estilo próprio — chame `get_full_styles({recoverable_via})`")
     return lines
 
 

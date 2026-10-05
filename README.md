@@ -540,6 +540,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Custom properties per theme selector, named after the enum option (e.g. `tema`: claro/escuro) that switches them on
 - Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items, with the literal list a loop repeats attached as referenced data
 - `<sc-for>`, `<sc-if>` and `<sc-raw-*>` read without rewriting the stored template
+- The inline style of every element, attributed by its path (`ul > li:2 > span`) to the section, component or page that contains it
 
 ## Graph schema
 

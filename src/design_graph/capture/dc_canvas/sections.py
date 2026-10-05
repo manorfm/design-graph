@@ -13,12 +13,13 @@ from bs4 import Tag
 from design_graph.capture.dc_canvas.template import (
     SOURCE_LANG,
     element_children,
+    element_paths,
     inline_styles,
     parse_markup,
     tag_of,
     visible_texts,
 )
-from design_graph.model.entities import DetectionMethod, ExtractedSection
+from design_graph.model.entities import DetectionMethod, ExtractedSection, StyleEntry
 
 _SEMANTIC_NAMES = {
     "aside": "Sidebar", "nav": "Navigation", "header": "Header", "footer": "Footer", "section": "Section",
@@ -37,11 +38,29 @@ def page_sections(
         sections.append(ExtractedSection.create(
             screen=screen, name=name, styles=inline_styles(block), component_refs=components_in(block),
             texts=visible_texts(block), source_code=str(block),
+            element_styles=[
+                StyleEntry.create(path, prop, value)
+                for path, element in element_paths(block)
+                for prop, value in inline_styles(element).items()
+            ],
             detection_method=DetectionMethod.SEMANTIC if tag_of(block) in _SEMANTIC_NAMES
             else DetectionMethod.STRUCTURAL,
             source_lang=SOURCE_LANG,
         ))
     return sections
+
+
+def page_styles(blocks: list[Tag]) -> list[StyleEntry]:
+    """The styles of a page's own elements: the wrappers around its blocks, by path from the page root."""
+    if not blocks:
+        return []
+    root = next(parent for parent in blocks[0].parents if parent.parent is None)
+    around = {id(ancestor) for block in blocks for ancestor in block.parents}
+    return [
+        StyleEntry.create(path, prop, value)
+        for path, element in element_paths(root) if id(element) in around
+        for prop, value in inline_styles(element).items()
+    ]
 
 
 def page_blocks(markup: str) -> list[Tag]:

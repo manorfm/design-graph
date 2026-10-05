@@ -441,6 +441,9 @@ class GraphWriter:
             self._rows.add_rel("USES_COMPONENT", screen.name, comp_name)
 
         self._write_screen_relations(screen)
+        for style in screen.styles:
+            self._put_style_once(style)
+            self._rows.add_rel("SCREEN_HAS_STYLE", screen.name, style.id)
 
         for section in sections:
             self._write_section(screen.name, section)

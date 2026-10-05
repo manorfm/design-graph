@@ -1174,3 +1174,22 @@ class TestWholeSourceIsStored:
         reader = GraphReader(conn)
         assert reader.get_full_source("Big")["source_code"] == long_source
         assert reader.get_full_source("Page")["source_code"] == long_source
+
+
+class TestScreenOwnStyles:
+    def test_a_screen_own_styles_are_read_and_shown_in_page_order(self, tmp_path):
+        from design_graph.interface.mcp.screen_tools import get_screen_full
+
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "screen_styles.db")))
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+        gw.write_screen(ExtractedScreen(name="Page", component_refs=[], sections_count=0, styles=[
+            StyleEntry.create("div", "width", "390px"), StyleEntry.create("div > div", "display", "flex"),
+        ]), [])
+        gw.commit()
+        reader = GraphReader(conn)
+        assert reader.get_screen_full("Page")["styles"] == [
+            {"element": "div", "property": "width", "value": "390px"},
+            {"element": "div > div", "property": "display", "value": "flex"},
+        ]
+        assert "- **div** `width`: `390px`" in get_screen_full(reader, "Page")

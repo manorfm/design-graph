@@ -657,7 +657,7 @@ class GraphReader:
             styles_by_element = _group_section_styles(section_id, graph_styles)
         else:
             legacy = json.loads(sec["sec.styles_json"] or "{}")
-            styles_by_element = {_LEGACY_STYLE_GROUP_LABEL: [
+            styles_by_element = {SECTION_OWN_STYLES: [
                 {"property": prop, "value": value} for prop, value in legacy.items()
             ]} if legacy else {}
 
@@ -1220,7 +1220,16 @@ class GraphReader:
             comp_interact_rows=comp_interact_rows,
             comp_prop_rows=comp_prop_rows,
             comp_children_rows=comp_children_rows,
-        ), "relations": self.get_screen_relations(s["s.name"])}
+        ), "relations": self.get_screen_relations(s["s.name"]), "styles": self._screen_styles(s["s.name"])}
+
+    def _screen_styles(self, name: str) -> list[dict]:
+        """The screen's own elements' styles, in the order the page declares them."""
+        return self._q(
+            "MATCH (s:Screen {name:$n})-[r:SCREEN_HAS_STYLE]->(st:Style) "
+            "RETURN st.element AS element, st.property AS property, st.value AS value "
+            "ORDER BY offset(ID(r))",
+            {"n": name},
+        )
 
     def get_screen_texts(self, name: str) -> dict | None:
         """Return every section and contained-component text for a screen."""
@@ -1342,7 +1351,7 @@ class GraphReader:
             "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
             "-[r:SECTION_HAS_STYLE]->(st:Style) "
             "WHERE st.media = '' "
-            "RETURN sec.name AS section_name, st.element AS element, "
+            "RETURN sec.id AS section_id, sec.name AS section_name, st.element AS element, "
             "       st.property AS prop, st.value AS val "
             "ORDER BY offset(ID(sec)), offset(ID(r))",
             {"n": resolved},
@@ -1353,7 +1362,7 @@ class GraphReader:
         for row in sec_style_rows:
             if row["prop"] not in LAYOUT_CSS_PROPERTIES:
                 continue
-            selector = f".{row['element'].removeprefix('class:')}" if row["element"].startswith("class:") else "(estilo da seção)"
+            selector = _section_selector(row["section_id"], row["element"])
             key = f"{row['section_name']}::{selector}"
             selector_labels[key] = f"{row['section_name']} — {selector}"
             by_section_selector[key][row["prop"]] = row["val"]
@@ -1466,28 +1475,36 @@ class GraphReader:
 # Group label for a section's own container styles (element == the section's
 # id — a literal style={{}} object with no selector identity of its own) and
 # for legacy graphs whose styles_json blob predates per-selector attribution.
-_LEGACY_STYLE_GROUP_LABEL = "(estilo da seção)"
+# The selector a section's own literal styles are grouped under.
+SECTION_OWN_STYLES = "(estilo da seção)"
 
 
 def _group_section_styles(section_id: str, rows: list[dict]) -> dict[str, list[dict]]:
     """
     Group get_section_styles() rows by selector for presentation.
 
-    `element == section_id` (a literal style={{}} object, or a legacy row
-    with no selector info) groups under _LEGACY_STYLE_GROUP_LABEL;
-    "class:<name>" groups under ".<name>" — one property/value list per CSS
-    class actually resolved for this section, instead of every selector's
-    properties flattened into one bag (see docs/changes/C36).
+    One property/value list per selector (see _section_selector) instead of
+    every selector's properties flattened into one bag (docs/changes/C36).
     """
     groups: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
-        element = row["element"]
-        label = (
-            f".{element.removeprefix('class:')}" if element.startswith("class:")
-            else _LEGACY_STYLE_GROUP_LABEL
+        groups[_section_selector(section_id, row["element"])].append(
+            {"property": row["property"], "value": row["value"]}
         )
-        groups[label].append({"property": row["property"], "value": row["value"]})
     return dict(groups)
+
+
+def _section_selector(section_id: str, element: str) -> str:
+    """
+    The selector a section style belongs to: `.name` for a CSS class, the
+    section's own label for its literal styles (element == section id), or
+    the element's path for a nested element (`ul > li:2`).
+    """
+    if element.startswith("class:"):
+        return f".{element.removeprefix('class:')}"
+    if not element or element == section_id:
+        return SECTION_OWN_STYLES
+    return element
 
 
 def _assemble_screen_full(
@@ -1530,7 +1547,7 @@ def _assemble_screen_full(
             styles_by_element = _group_section_styles(sid, graph_rows)
         else:
             legacy = json.loads(sec["sec.styles_json"] or "{}")
-            styles_by_element = {_LEGACY_STYLE_GROUP_LABEL: [
+            styles_by_element = {SECTION_OWN_STYLES: [
                 {"property": prop, "value": value} for prop, value in legacy.items()
             ]} if legacy else {}
         texts = sec_texts_by_id.get(sid) or json.loads(sec["sec.texts_json"] or "[]")

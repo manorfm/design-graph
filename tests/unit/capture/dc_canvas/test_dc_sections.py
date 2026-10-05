@@ -92,3 +92,35 @@ class TestEveryVisibleTextIsKept:
         body = f"<div><div><p>{paragraph}</p><span>gera</span><span>·</span></div><div><p>Fim</p></div></div>"
         texts = _sections(tmp_path, body)[0].texts
         assert texts == [paragraph, "gera", "·"]
+
+
+class TestEveryElementStyle:
+    BLOCK = (
+        '<div style="padding: 8px"><h2 style="font-size: 38px">Título</h2>'
+        '<ul><li>a</li><li><span style="color: red">b</span></li></ul></div>'
+    )
+
+    def test_root_styles_stay_the_section_own_and_descendants_keep_their_path(self, tmp_path):
+        section = _sections(tmp_path, f"<main>{self.BLOCK}<div>outro</div></main>")[0]
+        assert section.styles == {"padding": "8px"}
+        assert {(s.element, s.property, s.value) for s in section.element_styles} == {
+            ("h2", "font-size", "38px"),
+            ("ul > li:2 > span", "color", "red"),
+        }
+
+    def test_interpolated_values_stay_out(self, tmp_path):
+        section = _sections(tmp_path, '<main><div><p style="color: {{o.c}}; margin: 0">x</p></div><div>y</div></main>')[0]
+        assert {(s.element, s.property, s.value) for s in section.element_styles} == {("p", "margin", "0")}
+
+
+class TestPageWrapperStyles:
+    def test_the_elements_around_the_blocks_are_the_screen_own_styles(self, tmp_path):
+        path = tmp_path / "canvas.html"
+        path.write_text(canvas_html([Page("1 · Tela", MOBILE)]))
+        document = PrototypeDocument.read(path)
+        screen = asyncio.run(capture_for(document).capture(document, concurrency=1)).screens[0]
+        assert {(s.element, s.property, s.value) for s in screen.styles} == {
+            ("div", "width", "390px"),
+            ("div > div", "display", "flex"),
+            ("div > div", "flex-direction", "column"),
+        }

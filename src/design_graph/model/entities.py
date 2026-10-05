@@ -406,6 +406,7 @@ class ExtractedScreen:
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     source_lang: str = ""
+    styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
     viewport_width: int = 0                             # px the screen was designed for; 0 = unknown
     viewport_height: int = 0
     links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens

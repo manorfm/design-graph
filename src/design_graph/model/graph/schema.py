@@ -20,7 +20,8 @@ Schema changes:
        Token.mode; Screen viewport; NAVIGATES_TO and VARIANT_OF between
        screens; a Model node recording this version and the capture used
   v11 — lossless capture: sources stored as the prototype wrote them (source_simplified
-       removed); no per-component caps, so truncated_fields is removed too
+       removed); no per-component caps, so truncated_fields is removed too;
+       SCREEN_HAS_STYLE for a screen's own elements
 """
 
 from __future__ import annotations
@@ -162,6 +163,8 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE SECTION_USES(FROM Section TO Component)",
     "CREATE REL TABLE SECTION_USES_SCREEN(FROM Section TO Screen)",
     "CREATE REL TABLE HAS_STYLE(FROM Component TO Style)",
+    # v11: a screen's own elements (the wrappers around its sections) keep their styles
+    "CREATE REL TABLE SCREEN_HAS_STYLE(FROM Screen TO Style)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",

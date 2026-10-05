@@ -13,7 +13,7 @@ from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.dc_canvas.components import fragment_component, infer_components
 from design_graph.capture.dc_canvas.logic import literal_lists
-from design_graph.capture.dc_canvas.sections import page_blocks, page_sections
+from design_graph.capture.dc_canvas.sections import page_blocks, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
 from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup
 from design_graph.capture.html_prototype.parsing.css_class_resolver import extract_tag_pseudo_rules
@@ -55,6 +55,7 @@ class DcCanvasCapture:
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
         for screen in screens:
             screen.sections_count = len(sections[screen.name])
+            screen.styles = page_styles(blocks[screen.name])
             screen.component_refs = list(dict.fromkeys(
                 ref for block in blocks[screen.name] for ref in found.outermost_in(block)
             ))

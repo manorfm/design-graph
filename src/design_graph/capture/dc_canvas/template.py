@@ -58,6 +58,23 @@ def rendered_descendants(element: Tag) -> list[Tag]:
     return found
 
 
+def element_paths(root: Tag) -> list[tuple[str, Tag]]:
+    """
+    Every rendered element below `root`, in document order, with a readable
+    path from it — `ul > li:2 > span`. A position (`:2`) is added only where
+    siblings share a tag, so a path names exactly one element of the template.
+    """
+    found: list[tuple[str, Tag]] = []
+    children = element_children(root)
+    for child in children:
+        name = tag_of(child)
+        same_tag = [c for c in children if tag_of(c) == name]
+        label = f"{name}:{same_tag.index(child) + 1}" if len(same_tag) > 1 else name
+        found.append((label, child))
+        found.extend((f"{label} > {path}", element) for path, element in element_paths(child))
+    return found
+
+
 def inline_styles(element: Tag) -> dict[str, str]:
     """An element's own literal style declarations; interpolated values are left out."""
     styles: dict[str, str] = {}

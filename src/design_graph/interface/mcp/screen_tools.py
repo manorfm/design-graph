@@ -100,6 +100,11 @@ def get_screen_full(reader: GraphReader, name: str) -> str:
             lines.append(gap_notice)
             lines.append("")
 
+    if spec.get("styles"):
+        lines.append("## Page styles\n")
+        lines.extend(f"- **{s['element']}** `{s['property']}`: `{s['value']}`" for s in spec["styles"])
+        lines.append("")
+
     if spec["sections"]:
         lines.append("## Sections\n")
         for sec in spec["sections"]:

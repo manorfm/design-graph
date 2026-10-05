@@ -309,8 +309,8 @@ class TestGetScreenFullQueryEfficiency:
 
         monkeypatch.setattr(full_screen_graph, "_q", counting_q)
         full_screen_graph.get_screen_full("HomeScreen")
-        assert call_count <= 15, (
-            f"Expected ≤15 queries (O(1)), got {call_count}. "
+        assert call_count <= 16, (
+            f"Expected ≤16 queries (O(1)), got {call_count}. "
             "Likely regressed to per-component queries."
         )
 
@@ -438,4 +438,4 @@ class TestGetScreenFullExpandsNestedComponents:
 
         monkeypatch.setattr(nested_screen_graph, "_q", counting_q)
         nested_screen_graph.get_screen_full("DeepScreen")
-        assert call_count <= 15
+        assert call_count <= 16

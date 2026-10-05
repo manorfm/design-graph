@@ -341,3 +341,29 @@ class TestScreenLayoutOrder:
             "Sec0 — .own30", "Sec0 — .btn", "Sec1 — .own31", "Sec1 — .btn",
             "Sec2 — .own32", "Sec2 — .btn", "Sec3 — .own33", "Sec3 — .btn",
         ]
+
+
+class TestNestedElementSelectors:
+    """A style on a nested element (a DC path like `ul > li:2`) is its own selector, never merged into the section's."""
+
+    @pytest.fixture()
+    def reader(self, tmp_path):
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "nested.db")))
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+        section = ExtractedSection(
+            id="sec_list", screen="Home", name="Lista", styles={"display": "grid"}, component_refs=[], texts=[],
+            source_code="", detection_method="structural",
+            element_styles=[StyleEntry.create("ul > li:2", "display", "flex")],
+        )
+        gw.write_screen(ExtractedScreen(name="Home", component_refs=[], sections_count=1), [section])
+        gw.commit()
+        return GraphReader(conn)
+
+    def test_layout_keeps_section_and_nested_element_apart(self, reader):
+        profiles = {p["component_name"]: p["display"] for p in reader.get_screen_layout("Home")}
+        assert profiles == {"Lista — (estilo da seção)": "grid", "Lista — ul > li:2": "flex"}
+
+    def test_section_styles_group_the_nested_element_under_its_path(self, reader):
+        groups = reader.get_section("Home", "Lista")["styles_by_element"]
+        assert groups["ul > li:2"] == [{"property": "display", "value": "flex"}]

@@ -21,6 +21,7 @@ from design_graph.capture.dc_canvas.template import (
     INTERPOLATION,
     SOURCE_LANG,
     element_children,
+    element_paths,
     inline_styles,
     rendered_descendants,
     tag_of,
@@ -245,6 +246,11 @@ def _component(
 
 def _styles(name: str, example: Tag, tag_rules: TagRules) -> list[StyleEntry]:
     styles = [StyleEntry.create(name, prop, value) for prop, value in inline_styles(example).items()]
+    styles.extend(
+        StyleEntry.create(f"{name} > {path}", prop, value)
+        for path, element in element_paths(example)
+        for prop, value in inline_styles(element).items()
+    )
     for state, rules in tag_rules.get(tag_of(example), {}).items():
         if state in _STATES:
             styles.extend(StyleEntry.create(name, rule.property, rule.value, _STATES[state]) for rule in rules)
