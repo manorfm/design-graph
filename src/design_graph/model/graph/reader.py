@@ -277,7 +277,7 @@ class GraphReader:
         )
         tokens       = self._q(
             "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
-            "RETURN t.label, t.value, t.category ORDER BY t.category",
+            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category",
             {"n": resolved},
         )
         texts        = self._q(
@@ -367,7 +367,7 @@ class GraphReader:
 
         tokens = self._q(
             "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
-            "RETURN t.label, t.value, t.category ORDER BY t.category",
+            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category",
             {"n": resolved},
         )
         texts = self._q(
@@ -494,7 +494,7 @@ class GraphReader:
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn})-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, t.value AS value, "
-            "t.category AS category ORDER BY c.name, t.category",
+            "t.category AS category, t.mode AS mode ORDER BY c.name, t.category",
             {"names": names},
         )
         comp_text_rows = self._q(
@@ -539,7 +539,7 @@ class GraphReader:
         tokens_by_comp: dict[str, list[dict]] = defaultdict(list)
         for r in comp_token_rows:
             tokens_by_comp[r["comp_name"]].append(
-                {"label": r["label"], "value": r["value"], "category": r["category"]}
+                {"label": r["label"], "value": r["value"], "category": r["category"], "mode": r["mode"]}
             )
         texts_by_comp: dict[str, list[dict]] = defaultdict(list)
         for r in comp_text_rows:
@@ -1151,7 +1151,7 @@ class GraphReader:
             "WITH DISTINCT c "
             "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, "
-            "       t.value AS value, t.category AS category "
+            "       t.value AS value, t.category AS category, t.mode AS mode "
             "ORDER BY c.name, t.category",
             {"n": resolved},
         )

@@ -1157,6 +1157,14 @@ class TestTokenModesAndCustomProperties:
         used = graph.conn.execute("MATCH (:Component {name:'Cta'})-[:USES_TOKEN]->(t) RETURN count(t)")
         assert used.get_next()[0] == 2
 
+    def test_component_reads_carry_each_token_mode(self, graph):
+        graph.writer.write_tokens([self._accent("claro", "#0D5C63"), self._accent("escuro", "#5FB0B0")])
+        graph.writer.write_component(self._styled("Cta", "var(--accent)"))
+        for read in (graph.reader.get_component, graph.reader.get_component_spec):
+            assert sorted(t["t.mode"] for t in read("Cta")["tokens"]) == ["claro", "escuro"]
+        tree = graph.reader.get_component_full("Cta")["components"][0]
+        assert sorted(t["mode"] for t in tree["tokens"]) == ["claro", "escuro"]
+
     def test_reference_inside_a_compound_value_is_found(self, graph):
         graph.writer.write_tokens([self._accent("claro", "#0D5C63")])
         graph.writer.write_component(self._styled("Box", "1px solid var( --accent , #000)"))

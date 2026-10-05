@@ -26,6 +26,11 @@ def named_entity_resolution_error(name: str, resolution: NamedEntityResolution) 
     return None
 
 
+def mode_tag(mode: str | None) -> str:
+    """" [escuro]" after a token's label when it holds one mode's value; empty for a shared token."""
+    return f" [{mode}]" if mode else ""
+
+
 def props_table_lines(props: list[dict]) -> list[str]:
     """
     A one-line honesty note plus a Prop/Default Markdown table.
@@ -153,7 +158,9 @@ def component_lines(comp: dict, heading: str) -> list[str]:
     lines.extend(_component_style_lines(comp))
     if comp["tokens"]:
         lines.append("\n#### Tokens")
-        lines.extend(f"- **{t['label']}** = `{t['value']}` ({t['category']})" for t in comp["tokens"])
+        lines.extend(
+            f"- **{t['label']}**{mode_tag(t.get('mode'))} = `{t['value']}` ({t['category']})" for t in comp["tokens"]
+        )
     if comp["interactions"]:
         lines.append("\n#### Interações")
         lines.extend(

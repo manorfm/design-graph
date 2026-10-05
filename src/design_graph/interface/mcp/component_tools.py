@@ -7,6 +7,7 @@ import logging
 from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import (
+    mode_tag,
     component_lines,
     dedupe_styles_by_property,
     named_entity_resolution_error,
@@ -64,7 +65,9 @@ def get_component(reader: GraphReader, name: str) -> str:
     if comp.get("tokens"):
         lines.append("\n## Tokens de design")
         for t in comp["tokens"]:
-            lines.append(f"- **{t.get('t.label')}** = `{t.get('t.value')}` ({t.get('t.category')})")
+            lines.append(
+                f"- **{t.get('t.label')}**{mode_tag(t.get('t.mode'))} = `{t.get('t.value')}` ({t.get('t.category')})"
+            )
     if comp.get("children"):
         lines.append(f"\n## Componentes filhos\n{', '.join(comp['children'])}")
     if comp.get("referenced_data"):
@@ -133,7 +136,7 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
         lines.append("| Label | Valor | Categoria |")
         lines.append("|---|---|---|")
         for t in spec["tokens"]:
-            lines.append(f"| {t.get('t.label')} | {t.get('t.value')} | {t.get('t.category')} |")
+            lines.append(f"| {t.get('t.label')}{mode_tag(t.get('t.mode'))} | {t.get('t.value')} | {t.get('t.category')} |")
     if spec.get("texts"):
         lines.append("\n## Textos")
         for t in spec["texts"][:8]:

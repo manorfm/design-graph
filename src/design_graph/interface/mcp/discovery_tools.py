@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from design_graph.model.graph.reader import GraphReader
+from design_graph.interface.mcp.markdown import mode_tag
 from design_graph.interface.mcp.search import SearchResult, search
 
 
@@ -40,8 +41,7 @@ def get_tokens(
     for cat, tokens in sorted(by_cat.items()):
         lines.append(f"## {cat}")
         for t in tokens:
-            mode_tag = f" [{t['t.mode']}]" if t.get("t.mode") else ""
-            lines.append(f"- **{t.get('t.label')}**{mode_tag}: `{t.get('t.value')}` ({t.get('t.usage')} usos)")
+            lines.append(f"- **{t.get('t.label')}**{mode_tag(t.get('t.mode'))}: `{t.get('t.value')}` ({t.get('t.usage')} usos)")
         lines.append("")
     return "\n".join(lines)
 
