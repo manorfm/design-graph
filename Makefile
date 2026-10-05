@@ -45,10 +45,8 @@ help:
 	@echo "    make screen  S='RestaurantsPage' Screen details"
 	@echo ""
 	@echo "  Developer setup"
-	@echo "    make install-hooks               Install git hooks (auto-versioning)"
-	@echo "    make push                        Push commits + version tags to GitHub"
-	@echo "    make version                     Show current and projected next version"
-	@echo "    make release                     Push + publish a GitHub release (triggers PyPI)"
+	@echo "    make version                     Show the version the next release would get"
+	@echo "    make release                     Tag main and publish a GitHub release (triggers PyPI)"
 	@echo "    make bench   PROTO=file.html     Measure how much of a prototype the tools recover (.bench/)"
 	@echo ""
 	@echo "  Maintenance"
@@ -167,46 +165,11 @@ screen:
 # Developer setup
 # ─────────────────────────────────────────────────────────────────────────────
 
-install-hooks:
-	git config core.hooksPath .githooks
-	git config push.followTags true
-	@echo "Git hooks installed — post-commit will auto-tag versions."
-	@echo "push.followTags enabled — 'git push' will now include annotated tags."
-	@echo "Run 'git config --unset core.hooksPath' to remove hooks."
-
-push:
-	@echo "Pushing commits and all annotated version tags…"
-	git push --follow-tags
-	@echo "Done. pip install --upgrade git+<url> will now see the latest version."
-
 version:
-	@python scripts/auto_version.py --dry-run 2>/dev/null || \
-	 python3 -c "import subprocess; print(subprocess.run(['git','describe','--tags','--abbrev=0'],capture_output=True,text=True).stdout.strip() or '(no tags yet)')"
+	@NEXT=$$($(PYTHON) scripts/release.py --next); echo "next release: $${NEXT:-(nothing to release)}"
 
 release:
-	@command -v gh >/dev/null 2>&1 || (echo "Error: GitHub CLI 'gh' not found. Install: https://cli.github.com" && exit 1)
-	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null); \
-	test -n "$$TAG" || (echo "Error: no version tag found yet. Commit with a feat/fix/chore/refactor prefix first." && exit 1); \
-	git push --follow-tags; \
-	if gh release view $$TAG >/dev/null 2>&1; then \
-		echo "Release $$TAG already exists on GitHub."; \
-	else \
-		echo "Publishing GitHub release $$TAG (this triggers the PyPI publish workflow)…"; \
-		gh release create $$TAG --title $$TAG --generate-notes; \
-	fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Maintenance
-# ─────────────────────────────────────────────────────────────────────────────
-
-list-graphs:
-	@echo "Graphs in $(DB_DIR):"
-	@ls -lh $(DB_DIR)/*.db 2>/dev/null || echo "  (none)"
-
-clean-graph:
-	@test -n "$(DB)" || (echo "Usage: make clean-graph DB=~/graphs/file.db" && exit 1)
-	rm -rf "$(DB)"
-	@echo "Removed: $(DB)"
+	$(PYTHON) scripts/release.py --publish
 
 bench:
 	@test -n "$(PROTO)" || (echo "Usage: make bench PROTO=file.html" && exit 1)
@@ -218,5 +181,5 @@ clean-all:
 
 .PHONY: help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
         screens tokens search inspect impact screen \
-        install-hooks push version release bench \
+        version release bench \
         list-graphs clean-graph clean-all

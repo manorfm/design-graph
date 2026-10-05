@@ -1,9 +1,11 @@
 """
-Tests for scripts/auto_version.py — commit-driven semantic versioner.
+Tests for scripts/release.py — the next version, decided at release time from
+every commit since the last release, and the checks a release must pass.
 
 Responsibilities under test:
   - parse_commit_prefix: extracts feat|fix|chore|refactor from a commit message
-  - compute_next_version: applies semver bump rules given a prefix
+  - bump_for / next_version: the strongest bump among a release's commits
+  - release_blockers: the states a release must refuse
   - parse_version: parses a "v1.2.3" or "1.2.3" tag string into (major, minor, patch)
   - format_version: formats (major, minor, patch) as "v1.2.3"
   - is_breaking_change: a Conventional Commits `type!:` subject marks a major bump
@@ -19,14 +21,15 @@ import pytest
 
 # scripts/ is not a package — add it to path for import
 sys.path.insert(0, str(Path(__file__).parents[3] / "scripts"))
-from auto_version import (
-    compute_next_version,
+from release import (
     format_version,
     is_breaking_change,
     latest_version_tag,
     parse_commit_prefix,
     parse_version,
-    update_readme_version,
+    bump_for,
+    next_version,
+    release_blockers,
 )
 
 
@@ -99,109 +102,24 @@ class TestParseCommitPrefix:
         assert parse_commit_prefix("feat added something") is None
 
 
-# ── compute_next_version ──────────────────────────────────────────────────────
+# ── One commit's bump ─────────────────────────────────────────────────────────
 
-class TestComputeNextVersion:
-    @pytest.mark.parametrize("current,prefix,expected", [
-        # feat → minor bump, patch reset to 0
-        ("0.0.0", "feat",     "0.1.0"),
-        ("0.1.4", "feat",     "0.2.0"),
-        ("1.2.3", "feat",     "1.3.0"),
-        # fix → patch bump
-        ("0.0.0", "fix",      "0.0.1"),
-        ("0.1.4", "fix",      "0.1.5"),
-        ("1.2.3", "fix",      "1.2.4"),
-        # chore → patch bump
-        ("0.1.0", "chore",    "0.1.1"),
-        ("1.2.3", "chore",    "1.2.4"),
-        # refactor → patch bump
-        ("0.1.0", "refactor", "0.1.1"),
-        ("1.2.3", "refactor", "1.2.4"),
+class TestSingleCommitBump:
+    @pytest.mark.parametrize("current,subject,expected", [
+        ("v0.0.0", "feat: x", "v0.1.0"),
+        ("v0.1.4", "feat: x", "v0.2.0"),
+        ("v1.2.3", "feat: x", "v1.3.0"),
+        ("v0.0.0", "fix: x", "v0.0.1"),
+        ("v1.2.3", "fix: x", "v1.2.4"),
+        ("v1.2.3", "chore: x", "v1.2.4"),
+        ("v1.2.3", "refactor: x", "v1.2.4"),
     ])
-    def test_bump_rules(self, current, prefix, expected):
-        assert compute_next_version(current, prefix) == expected
+    def test_bump_rules(self, current, subject, expected):
+        assert next_version([current], [subject]) == expected
 
-    def test_unknown_prefix_returns_same_version(self):
-        assert compute_next_version("1.2.3", "docs") == "1.2.3"
+    def test_feat_resets_patch_and_keeps_major(self):
+        assert next_version(["v3.7.9"], ["feat: x"]) == "v3.8.0"
 
-    def test_none_prefix_returns_same_version(self):
-        assert compute_next_version("1.2.3", None) == "1.2.3"
-
-    def test_feat_resets_patch(self):
-        result = compute_next_version("0.1.9", "feat")
-        assert result == "0.2.0"
-
-    def test_preserves_major_on_minor_bump(self):
-        result = compute_next_version("3.7.2", "feat")
-        assert result.startswith("3.")
-
-    def test_output_has_no_v_prefix(self):
-        result = compute_next_version("0.0.0", "feat")
-        assert not result.startswith("v")
-
-
-# ── update_readme_version ─────────────────────────────────────────────────────
-
-_BADGE_LINE = (
-    "[![Version](https://img.shields.io/badge/version-{tag}-green.svg)]"
-    "(https://github.com/manorfm/design-graph/tags)"
-)
-
-
-class TestUpdateReadmeVersion:
-    def _make_readme(self, tmp_path, tag: str) -> "Path":
-        from pathlib import Path
-        readme = tmp_path / "README.md"
-        readme.write_text(
-            f"# design-graph\n\n{_BADGE_LINE.format(tag=tag)}\n\n## Section\n",
-            encoding="utf-8",
-        )
-        return readme
-
-    def test_replaces_version_tag_in_badge(self, tmp_path):
-        readme = self._make_readme(tmp_path, "v0.0.0")
-        changed = update_readme_version("v1.2.3", readme)
-        assert changed is True
-        text = readme.read_text(encoding="utf-8")
-        assert "v1.2.3" in text
-        assert "v0.0.0" not in text
-
-    def test_returns_false_when_badge_absent(self, tmp_path):
-        from pathlib import Path
-        readme = tmp_path / "README.md"
-        readme.write_text("# No badge here\n", encoding="utf-8")
-        assert update_readme_version("v1.2.3", readme) is False
-
-    def test_preserves_rest_of_file(self, tmp_path):
-        readme = self._make_readme(tmp_path, "v0.1.0")
-        update_readme_version("v0.2.0", readme)
-        text = readme.read_text(encoding="utf-8")
-        assert "# design-graph" in text
-        assert "## Section" in text
-
-    def test_updates_any_existing_version(self, tmp_path):
-        readme = self._make_readme(tmp_path, "v3.14.9")
-        update_readme_version("v4.0.0", readme)
-        assert "v4.0.0" in readme.read_text(encoding="utf-8")
-
-    def test_returns_false_when_file_does_not_exist(self, tmp_path):
-        from pathlib import Path
-        missing = tmp_path / "NONEXISTENT.md"
-        assert update_readme_version("v1.0.0", missing) is False
-
-    def test_badge_url_color_is_preserved(self, tmp_path):
-        readme = self._make_readme(tmp_path, "v0.0.0")
-        update_readme_version("v1.0.0", readme)
-        text = readme.read_text(encoding="utf-8")
-        assert "-green.svg" in text
-
-    def test_idempotent_on_same_version(self, tmp_path):
-        readme = self._make_readme(tmp_path, "v1.0.0")
-        update_readme_version("v1.0.0", readme)
-        assert readme.read_text(encoding="utf-8").count("v1.0.0") == 1
-
-
-# ── Breaking changes ──────────────────────────────────────────────────────────
 
 class TestBreakingChange:
     @pytest.mark.parametrize("message", [
@@ -219,12 +137,12 @@ class TestBreakingChange:
     def test_other_subjects_are_not_breaking(self, message):
         assert is_breaking_change(message) is False
 
-    @pytest.mark.parametrize("current,expected", [("0.34.0", "1.0.0"), ("1.4.2", "2.0.0"), ("0.0.0", "1.0.0")])
+    @pytest.mark.parametrize("current,expected", [("v0.34.0", "v1.0.0"), ("v1.4.2", "v2.0.0"), ("v0.0.0", "v1.0.0")])
     def test_breaking_change_bumps_major_and_resets_the_rest(self, current, expected):
-        assert compute_next_version(current, "feat", breaking=True) == expected
+        assert next_version([current], ["feat!: x"]) == expected
 
     def test_breaking_change_bumps_major_whatever_the_type(self):
-        assert compute_next_version("0.34.0", "docs", breaking=True) == "1.0.0"
+        assert next_version(["v0.34.0"], ["docs!: drop a flag"]) == "v1.0.0"
 
 
 # ── Current version ───────────────────────────────────────────────────────────
@@ -241,4 +159,61 @@ class TestLatestVersionTag:
 
     def test_no_version_tag_means_zero(self):
         assert latest_version_tag([]) == "0.0.0"
+
+
+# ── Bump over a whole release ─────────────────────────────────────────────────
+
+class TestBumpFor:
+    def test_breaking_commit_anywhere_makes_a_major(self):
+        assert bump_for(["fix: a", "feat!: b", "docs: c"]) == "major"
+
+    def test_feature_beats_fixes(self):
+        assert bump_for(["fix: a", "feat: b", "refactor: c"]) == "minor"
+
+    def test_fixes_chores_and_refactors_make_a_patch(self):
+        assert bump_for(["chore: a", "refactor: b"]) == "patch"
+
+    def test_commits_that_change_nothing_shipped_make_no_release(self):
+        assert bump_for(["docs: a", "test: b", "ci: c", "Merge branch x"]) is None
+
+    def test_no_commits_make_no_release(self):
+        assert bump_for([]) is None
+
+
+class TestNextVersion:
+    def test_applies_the_release_bump_to_the_highest_tag(self):
+        assert next_version(["v0.34.0", "v1.0.0", "v0.9.0"], ["feat: x", "fix: y"]) == "v1.1.0"
+
+    def test_major_resets_minor_and_patch(self):
+        assert next_version(["v1.4.2"], ["refactor!: y"]) == "v2.0.0"
+
+    def test_first_release_starts_from_zero(self):
+        assert next_version([], ["fix: x"]) == "v0.0.1"
+
+    def test_nothing_to_release_is_none(self):
+        assert next_version(["v1.0.0"], ["docs: x"]) is None
+
+
+# ── Release checks ────────────────────────────────────────────────────────────
+
+class TestReleaseBlockers:
+    _OK = {"branch": "main", "head": "abc", "remote_head": "abc", "clean": True, "next_tag": "v1.1.0",
+           "tag_exists": False}
+
+    def _blockers(self, **changes):
+        return release_blockers(**{**self._OK, **changes})
+
+    def test_a_clean_up_to_date_main_with_changes_can_release(self):
+        assert self._blockers() == []
+
+    @pytest.mark.parametrize("changes,reason", [
+        ({"branch": "feat/x"}, "main"),
+        ({"remote_head": "def"}, "origin/main"),
+        ({"clean": False}, "uncommitted"),
+        ({"next_tag": None}, "nothing to release"),
+        ({"tag_exists": True}, "already exists"),
+    ])
+    def test_each_unsafe_state_blocks_with_its_reason(self, changes, reason):
+        blockers = self._blockers(**changes)
+        assert len(blockers) == 1 and reason in blockers[0]
 

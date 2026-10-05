@@ -4,7 +4,7 @@
 [![Security](https://github.com/manorfm/design-graph/actions/workflows/security.yml/badge.svg)](https://github.com/manorfm/design-graph/actions/workflows/security.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg)](https://github.com/manorfm/design-graph/tags)
+[![PyPI](https://img.shields.io/pypi/v/design-graph.svg)](https://pypi.org/project/design-graph/)
 
 `design-graph` parses standalone HTML prototypes into a typed Kuzu knowledge graph and exposes screens, sections, components, props, styles, design tokens, interactions, text, layout and screen-to-screen navigation through a CLI and an MCP server.
 
@@ -578,19 +578,17 @@ make clean-graph DB=/path/to/prototype.db
 make clean-all
 ```
 
-Developer-oriented targets include `install-hooks`, `version`, `push` and `release`. Run `make help` for the complete list.
+Developer-oriented targets include `version`, `release` and `bench`. Run `make help` for the complete list.
 
 ## Releasing & security
 
-Versioning is commit-driven: `make install-hooks` installs a post-commit hook (`scripts/auto_version.py`) that reads the conventional-commit prefix and creates an annotated `vX.Y.Z` tag automatically — `feat` bumps minor, `fix`/`chore`/`refactor` bump patch, and any type marked breaking with `!` (`feat!:`, `refactor(model)!:`) bumps major. The next version is computed from the highest `vX.Y.Z` tag in the repository.
-
-To ship a release:
+A version is created only when a release is made. `make version` shows the version the next release would get; `make release` publishes it:
 
 ```bash
 make release
 ```
 
-This pushes commits and tags, then creates a GitHub Release from the latest tag — which is what triggers the publish pipeline (`.github/workflows/publish.yml`). Nothing reaches PyPI without passing through, in order:
+It refuses unless you are on `main`, identical to `origin/main`, with a clean working tree and at least one commit that ships something since the last release. The next version is the highest `vX.Y.Z` tag bumped by the strongest change among **every** commit since that release — any type marked breaking with `!` (`feat!:`, `refactor(model)!:`) bumps major, `feat` bumps minor, `fix`/`chore`/`refactor` bump patch, and other types (`docs`, `test`, `ci`) ship nothing on their own. It then tags `main`, pushes the tag and creates the GitHub Release, which triggers the publish pipeline (`.github/workflows/publish.yml`). Nothing reaches PyPI without passing through, in order:
 
 1. **`security.yml`** — CodeQL, Bandit and `pip-audit` (SAST + dependency/SCA scanning). A failing scan blocks the release outright.
 2. **`build`** — builds the sdist/wheel.
