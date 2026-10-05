@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from design_graph.interface.mcp.full_tools import SOURCE_PAGE_CHARS, get_full_source
+from design_graph.interface.mcp.full_tools import MID_LINE_NOTICE, SOURCE_PAGE_CHARS, get_full_source
 from design_graph.interface.mcp.tools import ToolDispatcher
 
 _LINE = "<p>" + "a" * 990 + "</p>"
@@ -38,11 +38,15 @@ def test_long_source_is_paged_and_the_pages_join_back_to_it():
     assert all(len(page) <= SOURCE_PAGE_CHARS for page in pages)
 
 
-def test_a_single_line_longer_than_a_page_is_split_without_loss():
-    source = "x" * (SOURCE_PAGE_CHARS * 2 + 10)
+def test_a_line_longer_than_a_page_says_where_it_continues():
+    source = "<p>a</p>\n" + "x" * (SOURCE_PAGE_CHARS * 2 + 10) + "\n<p>b</p>"
     reader = _Reader(source)
     total = int(re.search(r"página 1/(\d+)", get_full_source(reader, "Card")).group(1))
-    assert "".join(_body(get_full_source(reader, "Card", page=n)) for n in range(1, total + 1)) == source
+    joined = ""
+    for n in range(1, total + 1):
+        response = get_full_source(reader, "Card", page=n)
+        joined += _body(response) + ("" if n == total or MID_LINE_NOTICE in response else "\n")
+    assert joined == source
 
 
 @pytest.mark.parametrize("page", [0, -1, 99, "dois"])

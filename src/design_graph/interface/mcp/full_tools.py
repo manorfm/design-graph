@@ -11,6 +11,9 @@ from design_graph.interface.mcp.markdown import dedupe_styles_by_property, named
 SOURCE_PAGE_CHARS = 20_000
 
 
+MID_LINE_NOTICE = "Esta página termina no meio de uma linha: a próxima continua a mesma linha."
+
+
 def get_full_source(reader: GraphReader, name: str, page: object = 1) -> str:
     """A screen's or component's stored source, whole — in pages when it is long."""
     source = reader.get_full_source(name)
@@ -23,36 +26,41 @@ def get_full_source(reader: GraphReader, name: str, page: object = 1) -> str:
         return f"Página inválida: {page!r}. O fonte de '{name}' tem as páginas 1 a {len(pages)}."
 
     lang = source["source_lang"]
+    text, mid_line = pages[number - 1]
     header, footer = f"# Fonte completo de {name} ({lang})", ""
     if len(pages) > 1:
         header += f" — página {number}/{len(pages)}"
+        if mid_line:
+            footer += f"\n> {MID_LINE_NOTICE}"
         if number < len(pages):
             footer += f"\n> Continua: get_full_source('{name}', page={number + 1})"
-    return f"{header}\n\n```{lang}\n{pages[number - 1]}\n```{footer}"
+    return f"{header}\n\n```{lang}\n{text}\n```{footer}"
 
 
-def source_pages(source: str, size: int = SOURCE_PAGE_CHARS) -> list[str]:
+def source_pages(source: str, size: int = SOURCE_PAGE_CHARS) -> list[tuple[str, bool]]:
     """
-    `source` cut into pages of at most `size` characters, at line ends when
-    a line fits — joining the pages with newlines gives `source` back, except
-    that a line longer than a page is split across pages with no separator.
+    `source` cut into pages of at most `size` characters, each with whether
+    it ends in the middle of a line. Pages end at line ends whenever a line
+    fits; a line longer than a page is the only thing cut mid-line. Joining
+    the pages — with a newline after each one that does not end mid-line —
+    gives `source` back exactly.
     """
-    pages: list[str] = []
+    pages: list[tuple[str, bool]] = []
     current: list[str] = []
     length = 0
     for line in source.split("\n"):
         if current and length + 1 + len(line) > size:
-            pages.append("\n".join(current))
+            pages.append(("\n".join(current), False))
             current, length = [], 0
         while len(line) > size:
             if current:
-                pages.append("\n".join(current))
+                pages.append(("\n".join(current), False))
                 current, length = [], 0
-            pages.append(line[:size])
+            pages.append((line[:size], True))
             line = line[size:]
         length += len(line) + (1 if current else 0)
         current.append(line)
-    pages.append("\n".join(current))
+    pages.append(("\n".join(current), False))
     return pages
 
 
