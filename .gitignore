@@ -10,6 +10,9 @@ graph-diff.md
 # Generated context directories
 agent-context/
 
+# Context benchmark reports (contain prototype content)
+.bench/
+
 # Personal MCP configs (contain local paths)
 claude_mcp_config.json
 *.local.json

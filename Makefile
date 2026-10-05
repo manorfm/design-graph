@@ -49,6 +49,7 @@ help:
 	@echo "    make push                        Push commits + version tags to GitHub"
 	@echo "    make version                     Show current and projected next version"
 	@echo "    make release                     Push + publish a GitHub release (triggers PyPI)"
+	@echo "    make bench   PROTO=file.html     Measure how much of a prototype the tools recover (.bench/)"
 	@echo ""
 	@echo "  Maintenance"
 	@echo "    make list-graphs                 List available graphs"
@@ -207,11 +208,15 @@ clean-graph:
 	rm -rf "$(DB)"
 	@echo "Removed: $(DB)"
 
+bench:
+	@test -n "$(PROTO)" || (echo "Usage: make bench PROTO=file.html" && exit 1)
+	$(PYTHON) scripts/context_benchmark.py "$(PROTO)" --out .bench
+
 clean-all:
 	@printf "Remove all graphs in $(DB_DIR)? [y/N] " && read c && \
 	[ "$$c" = "y" ] && rm -rf $(DB_DIR)/*.db && echo "Done." || echo "Cancelled."
 
 .PHONY: help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
         screens tokens search inspect impact screen \
-        install-hooks push version release \
+        install-hooks push version release bench \
         list-graphs clean-graph clean-all

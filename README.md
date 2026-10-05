@@ -141,6 +141,8 @@ python3 -m pip install -e '.[dev]'
 pytest
 ```
 
+To measure how much of a prototype the MCP tools let an agent recover — indexed text and readable style coverage, the characters needed to assemble every screen, announced cuts, search answers and build time — run `make bench PROTO=prototype.html`. Reports are written to `.bench/` (git-ignored, since they contain prototype content).
+
 ## Build a graph
 
 ```bash
