@@ -20,6 +20,7 @@ from design_graph.model.entities import (
     ExtractedComponent,
     ExtractedScreen,
     ExtractedSection,
+    Resource,
     TextEntry,
 )
 
@@ -69,6 +70,7 @@ class CaptureResult:
     sections: dict[str, list[ExtractedSection]]  # screen name → its sections
     tokens: list[DesignToken]
     module_texts: list[TextEntry] = field(default_factory=list)
+    resources: list[Resource] = field(default_factory=list)  # libraries, runtime, modules, fonts, images it loads
     skipped_entries: int = 0  # embedded resources that could not be decoded
 
 

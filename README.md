@@ -417,6 +417,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_full_texts` | Return a component's or a screen section's complete text list, with no display cap — the `get_full_styles` equivalent for texts | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_component_data` | Return the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path table indexed as `ICONS[name]`) — reuse these exact values instead of substituting an equivalent icon/asset | `name`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
+| `get_resources` | List what the prototype loads besides its markup — libraries with version and origin, fonts with weights and subsets, images, the design tool's runtime and the prototype's own modules — described, never embedded | `kind?`, `screen?`, `doc?` |
 | `find_token_usage` | Find components and screens using a token | `value`, `doc?` |
 | `search` | Search screens, components, tokens, text and shared CSS classes across prototypes | `query` |
 | `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |

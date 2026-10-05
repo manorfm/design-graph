@@ -21,7 +21,7 @@ Schema changes:
        screens; a Model node recording this version and the capture used
   v11 — lossless capture: sources stored as the prototype wrote them (source_simplified
        removed); no per-component caps, so truncated_fields is removed too;
-       SCREEN_HAS_STYLE for a screen's own elements
+       SCREEN_HAS_STYLE for a screen's own elements; Resource nodes and USES_RESOURCE
 """
 
 from __future__ import annotations
@@ -142,6 +142,20 @@ _NODE_TABLES: list[str] = [
         ")"
     ),
     (
+        "CREATE NODE TABLE Resource("
+        "  id STRING,"
+        "  kind STRING,"
+        "  name STRING,"
+        "  version STRING,"
+        "  origin STRING,"
+        "  certainty STRING,"
+        "  detail STRING,"
+        "  size INT64,"
+        "  sha256 STRING,"
+        "  PRIMARY KEY(id)"
+        ")"
+    ),
+    (
         "CREATE NODE TABLE ComponentProp("
         "  id STRING,"
         "  component_name STRING,"
@@ -165,6 +179,8 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE HAS_STYLE(FROM Component TO Style)",
     # v11: a screen's own elements (the wrappers around its sections) keep their styles
     "CREATE REL TABLE SCREEN_HAS_STYLE(FROM Screen TO Style)",
+    # v11: what a screen loads besides its own markup — libraries, runtime, modules, fonts, images
+    "CREATE REL TABLE USES_RESOURCE(FROM Screen TO Resource)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",

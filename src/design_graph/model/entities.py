@@ -191,6 +191,45 @@ class IconAsset:
         return f"{{[icon:{self.id}]}}"
 
 
+class ResourceKind(StrEnum):
+    LIBRARY = "library"   # third-party code the prototype runs on — declare it, never copy it
+    RUNTIME = "runtime"   # the design tool's own machinery — never reproduce it
+    MODULE  = "module"    # a file of the prototype's own code
+    FONT    = "font"
+    IMAGE   = "image"
+
+
+class Certainty(StrEnum):
+    STATED   = "declarada"   # the prototype says it (a URL, a license header)
+    INFERRED = "inferida"    # read from clues (a preconnect, a subset comment)
+
+
+@dataclass(frozen=True)
+class Resource:
+    """
+    Something a prototype loads besides its own markup: a library, the
+    design tool's runtime, a module of its code, a font family, an image.
+    Described, never embedded: the graph keeps what an agent needs to
+    declare or fetch it (name, version, origin), not its bytes.
+    """
+
+    id: EntityId
+    kind: ResourceKind
+    name: str
+    version: str
+    origin: str          # a URL, "embutido no protótipo", or an inferred source
+    certainty: Certainty
+    detail: str          # what else identifies it (a font's weights and subsets, an image's type)
+    size: int            # bytes the prototype embeds for it
+    sha256: str          # of the embedded file, when it is one file
+
+    @classmethod
+    def create(cls, kind: ResourceKind, name: str, version: str = "", *, origin: str, certainty: Certainty,
+               detail: str = "", size: int = 0, sha256: str = "") -> "Resource":
+        return cls(id=EntityId.derive("res", f"{kind}:{name}:{version}:{origin}"), kind=kind, name=name,
+                   version=version, origin=origin, certainty=certainty, detail=detail, size=size, sha256=sha256)
+
+
 def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:
     """
     Expand every {[icon:id]} marker in `text` back into its full markup,
@@ -407,6 +446,7 @@ class ExtractedScreen:
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     source_lang: str = ""
     styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
+    resource_ids: list[str] = field(default_factory=list)  # ids of the Resources this screen loads
     viewport_width: int = 0                             # px the screen was designed for; 0 = unknown
     viewport_height: int = 0
     links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens

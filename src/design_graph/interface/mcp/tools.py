@@ -108,6 +108,7 @@ class ToolDispatcher:
                 reader, args.get("category"), args.get("screen"), args.get("mode"),
             ),
             "find_token_usage":          lambda: discovery_tools.find_token_usage(reader, args.get("value", "")),
+            "get_resources":             lambda: discovery_tools.get_resources(reader, args.get("kind"), args.get("screen")),
             "impact":                    lambda: discovery_tools.impact(reader, name),
             "get_full_source":           lambda: full_tools.get_full_source(reader, name, args.get("page", 1)),
             "get_full_styles":           lambda: full_tools.get_full_styles(reader, name, screen, section),

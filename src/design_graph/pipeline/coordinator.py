@@ -154,6 +154,7 @@ async def run_pipeline(
     raw_stats: dict[str, int] = {}
     with GraphWriteSession(db_path) as writer:
         writer.record_model(result.capture)
+        writer.write_resources(result.resources)
         writer.write_tokens(tokens)
         writer.write_icons(icons)
         writer.write_module_texts(module_texts)

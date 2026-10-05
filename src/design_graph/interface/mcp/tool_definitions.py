@@ -142,6 +142,25 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_resources",
+        "description": (
+            "Lists what the prototype loads besides its own markup: libraries with their version and "
+            "origin (declare them in the project, never copy their code), fonts with weights, styles, "
+            "subsets and where they likely come from, images, the design tool's runtime (never "
+            "reproduce it) and the prototype's own code modules. Pass screen to list only what that "
+            "screen loads. Binaries are described, never returned."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["library", "runtime", "module", "font", "image"],
+                         "description": "Only resources of this kind"},
+                "screen": {"type": "string", "description": "Only what this screen loads"},
+                "doc": _doc_param(),
+            },
+        },
+    },
+    {
         "name": "get_full_source",
         "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. Use when another tool truncated the source. A long source comes in pages (the response says 'página N/M' and gives the call for the next one) — nothing is ever cut.",
         "inputSchema": {

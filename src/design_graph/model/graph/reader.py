@@ -806,6 +806,17 @@ class GraphReader:
             {"n": resolved},
         )
 
+    def get_resources(self, kind: str | None = None, screen: str | None = None) -> list[dict]:
+        """Every resource the prototype loads — or only `screen`'s — optionally of one kind, by kind and name."""
+        match = "MATCH (s:Screen {name:$screen})-[:USES_RESOURCE]->(r:Resource) " if screen else "MATCH (r:Resource) "
+        return self._q(
+            f"{match}WHERE $kind = '' OR r.kind = $kind "
+            "RETURN DISTINCT r.kind AS kind, r.name AS name, r.version AS version, r.origin AS origin, "
+            "r.certainty AS certainty, r.detail AS detail, r.size AS size "
+            "ORDER BY kind, name, version",
+            {"kind": kind or "", **({"screen": screen} if screen else {})},
+        )
+
     def get_tokens(
         self, category: str | None = None, screen: str | None = None, mode: str | None = None,
     ) -> list[dict]:

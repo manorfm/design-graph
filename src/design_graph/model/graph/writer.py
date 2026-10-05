@@ -30,6 +30,7 @@ from design_graph.model.entities import (
     ExtractedScreen,
     ExtractedSection,
     IconAsset,
+    Resource,
     RE_CUSTOM_PROPERTY_REFERENCE,
     StyleEntry,
     TextEntry,
@@ -235,6 +236,15 @@ class GraphWriter:
                 self._tokens_by_custom_property.setdefault(token.label, []).append(token)
         logger.debug("writer: collected %d tokens", inserted)
         return inserted
+
+    def write_resources(self, resources: list[Resource]) -> None:
+        """Collect each Resource node once, however many screens load it."""
+        for resource in resources:
+            self._rows.put_node("Resource", resource.id, {
+                "id": resource.id, "kind": resource.kind, "name": resource.name, "version": resource.version,
+                "origin": resource.origin, "certainty": resource.certainty, "detail": resource.detail,
+                "size": resource.size, "sha256": resource.sha256,
+            })
 
     def write_icons(self, icons: list[IconAsset]) -> int:
         """
@@ -444,6 +454,8 @@ class GraphWriter:
         for style in screen.styles:
             self._put_style_once(style)
             self._rows.add_rel("SCREEN_HAS_STYLE", screen.name, style.id)
+        for resource_id in dict.fromkeys(screen.resource_ids):
+            self._rows.add_rel("USES_RESOURCE", screen.name, resource_id)
 
         for section in sections:
             self._write_section(screen.name, section)

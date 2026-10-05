@@ -46,6 +46,37 @@ def get_tokens(
     return "\n".join(lines)
 
 
+# What an agent does with each kind, in the order it needs to know it.
+_RESOURCE_GROUPS = (
+    ("library", "Bibliotecas (declarar no projeto, não copiar)"),
+    ("font", "Fontes"),
+    ("image", "Imagens"),
+    ("runtime", "Não reproduzir (infraestrutura do protótipo)"),
+    ("module", "Módulos do protótipo"),
+)
+
+
+def get_resources(reader: GraphReader, kind: str | None, screen: str | None = None) -> str:
+    rows = reader.get_resources(kind, screen)
+    if not rows:
+        return f"Nenhum recurso encontrado{f' para a tela {screen!r}' if screen else ''}."
+    lines = [f"# Recursos — tela {screen}\n" if screen else "# Recursos\n"]
+    for group, title in _RESOURCE_GROUPS:
+        members = [r for r in rows if r["kind"] == group]
+        if members:
+            lines.append(f"## {title}")
+            lines.extend(_resource_line(r) for r in members)
+            lines.append("")
+    return "\n".join(lines)
+
+
+def _resource_line(row: dict) -> str:
+    origin = f"{row['origin']} ({row['certainty']})" if row["certainty"] == "inferida" else row["origin"]
+    parts = [f"- **{row['name']}**" + (f" {row['version']}" if row["version"] else "")]
+    parts += [part for part in (row["detail"], origin) if part]
+    return " · ".join(parts)
+
+
 def find_token_usage(reader: GraphReader, value: str) -> str:
     usages = reader.find_token_usage(value)
     if not usages:
