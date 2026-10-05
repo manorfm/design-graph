@@ -36,7 +36,7 @@ from enum import Enum
 from pathlib import Path
 
 import kuzu
-from bs4 import BeautifulSoup, Comment, NavigableString
+from bs4 import BeautifulSoup, Comment
 
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import read_bundle
@@ -53,6 +53,7 @@ _NOT_RENDERED = {"script", "style", "helmet", "template"}
 _INTERPOLATION = "{{"
 _RE_STYLE_ATTRIBUTE = re.compile(r'style="([^"]*)"')
 _RE_STYLE_ROW = re.compile(r"^\|\s*([a-z-]+)\s*\|\s*([^|]+?)\s*\|\s*$", re.MULTILINE)
+_RE_STYLE_ITEM = re.compile(r"`([a-z-]+)`: `([^`]+)`")
 _RE_RECOVERY_CALL = re.compile(r"(get_full_source|get_full_styles|get_full_texts|get_component_data)\(([^()]*)\)")
 _RE_KEYWORD_ARG = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 _RE_LIST_CUT = re.compile(r"\+\d+ mais")
@@ -144,9 +145,10 @@ def classify_search(response: str) -> SearchVerdict:
 
 
 def _declarations_shown(response: str) -> set[str]:
-    """Style declarations a response shows — in source blocks and in style tables."""
+    """Style declarations a response shows — in source blocks, style tables and style lists."""
     shown = style_declarations(response)
-    shown.update(filter(None, (_normalized_declaration(f"{p}: {v}") for p, v in _RE_STYLE_ROW.findall(response))))
+    rows = _RE_STYLE_ROW.findall(response) + _RE_STYLE_ITEM.findall(response)
+    shown.update(filter(None, (_normalized_declaration(f"{p}: {v}") for p, v in rows)))
     return shown
 
 

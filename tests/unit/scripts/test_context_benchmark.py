@@ -172,3 +172,11 @@ class TestMain:
 
         with pytest.raises(SystemExit):
             main([str(tmp_path / "absent.html")])
+
+
+class TestDeclarationsShown:
+    def test_style_lists_tables_and_attributes_all_count(self):
+        from context_benchmark import _declarations_shown
+
+        response = '| gap | 4px |\n- **div** `width`: `390px`\n  - `color`: `red`\n<p style="margin: 0"></p>'
+        assert _declarations_shown(response) == {"gap: 4px", "width: 390px", "color: red", "margin: 0"}
