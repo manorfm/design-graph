@@ -412,7 +412,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_component_props` | Return declared component props and defaults | `name`, `doc?` |
 | `get_component_children` | Return direct child components, in render order | `name`, `doc?` |
 | `get_component_interactions` | Return hover/focus effects and transitions | `name`, `doc?` |
-| `get_full_source` | Return a component's or screen's complete stored source in its own language, and say when the capture simplified it | `name`, `doc?` |
+| `get_full_source` | Return a component's or screen's source exactly as the prototype wrote it, in its own language — in pages when it is long | `name`, `page?`, `doc?` |
 | `get_full_styles` | Return a component's or a screen section's complete style list, with no display cap — the `get_full_source` equivalent for styles. For `name=`, also includes `@media`-scoped styles in their own section | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_full_texts` | Return a component's or a screen section's complete text list, with no display cap — the `get_full_styles` equivalent for texts | `name?` (component) or `screen?` + `section?`, `doc?` |
 | `get_component_data` | Return the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path table indexed as `ICONS[name]`) — reuse these exact values instead of substituting an equivalent icon/asset | `name`, `doc?` |
@@ -515,7 +515,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Color, spacing, typography, shadow, radius and CSS-variable tokens, with light/dark (or any other) modes
 - UI text with semantic types (heading, button, label, description, tooltip)
 - Screen viewports, navigation between screens and screen variants (another viewport or mode)
-- Each stored source with its language and whether the capture simplified it; caps surfaced as data, never silently
+- Every source stored whole and exactly as written, with its language — long sources are paged by the tools, never cut
 - Layout profiles for flex/grid and dimensions, per component and per section selector
 - Fuzzy matching and Portuguese/English search aliases
 - Best-effort validation of agent-written sources against a component's stored spec
@@ -529,7 +529,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Sections detected from padding/margin-heavy containers, whether the padding is inline or class-resolved
 - Consolidation of same-named definitions without dropping props, source, styles or child references
 - Tailwind utility and custom CSS class resolution, attributed per selector; shared classes stay discoverable via search and `get_component_spec`
-- Markers for collapsed lists, conditionals and alternatives; every top-level `return` captured
+- Each component's and screen's whole function as its source — hooks, handlers, lists and conditions included; children rendered behind lists, conditions and ternaries still linked
 - Module-level data a component references (e.g. icon tables) attached verbatim
 - External/library component references kept visible instead of dropped
 

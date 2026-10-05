@@ -35,7 +35,7 @@ _RELATION_SLOTS: dict[tuple[str, bool], tuple[str, str, str]] = {
 
 # Every Component property a component read returns, in one place.
 _COMPONENT_FIELDS = (
-    "c.name, c.comp_type, c.source_code, c.source_lang, c.source_simplified, "
+    "c.name, c.comp_type, c.source_code, c.source_lang, "
     "c.declares_inline_styles, c.occurrence, c.classes, c.truncated_fields, c.referenced_data_json"
 )
 
@@ -938,8 +938,8 @@ class GraphReader:
     def get_full_source(self, name: str) -> dict | None:
         """
         A Component's stored source, or — when no Component of that name
-        exists — the source of a Screen by that name, with the language and
-        simplification facts its capture stated. A full-page overlay shell
+        exists — the source of a Screen by that name, with the language its
+        capture stated. A full-page overlay shell
         (ItemEditorV6) is classified as a Screen and deliberately never also
         extracted as a Component, so without this fallback its own root
         markup would never be reachable through this call at all.
@@ -947,7 +947,7 @@ class GraphReader:
         for label in ("Component", "Screen"):
             rows = self._q(
                 f"MATCH (n:{label} {{name:$n}}) "
-                "RETURN n.source_code, n.source_lang, n.source_simplified",
+                "RETURN n.source_code, n.source_lang",
                 {"n": name},
             )
             if rows and rows[0].get("n.source_code"):
@@ -955,7 +955,6 @@ class GraphReader:
                 return {
                     "source_code": self._resolve_icons(row["n.source_code"]),
                     "source_lang": row["n.source_lang"] or "",
-                    "source_simplified": bool(row["n.source_simplified"]),
                 }
         return None
 

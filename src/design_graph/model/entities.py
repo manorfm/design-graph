@@ -372,7 +372,6 @@ class ExtractedComponent:
     truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
-    source_simplified: bool = False       # the capture replaced parts of the original with placeholders
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
     # {const_name: value} for every module-level constant this component's
     # own body references by name (e.g. ICONS for a component that does
@@ -408,7 +407,6 @@ class ExtractedScreen:
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     source_lang: str = ""
-    source_simplified: bool = False
     viewport_width: int = 0                             # px the screen was designed for; 0 = unknown
     viewport_height: int = 0
     links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens

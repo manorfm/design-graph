@@ -19,6 +19,7 @@ Schema changes:
        Screen, Section and Component; declares_inline_styles on Component;
        Token.mode; Screen viewport; NAVIGATES_TO and VARIANT_OF between
        screens; a Model node recording this version and the capture used
+  v11 — sources are stored as the prototype wrote them: source_simplified removed
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # The version of the model a graph is written in. A graph from another version
 # is rebuilt by the pipeline and refused by readers instead of half-working.
-MODEL_VERSION = 10
+MODEL_VERSION = 11
 
 # ── Node table definitions ─────────────────────────────────────────────────────
 
@@ -56,7 +57,6 @@ _NODE_TABLES: list[str] = [
         "  sections_count INT64,"
         "  source_code STRING,"
         "  source_lang STRING,"
-        "  source_simplified BOOLEAN,"
         "  viewport_width INT64,"
         "  viewport_height INT64,"
         "  PRIMARY KEY(name)"
@@ -82,7 +82,6 @@ _NODE_TABLES: list[str] = [
         "  comp_type STRING,"
         "  source_code STRING,"
         "  source_lang STRING,"
-        "  source_simplified BOOLEAN,"
         "  declares_inline_styles BOOLEAN,"
         "  occurrence INT64,"
         "  classes STRING,"

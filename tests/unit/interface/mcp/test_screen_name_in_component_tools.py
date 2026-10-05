@@ -21,7 +21,7 @@ class _Reader:
         return NamedEntityResolution()
 
     def get_full_source(self, name):
-        return {"source_code": "<main><Header/><Footer/></main>", "source_lang": "jsx", "source_simplified": False}
+        return {"source_code": "<main><Header/><Footer/></main>", "source_lang": "jsx"}
 
     def get_screen(self, name):
         return {"name": "App", "components": [{"c.name": "Header", "c.comp_type": "layout"},

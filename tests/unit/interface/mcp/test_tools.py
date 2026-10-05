@@ -61,7 +61,7 @@ class MockReader:
 
     def get_interactions(self, name): return []
     def get_full_source(self, name):
-        return {"source_code": "<div>full jsx</div>", "source_lang": "jsx", "source_simplified": False}
+        return {"source_code": "<div>full jsx</div>", "source_lang": "jsx"}
     def get_impact(self, name):
         return {"found": True, "type": "card", "screens": ["RestaurantsPage"],
                 "sections": [], "tokens_used": []}

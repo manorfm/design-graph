@@ -78,28 +78,11 @@ class JsxMarker:
 # Literal markers sanitize_jsx (extraction/jsx_sanitizer.py) leaves behind
 # for a collapsed region that isn't a named-component reference — JsxMarker
 # above covers list/conditional/either, which always name one or two
-# components. Defined once here so a marker's written form and its
-# detection in was_simplified can never drift apart.
+# components.
 JSX_HANDLER_MARKER               = "={[handler]}"
 JSX_ARROW_FN_MARKER              = ".[fn]"
 JSX_STYLE_BLOCK_COLLAPSE_SUFFIX  = ", ... }}"
 JSX_BARE_EXPRESSION_MARKER       = "{...}"
-
-_SIMPLIFICATION_MARKERS: tuple[str, ...] = (
-    JSX_HANDLER_MARKER,
-    JSX_ARROW_FN_MARKER,
-    JSX_STYLE_BLOCK_COLLAPSE_SUFFIX,
-    JSX_BARE_EXPRESSION_MARKER,
-    *(f"{{[{kind}:" for kind in JsxMarkerKind),
-)
-
-
-def was_simplified(jsx: str) -> bool:
-    """
-    True when sanitize_jsx left at least one collapse marker in this JSX —
-    the stored source is then a simplification, not the original text.
-    """
-    return any(marker in jsx for marker in _SIMPLIFICATION_MARKERS)
 
 _STYLE_BLOCK_COLLAPSE_THRESHOLD = 400
 _STYLE_BLOCK_PREVIEW_PROP_COUNT = 6

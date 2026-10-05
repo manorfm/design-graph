@@ -15,7 +15,7 @@ class _Reader:
         self.source = source
 
     def get_full_source(self, name):
-        return {"source_code": self.source, "source_lang": "html", "source_simplified": False}
+        return {"source_code": self.source, "source_lang": "html"}
 
 
 def _body(response: str) -> str:

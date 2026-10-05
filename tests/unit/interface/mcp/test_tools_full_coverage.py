@@ -120,13 +120,13 @@ class RichMockReader:
     def get_full_source(self, name):
         if name == "BtnPrimary":
             return {"source_code": "<button style={{color:'#ffb81c'}}>Click</button>", "source_lang": "jsx",
-                    "source_lang": "jsx", "source_simplified": False}
+                    "source_lang": "jsx"}
         if name == "BasicTab":
             return {"source_code": "<div>{[conditional:Chip]}</div>", "source_lang": "jsx",
-                    "source_lang": "jsx", "source_simplified": True}
+                    "source_lang": "jsx"}
         if name == "Welcome":
             return {"source_code": "<main>{{t}}</main>", "source_lang": "jsx",
-                    "source_lang": "html", "source_simplified": False}
+                    "source_lang": "html"}
         return None
 
     def get_impact(self, name):
@@ -333,16 +333,6 @@ class TestGetFullSourceTool:
         r, _ = d.pick_reader(doc="doc", active_doc="")
         result = full_tools.get_full_source(r, "BtnPrimary")
         assert "simplificado" not in result.lower()
-
-    def test_simplified_source_carries_explicit_warning(self):
-        # The stored snippet already went through sanitize_jsx at
-        # extraction time — a caller must be told this isn't the original
-        # source, instead of reading "JSX completo" and stopping there.
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = full_tools.get_full_source(r, "BasicTab")
-        assert "simplificado" in result.lower()
-        assert "{[conditional:Chip]}" in result
 
     def test_code_fence_uses_the_stored_source_language(self):
         d = self._d()

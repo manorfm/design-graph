@@ -31,7 +31,7 @@ def conn(tmp_path):
 
 def _component(name, occurrence=1):
     return {"name": name, "comp_type": "component", "source_code": "", "source_lang": "",
-            "source_simplified": False, "declares_inline_styles": False, "occurrence": occurrence,
+            "declares_inline_styles": False, "occurrence": occurrence,
             "classes": "", "truncated_fields": "", "referenced_data_json": ""}
 
 
@@ -49,7 +49,7 @@ class TestSchemaTables:
         component = node_tables()["Component"]
         assert component.key == "name"
         assert component.columns["occurrence"] == "INT64"
-        assert component.columns["source_simplified"] == "BOOLEAN"
+        assert component.columns["declares_inline_styles"] == "BOOLEAN"
 
     def test_rel_tables_know_their_endpoints_and_properties(self):
         contains = rel_tables()["CONTAINS"]

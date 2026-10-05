@@ -36,7 +36,6 @@ from design_graph.capture.html_prototype.extraction.component_extractor import (
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.capture.html_prototype.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
 from design_graph.capture.html_prototype.extraction.screen_extractor import extract_screens, is_screen
-from design_graph.capture.html_prototype.extraction.jsx_sanitizer import was_simplified
 from design_graph.capture.html_prototype.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.capture.html_prototype.parsing.css_class_resolver import (
     extract_css_rules,
@@ -281,29 +280,24 @@ class _SourceLanguage:
 
     name: str
     inline_style_attribute: str  # what declares inline styling in this language
-    simplifies: bool             # whether the stored source went through sanitize_jsx
 
 
-_JSX  = _SourceLanguage(name="jsx", inline_style_attribute="style={", simplifies=True)
-_HTML = _SourceLanguage(name="html", inline_style_attribute='style="', simplifies=False)
+_JSX  = _SourceLanguage(name="jsx", inline_style_attribute="style={")
+_HTML = _SourceLanguage(name="html", inline_style_attribute='style="')
 
 
 def _described(result: CaptureResult, language: _SourceLanguage) -> CaptureResult:
     """State, on every captured source, its language and what storing it changed."""
-    def simplified(source: str) -> bool:
-        return language.simplifies and was_simplified(source)
-
     result.components = [
         replace(
             comp,
             source_lang=language.name,
-            source_simplified=simplified(comp.source_code),
             declares_inline_styles=language.inline_style_attribute in _with_icons(comp.source_code, comp.icons),
         )
         for comp in result.components
     ]
     result.screens = [
-        replace(screen, source_lang=language.name, source_simplified=simplified(screen.source_code))
+        replace(screen, source_lang=language.name)
         for screen in result.screens
     ]
     result.sections = {

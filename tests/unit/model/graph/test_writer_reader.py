@@ -1051,7 +1051,7 @@ class TestGetFullSourceFallsBackToScreen:
 
 
 class TestSourceFactsRoundTrip:
-    """A stored source keeps the language and simplification facts its capture stated."""
+    """A stored source keeps the language its capture stated."""
 
     @pytest.fixture()
     def graph(self, tmp_path):
@@ -1063,12 +1063,12 @@ class TestSourceFactsRoundTrip:
     def test_component_source_facts_survive_write_and_read(self, graph):
         comp = ExtractedComponent(
             name="CartList", comp_type="component", source_code="<ul>{[list:Item]}</ul>",
-            occurrence=1, classes="", source_lang="jsx", source_simplified=True,
+            occurrence=1, classes="", source_lang="jsx",
             declares_inline_styles=True,
         )
         graph.writer.write_component(comp)
         full = graph.reader.get_full_source("CartList")
-        assert full == {"source_code": "<ul>{[list:Item]}</ul>", "source_lang": "jsx", "source_simplified": True}
+        assert full == {"source_code": "<ul>{[list:Item]}</ul>", "source_lang": "jsx"}
         assert graph.reader.get_component("CartList")["c.declares_inline_styles"] is True
 
     def test_screen_source_facts_survive_write_and_read(self, graph):
@@ -1078,7 +1078,6 @@ class TestSourceFactsRoundTrip:
         graph.writer.declare_screens([screen])
         full = graph.reader.get_full_source("Welcome")
         assert full["source_lang"] == "html-template"
-        assert full["source_simplified"] is False
 
     def test_section_keeps_its_source_language(self, graph):
         section = ExtractedSection.create(

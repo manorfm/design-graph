@@ -148,17 +148,8 @@ def extract_screens(
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 def _extract_screen_jsx(js: str, boundary: FunctionBoundary) -> tuple[str, list]:
-    """
-    The screen's own return-block, sanitized the same way an
-    ExtractedComponent's source_code is: icons pulled out first (so the
-    sanitizer and every downstream reader only ever see the short marker),
-    then sanitize_jsx collapses dynamic expressions.
-    """
-    jsx_raw = extract_return_block(js, boundary.start, boundary.end, body_start=boundary.body_start)
-    if not jsx_raw:
-        return "", []
-    jsx_with_icon_refs, icons = extract_icons(jsx_raw)
-    return sanitize_jsx(jsx_with_icon_refs), icons
+    """The screen's function as written, inline SVGs replaced by icon references."""
+    return extract_icons(js[boundary.start : boundary.end])
 
 
 def _collect_component_refs(body: str, exclude: str) -> list[str]:

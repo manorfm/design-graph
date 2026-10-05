@@ -23,16 +23,7 @@ def get_full_source(reader: GraphReader, name: str, page: object = 1) -> str:
         return f"Página inválida: {page!r}. O fonte de '{name}' tem as páginas 1 a {len(pages)}."
 
     lang = source["source_lang"]
-    if source["source_simplified"]:
-        header = f"# Fonte de {name} ({lang}, simplificado pela captura — não é o original)"
-        footer = (
-            "\n> A captura substituiu partes do original por marcadores ao gravar este fonte "
-            "(ex.: ramos de lista/condicional e handlers longos). Chamar `get_full_source` de "
-            "novo não recupera o restante: o texto original não fica armazenado."
-        )
-    else:
-        header = f"# Fonte completo de {name} ({lang})"
-        footer = ""
+    header, footer = f"# Fonte completo de {name} ({lang})", ""
     if len(pages) > 1:
         header += f" — página {number}/{len(pages)}"
         if number < len(pages):

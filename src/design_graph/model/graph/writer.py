@@ -278,7 +278,7 @@ class GraphWriter:
         return {
             "name": screen.name, "component_count": component_count, "sections_count": sections_count,
             "source_code": screen.source_code,
-            "source_lang": screen.source_lang, "source_simplified": screen.source_simplified,
+            "source_lang": screen.source_lang,
             "viewport_width": screen.viewport_width, "viewport_height": screen.viewport_height,
         }
 
@@ -308,7 +308,7 @@ class GraphWriter:
         self._rows.replace_node("Component", comp.name, {
             "name": comp.name, "comp_type": comp.comp_type,
             "source_code": comp.source_code,
-            "source_lang": comp.source_lang, "source_simplified": comp.source_simplified,
+            "source_lang": comp.source_lang,
             "declares_inline_styles": comp.declares_inline_styles, "occurrence": comp.occurrence,
             "classes": comp.classes, "truncated_fields": ",".join(sorted(comp.truncated_fields)),
             "referenced_data_json": json.dumps(comp.referenced_data) if comp.referenced_data else "",
@@ -573,7 +573,7 @@ class GraphWriter:
         self._known_comp_names.add(name)
         self._rows.put_node("Component", name, {
             "name": name, "comp_type": ComponentType.COMPONENT, "source_code": "", "source_lang": "",
-            "source_simplified": False, "declares_inline_styles": False,
+            "declares_inline_styles": False,
             "occurrence": ComponentDefinitionStatus.UNRESOLVED.value, "classes": "",
             "truncated_fields": "", "referenced_data_json": "",
         })

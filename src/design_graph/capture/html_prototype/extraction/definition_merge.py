@@ -112,6 +112,5 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
         truncated_fields=truncated_fields,
         referenced_data=referenced_data,
         source_lang=live_variant.source_lang,
-        source_simplified=any(variant.source_simplified for variant in variants),
         declares_inline_styles=any(variant.declares_inline_styles for variant in variants),
     )

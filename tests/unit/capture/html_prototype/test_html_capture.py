@@ -238,12 +238,6 @@ class TestSourceDescription:
         assert {s.source_lang for s in result.screens} == {"jsx"}
         assert {sec.source_lang for secs in result.sections.values() for sec in secs} == {"jsx"}
 
-    def test_collapsed_list_render_marks_source_simplified(self):
-        assert self._component("CartList").source_simplified is True
-
-    def test_untouched_source_is_not_simplified(self):
-        assert self._component("Plain").source_simplified is False
-
     def test_inline_style_object_is_declared(self):
         assert self._component("Badge").declares_inline_styles is True
         assert self._component("Plain").declares_inline_styles is False

@@ -184,14 +184,12 @@ def extract_component(
     """
     window = js[boundary.start : boundary.end]
 
-    # ── JSX snippet (extracted from return block) ──
-    # Icons are pulled out before sanitize_jsx so the sanitizer — and every
-    # downstream consumer of source_code — only ever sees the short marker,
-    # never the raw SVG source.
+    # ── Source: the function as written, inline SVGs replaced by icon references ──
+    source_code, icons = extract_icons(window)
+    # Components rendered behind a list, condition or ternary are found in
+    # the sanitized return block's typed markers — used here, never stored.
     jsx_raw = extract_return_block(js, boundary.start, boundary.end, body_start=boundary.body_start)
-    jsx_with_icon_refs, icons = extract_icons(jsx_raw) if jsx_raw else ("", [])
-    source_code = sanitize_jsx(jsx_with_icon_refs) if jsx_with_icon_refs else ""
-    marker_refs = _extract_marker_refs(source_code)
+    marker_refs = _extract_marker_refs(sanitize_jsx(extract_icons(jsx_raw)[0])) if jsx_raw else set()
 
     # ── Single pass: collect everything ──
     styles:       list[StyleEntry]       = []

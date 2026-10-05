@@ -31,7 +31,6 @@ from design_graph.capture.html_prototype.extraction.jsx_sanitizer import (
     JsxMarker,
     JsxMarkerKind,
     sanitize_jsx,
-    was_simplified,
 )
 
 
@@ -332,32 +331,3 @@ class TestJsxMarker:
             JsxMarker(JsxMarkerKind.EITHER, ("A", "B", "C"))
 
 
-# ── was_simplified ────────────────────────────────────────────────────────────
-
-class TestWasSimplified:
-    def test_plain_jsx_is_not_simplified(self):
-        assert was_simplified("<button style={{color: '#fff'}}>Click</button>") is False
-
-    def test_empty_snippet_is_not_simplified(self):
-        assert was_simplified("") is False
-
-    def test_list_marker_marks_the_source_simplified(self):
-        assert was_simplified("<div>{[list:CartItem]}</div>") is True
-
-    def test_conditional_marker_marks_the_source_simplified(self):
-        assert was_simplified("<div>{[conditional:Badge]}</div>") is True
-
-    def test_either_marker_marks_the_source_simplified(self):
-        assert was_simplified("<div>{[either:A|B]}</div>") is True
-
-    def test_handler_marker_marks_the_source_simplified(self):
-        assert was_simplified("<input onChange={[handler]} />") is True
-
-    def test_arrow_fn_marker_marks_the_source_simplified(self):
-        assert was_simplified("{items.map.[fn]}") is True
-
-    def test_collapsed_style_block_marks_the_source_simplified(self):
-        assert was_simplified("style={{ color: red, ... }}") is True
-
-    def test_bare_expression_marker_marks_the_source_simplified(self):
-        assert was_simplified("<div>{...}</div>") is True
