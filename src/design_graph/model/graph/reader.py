@@ -36,7 +36,7 @@ _RELATION_SLOTS: dict[tuple[str, bool], tuple[str, str, str]] = {
 # Every Component property a component read returns, in one place.
 _COMPONENT_FIELDS = (
     "c.name, c.comp_type, c.source_code, c.source_lang, "
-    "c.declares_inline_styles, c.occurrence, c.classes, c.truncated_fields, c.referenced_data_json"
+    "c.declares_inline_styles, c.occurrence, c.classes, c.referenced_data_json"
 )
 
 # CSS properties that describe spatial structure rather than visual appearance.
@@ -572,7 +572,6 @@ class GraphReader:
                 "declares_inline_styles": bool(comp["c.declares_inline_styles"]),
                 "occurrence":        comp["c.occurrence"],
                 "classes":           comp["c.classes"] or "",
-                "truncated_fields":  (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
                 "referenced_data":   json.loads(comp.get("c.referenced_data_json") or "{}"),
                 "styles_by_state":   dict(styles_by_comp.get(cname, {})),
                 "tokens":            tokens_by_comp.get(cname, []),
@@ -1599,7 +1598,6 @@ def _assemble_screen_full(
             "declares_inline_styles": bool(comp["c.declares_inline_styles"]),
             "occurrence":     comp["c.occurrence"],
             "classes":        comp["c.classes"] or "",
-            "truncated_fields": (comp.get("c.truncated_fields") or "").split(",") if comp.get("c.truncated_fields") else [],
             "referenced_data": json.loads(comp.get("c.referenced_data_json") or "{}"),
             "styles_by_state": {
                 state: entries

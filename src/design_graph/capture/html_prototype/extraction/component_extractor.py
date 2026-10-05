@@ -20,9 +20,6 @@ from collections import Counter
 from typing import Callable
 
 from design_graph.capture.html_prototype.constants import (
-    MAX_CLASSES_PER_COMPONENT,
-    MAX_INTERACTIONS_PER_COMPONENT,
-    MAX_STYLES_PER_COMPONENT,
     REACT_INTERNALS,
 )
 from design_graph.model.entities import (
@@ -233,8 +230,6 @@ def extract_component(
     # the same block taking precedence over the same property name coming
     # from the spread (JS's own semantics for `{...base, override}`).
     for style_block in iter_style_object_blocks(window):
-        if len(styles) >= MAX_STYLES_PER_COMPONENT:
-            break
         local_props = parse_object_literal_props(style_block)
         for prop, val in local_props:
             _add_literal_style(prop, val)
@@ -294,8 +289,6 @@ def extract_component(
     transition = trans_match.group(1).strip() if trans_match else "all 0.15s"
 
     for prop, to_val in enters_by_prop.items():
-        if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
-            break
         from_val = leave_by_prop.get(prop, "")
         entry = InteractionEntry.create(
             element=boundary.name, trigger=InteractionTrigger.HOVER, css_prop=prop,
@@ -305,18 +298,15 @@ def extract_component(
             seen_inter_ids.add(entry.id)
             interactions.append(entry)
             # Hover state style entry
-            if len(styles) < MAX_STYLES_PER_COMPONENT:
-                style = StyleEntry.create(
-                    element=boundary.name, property=prop, value=to_val, state=StyleState.HOVER,
-                )
-                if style.id not in seen_style_ids:
-                    seen_style_ids.add(style.id)
-                    styles.append(style)
+            style = StyleEntry.create(
+                element=boundary.name, property=prop, value=to_val, state=StyleState.HOVER,
+            )
+            if style.id not in seen_style_ids:
+                seen_style_ids.add(style.id)
+                styles.append(style)
 
     # Focus interactions
     for prop, raw_val in _handler_mutations(window, "onFocus"):
-        if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
-            break
         focus_val = _clean_style_value(raw_val)
         if not focus_val:
             continue
@@ -334,8 +324,6 @@ def extract_component(
     # is exactly this component's body, so correlating the state var by name is
     # safe even though names like "hov"/"h" repeat across unrelated components.
     for state, setter in RE_USE_STATE_BOOL.findall(window):
-        if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
-            break
         has_enter = re_state_setter_trigger(setter, "onMouseEnter").search(window)
         has_leave = re_state_setter_trigger(setter, "onMouseLeave").search(window)
         if has_enter and has_leave:
@@ -345,8 +333,6 @@ def extract_component(
         else:
             continue
         for prop, to_raw, from_raw in re_state_ternary_style(state).findall(window):
-            if len(interactions) >= MAX_INTERACTIONS_PER_COMPONENT:
-                break
             to_val = _clean_style_value(to_raw)
             from_val = _clean_style_value(from_raw)
             if not to_val or not from_val:
@@ -358,14 +344,13 @@ def extract_component(
             if entry.id not in seen_inter_ids:
                 seen_inter_ids.add(entry.id)
                 interactions.append(entry)
-                if len(styles) < MAX_STYLES_PER_COMPONENT:
-                    style = StyleEntry.create(
-                        element=boundary.name, property=prop, value=to_val,
-                        state=StyleState(state_trigger.value),
-                    )
-                    if style.id not in seen_style_ids:
-                        seen_style_ids.add(style.id)
-                        styles.append(style)
+                style = StyleEntry.create(
+                    element=boundary.name, property=prop, value=to_val,
+                    state=StyleState(state_trigger.value),
+                )
+                if style.id not in seen_style_ids:
+                    seen_style_ids.add(style.id)
+                    styles.append(style)
 
     # Text extraction
     def _add_text(content: str, text_type: TextType, element: str = "") -> None:
@@ -393,7 +378,7 @@ def extract_component(
     # CSS class names
     for m in RE_CLASS_NAME.finditer(window):
         for cls in m.group(1).split():
-            if cls not in seen_class_strs and len(classes) < MAX_CLASSES_PER_COMPONENT:
+            if cls not in seen_class_strs:
                 seen_class_strs.add(cls)
                 classes.append(cls)
 
@@ -401,12 +386,10 @@ def extract_component(
     if rule_map is not None and classes:
         class_string = " ".join(classes)
         class_styles = resolve_classes(class_string, rule_map, responsive_rule_map)
-        remaining_capacity = MAX_STYLES_PER_COMPONENT - len(styles)
-        if remaining_capacity > 0:
-            for cs in class_styles[:remaining_capacity]:
-                if cs.id not in seen_style_ids:
-                    seen_style_ids.add(cs.id)
-                    styles.append(cs)
+        for cs in class_styles:
+            if cs.id not in seen_style_ids:
+                seen_style_ids.add(cs.id)
+                styles.append(cs)
 
     # Resolve native-tag pseudo-class CSS (input:focus { ... }) → StyleEntry,
     # by which native HTML tags the component itself renders — not by
@@ -417,10 +400,7 @@ def extract_component(
             for pseudo_class, rules in tag_rule_map[tag].items():
                 if pseudo_class not in (StyleState.HOVER, StyleState.FOCUS):
                     continue
-                remaining_capacity = MAX_STYLES_PER_COMPONENT - len(styles)
-                if remaining_capacity <= 0:
-                    break
-                for rule in rules[:remaining_capacity]:
+                for rule in rules:
                     # element carries the tag (LoginForm:input, not just
                     # LoginForm) so a component rendering two matching
                     # native tags with the same property/value doesn't
@@ -456,27 +436,10 @@ def extract_component(
         if ref not in REACT_INTERNALS and ref != boundary.name:
             _add_child_ref(ref)
 
-    _cap = lambda count, limit: f"{count}{'[capped]' if count >= limit else ''}"
     logger.debug(
-        "extract_component: %s → %s styles, %s interactions, %d texts, %d children",
-        boundary.name,
-        _cap(len(styles),        MAX_STYLES_PER_COMPONENT),
-        _cap(len(interactions),  MAX_INTERACTIONS_PER_COMPONENT),
-        len(texts),
-        len(child_refs),
+        "extract_component: %s → %d styles, %d interactions, %d texts, %d children",
+        boundary.name, len(styles), len(interactions), len(texts), len(child_refs),
     )
-    # Surfaced to the graph (not just this debug log) as truncated_fields —
-    # an agent reading get_component()/get_component_spec() must be able to
-    # tell "this is everything" from "this is everything we kept up to the
-    # cap" instead of silently trusting a partial spec as complete.
-    truncated_fields = frozenset({
-        field_name for field_name, count, limit in (
-            ("styles",       len(styles),       MAX_STYLES_PER_COMPONENT),
-            ("interactions", len(interactions), MAX_INTERACTIONS_PER_COMPONENT),
-            ("classes",      len(classes),      MAX_CLASSES_PER_COMPONENT),
-        )
-        if count >= limit
-    })
 
     props = extract_props_from_function_signature(js, boundary)
     referenced_data = (
@@ -495,7 +458,6 @@ def extract_component(
         child_refs=child_refs,
         props=props,
         icons=icons,
-        truncated_fields=truncated_fields,
         referenced_data=referenced_data,
     )
 

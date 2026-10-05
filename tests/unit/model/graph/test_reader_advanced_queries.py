@@ -351,7 +351,7 @@ class TestCrossEntityNameResolution:
         conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, source_code:''})")
         conn.execute(
             "CREATE (:Component {name:'AppStep', comp_type:'component', source_code:'', "
-            "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
+            "occurrence:1, classes:'', referenced_data_json:''})"
         )
         reader = GraphReader(conn)
 
@@ -368,7 +368,7 @@ class TestCrossEntityNameResolution:
         conn.execute("CREATE (:Screen {name:'App', component_count:0, sections_count:0, source_code:''})")
         conn.execute(
             "CREATE (:Component {name:'AppStep', comp_type:'component', source_code:'', "
-            "occurrence:1, classes:'', truncated_fields:'', referenced_data_json:''})"
+            "occurrence:1, classes:'', referenced_data_json:''})"
         )
         reader = GraphReader(conn)
 

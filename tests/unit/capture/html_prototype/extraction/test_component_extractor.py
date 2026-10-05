@@ -321,13 +321,6 @@ class TestHoverInteractionWithNonLiteralValues:
         comp = extract_component(BTN_JS, b, 1)
         assert comp is not None
 
-    def test_styles_capped_at_limit(self):
-        many = " ".join(f"style={{{{p{i}: 'v{i}'}}}}" for i in range(60))
-        js = f"function ManyStyles() {{ return (<div>{many}</div>) }}"
-        b = _boundary(js, "ManyStyles")
-        comp = extract_component(js, b, 1)
-        assert len(comp.styles) <= 40
-
     def test_child_refs_contain_no_empty_strings(self):
         b = _boundary(CARD_WITH_CHILDREN_JS, "RestCard")
         comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1)
@@ -835,4 +828,3 @@ class TestTextsAreNeverCutByLengthOrCount:
         spans = "".join(f"<span>Opção número {n}</span>" for n in range(45))
         texts, comp = self._texts(f"<div>{spans}</div>")
         assert sum(t.startswith("Opção número") for t in texts) == 45
-        assert "texts" not in comp.truncated_fields

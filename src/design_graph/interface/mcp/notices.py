@@ -12,7 +12,7 @@ def truncation_notice(
     (styles via get_full_styles, texts via get_full_texts — see
     docs/changes/C36 and C38), the exact call to make — same "never
     truncate without naming the way back" convention already used by
-    truncated_fields_notice and CappedSource.notice for source_code/component
+    CappedSource.notice for source_code/component
     truncation. None (a caller with no escape hatch at all) keeps the
     notice as it was before this parameter existed.
 
@@ -27,32 +27,6 @@ def truncation_notice(
     if recoverable_via:
         notice += f" — chame `{tool}({recoverable_via})` para a lista completa"
     return notice
-
-
-def truncated_fields_notice(
-    truncated_fields: str | list[str] | None,
-    recoverable_via: str | None = None,
-) -> str | None:
-    """
-    Blockquote warning when extraction hit a MAX_*_PER_COMPONENT cap for one
-    or more fields (styles/interactions/texts/classes) on this component.
-
-    Accepts either the raw comma-separated string stored on the Component
-    node (get_component/get_component_spec) or the already-split list shape
-    used by get_screen_full — same fact, two call sites with different
-    intermediate shapes. Without this, an agent reading a "complete-looking"
-    spec has no way to tell it was cut, not just short.
-    """
-    fields = (
-        [f for f in truncated_fields.split(",") if f]
-        if isinstance(truncated_fields, str)
-        else list(truncated_fields or [])
-    )
-    if not fields:
-        return None
-    field_list = ", ".join(fields)
-    suffix = f" Chame get_full_source('{recoverable_via}') para o fonte completo." if recoverable_via else ""
-    return f"> ⚠ Extração truncada em: {field_list} — esta spec pode estar incompleta.{suffix}"
 
 
 class CappedSource(str):

@@ -116,11 +116,3 @@ class TestExtractPropsFromFunctionSignature:
         names = {p.prop_name for p in props}
         assert "ValidProp" not in names
         assert "normalProp" in names
-
-    def test_props_capped_at_max_per_component(self):
-        """Extraction must stop at _MAX_PROPS_PER_COMPONENT regardless of how many are declared."""
-        from design_graph.capture.html_prototype.extraction.prop_extractor import _MAX_PROPS_PER_COMPONENT
-        many = ", ".join(f"prop{i}" for i in range(_MAX_PROPS_PER_COMPONENT + 5))
-        js = f"function BigComp({{ {many} }}) {{ return <div/>; }}"
-        props = extract_props_from_function_signature(js, _boundary("BigComp", js))
-        assert len(props) == _MAX_PROPS_PER_COMPONENT

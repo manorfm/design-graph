@@ -65,9 +65,6 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
     icons = {
         item.id: item for variant in variants for item in variant.icons
     }
-    truncated_fields = frozenset(
-        field_name for variant in variants for field_name in variant.truncated_fields
-    )
     # Union across variants, later declarations' values winning on a
     # repeated const name — same "last declaration wins" bias
     # child_refs/source_code already apply for the live variant above.
@@ -109,7 +106,6 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
         child_refs=child_refs,
         props=list(props.values()),
         icons=list(icons.values()),
-        truncated_fields=truncated_fields,
         referenced_data=referenced_data,
         source_lang=live_variant.source_lang,
         declares_inline_styles=any(variant.declares_inline_styles for variant in variants),

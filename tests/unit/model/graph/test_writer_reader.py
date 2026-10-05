@@ -223,25 +223,6 @@ class TestWriteComponent:
         result = conn.execute("MATCH (c:Component {name:'TestComp'}) RETURN c.name")
         assert result.get_next()[0] == "TestComp"
 
-    def test_truncated_fields_persisted_as_sorted_csv(self, writer):
-        gw, conn = writer
-        comp = ExtractedComponent(
-            name="Truncated", comp_type="card", source_code="<div/>",
-            occurrence=1, classes="", styles=[], interactions=[], texts=[],
-            child_refs=[], truncated_fields=frozenset({"texts", "styles"}),
-        )
-        gw.write_component(comp)
-        gw.commit()
-        result = conn.execute("MATCH (c:Component {name:'Truncated'}) RETURN c.truncated_fields")
-        assert result.get_next()[0] == "styles,texts"
-
-    def test_no_truncation_persisted_as_empty_string(self, writer):
-        gw, conn = writer
-        gw.write_component(self._make_comp("Clean"))
-        gw.commit()
-        result = conn.execute("MATCH (c:Component {name:'Clean'}) RETURN c.truncated_fields")
-        assert result.get_next()[0] == ""
-
     def test_idempotent_on_duplicate(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("DupComp"))
@@ -748,48 +729,6 @@ class TestGetComponentFull:
         fresh.writer.write_component(self._comp("RestaurantCard"))
         full = fresh.reader.get_component_full("Restaurant")
         assert full["root"] == "RestaurantCard"
-
-
-class TestTruncatedFieldsRoundTrip:
-    """C28/T57: truncated_fields must survive write → read for the tools
-    that a reconstruction agent actually calls."""
-
-    @pytest.fixture()
-    def fresh(self, tmp_path):
-        db   = kuzu.Database(str(tmp_path / "trunc.db"))
-        conn = kuzu.Connection(db)
-        initialize_schema(conn)
-        return writer_and_reader(conn)
-
-    def _comp(self, name, truncated=frozenset()):
-        return ExtractedComponent(
-            name=name, comp_type="card", source_code="<div/>",
-            occurrence=1, classes="", styles=[], interactions=[], texts=[],
-            child_refs=[], truncated_fields=truncated,
-        )
-
-    def test_get_component_surfaces_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Trunc", frozenset({"styles"})))
-        comp = fresh.reader.get_component("Trunc")
-        assert comp["c.truncated_fields"] == "styles"
-
-    def test_get_component_spec_surfaces_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Trunc2", frozenset({"texts", "classes"})))
-        spec = fresh.reader.get_component_spec("Trunc2")
-        assert spec["c.truncated_fields"] == "classes,texts"
-
-    def test_clean_component_has_empty_truncated_fields(self, fresh):
-        fresh.writer.write_component(self._comp("Clean2"))
-        comp = fresh.reader.get_component("Clean2")
-        assert comp["c.truncated_fields"] == ""
-
-    def test_get_screen_full_surfaces_truncated_fields_as_list(self, fresh):
-        fresh.writer.write_component(self._comp("TruncOnScreen", frozenset({"interactions"})))
-        screen = ExtractedScreen(name="TruncScreen", component_refs=["TruncOnScreen"], sections_count=0)
-        fresh.writer.write_screen(screen, [])
-        full = fresh.reader.get_screen_full("TruncScreen")
-        comp = next(c for c in full["components"] if c["name"] == "TruncOnScreen")
-        assert comp["truncated_fields"] == ["interactions"]
 
 
 class TestComponentExists:

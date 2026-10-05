@@ -49,7 +49,7 @@ RE_TRANSITION  = re.compile(r'transition["\']?\s*:\s*["\']?([^,"\'}\n]{5,60})')
 #   function NavBar({ title, items = [], onClose })  →  group(1) = "title, items = [], onClose"
 # Handles both `function Name({...})` and `const Name = ({...}) =>` forms.
 RE_DESTRUCTURED_PROPS = re.compile(
-    r'(?:function\s+[A-Z]\w+|const\s+[A-Z]\w+\s*=)\s*\(\s*\{([^}]{1,600})\}',
+    r'(?:function\s+[A-Z]\w+|const\s+[A-Z]\w+\s*=)\s*\(\s*\{([^}]+)\}',
     re.DOTALL,
 )
 

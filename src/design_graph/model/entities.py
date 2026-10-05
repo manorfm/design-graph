@@ -369,7 +369,6 @@ class ExtractedComponent:
     child_refs: list[str] = field(default_factory=list)   # names of the components it renders
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
-    truncated_fields: frozenset[str] = field(default_factory=frozenset)  # e.g. {"styles", "texts"} when a MAX_*_PER_COMPONENT cap was hit
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not

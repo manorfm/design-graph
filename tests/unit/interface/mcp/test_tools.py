@@ -183,14 +183,14 @@ class MockReader:
             "components": [
                 {
                     "name": name, "comp_type": "card", "source_code": "<div/>", "source_lang": "jsx", "declares_inline_styles": False,
-                    "occurrence": 2, "classes": "", "truncated_fields": [],
+                    "occurrence": 2, "classes": "",
                     "styles_by_state": {"default": [{"property": "display", "value": "flex"}]},
                     "tokens": [], "texts": root_texts, "interactions": [], "props": [],
                     "children": ["Badge"],
                 },
                 {
                     "name": "Badge", "comp_type": "badge", "source_code": "<span/>", "source_lang": "jsx", "declares_inline_styles": False,
-                    "occurrence": 1, "classes": "", "truncated_fields": [],
+                    "occurrence": 1, "classes": "",
                     "styles_by_state": {}, "tokens": [], "texts": [],
                     "interactions": [], "props": [], "children": [],
                 },

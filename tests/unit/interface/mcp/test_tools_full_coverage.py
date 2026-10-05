@@ -19,7 +19,6 @@ import pytest
 from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
 from design_graph.interface.mcp.tools import ToolDispatcher
 from design_graph.interface.mcp import component_tools, discovery_tools, full_tools, screen_tools
-from design_graph.interface.mcp.notices import truncated_fields_notice
 
 
 # ── Rich mock reader ──────────────────────────────────────────────────────────
@@ -494,40 +493,6 @@ class TestTruncationWarnings:
         assert "mais" not in result.lower()
 
 
-# ── truncated_fields: agent must know a cap was hit, not just a short list ───
-# ── (C28/T57 — distinct from _truncation_notice, which is about display-time ─
-# ── slicing; this is about extraction-time caps like MAX_STYLES_PER_COMPONENT) ─
-
-class _CappedExtractionReader:
-    def get_component(self, name):
-        return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "<div/>", "c.source_lang": "jsx",
-            "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "styles,texts",
-            "styles": [], "tokens": [], "texts": [], "interactions": [],
-            "screens_using": [], "children": [],
-        }
-
-    def get_component_spec(self, name):
-        return {
-            "c.name": "CappedComp", "c.comp_type": "card", "c.source_code": "", "c.source_lang": "jsx",
-            "c.occurrence": 1, "c.classes": "", "c.truncated_fields": "interactions",
-            "styles_by_state": {}, "tokens": [], "texts": [], "interactions": [],
-            "children": [], "parents": [], "screens_using": [],
-        }
-
-    def get_screen_full(self, name):
-        return {
-            "name": "CappedScreen", "component_count": 1, "sections_count": 0,
-            "sections": [],
-            "components": [{
-                "name": "CappedComp", "comp_type": "card", "occurrence": 1,
-                "source_code": "", "source_lang": "jsx", "declares_inline_styles": False, "classes": "", "truncated_fields": ["classes"],
-                "styles_by_state": {}, "tokens": [], "texts": [],
-                "interactions": [], "props": [], "children": [],
-            }],
-        }
-
-
 class _ManyComponentsReader:
     """150 components — more than the default list_components page size."""
 
@@ -612,64 +577,6 @@ class TestGetBuildDiffTool:
         result = d.dispatch("get_build_diff", {}, "")
         assert "NewPage" in result and "OldPage" in result
         assert "NewBtn" in result and "OldBtn" in result
-
-
-class TestTruncatedFieldsNoticeHelper:
-    def test_none_returns_none(self):
-        assert truncated_fields_notice(None) is None
-
-    def test_empty_string_returns_none(self):
-        assert truncated_fields_notice("") is None
-
-    def test_empty_list_returns_none(self):
-        assert truncated_fields_notice([]) is None
-
-    def test_string_input_lists_fields(self):
-        notice = truncated_fields_notice("styles,texts")
-        assert "styles" in notice and "texts" in notice
-
-    def test_list_input_lists_fields(self):
-        notice = truncated_fields_notice(["classes"])
-        assert "classes" in notice
-
-    def test_recoverable_via_suggests_get_full_jsx(self):
-        notice = truncated_fields_notice("styles", recoverable_via="MyComp")
-        assert "get_full_source('MyComp')" in notice
-
-    def test_no_recoverable_via_omits_suggestion(self):
-        notice = truncated_fields_notice("styles")
-        assert "get_full_source" not in notice
-
-
-class TestTruncatedFieldsNotice:
-    def _dispatcher(self):
-        return ToolDispatcher([("proto", _CappedExtractionReader())])
-
-    def test_get_component_shows_truncated_fields(self):
-        result = self._dispatcher().dispatch("get_component", {"name": "CappedComp"}, "")
-        assert "styles" in result and "texts" in result
-        assert "get_full_source" in result
-
-    def test_get_component_spec_shows_truncated_fields(self):
-        result = self._dispatcher().dispatch("get_component_spec", {"name": "CappedComp"}, "")
-        assert "interactions" in result
-        assert "get_full_source" in result
-
-    def test_get_screen_full_shows_truncated_fields(self):
-        result = self._dispatcher().dispatch("get_screen_full", {"name": "CappedScreen"}, "")
-        assert "classes" in result
-        assert "get_full_source" in result
-
-    def test_no_notice_when_nothing_truncated(self):
-        class CleanReader(_CappedExtractionReader):
-            def get_component(self, name):
-                d = super().get_component(name)
-                d["c.truncated_fields"] = ""
-                return d
-        result = ToolDispatcher([("proto", CleanReader())]).dispatch(
-            "get_component", {"name": "CappedComp"}, ""
-        )
-        assert "Extração truncada" not in result
 
 
 # ── JSX truncation: agent must know a snippet was cut, and whether it can ────

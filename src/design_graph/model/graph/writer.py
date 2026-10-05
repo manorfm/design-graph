@@ -310,7 +310,7 @@ class GraphWriter:
             "source_code": comp.source_code,
             "source_lang": comp.source_lang,
             "declares_inline_styles": comp.declares_inline_styles, "occurrence": comp.occurrence,
-            "classes": comp.classes, "truncated_fields": ",".join(sorted(comp.truncated_fields)),
+            "classes": comp.classes,
             "referenced_data_json": json.dumps(comp.referenced_data) if comp.referenced_data else "",
         })
         self._known_comp_names.add(comp.name)
@@ -575,7 +575,7 @@ class GraphWriter:
             "name": name, "comp_type": ComponentType.COMPONENT, "source_code": "", "source_lang": "",
             "declares_inline_styles": False,
             "occurrence": ComponentDefinitionStatus.UNRESOLVED.value, "classes": "",
-            "truncated_fields": "", "referenced_data_json": "",
+            "referenced_data_json": "",
         })
 
     def _link_style_to_token(self, style: StyleEntry) -> None:

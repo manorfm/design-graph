@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 import re
 
+from bs4 import BeautifulSoup
+
 from design_graph.model.entities import ComponentType, ExtractedComponent, StyleEntry
 from design_graph.capture.html_prototype.sources import DOMPattern, SemanticType
 
@@ -37,12 +39,6 @@ _SEMANTIC_TYPE_TO_COMP_TYPE: dict[SemanticType, ComponentType] = {
     SemanticType.FOOTER:    ComponentType.COMPONENT,
     SemanticType.COMPONENT: ComponentType.COMPONENT,
 }
-
-# Inline style pattern: property: value (CSS, not JSX)
-_CSS_INLINE_STYLE_RE = re.compile(
-    r'([\w-]+)\s*:\s*([^;,"\'}{>\n]{2,60}?)(?:;|(?=\s*[\w-]+\s*:)|\s*$)',
-    re.MULTILINE,
-)
 
 # CSS class attribute extractor
 _CLASS_ATTR_RE = re.compile(r'class="([^"]+)"')
@@ -127,32 +123,21 @@ def _extract_css_classes(html_snippet: str) -> str:
 
 def _extract_inline_styles(html_snippet: str, comp_name: str) -> list[StyleEntry]:
     """
-    Extract CSS inline style properties from the component's own root
-    element — the first style="..." attribute in the snippet.
+    Every CSS declaration on the component's own root element.
 
     A nested descendant (e.g. a decorative <span class="dot"> inside a
-    <button>) may carry its own style="..." further into the snippet;
-    reading past the first one attributes a child's styling to the
-    component itself — this is exactly how Chip's 7px status dot ended up
-    in the component's own "Styles — default" table, as if the button
-    were a 7px circle. Returns at most 20 style entries to match the
-    component_extractor cap.
+    <button>) may carry its own style="..."; attributing a child's styling
+    to the component itself is exactly how Chip's 7px status dot ended up
+    in the component's own "Styles — default" table, as if the button were
+    a 7px circle — so only the root's attribute is read.
     """
-    style_attr_re = re.compile(r'style="([^"]{5,400})"')
-    root_style = style_attr_re.search(html_snippet)
-    if root_style is None:
-        return []
-
+    root = BeautifulSoup(html_snippet, "html.parser").find(True)
     styles: list[StyleEntry] = []
     seen_props: set[str] = set()
-    for prop_match in _CSS_INLINE_STYLE_RE.finditer(root_style.group(1)):
-        prop  = prop_match.group(1).strip()
-        value = prop_match.group(2).strip()
-        if not prop or not value or prop in seen_props:
-            continue
-        seen_props.add(prop)
-        styles.append(StyleEntry.create(element=comp_name, property=prop, value=value))
-        if len(styles) >= 20:
-            break
-
+    for declaration in (root.get("style") or "").split(";") if root else []:
+        prop, sep, value = declaration.partition(":")
+        prop, value = prop.strip(), value.strip()
+        if sep and prop and value and prop not in seen_props:
+            seen_props.add(prop)
+            styles.append(StyleEntry.create(element=comp_name, property=prop, value=value))
     return styles

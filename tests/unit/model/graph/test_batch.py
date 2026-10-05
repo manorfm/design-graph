@@ -32,7 +32,7 @@ def conn(tmp_path):
 def _component(name, occurrence=1):
     return {"name": name, "comp_type": "component", "source_code": "", "source_lang": "",
             "declares_inline_styles": False, "occurrence": occurrence,
-            "classes": "", "truncated_fields": "", "referenced_data_json": ""}
+            "classes": "", "referenced_data_json": ""}
 
 
 def _style(style_id):

@@ -4,21 +4,14 @@ Tests for single-pass extraction guards in component_extractor.py.
 Targets the specific branches not covered:
   - sanitize_jsx: style block 200-400 chars (returns unchanged, line 95)
   - extract_component: falsy/reserved style values skipped (line 143)
-  - extract_component: MAX_INTERACTIONS cap hit (line 160)
   - extract_component: focus interactions via RE_ON_FOCUS (lines 180-185)
-  - extract_component: text filter — too short, too long, lowercase-only, #/rgba (194-196)
+  - extract_component: text filter — too short, lowercase-only, #/rgba; long text kept whole
 """
 
 from __future__ import annotations
 
 import pytest
 
-from design_graph.capture.html_prototype.constants import (
-    MAX_INTERACTIONS_PER_COMPONENT,
-    MAX_CLASSES_PER_COMPONENT,
-    MAX_STYLES_PER_COMPONENT,
-)
-from design_graph.capture.html_prototype.extraction.definition_merge import merge_definitions
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 
@@ -45,30 +38,6 @@ class TestStyleValueFiltering:
         comp = extract_component(js, b, 1)
         values = {s.value for s in comp.styles}
         assert val not in values
-
-
-# ── extract_component: MAX_INTERACTIONS cap ───────────────────────────────────
-
-class TestInteractionCap:
-    def test_interactions_capped_at_max(self):
-        hover_count = MAX_INTERACTIONS_PER_COMPONENT + 3
-        handlers = "\n".join(
-            f"onMouseEnter={{e => e.target.style.prop{i} = 'val{i}'}}\n"
-            f"onMouseLeave={{e => e.target.style.prop{i} = 'orig{i}'}}"
-            for i in range(hover_count)
-        )
-        js = f"""
-        function HoverHeavy() {{
-          return (
-            <div
-              {handlers}
-            >content</div>
-          );
-        }}
-        """
-        b = _boundary(js, "HoverHeavy")
-        comp = extract_component(js, b, 1)
-        assert len(comp.interactions) <= MAX_INTERACTIONS_PER_COMPONENT
 
 
 # ── extract_component: focus interactions ────────────────────────────────────
@@ -122,26 +91,6 @@ class TestFocusInteractions:
         comp = extract_component(js, b, 1)
         assert not any(i.trigger == "focus" for i in comp.interactions)
 
-    def test_focus_interactions_capped_at_max(self):
-        focus_count = MAX_INTERACTIONS_PER_COMPONENT + 3
-        handlers = "\n".join(
-            f'<input key={{{i}}} onFocus={{e => e.target.style.prop{i} = "val{i}"}} />'
-            for i in range(focus_count)
-        )
-        js = f"""
-        function FocusHeavy() {{
-          return (
-            <div>
-              {handlers}
-            </div>
-          );
-        }}
-        """
-        b = _boundary(js, "FocusHeavy")
-        comp = extract_component(js, b, 1)
-        assert len(comp.interactions) <= MAX_INTERACTIONS_PER_COMPONENT
-
-
 # ── extract_component: state-toggle hover/focus (C13/T25) edge cases ─────────
 
 class TestStateToggleEdgeCases:
@@ -182,61 +131,6 @@ class TestStateToggleEdgeCases:
         b = _boundary(js, "EmptyTernaryBranch")
         comp = extract_component(js, b, 1)
         assert not any(i.css_prop == "color" for i in comp.interactions)
-
-    def test_state_toggle_loop_stops_when_cap_already_reached(self):
-        # Interactions already at MAX from imperative hover mutations before
-        # the state-toggle block even runs — its first cap check must break
-        # immediately, adding nothing more.
-        hover_count = MAX_INTERACTIONS_PER_COMPONENT
-        handlers = "\n".join(
-            f'<div key={{{i}}} onMouseEnter={{e => e.target.style.prop{i} = "a{i}"}} '
-            f'onMouseLeave={{e => e.target.style.prop{i} = "b{i}"}} />'
-            for i in range(hover_count)
-        )
-        js = f"""
-        function CapReachedBeforeState() {{
-            const [hov, setHov] = useState(false);
-            return (
-                <div onMouseEnter={{() => setHov(true)}} onMouseLeave={{() => setHov(false)}}>
-                    {handlers}
-                    <span style={{{{ color: hov ? C.red : C.border }}}} />
-                </div>
-            );
-        }}
-        """
-        b = _boundary(js, "CapReachedBeforeState")
-        comp = extract_component(js, b, 1)
-        assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
-        assert not any(i.css_prop == "color" for i in comp.interactions)
-
-    def test_ternary_loop_stops_at_cap_mid_component(self):
-        # Cap has room for exactly one more interaction when the ternary
-        # loop starts — its own inner cap check must stop after the first
-        # property, not the outer state/setter loop's check.
-        hover_count = MAX_INTERACTIONS_PER_COMPONENT - 1
-        handlers = "\n".join(
-            f'<div key={{{i}}} onMouseEnter={{e => e.target.style.prop{i} = "a{i}"}} '
-            f'onMouseLeave={{e => e.target.style.prop{i} = "b{i}"}} />'
-            for i in range(hover_count)
-        )
-        js = f"""
-        function TernaryCapMidComponent() {{
-            const [hov, setHov] = useState(false);
-            return (
-                <div onMouseEnter={{() => setHov(true)}} onMouseLeave={{() => setHov(false)}}
-                    style={{{{
-                        border: hov ? C.red : C.border,
-                        background: hov ? C.dark : C.light,
-                    }}}}>
-                    {handlers}
-                </div>
-            );
-        }}
-        """
-        b = _boundary(js, "TernaryCapMidComponent")
-        comp = extract_component(js, b, 1)
-        assert len(comp.interactions) == MAX_INTERACTIONS_PER_COMPONENT
-
 
 # ── extract_component: text filtering ────────────────────────────────────────
 
@@ -422,18 +316,6 @@ class TestCssClassResolutionInExtractor:
         for s in class_styles:
             assert s.element.startswith("class:")
 
-    def test_inline_styles_take_precedence_over_class_capacity(self):
-        from design_graph.capture.html_prototype.constants import MAX_STYLES_PER_COMPONENT
-        # Fill up styles with inline, then class styles should be capped
-        inline_parts = " ".join(
-            f'style={{{{prop{i}: "val{i}px"}}}}' for i in range(MAX_STYLES_PER_COMPONENT)
-        )
-        js = f'function BigBtn() {{ return <button {inline_parts} className="flex" />; }}'
-        b = self._simple_boundary("BigBtn", js)
-        comp = extract_component(js, b, 1, rule_map={})
-        assert len(comp.styles) <= MAX_STYLES_PER_COMPONENT
-
-
 # ── Responsive (@media) class rule resolution (C35/T78) ───────────────────────
 #
 # responsive_rule_map (css_class_resolver.extract_responsive_css_rules) is
@@ -599,26 +481,6 @@ class TestStyleSpreadResolution:
         assert colors_b == ["blue"]
 
 
-class TestTruncationLogging:
-    def test_styles_cap_logged_at_debug_when_exceeded(self, caplog):
-        limit = MAX_STYLES_PER_COMPONENT
-        js = _make_js_with_many_styles("BigComp", limit + 5)
-        b  = _boundary(js, "BigComp")
-        with caplog.at_level(logging.DEBUG, logger="design_graph.capture.html_prototype.extraction.component_extractor"):
-            extract_component(js, b, 1)
-        assert any("capped" in r.message.lower() or "cap" in r.message.lower()
-                   for r in caplog.records), \
-            "Expected a debug log mentioning cap/capped when styles exceed limit"
-
-    def test_no_cap_log_when_styles_within_limit(self, caplog):
-        js = _make_js_with_many_styles("SmallComp", 2)
-        b  = _boundary(js, "SmallComp")
-        with caplog.at_level(logging.DEBUG, logger="design_graph.capture.html_prototype.extraction.component_extractor"):
-            extract_component(js, b, 1)
-        cap_records = [r for r in caplog.records if "capped" in r.message.lower()]
-        assert not cap_records
-
-
 # ── child_refs: first-appearance order, not alphabetical (C30/T63) ───────────
 
 class TestChildRefsOrder:
@@ -728,47 +590,3 @@ class TestHoverEnterLeavePairingByProperty:
         by_prop = {i.css_prop: (i.from_val, i.to_val) for i in comp.interactions}
         assert by_prop["color"] == ("black", "red")
         assert by_prop["transform"] == ("", "scale(1.05)")
-
-
-# ── truncated_fields: cap surfaced as data, not just a debug log (C28/T56) ────
-
-class TestTruncatedFields:
-    def test_styles_cap_recorded_in_truncated_fields(self):
-        limit = MAX_STYLES_PER_COMPONENT
-        js = _make_js_with_many_styles("BigComp", limit + 5)
-        b  = _boundary(js, "BigComp")
-        comp = extract_component(js, b, 1)
-        assert "styles" in comp.truncated_fields
-
-    def test_styles_within_limit_not_in_truncated_fields(self):
-        js = _make_js_with_many_styles("SmallComp", 2)
-        b  = _boundary(js, "SmallComp")
-        comp = extract_component(js, b, 1)
-        assert "styles" not in comp.truncated_fields
-
-    def test_classes_cap_recorded_in_truncated_fields(self):
-        many_classes = " ".join(f"cls{i}" for i in range(MAX_CLASSES_PER_COMPONENT + 5))
-        js = f'function ManyClasses() {{ return <div className="{many_classes}" />; }}'
-        b  = _boundary(js, "ManyClasses")
-        comp = extract_component(js, b, 1)
-        assert "classes" in comp.truncated_fields
-        assert "styles" not in comp.truncated_fields
-
-    def test_no_caps_hit_yields_empty_truncated_fields(self):
-        js = 'function Plain() { return <div className="a b" style={{color: "red"}} />; }'
-        b  = _boundary(js, "Plain")
-        comp = extract_component(js, b, 1)
-        assert comp.truncated_fields == frozenset()
-
-    def test_consolidate_unions_truncated_fields_across_variants(self):
-        from design_graph.model.entities import ExtractedComponent
-        v1 = ExtractedComponent(
-            name="Dup", comp_type="component", source_code="<div/>",
-            occurrence=1, classes="", truncated_fields=frozenset({"styles"}),
-        )
-        v2 = ExtractedComponent(
-            name="Dup", comp_type="component", source_code="<div/>",
-            occurrence=1, classes="", truncated_fields=frozenset({"texts"}),
-        )
-        merged = merge_definitions([v1, v2])
-        assert merged.truncated_fields == frozenset({"styles", "texts"})

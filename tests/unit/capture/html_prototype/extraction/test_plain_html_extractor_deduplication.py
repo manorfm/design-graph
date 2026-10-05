@@ -76,13 +76,12 @@ class TestDomPatternDeduplication:
 
 # ── _extract_inline_styles: styles capped at 20 ──────────────────────────────
 
-class TestExtractInlineStylesCap:
-    def test_styles_capped_at_20_per_component(self):
-        # Build HTML with 25+ inline style properties
+class TestExtractInlineStyles:
+    def test_every_root_declaration_is_kept(self):
         props = "; ".join(f"prop-{i}: {i}px" for i in range(25))
-        html = f'<div style="{props}"><span>content</span></div>'
+        html = f'<div style="{props}"><span style="color: red">content</span></div>'
         styles = _extract_inline_styles(html, "TestComp")
-        assert len(styles) <= 20
+        assert [s.property for s in styles] == [f"prop-{i}" for i in range(25)]
 
     def test_style_ids_are_unique(self):
         props = "; ".join(f"background-color-{i}: #abc{i:03d}" for i in range(15))

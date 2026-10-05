@@ -9,7 +9,6 @@ from design_graph.model.graph.reader import NamedEntityResolution
 from design_graph.interface.mcp.notices import (
     StyleExtractionGap,
     source_block_lines,
-    truncated_fields_notice,
     truncation_notice,
 )
 
@@ -147,9 +146,6 @@ def component_lines(comp: dict, heading: str) -> list[str]:
     """
     cname = comp["name"]
     lines = [heading, f"**Tipo**: {comp['comp_type']} | **Ocorrências**: {comp['occurrence']}"]
-    trunc_notice = truncated_fields_notice(comp.get("truncated_fields"), recoverable_via=cname)
-    if trunc_notice:
-        lines.append(trunc_notice)
     if comp["children"]:
         lines.append(f"**Filhos**: {', '.join(comp['children'])}")
     if comp["props"]:

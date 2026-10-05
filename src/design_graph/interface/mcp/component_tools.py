@@ -19,7 +19,6 @@ from design_graph.interface.mcp.markdown import (
 from design_graph.interface.mcp.notices import (
     StyleExtractionGap,
     source_block_lines,
-    truncated_fields_notice,
     truncation_notice,
 )
 
@@ -65,9 +64,6 @@ def get_component(reader: GraphReader, name: str) -> str:
         f"Tipo: **{comp.get('c.comp_type', '')}**  |  Ocorrências: {comp.get('c.occurrence', '')}",
         f"Usado em: {', '.join(comp.get('screens_using', [])) or 'não detectado'}",
     ]
-    trunc_notice = truncated_fields_notice(comp.get("c.truncated_fields"), recoverable_via=cname)
-    if trunc_notice:
-        lines.append(trunc_notice)
     if comp.get("c.source_code"):
         lines += ["", *source_block_lines(
             comp["c.source_code"], comp["c.source_lang"], 4000, recoverable_via=cname, heading="## Fonte",
@@ -115,9 +111,6 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
     ]
     if spec.get("screens_using"):
         lines.append(f"**Telas**: {', '.join(spec['screens_using'])}")
-    trunc_notice = truncated_fields_notice(spec.get("c.truncated_fields"), recoverable_via=cname)
-    if trunc_notice:
-        lines.append(trunc_notice)
     if spec.get("parents") or spec.get("children"):
         lines.append("\n## Hierarquia")
         if spec["parents"]:

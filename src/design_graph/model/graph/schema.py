@@ -19,7 +19,8 @@ Schema changes:
        Screen, Section and Component; declares_inline_styles on Component;
        Token.mode; Screen viewport; NAVIGATES_TO and VARIANT_OF between
        screens; a Model node recording this version and the capture used
-  v11 — sources are stored as the prototype wrote them: source_simplified removed
+  v11 — lossless capture: sources stored as the prototype wrote them (source_simplified
+       removed); no per-component caps, so truncated_fields is removed too
 """
 
 from __future__ import annotations
@@ -85,7 +86,6 @@ _NODE_TABLES: list[str] = [
         "  declares_inline_styles BOOLEAN,"
         "  occurrence INT64,"
         "  classes STRING,"
-        "  truncated_fields STRING,"
         "  referenced_data_json STRING,"
         "  PRIMARY KEY(name)"
         ")"

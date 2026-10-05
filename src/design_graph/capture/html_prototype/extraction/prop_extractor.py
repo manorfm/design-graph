@@ -22,9 +22,6 @@ from design_graph.capture.html_prototype.patterns import RE_DESTRUCTURED_PROPS
 
 logger = logging.getLogger(__name__)
 
-# Maximum number of props to extract per component (guards against malformed JS).
-_MAX_PROPS_PER_COMPONENT = 30
-
 
 def extract_props_from_function_signature(
     js: str,
@@ -34,12 +31,11 @@ def extract_props_from_function_signature(
     Parse the destructured prop list from a React component function signature
     and return a list of ComponentProp models.
 
-    Scans only the first 600 characters of the function boundary to stay
-    within the signature — the body is irrelevant for prop declarations.
-    Returns an empty list when no destructuring pattern is found.
+    The pattern is matched at the function's own start, so only its
+    signature is read — never a destructuring inside the body. Returns an
+    empty list when the signature destructures nothing.
     """
-    scan_window = js[boundary.start : boundary.start + 600]
-    match = RE_DESTRUCTURED_PROPS.search(scan_window)
+    match = RE_DESTRUCTURED_PROPS.match(js, boundary.start, boundary.end)
     if not match:
         return []
 
@@ -48,14 +44,6 @@ def extract_props_from_function_signature(
 
     props: list[ComponentProp] = []
     for entry in entries:
-        if len(props) >= _MAX_PROPS_PER_COMPONENT:
-            logger.debug(
-                "prop_extractor: capped at %d props for %s",
-                _MAX_PROPS_PER_COMPONENT,
-                boundary.name,
-            )
-            break
-
         prop = _parse_prop_entry(entry.strip(), boundary.name)
         if prop is not None:
             props.append(prop)

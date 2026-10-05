@@ -61,9 +61,6 @@ MIN_DOM_PATTERN_REPETITIONS = 3
 
 # ── Extraction limits (prevent runaway data) ──────────────────────────────────
 
-MAX_STYLES_PER_COMPONENT = 40
-MAX_INTERACTIONS_PER_COMPONENT = 15
-MAX_CLASSES_PER_COMPONENT = 10
 MAX_SECTIONS_FROM_STRUCTURAL_FALLBACK = 8
 
 # ── JS parser safety limits ───────────────────────────────────────────────────
