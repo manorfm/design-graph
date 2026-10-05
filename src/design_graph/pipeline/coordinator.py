@@ -174,6 +174,7 @@ async def run_pipeline(
             item_index += 1
             _reporter.item_written(screen.name, index=item_index, total=write_total)
 
+        writer.commit()
         # Collect stats while the write connection is still open
         raw_stats = writer.get_stats()
 

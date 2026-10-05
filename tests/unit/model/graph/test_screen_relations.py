@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import kuzu
 import pytest
 
+from tests.support.graph import writer_and_reader
 from design_graph.model.entities import ExtractedScreen, ScreenLink
 from design_graph.model.graph.reader import GraphReader
 from design_graph.model.graph.schema import initialize_schema
@@ -23,7 +24,7 @@ def graph(tmp_path):
     db = kuzu.Database(str(tmp_path / "relations.db"))
     conn = kuzu.Connection(db)
     initialize_schema(conn)
-    return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+    return writer_and_reader(conn)
 
 
 def _write(graph, *screens: ExtractedScreen) -> None:

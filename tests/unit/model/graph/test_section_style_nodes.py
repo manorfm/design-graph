@@ -67,6 +67,7 @@ def section_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [header, footer])
 
+    gw.commit()
     return conn
 
 

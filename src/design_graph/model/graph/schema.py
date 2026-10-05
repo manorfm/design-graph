@@ -24,7 +24,10 @@ Schema changes:
 from __future__ import annotations
 
 import logging
+import re
 import sys
+from dataclasses import dataclass
+from functools import lru_cache
 
 import kuzu
 
@@ -198,6 +201,48 @@ STATS_QUERIES: dict[str, str] = {
     "section_styles":   "MATCH ()-[r:SECTION_HAS_STYLE]->() RETURN count(r)",
     "component_props":  "MATCH (n:ComponentProp) RETURN count(n)",
 }
+
+
+@dataclass(frozen=True)
+class NodeTable:
+    """A node table as its DDL declares it: primary key and column types."""
+
+    key: str
+    columns: dict[str, str]
+
+
+@dataclass(frozen=True)
+class RelTable:
+    """A relationship table as its DDL declares it: endpoint tables and property types."""
+
+    source: str
+    target: str
+    columns: dict[str, str]
+
+
+_RE_NODE_DDL = re.compile(r"CREATE NODE TABLE (\w+)\((.*)PRIMARY KEY\((\w+)\)\)")
+_RE_REL_DDL = re.compile(r"CREATE REL TABLE (\w+)\(FROM (\w+) TO (\w+)((?:, \w+ \w+)*)\)")
+_RE_COLUMN = re.compile(r"(\w+) (\w+)")
+
+
+@lru_cache(maxsize=1)
+def node_tables() -> dict[str, NodeTable]:
+    """Every node table by name, read from the DDL above — the one place the schema is declared."""
+    tables = {}
+    for ddl in _NODE_TABLES:
+        name, body, key = _RE_NODE_DDL.fullmatch(ddl).groups()
+        tables[name] = NodeTable(key=key, columns=dict(_RE_COLUMN.findall(body)))
+    return tables
+
+
+@lru_cache(maxsize=1)
+def rel_tables() -> dict[str, RelTable]:
+    """Every relationship table by name, read from the DDL above."""
+    tables = {}
+    for ddl in _REL_TABLES:
+        name, source, target, props = _RE_REL_DDL.fullmatch(ddl).groups()
+        tables[name] = RelTable(source=source, target=target, columns=dict(_RE_COLUMN.findall(props)))
+    return tables
 
 
 def initialize_schema(conn: kuzu.Connection) -> None:

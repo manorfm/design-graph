@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import kuzu
 import pytest
 
+from tests.support.graph import writer_and_reader
 from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
@@ -89,6 +90,8 @@ def populated_db(tmp_path):
     gw.write_screen(screen, [section])
 
     # Re-open read-only for the reader
+    gw.commit()
+    gw.commit()
     ro_db = kuzu.Database(str(tmp_path / "p.db"), read_only=True)
     ro_conn = kuzu.Connection(ro_db)
     return SimpleNamespace(reader=GraphReader(ro_conn), writer=gw)
@@ -102,6 +105,7 @@ class TestWriteTokens:
         token = DesignToken(id="col_t1", category="color",
                             label="test", value="#aabbcc", usage=2)
         count = gw.write_tokens([token])
+        gw.commit()
         assert count == 1
         result = conn.execute("MATCH (t:Token {id:'col_t1'}) RETURN t.label")
         assert result.get_next()[0] == "test"
@@ -112,6 +116,7 @@ class TestWriteTokens:
                             label="x", value="#112233", usage=1)
         gw.write_tokens([token])
         count = gw.write_tokens([token])
+        gw.commit()
         assert count == 0
         result = conn.execute("MATCH (t:Token {id:'col_t2'}) RETURN count(t)")
         assert result.get_next()[0] == 1
@@ -123,6 +128,7 @@ class TestWriteTokens:
             DesignToken(id="rx_dup", category="radius", label="radius_sm", value="8px", usage=3),
         ]
         count = gw.write_tokens(tokens)
+        gw.commit()
         assert count == 1
         result = conn.execute("MATCH (t:Token {id:'rx_dup'}) RETURN count(t)")
         assert result.get_next()[0] == 1
@@ -133,6 +139,7 @@ class TestWriteIcons:
         gw, conn = writer
         icon = IconAsset(id="icon_aaaaaaaa", markup="<svg><path d=\"M0 0\"/></svg>")
         count = gw.write_icons([icon])
+        gw.commit()
         assert count == 1
         result = conn.execute("MATCH (i:Icon {id:'icon_aaaaaaaa'}) RETURN i.markup")
         assert result.get_next()[0] == icon.markup
@@ -142,6 +149,7 @@ class TestWriteIcons:
         icon = IconAsset(id="icon_bbbbbbbb", markup="<svg/>")
         gw.write_icons([icon])
         count = gw.write_icons([icon])
+        gw.commit()
         assert count == 0
         result = conn.execute("MATCH (i:Icon {id:'icon_bbbbbbbb'}) RETURN count(i)")
         assert result.get_next()[0] == 1
@@ -153,6 +161,7 @@ class TestWriteIcons:
             IconAsset(id="icon_cccccccc", markup="<svg/>"),
         ]
         count = gw.write_icons(icons)
+        gw.commit()
         assert count == 1
         result = conn.execute("MATCH (i:Icon {id:'icon_cccccccc'}) RETURN count(i)")
         assert result.get_next()[0] == 1
@@ -172,6 +181,7 @@ class TestWriteModuleTexts:
         gw, conn = writer
         text = TextEntry.create(content="Cardápio & Preço", text_type="label", source="DETAIL_TABS")
         count = gw.write_module_texts([text])
+        gw.commit()
         assert count == 1
         result = conn.execute(f"MATCH (t:UIText {{id:'{text.id}'}}) RETURN t.content, t.source")
         row = result.get_next()
@@ -183,6 +193,7 @@ class TestWriteModuleTexts:
         text = TextEntry.create(content="Produção & Setores", text_type="label", source="DETAIL_TABS")
         gw.write_module_texts([text])
         count = gw.write_module_texts([text])
+        gw.commit()
         assert count == 0
         result = conn.execute(f"MATCH (t:UIText {{id:'{text.id}'}}) RETURN count(t)")
         assert result.get_next()[0] == 1
@@ -191,6 +202,7 @@ class TestWriteModuleTexts:
         gw, conn = writer
         text = TextEntry.create(content="Visão Geral", text_type="label", source="DETAIL_TABS")
         gw.write_module_texts([text])
+        gw.commit()
         reader = GraphReader(conn)
         contents = {t["t.content"] for t in reader.list_texts()}
         assert "Visão Geral" in contents
@@ -207,6 +219,7 @@ class TestWriteComponent:
     def test_inserts_component_node(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("TestComp"))
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'TestComp'}) RETURN c.name")
         assert result.get_next()[0] == "TestComp"
 
@@ -218,12 +231,14 @@ class TestWriteComponent:
             child_refs=[], truncated_fields=frozenset({"texts", "styles"}),
         )
         gw.write_component(comp)
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'Truncated'}) RETURN c.truncated_fields")
         assert result.get_next()[0] == "styles,texts"
 
     def test_no_truncation_persisted_as_empty_string(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("Clean"))
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'Clean'}) RETURN c.truncated_fields")
         assert result.get_next()[0] == ""
 
@@ -231,6 +246,7 @@ class TestWriteComponent:
         gw, conn = writer
         gw.write_component(self._make_comp("DupComp"))
         gw.write_component(self._make_comp("DupComp"))
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'DupComp'}) RETURN count(c)")
         assert result.get_next()[0] == 1
 
@@ -242,6 +258,7 @@ class TestWriteComponent:
 
         gw.write_component(self._make_comp("MenuFormModal"))
 
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'MenuFormModal'}) RETURN count(c)")
         assert result.get_next()[0] == 1
         assert "duplicated primary key value MenuFormModal" not in caplog.text
@@ -260,6 +277,7 @@ class TestWriteComponent:
 
         gw.write_screen(screen, [])
 
+        gw.commit()
         occurrence = conn.execute(
             "MATCH (c:Component {name:'MissingCard'}) RETURN c.occurrence"
         ).get_next()[0]
@@ -273,6 +291,7 @@ class TestWriteComponent:
 
         gw.write_screen(dashboard, [])
 
+        gw.commit()
         component_count = conn.execute(
             "MATCH (c:Component {name:'FreeDashboard'}) RETURN count(c)"
         ).get_next()[0]
@@ -296,6 +315,7 @@ class TestWriteComponent:
 
         gw.write_screen(parent, [section])
 
+        gw.commit()
         links = conn.execute(
             "MATCH (:Section {id:'sectors'})-[:SECTION_USES_SCREEN]->"
             "(:Screen {name:'RestaurantSectorsView'}) RETURN count(*)"
@@ -306,6 +326,7 @@ class TestWriteComponent:
         gw, conn = writer
         gw.write_component(self._make_comp("ChildComp"))
         gw.write_component(self._make_comp("ParentComp", child_refs=["ChildComp"]))
+        gw.commit()
         result = conn.execute(
             "MATCH (p:Component {name:'ParentComp'})-[:CONTAINS]->(c:Component) "
             "RETURN c.name"
@@ -315,6 +336,7 @@ class TestWriteComponent:
     def test_contains_not_created_for_missing_child(self, writer):
         gw, conn = writer
         gw.write_component(self._make_comp("OrphanParent", child_refs=["Nonexistent"]))
+        gw.commit()
         result = conn.execute("MATCH ()-[:CONTAINS]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
@@ -328,6 +350,7 @@ class TestWriteComponent:
             interactions=[], texts=[], child_refs=[],
         )
         gw.write_component(comp)
+        gw.commit()
         result = conn.execute(
             "MATCH (c:Component {name:'StyledComp'})-[:HAS_STYLE]->(s:Style) "
             "RETURN s.property"
@@ -347,6 +370,7 @@ class TestWriteComponent:
             interactions=[], texts=[], child_refs=[],
         )
         gw.write_component(comp)
+        gw.commit()
         result = conn.execute(
             "MATCH (c:Component {name:'TokenComp'})-[:USES_TOKEN]->(t:Token) "
             "RETURN t.label"
@@ -359,6 +383,7 @@ class TestWriteScreen:
         gw, conn = writer
         screen = ExtractedScreen(name="TestPage", component_refs=[], sections_count=0)
         gw.write_screen(screen, [])
+        gw.commit()
         result = conn.execute("MATCH (s:Screen {name:'TestPage'}) RETURN s.name")
         assert result.get_next()[0] == "TestPage"
 
@@ -367,6 +392,7 @@ class TestWriteScreen:
         screen = ExtractedScreen(name="ShellPage",
                                  component_refs=["UnknownWidget"], sections_count=0)
         gw.write_screen(screen, [])
+        gw.commit()
         result = conn.execute(
             "MATCH (c:Component {name:'UnknownWidget'}) RETURN c.source_code"
         )
@@ -381,6 +407,7 @@ class TestWriteScreen:
             detection_method="comment",
         )
         gw.write_screen(screen, [section])
+        gw.commit()
         result = conn.execute(
             "MATCH (s:Screen {name:'SectionPage'})-[:HAS_SECTION]->(sec:Section) "
             "RETURN sec.name"
@@ -391,12 +418,14 @@ class TestWriteScreen:
 class TestGetStats:
     def test_all_keys_present(self, writer):
         gw, _ = writer
+        gw.commit()
         stats = gw.get_stats()
         for key in ("screens", "components", "tokens", "contains"):
             assert key in stats
 
     def test_empty_db_all_zeros(self, writer):
         gw, _ = writer
+        gw.commit()
         stats = gw.get_stats()
         assert all(v == 0 for v in stats.values())
 
@@ -406,6 +435,7 @@ class TestGetStats:
         gw.write_screen(
             ExtractedScreen("ShellPage", ["KnownCard", "MissingCard"], 0), [])
 
+        gw.commit()
         stats = gw.get_stats()
 
         assert stats["components"] == 2
@@ -413,31 +443,64 @@ class TestGetStats:
         assert stats["unresolved_components"] == 1
 
 
-class TestSafeExecuteWriteErrors:
-    def test_non_duplicate_error_is_counted(self, writer):
-        gw, _ = writer
-        assert gw._safe_execute("THIS IS NOT VALID CYPHER") is False
+class TestRefusedRows:
+    """A row the database refuses at commit is counted; every other row is still written."""
+
+    @staticmethod
+    def _component(name: str, occurrence: object = 1) -> ExtractedComponent:
+        return ExtractedComponent(name=name, comp_type="component", source_code="", occurrence=occurrence, classes="")
+
+    def test_refused_row_is_counted_and_the_rest_written(self, writer):
+        gw, conn = writer
+        gw.write_component(self._component("Bad", occurrence="many"))
+        gw.write_component(self._component("Good"))
+        gw.commit()
         assert len(gw._write_errors) == 1
+        assert conn.execute("MATCH (c:Component) RETURN c.name").get_all() == [["Good"]]
 
     def test_duplicate_primary_key_is_not_counted(self, writer):
         gw, _ = writer
         token = DesignToken(id="dup", category="color", label="A", value="#aaa", usage=1)
         gw.write_tokens([token])
-        gw.write_tokens([token])  # second insert hits the same primary key
+        gw.write_tokens([token])
+        gw.commit()
         assert gw._write_errors == []
 
     def test_get_stats_reports_write_error_count(self, writer):
         gw, _ = writer
-        gw._safe_execute("THIS IS NOT VALID CYPHER")
-        gw._safe_execute("ALSO NOT VALID CYPHER")
-        stats = gw.get_stats()
-        assert stats["write_errors"] == 2
+        gw.write_component(self._component("Bad1", occurrence="many"))
+        gw.write_component(self._component("Bad2", occurrence="few"))
+        gw.commit()
+        assert gw.get_stats()["write_errors"] == 2
 
     def test_write_error_tracking_is_capped(self, writer):
         gw, _ = writer
-        for _ in range(gw._MAX_TRACKED_WRITE_ERRORS + 10):
-            gw._safe_execute("THIS IS NOT VALID CYPHER")
+        for n in range(gw._MAX_TRACKED_WRITE_ERRORS + 10):
+            gw.write_component(self._component(f"Bad{n}", occurrence="many"))
+        gw.commit()
         assert len(gw._write_errors) == gw._MAX_TRACKED_WRITE_ERRORS
+
+
+class TestCommit:
+    def test_nothing_is_written_before_commit(self, writer):
+        gw, conn = writer
+        gw.write_tokens([DesignToken(id="t", category="color", label="A", value="#aaa", usage=1)])
+        assert conn.execute("MATCH (t:Token) RETURN count(t)").get_next()[0] == 0
+        gw.commit()
+        assert conn.execute("MATCH (t:Token) RETURN count(t)").get_next()[0] == 1
+
+    def test_second_commit_writes_nothing_again(self, writer):
+        gw, conn = writer
+        gw.write_tokens([DesignToken(id="t", category="color", label="A", value="#aaa", usage=1)])
+        gw.commit()
+        gw.commit()
+        assert conn.execute("MATCH (t:Token) RETURN count(t)").get_next()[0] == 1
+
+    def test_writing_after_commit_is_refused(self, writer):
+        gw, _ = writer
+        gw.commit()
+        with pytest.raises(RuntimeError, match="already committed"):
+            gw.write_tokens([DesignToken(id="t", category="color", label="A", value="#aaa", usage=1)])
 
 
 # ── Reader tests ──────────────────────────────────────────────────────────────
@@ -505,7 +568,7 @@ class TestOrderIndex:
         db   = kuzu.Database(str(tmp_path / "order.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn), conn=conn)
+        return writer_and_reader(conn)
 
     def _comp(self, name, child_refs=None):
         return ExtractedComponent(
@@ -518,6 +581,7 @@ class TestOrderIndex:
         for name in ("Zebra", "Alpha", "Mango"):
             fresh.writer.write_component(self._comp(name))
         fresh.writer.write_component(self._comp("Parent", ["Zebra", "Alpha", "Mango"]))
+        fresh.writer.commit()
         rows = fresh.conn.execute(
             "MATCH (p:Component {name:'Parent'})-[r:CONTAINS]->(c:Component) "
             "RETURN c.name, r.order_index ORDER BY r.order_index"
@@ -642,7 +706,7 @@ class TestGetComponentFull:
         db   = kuzu.Database(str(tmp_path / "full.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+        return writer_and_reader(conn)
 
     def _comp(self, name, child_refs=None, styles=None):
         return ExtractedComponent(
@@ -695,7 +759,7 @@ class TestTruncatedFieldsRoundTrip:
         db   = kuzu.Database(str(tmp_path / "trunc.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+        return writer_and_reader(conn)
 
     def _comp(self, name, truncated=frozenset()):
         return ExtractedComponent(
@@ -831,6 +895,8 @@ def two_screen_db(tmp_path):
     gw.write_screen(restaurants, [])
     gw.write_screen(orders, [])
 
+    gw.commit()
+    gw.commit()
     ro_db = kuzu.Database(str(tmp_path / "two_screen.db"), read_only=True)
     ro_conn = kuzu.Connection(ro_db)
     return GraphReader(ro_conn)
@@ -954,7 +1020,7 @@ class TestSourceCodeSizeCap:
         conn = kuzu.Connection(db)
         initialize_schema(conn)
         # Use same connection for writer and reader — avoids two-instance locking
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+        return writer_and_reader(conn)
 
     def _oversized_jsx(self) -> str:
         return "<div>" + ("x" * 30_000) + "</div>"
@@ -1032,7 +1098,7 @@ class TestGetFullSourceFallsBackToScreen:
         db = kuzu.Database(str(tmp_path / "screen_jsx.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+        return writer_and_reader(conn)
 
     def test_screen_without_matching_component_returns_its_own_jsx(self, fresh_writer):
         screen = ExtractedScreen(
@@ -1073,7 +1139,7 @@ class TestSourceFactsRoundTrip:
         db = kuzu.Database(str(tmp_path / "facts.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn))
+        return writer_and_reader(conn)
 
     def test_component_source_facts_survive_write_and_read(self, graph):
         comp = ExtractedComponent(
@@ -1119,7 +1185,7 @@ class TestTokenModesAndCustomProperties:
         db = kuzu.Database(str(tmp_path / "modes.db"))
         conn = kuzu.Connection(db)
         initialize_schema(conn)
-        return SimpleNamespace(writer=GraphWriter(conn), reader=GraphReader(conn), conn=conn)
+        return writer_and_reader(conn)
 
     @staticmethod
     def _accent(mode: str, value: str) -> DesignToken:
@@ -1134,6 +1200,7 @@ class TestTokenModesAndCustomProperties:
         )
 
     def _linked_labels(self, graph, name: str) -> list[tuple[str, str]]:
+        graph.writer.commit()
         rows = graph.conn.execute(
             "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
             "RETURN t.label, t.mode ORDER BY t.mode", {"n": name},
@@ -1217,11 +1284,13 @@ class TestTokensByMode:
     def reader(self, tmp_path):
         conn = kuzu.Connection(kuzu.Database(str(tmp_path / "bymode.db")))
         initialize_schema(conn)
-        GraphWriter(conn).write_tokens([
+        writer = GraphWriter(conn)
+        writer.write_tokens([
             DesignToken(id="a_c", category="css_var", label="--accent", value="#0D5C63", usage=1, mode="claro"),
             DesignToken(id="a_e", category="css_var", label="--accent", value="#5FB0B0", usage=1, mode="escuro"),
             DesignToken(id="gap", category="spacing", label="space_16", value="16px", usage=4),
         ])
+        writer.commit()
         return GraphReader(conn)
 
     def test_one_mode_keeps_shared_tokens_and_drops_other_modes(self, reader):

@@ -7,7 +7,6 @@ Targets:
   - Duplicate interaction insertion skipped (line 111)
   - Duplicate text insertion skipped (line 128)
   - Duplicate CONTAINS key skipped (line 147)
-  - _safe_execute returns False on Kuzu error (lines 215-217)
 """
 
 from __future__ import annotations
@@ -75,6 +74,7 @@ class TestInsertedNamesProperty:
         gw.write_component(_comp("Card"))
         snapshot = gw.inserted_names
         gw.write_component(_comp("Badge"))
+        gw.commit()
         assert "Badge" not in snapshot  # snapshot is immutable
 
 
@@ -87,6 +87,7 @@ class TestDuplicateStyleGuard:
         comp_with_dup_styles = _comp("BtnX", styles=[style, style])  # same id twice
         gw.write_component(comp_with_dup_styles)
 
+        gw.commit()
         result = conn.execute("MATCH (s:Style {id:'st_dup'}) RETURN count(s)")
         assert result.get_next()[0] == 1
 
@@ -109,6 +110,7 @@ class TestSharedStyleEdgeNotSkipped:
         gw.write_component(_comp("FirstUser", styles=[shared]))
         gw.write_component(_comp("SecondUser", styles=[shared]))
 
+        gw.commit()
         result = conn.execute(
             "MATCH (c:Component)-[:HAS_STYLE]->(s:Style {id:$id}) RETURN c.name",
             {"id": shared.id},
@@ -124,6 +126,7 @@ class TestSharedStyleEdgeNotSkipped:
         gw.write_component(_comp("FirstUser", styles=[shared]))
         gw.write_component(_comp("SecondUser", styles=[shared]))
 
+        gw.commit()
         result = conn.execute("MATCH (s:Style {id:$id}) RETURN count(s)", {"id": shared.id})
         assert result.get_next()[0] == 1
 
@@ -137,6 +140,7 @@ class TestDuplicateInteractionGuard:
         comp_with_dup = _comp("BtnY", interactions=[inter, inter])
         gw.write_component(comp_with_dup)
 
+        gw.commit()
         result = conn.execute("MATCH (i:Interaction {id:'int_dup'}) RETURN count(i)")
         assert result.get_next()[0] == 1
 
@@ -150,6 +154,7 @@ class TestDuplicateTextGuard:
         comp_with_dup = _comp("BtnZ", texts=[text, text])
         gw.write_component(comp_with_dup)
 
+        gw.commit()
         result = conn.execute("MATCH (t:UIText {id:'tx_dup'}) RETURN count(t)")
         assert result.get_next()[0] == 1
 
@@ -166,6 +171,7 @@ class TestDuplicateContainsGuard:
         parent = _comp("BtnWithBadge", child_refs=["Badge", "Badge"])
         gw.write_component(parent)
 
+        gw.commit()
         result = conn.execute(
             "MATCH (:Component {name:'BtnWithBadge'})-[r:CONTAINS]->(:Component {name:'Badge'}) "
             "RETURN count(r)"
@@ -191,6 +197,7 @@ class TestDuplicateContainsGuard:
         # Flush pending CONTAINS edges (child now exists)
         gw.flush_pending_contains()
 
+        gw.commit()
         result = conn.execute(
             "MATCH (:Component {name:'Container'})-[r:CONTAINS]->(:Component {name:'InnerWidget'}) "
             "RETURN count(r)"
@@ -207,6 +214,7 @@ class TestDuplicateContainsGuard:
         gw.flush_pending_contains()
         gw.flush_pending_contains()  # second call must not duplicate edges
 
+        gw.commit()
         result = conn.execute(
             "MATCH (:Component {name:'Wrapper'})-[r:CONTAINS]->(:Component {name:'Leaf'}) "
             "RETURN count(r)"
@@ -226,6 +234,7 @@ class TestUnresolvedChildBecomesShell:
         gw.write_component(parent)
         gw.flush_pending_contains()
 
+        gw.commit()
         result = conn.execute(
             "MATCH (:Component {name:'IconButton'})-[r:CONTAINS]->(c:Component {name:'ChevronRight'}) "
             "RETURN count(r)"
@@ -239,6 +248,7 @@ class TestUnresolvedChildBecomesShell:
         gw.write_component(parent)
         gw.flush_pending_contains()
 
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'ChevronRight'}) RETURN c.occurrence")
         assert result.get_next()[0] == ComponentDefinitionStatus.UNRESOLVED.value
 
@@ -252,6 +262,7 @@ class TestUnresolvedChildBecomesShell:
         gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]))
         gw.flush_pending_contains()
 
+        gw.commit()
         reader = GraphReader(conn)
         assert reader.get_component_children("IconButton") == ["ChevronRight"]
 
@@ -259,6 +270,7 @@ class TestUnresolvedChildBecomesShell:
         gw, conn = writer
         gw.write_component(_comp("IconButton", child_refs=["ChevronRight"]))
         gw.flush_pending_contains()
+        gw.commit()
         stats = gw.get_stats()
         assert stats["unresolved_components"] == 1
 
@@ -275,6 +287,7 @@ class TestUnresolvedChildBecomesShell:
         gw.write_component(_comp("Sidebar", child_refs=["RestaurantsPage"]))
         gw.flush_pending_contains()
 
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'RestaurantsPage'}) RETURN count(c)")
         assert result.get_next()[0] == 0
         result = conn.execute(
@@ -290,6 +303,7 @@ class TestUnresolvedChildBecomesShell:
         gw.write_component(_comp("Leaf"))
         gw.flush_pending_contains()
 
+        gw.commit()
         result = conn.execute("MATCH (c:Component {name:'Leaf'}) RETURN c.occurrence")
         assert result.get_next()[0] == 1
 
@@ -315,6 +329,7 @@ class TestStyleTokenLinkage:
         tok = self._token("primary", "#ffb81c")
         gw.write_tokens([tok])
         gw.write_component(self._style_comp("Btn", "#ffb81c"))
+        gw.commit()
         result = conn.execute(
             "MATCH (s:Style)-[:STYLE_USES_TOKEN]->(t:Token) "
             "RETURN s.property, t.label"
@@ -329,6 +344,7 @@ class TestStyleTokenLinkage:
         tok = self._token("secondary", "#123456")
         gw.write_tokens([tok])
         gw.write_component(self._style_comp("Card", "14px"))
+        gw.commit()
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
@@ -338,6 +354,7 @@ class TestStyleTokenLinkage:
         tok = self._token("primary_upper", "#FFB81C")
         gw.write_tokens([tok])
         gw.write_component(self._style_comp("BtnLower", "#ffb81c"))
+        gw.commit()
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 1
 
@@ -347,6 +364,7 @@ class TestStyleTokenLinkage:
         toks = [self._token(f"tok{i}", "#ffb81c") for i in range(3)]
         gw.write_tokens(toks)
         gw.write_component(self._style_comp("BtnMulti", "#ffb81c"))
+        gw.commit()
         result = conn.execute(
             "MATCH (s:Style {id:'st_BtnMulti'})-[:STYLE_USES_TOKEN]->(t) RETURN count(t)"
         )
@@ -355,26 +373,8 @@ class TestStyleTokenLinkage:
     def test_no_written_tokens_creates_no_links(self, writer):
         gw, conn = writer
         gw.write_component(self._style_comp("BtnNoMap", "#ffb81c"))
+        gw.commit()
         result = conn.execute("MATCH ()-[:STYLE_USES_TOKEN]->() RETURN count(*)")
         assert result.get_next()[0] == 0
 
 
-# ── _safe_execute error handling ──────────────────────────────────────────────
-
-class TestSafeExecuteErrorHandling:
-    def test_returns_false_on_invalid_cypher(self, writer):
-        gw, _ = writer
-        result = gw._safe_execute("NOT VALID CYPHER !!!")
-        assert result is False
-
-    def test_does_not_raise_on_invalid_cypher(self, writer):
-        gw, _ = writer
-        gw._safe_execute("INVALID SYNTAX {{{{{{")  # must not raise
-
-    def test_returns_true_on_successful_execute(self, writer):
-        gw, _ = writer
-        gw.write_component(_comp("TestComp"))
-        result = gw._safe_execute(
-            "MATCH (c:Component {name:'TestComp'}) RETURN c.name"
-        )
-        assert result is True

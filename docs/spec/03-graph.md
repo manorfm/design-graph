@@ -135,89 +135,63 @@ STATS_QUERIES: dict[str, str] = {
 
 ---
 
-## 2. `writer.py`
+## 2. `writer.py` e `batch.py`
 
 ### Responsabilidade
 
-Inserir entidades extraídas no grafo. Opera de forma sequencial (requisito Kuzu).
-Recebe as listas já totalmente extraídas — sem chamadas de retorno para extração.
+Dividida em duas partes:
+
+- **`writer.py` (domínio → linhas)**: `GraphWriter` recebe as entidades já
+  extraídas e as coleta como linhas por tabela, em memória — sem tocar no
+  banco. A deduplicação é feita por conjuntos de ids; um componente definido
+  substitui o "shell" coletado antes com o mesmo nome.
+- **`batch.py` (linhas → Kuzu)**: `write_rows()` grava cada tabela com um
+  único `UNWIND $rows AS r CREATE …` por lote de linhas — nós antes de
+  relações. Nomes de tabela e coluna vêm do DDL de `schema.py`
+  (`node_tables()`, `rel_tables()`); qualquer outro nome é recusado, e os
+  valores sempre vão como parâmetro.
 
 ### Contrato
 
 ```python
 class GraphWriter:
-    def __init__(self, conn: kuzu.Connection):
-        self._conn = conn
-        self._inserted_ids: set[str] = set()   # guard contra duplicatas
+    def __init__(self, conn: kuzu.Connection): ...
 
-    def write_tokens(self, tokens: list[DesignToken]) -> int:
-        """Retorna número de tokens inseridos."""
+    def write_tokens(self, tokens: list[DesignToken]) -> int: ...      # tokens novos coletados
+    def write_icons(self, icons: list[IconAsset]) -> int: ...
+    def write_module_texts(self, texts: list[TextEntry]) -> int: ...
+    def declare_screens(self, screens: list[ExtractedScreen]) -> None: ...
+    def write_component(self, comp: ExtractedComponent) -> None: ...   # idempotente por nome
+    def flush_pending_contains(self) -> int: ...                      # CONTAINS adiados + shells
+    def write_screen(self, screen: ExtractedScreen, sections: list[ExtractedSection]) -> None: ...
 
-    def write_component(self, comp: ExtractedComponent) -> None:
-        """
-        Insere Component + Styles + Interactions + Texts + CONTAINS rels.
-        Idempotente: se o componente já foi inserido (mesmo nome), ignora.
-        """
+    def commit(self) -> None:
+        """Grava todas as linhas coletadas. Uma vez só: escrever depois disso é erro."""
 
-    def write_screen(
-        self,
-        screen: ExtractedScreen,
-        sections: list[ExtractedSection],
-        token_map: dict[str, list[DesignToken]],
-        inserted_comps: set[str],
-    ) -> None:
-        """
-        Insere Screen + USES_COMPONENT rels + Sections + SECTION_USES rels.
-        Cria componentes "shell" para referências não previamente inseridas.
-        """
-
-    def get_stats(self) -> dict[str, int]:
-        """Retorna contagem de cada tipo de nó e da relação CONTAINS."""
+    def get_stats(self) -> dict[str, int]: ...                        # contagens + write_errors
 ```
+
+`GraphWriteSession` chama `commit()` ao sair sem erro; o pipeline chama
+antes de `get_stats()`.
 
 ### Ordem de escrita
 
-A ordem importa por causa das foreign-key-like constraints no Kuzu:
-
 ```
-1. write_tokens()         — sem dependências
-2. write_component()      — para cada comp (pode criar Style, Interaction, UIText)
-   └── após: criar CONTAINS entre comps já inseridos
-3. write_screen()         — depende de componentes já existirem
-   └── cria componentes "shell" para refs que não foram detectados como função
-4. commit stats
+1. record_model(), write_tokens(), write_icons(), write_module_texts()
+2. declare_screens()      — identidades das telas, para referências tipadas
+3. write_component()      — para cada comp (Style, Interaction, UIText, ComponentProp)
+4. flush_pending_contains()
+5. write_screen()         — cria componentes "shell" para refs nunca extraídas
+6. commit()               — nós de cada tabela, depois relações
 ```
 
-### Guard de idempotência
+### Falhas
 
-```python
-def _safe_execute(self, cypher: str, params: dict = None) -> bool:
-    """
-    Executa o cypher. Retorna True se sucesso, False se exceção.
-    Não propaga exceções — apenas loga no stderr.
-    """
-    try:
-        self._conn.execute(cypher, params or {})
-        return True
-    except Exception as e:
-        sys.stderr.write(f"[writer] SKIP: {e!r}\n")
-        return False
-```
-
-### Inserção de relação CONTAINS
-
-```python
-def _write_contains(self, parent: str, child: str, weight: int = 1) -> None:
-    """
-    Cria relação CONTAINS somente se pai e filho existem no grafo.
-    Usa MATCH antes do CREATE para não gerar erro de nó não encontrado.
-    """
-    self._safe_execute(
-        "MATCH (p:Component {name:$p}),(c:Component {name:$c}) "
-        "CREATE (p)-[:CONTAINS {weight:$w}]->(c)",
-        {"p": parent, "c": child, "w": weight}
-    )
-```
+O Kuzu desfaz um statement que falha por inteiro, então um lote que falha é
+regravado linha a linha: a linha ruim vira um item em `write_errors` (até
+50) e as demais são gravadas. Chave primária repetida é ignorada sem erro,
+como um `CREATE` repetido seria. Uma relação cujo nó de origem ou destino
+não existe não casa no `MATCH` e é descartada.
 
 ---
 

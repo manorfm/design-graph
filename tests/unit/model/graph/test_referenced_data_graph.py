@@ -43,6 +43,7 @@ def icon_graph(tmp_path_factory):
     screen = ExtractedScreen(name="LoginScreen", component_refs=["Icon", "Btn"])
     gw.write_screen(screen, [])
 
+    gw.commit()
     return conn
 
 

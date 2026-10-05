@@ -120,6 +120,7 @@ def rich_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [section])
 
+    gw.commit()
     ro_db   = kuzu.Database(str(tmp / "adv.db"), read_only=True)
     ro_conn = kuzu.Connection(ro_db)
     return SimpleNamespace(reader=GraphReader(ro_conn))
@@ -616,6 +617,7 @@ class TestGetComponentSpecScreensUsingDepth:
         screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
         gw.write_screen(screen, [])
 
+        gw.commit()
         ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
         return SimpleNamespace(reader=GraphReader(ro_conn))
@@ -685,6 +687,7 @@ class TestGetComponentScreensUsingDepth:
         screen = ExtractedScreen(name="DeepPage", component_refs=["TopMid"], sections_count=0)
         gw.write_screen(screen, [])
 
+        gw.commit()
         ro_db   = kuzu.Database(str(tmp / "deep.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
         return SimpleNamespace(reader=GraphReader(ro_conn))

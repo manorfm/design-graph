@@ -53,6 +53,7 @@ def prop_graph(tmp_path_factory):
     screen = ExtractedScreen(name="DashboardPage", component_refs=["NavBar", "BtnPrimary"])
     gw.write_screen(screen, [])
 
+    gw.commit()
     return conn
 
 
@@ -106,6 +107,7 @@ class TestComponentPropWriter:
             occurrence=1, classes="", props=[],
         )
         gw.write_component(bare)
+        gw.commit()
         result = prop_graph.execute(
             "MATCH (c:Component {name:'BareIcon'})-[:HAS_PROP]->(p:ComponentProp) "
             "RETURN count(p) AS cnt"
@@ -113,16 +115,20 @@ class TestComponentPropWriter:
         cnt = result.get_next()[0] if result.has_next() else 0
         assert cnt == 0
 
-    def test_duplicate_prop_write_is_idempotent(self, prop_graph):
+    def test_duplicate_prop_write_is_idempotent(self, tmp_path):
         """Writing the same component twice must not duplicate prop nodes."""
-        gw = GraphWriter(prop_graph)
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "twice.db")))
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
         navbar = ExtractedComponent(
             name="NavBar", comp_type="navigation", source_code="<nav/>",
             occurrence=1, classes="",
             props=[ComponentProp(id="p1", component_name="NavBar", prop_name="title", default_value="")],
         )
-        gw.write_component(navbar)  # second write
-        result = prop_graph.execute(
+        gw.write_component(navbar)
+        gw.write_component(navbar)
+        gw.commit()
+        result = conn.execute(
             "MATCH (c:Component {name:'NavBar'})-[:HAS_PROP]->"
             "(p:ComponentProp {prop_name:'title'}) RETURN count(p)"
         )

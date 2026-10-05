@@ -62,6 +62,7 @@ def shared_class_graph(tmp_path_factory):
     )
     gw.write_screen(history_screen, [row_section])
 
+    gw.commit()
     return GraphReader(conn)
 
 

@@ -3,8 +3,9 @@ Writes extracted entities to the Kuzu graph database.
 
 Design rules:
 - GraphWriter is always constructed with an open write connection.
-- All writes are sequential (Kuzu does not support concurrent writes).
-- Idempotency: duplicate inserts are silently ignored via _safe_execute.
+- Entities are collected as rows and written once, in batches, by commit()
+  (Kuzu does not support concurrent writes; see batch.py).
+- Idempotency: every node is collected once per id; a repeated one is skipped.
 - CONTAINS relationships are only created when both parent and child nodes exist.
 """
 
@@ -34,6 +35,7 @@ from design_graph.model.entities import (
     TextEntry,
     TokenCategory,
 )
+from design_graph.model.graph.batch import GraphRows, write_rows
 from design_graph.model.graph.schema import MODEL_VERSION, STATS_QUERIES, initialize_schema
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,7 @@ class GraphWriteSession:
         self._lock_file: TextIO | None = None
         self._db:   kuzu.Database   | None = None
         self._conn: kuzu.Connection | None = None
+        self._writer: GraphWriter | None = None
 
     def __enter__(self) -> "GraphWriter":
         self._final.parent.mkdir(parents=True, exist_ok=True)
@@ -99,9 +102,12 @@ class GraphWriteSession:
         except Exception:
             self._release_lock()
             raise
-        return GraphWriter(self._conn)
+        self._writer = GraphWriter(self._conn)
+        return self._writer
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        if exc_type is None and self._writer is not None:
+            self._writer.commit()
         self._release_db()
         if exc_type is None:
             self._swap_temp_to_final()
@@ -174,10 +180,18 @@ class GraphWriteSession:
 
 
 class GraphWriter:
-    """Sequential writer for the design graph. One instance per build."""
+    """
+    Collects one build's graph as rows (domain → rows) and writes them all
+    in commit(), one batch per table (rows → Kuzu, see batch.py).
+
+    Nothing reaches the database before commit(); a writer commits once —
+    writing after that would silently lose any update to a node already
+    written, so it raises instead.
+    """
 
     def __init__(self, conn: kuzu.Connection) -> None:
         self._conn = conn
+        self._pending: GraphRows | None = GraphRows()
         self._known_comp_names:    set[str] = set()
         self._resolved_comp_names: set[str] = set()
         self._declared_screen_names: set[str] = set()
@@ -195,7 +209,7 @@ class GraphWriter:
         self._inserted_prop_ids:   set[str] = set()
         # (parent, child, order_index) deferred because child wasn't inserted yet
         self._pending_contains:    set[tuple[str, str, int]] = set()
-        # Non-duplicate write failures, capped so a catastrophic run can't grow this unbounded
+        # Rows the database refused at commit, capped so a catastrophic run can't grow this unbounded
         self._write_errors:        list[str] = []
 
     @property
@@ -203,84 +217,72 @@ class GraphWriter:
         """Names of components already written — read-only snapshot."""
         return frozenset(self._resolved_comp_names)
 
+    @property
+    def _rows(self) -> GraphRows:
+        if self._pending is None:
+            raise RuntimeError("this graph was already committed — a writer commits once")
+        return self._pending
+
     # ── Public write API ──────────────────────────────────────────────────────
+
+    def commit(self) -> None:
+        """Write every collected row to the database. Calling it again does nothing."""
+        if self._pending is None:
+            return
+        rows, self._pending = self._pending, None
+        errors = write_rows(self._conn, rows)
+        self._write_errors.extend(errors[: self._MAX_TRACKED_WRITE_ERRORS - len(self._write_errors)])
+        logger.debug("writer: committed (%d rows refused)", len(errors))
 
     def record_model(self, capture: str) -> None:
         """Record the model version this graph is written in and the capture that produced it."""
-        self._safe_execute(
-            "CREATE (:Model {version:$v, capture:$c})", {"v": MODEL_VERSION, "c": capture},
-        )
+        self._rows.put_node("Model", str(MODEL_VERSION), {"version": MODEL_VERSION, "capture": capture})
 
     def write_tokens(self, tokens: list[DesignToken]) -> int:
-        """Insert Token nodes. Returns the number of tokens successfully inserted."""
+        """Collect Token nodes. Returns the number of new tokens."""
         inserted = 0
         for token in tokens:
             if token.id in self._inserted_token_ids:
                 continue
-            ok = self._safe_execute(
-                "CREATE (:Token {id:$id, category:$cat, label:$lbl, value:$val, usage:$use, mode:$mode})",
-                {"id": token.id, "cat": token.category, "lbl": token.label,
-                 "val": token.value, "use": token.usage, "mode": token.mode},
-            )
-            if ok:
-                self._inserted_token_ids.add(token.id)
-                inserted += 1
-            elif self._node_exists("Token", "id", token.id):
-                self._inserted_token_ids.add(token.id)
-            else:
-                continue
+            self._rows.put_node("Token", token.id, {
+                "id": token.id, "category": token.category, "label": token.label,
+                "value": token.value, "usage": token.usage, "mode": token.mode,
+            })
+            self._inserted_token_ids.add(token.id)
+            inserted += 1
             self._tokens_by_value.setdefault(token.value.lower(), []).append(token)
             if token.category == TokenCategory.CSS_VAR:
                 self._tokens_by_custom_property.setdefault(token.label, []).append(token)
-        logger.debug("writer: wrote %d tokens", inserted)
+        logger.debug("writer: collected %d tokens", inserted)
         return inserted
 
     def write_icons(self, icons: list[IconAsset]) -> int:
         """
-        Insert deduplicated Icon nodes. Returns the number of icons successfully
-        inserted — a caller passing repeated ids (same icon reused across many
-        components) gets each one written exactly once.
+        Collect deduplicated Icon nodes. Returns the number of new icons — a
+        caller passing repeated ids (same icon reused across many components)
+        gets each one written exactly once.
         """
         inserted = 0
         for icon in icons:
             if icon.id in self._inserted_icon_ids:
                 continue
-            ok = self._safe_execute(
-                "CREATE (:Icon {id:$id, markup:$markup})",
-                {"id": icon.id, "markup": icon.markup},
-            )
-            if ok:
-                self._inserted_icon_ids.add(icon.id)
-                inserted += 1
-            elif self._node_exists("Icon", "id", icon.id):
-                self._inserted_icon_ids.add(icon.id)
-        logger.debug("writer: wrote %d icons", inserted)
+            self._rows.put_node("Icon", icon.id, {"id": icon.id, "markup": icon.markup})
+            self._inserted_icon_ids.add(icon.id)
+            inserted += 1
+        logger.debug("writer: collected %d icons", inserted)
         return inserted
 
     def write_module_texts(self, texts: list[TextEntry]) -> int:
         """
-        Insert UIText nodes with no owning Component or Section — text
+        Collect UIText nodes with no owning Component or Section — text
         from a module-level constant array (const DETAIL_TABS = [...])
         isn't rendered by any one component, so there's no node to relate
         it to via COMP_HAS_TEXT/SECTION_HAS_TEXT. Still directly queryable
         through list_texts()/search() exactly like any other UIText, which
         query the node type directly rather than through either edge.
         """
-        inserted = 0
-        for text in texts:
-            if text.id in self._inserted_text_ids:
-                continue
-            ok = self._safe_execute(
-                "CREATE (:UIText {id:$id, content:$ct, text_type:$ty, source:$src, element:$el})",
-                {"id": text.id, "ct": text.content, "ty": text.text_type,
-                 "src": text.source, "el": text.element},
-            )
-            if ok:
-                self._inserted_text_ids.add(text.id)
-                inserted += 1
-            elif self._node_exists("UIText", "id", text.id):
-                self._inserted_text_ids.add(text.id)
-        logger.debug("writer: wrote %d module-level texts", inserted)
+        inserted = sum(self._put_text_once(text) for text in texts)
+        logger.debug("writer: collected %d module-level texts", inserted)
         return inserted
 
     def declare_screens(self, screens: list[ExtractedScreen]) -> None:
@@ -288,25 +290,16 @@ class GraphWriter:
         for screen in screens:
             if screen.name in self._declared_screen_names:
                 continue
-            self._create_screen(screen, component_count=0, sections_count=screen.sections_count)
+            self._rows.put_node("Screen", screen.name, self._screen_row(screen, 0, screen.sections_count))
             self._declared_screen_names.add(screen.name)
 
-    def _create_screen(self, screen: ExtractedScreen, *, component_count: int, sections_count: int) -> None:
-        self._safe_execute(
-            "CREATE (:Screen {name:$n, component_count:$cc, sections_count:$sc, "
-            "source_code:$s, source_lang:$sl, source_simplified:$ss, "
-            "viewport_width:$vw, viewport_height:$vh})",
-            {"n": screen.name, "cc": component_count, "sc": sections_count, **self._screen_properties(screen)},
-        )
-
     @staticmethod
-    def _screen_properties(screen: ExtractedScreen) -> dict:
+    def _screen_row(screen: ExtractedScreen, component_count: int, sections_count: int) -> dict:
         return {
-            "s": _capped_source_code(screen.name, screen.source_code),
-            "sl": screen.source_lang,
-            "ss": screen.source_simplified,
-            "vw": screen.viewport_width,
-            "vh": screen.viewport_height,
+            "name": screen.name, "component_count": component_count, "sections_count": sections_count,
+            "source_code": _capped_source_code(screen.name, screen.source_code),
+            "source_lang": screen.source_lang, "source_simplified": screen.source_simplified,
+            "viewport_width": screen.viewport_width, "viewport_height": screen.viewport_height,
         }
 
     def _write_screen_relations(self, screen: ExtractedScreen) -> None:
@@ -315,118 +308,78 @@ class GraphWriter:
             if link.target not in self._declared_screen_names:
                 logger.debug("writer: %s links to unknown screen %s — dropped", screen.name, link.target)
                 continue
-            self._safe_execute(
-                "MATCH (s:Screen {name:$sn}),(t:Screen {name:$tn}) CREATE (s)-[:NAVIGATES_TO {label:$l}]->(t)",
-                {"sn": screen.name, "tn": link.target, "l": link.label},
-            )
+            self._rows.add_rel("NAVIGATES_TO", screen.name, link.target, label=link.label)
         if screen.variant_of in self._declared_screen_names:
-            self._safe_execute(
-                "MATCH (s:Screen {name:$sn}),(b:Screen {name:$bn}) CREATE (s)-[:VARIANT_OF {axis:$a}]->(b)",
-                {"sn": screen.name, "bn": screen.variant_of, "a": screen.variant_axis},
-            )
+            self._rows.add_rel("VARIANT_OF", screen.name, screen.variant_of, axis=screen.variant_axis)
         elif screen.variant_of:
             logger.debug("writer: %s varies unknown screen %s — dropped", screen.name, screen.variant_of)
 
     def write_component(self, comp: ExtractedComponent) -> None:
         """
-        Insert Component node with its Style, Interaction, UIText sub-nodes
-        and the CONTAINS relationships to child components.
+        Collect the Component node with its Style, Interaction, UIText and
+        ComponentProp sub-nodes and the CONTAINS relationships to child
+        components. A definition replaces a shell collected earlier under
+        the same name.
         """
         if comp.name in self._resolved_comp_names:
             logger.debug("writer: skipping duplicate component %s", comp.name)
             return
 
-        component_exists = self._node_exists("Component", "name", comp.name)
-        source = _capped_source_code(comp.name, comp.source_code)
-        truncated = ",".join(sorted(comp.truncated_fields))
-        referenced_data_json = json.dumps(comp.referenced_data) if comp.referenced_data else ""
-        properties = {
-            "n": comp.name, "t": comp.comp_type, "s": source, "o": comp.occurrence, "c": comp.classes,
-            "tf": truncated, "rd": referenced_data_json, "sl": comp.source_lang,
-            "ss": comp.source_simplified, "dis": comp.declares_inline_styles,
-        }
-        if not component_exists:
-            self._safe_execute(
-                "CREATE (:Component {name:$n, comp_type:$t, source_code:$s, occurrence:$o, "
-                "classes:$c, truncated_fields:$tf, referenced_data_json:$rd, source_lang:$sl, "
-                "source_simplified:$ss, declares_inline_styles:$dis})",
-                properties,
-            )
-        else:
-            self._safe_execute(
-                "MATCH (c:Component {name:$n}) SET c.comp_type=$t, c.source_code=$s, "
-                "c.occurrence=$o, c.classes=$c, c.truncated_fields=$tf, c.referenced_data_json=$rd, "
-                "c.source_lang=$sl, c.source_simplified=$ss, c.declares_inline_styles=$dis",
-                properties,
-            )
+        self._rows.replace_node("Component", comp.name, {
+            "name": comp.name, "comp_type": comp.comp_type,
+            "source_code": _capped_source_code(comp.name, comp.source_code),
+            "source_lang": comp.source_lang, "source_simplified": comp.source_simplified,
+            "declares_inline_styles": comp.declares_inline_styles, "occurrence": comp.occurrence,
+            "classes": comp.classes, "truncated_fields": ",".join(sorted(comp.truncated_fields)),
+            "referenced_data_json": json.dumps(comp.referenced_data) if comp.referenced_data else "",
+        })
         self._known_comp_names.add(comp.name)
         self._resolved_comp_names.add(comp.name)
 
-        # Styles
+        self._write_component_styles(comp)
+        self._write_component_interactions(comp)
+        for text in comp.texts:
+            if self._put_text_once(text):
+                self._rows.add_rel("COMP_HAS_TEXT", comp.name, text.id)
+        self._write_component_props(comp.name, comp.props)
+        self._write_component_children(comp)
+
+    def _write_component_styles(self, comp: ExtractedComponent) -> None:
+        """HAS_STYLE edges plus the component-level (USES_TOKEN) and style-level (STYLE_USES_TOKEN) token links."""
         for style in comp.styles:
-            self._write_style_node_once(style)
-            self._safe_execute(
-                "MATCH (c:Component {name:$cn}),(s:Style {id:$sid}) CREATE (c)-[:HAS_STYLE]->(s)",
-                {"cn": comp.name, "sid": style.id},
-            )
-            # Component-level token link (USES_TOKEN) + style-level link (STYLE_USES_TOKEN)
+            self._put_style_once(style)
+            self._rows.add_rel("HAS_STYLE", comp.name, style.id)
             for token in self._tokens_by_value.get(style.value.lower(), []) + self._referenced_tokens(style.value):
                 rel_key = f"{comp.name}_{token.id}"
                 if rel_key not in self._token_rel_keys:
                     self._token_rel_keys.add(rel_key)
-                    self._safe_execute(
-                        "MATCH (c:Component {name:$cn}),(t:Token {id:$tid}) "
-                        "CREATE (c)-[:USES_TOKEN]->(t)",
-                        {"cn": comp.name, "tid": token.id},
-                    )
+                    self._rows.add_rel("USES_TOKEN", comp.name, token.id)
             self._link_style_to_token(style)
 
-        # Interactions
+    def _write_component_interactions(self, comp: ExtractedComponent) -> None:
         for inter in comp.interactions:
             if inter.id in self._inserted_inter_ids:
                 continue
             self._inserted_inter_ids.add(inter.id)
-            self._safe_execute(
-                "CREATE (:Interaction {id:$id, trigger:$tr, css_prop:$pr, "
-                "from_val:$fv, to_val:$tv, transition:$tn})",
-                {"id": inter.id, "tr": inter.trigger, "pr": inter.css_prop,
-                 "fv": inter.from_val, "tv": inter.to_val, "tn": inter.transition},
-            )
-            self._safe_execute(
-                "MATCH (c:Component {name:$cn}),(i:Interaction {id:$iid}) "
-                "CREATE (c)-[:HAS_INTERACTION]->(i)",
-                {"cn": comp.name, "iid": inter.id},
-            )
+            self._rows.put_node("Interaction", inter.id, {
+                "id": inter.id, "trigger": inter.trigger, "css_prop": inter.css_prop,
+                "from_val": inter.from_val, "to_val": inter.to_val, "transition": inter.transition,
+            })
+            self._rows.add_rel("HAS_INTERACTION", comp.name, inter.id)
 
-        # UITexts
-        for text in comp.texts:
-            if text.id in self._inserted_text_ids:
-                continue
-            self._inserted_text_ids.add(text.id)
-            self._safe_execute(
-                "CREATE (:UIText {id:$id, content:$ct, text_type:$ty, source:$src, element:$el})",
-                {"id": text.id, "ct": text.content, "ty": text.text_type,
-                 "src": text.source, "el": text.element},
-            )
-            self._safe_execute(
-                "MATCH (c:Component {name:$cn}),(t:UIText {id:$tid}) "
-                "CREATE (c)-[:COMP_HAS_TEXT]->(t)",
-                {"cn": comp.name, "tid": text.id},
-            )
-
-        # ComponentProps
-        self._write_component_props(comp.name, comp.props)
-
-        # CONTAINS relationships: create immediately for already-inserted children;
-        # defer the rest so flush_pending_contains() can retry after all nodes exist.
-        # order_index is comp.child_refs' own position — first-appearance order
-        # in the source JSX (see component_extractor.py), not alphabetical —
-        # so a reader can recover sibling render order without re-parsing JSX.
+    def _write_component_children(self, comp: ExtractedComponent) -> None:
+        """
+        CONTAINS relationships: collected now for already-collected children,
+        deferred for the rest so flush_pending_contains() can retry after all
+        nodes exist. order_index is comp.child_refs' own position —
+        first-appearance order in the source JSX (see component_extractor.py),
+        not alphabetical — so a reader can recover sibling render order
+        without re-parsing JSX.
+        """
         for order_index, child_name in enumerate(comp.child_refs):
             if child_name in self._resolved_comp_names:
                 self._write_contains_edge(comp.name, child_name, order_index)
             else:
-                # Child not yet in graph — queue for deferred write
                 self._pending_contains.add((comp.name, child_name, order_index))
 
     def flush_pending_contains(self) -> int:
@@ -480,94 +433,58 @@ class GraphWriter:
         return created
 
     def _write_contains_edge(self, parent: str, child: str, order_index: int = 0) -> bool:
-        """Create a single CONTAINS edge if not already present. Returns True if created."""
+        """Collect a single CONTAINS edge if not already present. Returns True if new."""
         key = f"{parent}→{child}"
         if key in self._contains_keys:
             return False
         self._contains_keys.add(key)
-        self._safe_execute(
-            "MATCH (p:Component {name:$p}),(c:Component {name:$c}) "
-            "CREATE (p)-[:CONTAINS {weight:1, order_index:$oi}]->(c)",
-            {"p": parent, "c": child, "oi": order_index},
-        )
+        self._rows.add_rel("CONTAINS", parent, child, weight=1, order_index=order_index)
         return True
 
     def write_screen(self, screen: ExtractedScreen, sections: list[ExtractedSection]) -> None:
         """
-        Insert Screen node, USES_COMPONENT edges, Section nodes, and SECTION_USES edges.
+        Collect the Screen node, USES_COMPONENT edges, Section nodes, and SECTION_USES edges.
         Creates "shell" Component nodes for references that were never extracted as functions.
         """
         component_refs = [
             name for name in screen.component_refs if name not in self._declared_screen_names
         ]
-        if screen.name in self._declared_screen_names:
-            self._safe_execute(
-                "MATCH (s:Screen {name:$n}) "
-                "SET s.component_count=$cc, s.sections_count=$sc, s.source_code=$s, "
-                "s.source_lang=$sl, s.source_simplified=$ss, s.viewport_width=$vw, s.viewport_height=$vh",
-                {"n": screen.name, "cc": len(component_refs), "sc": len(sections),
-                 **self._screen_properties(screen)},
-            )
-        else:
-            self._create_screen(screen, component_count=len(component_refs), sections_count=len(sections))
+        # A declared screen is completed in place; an undeclared one is written once, like any node.
+        put = self._rows.replace_node if screen.name in self._declared_screen_names else self._rows.put_node
+        put("Screen", screen.name, self._screen_row(screen, len(component_refs), len(sections)))
 
         for comp_name in screen.component_refs:
             if comp_name in self._declared_screen_names:
-                self._safe_execute(
-                    "MATCH (s:Screen {name:$sn}),(target:Screen {name:$tn}) "
-                    "CREATE (s)-[:USES_SCREEN]->(target)",
-                    {"sn": screen.name, "tn": comp_name},
-                )
+                self._rows.add_rel("USES_SCREEN", screen.name, comp_name)
                 continue
             self._ensure_component_exists(comp_name)
-            rel_key = f"{screen.name}→{comp_name}"
-            self._safe_execute(
-                "MATCH (s:Screen {name:$sn}),(c:Component {name:$cn}) "
-                "CREATE (s)-[:USES_COMPONENT]->(c)",
-                {"sn": screen.name, "cn": comp_name},
-            )
+            self._rows.add_rel("USES_COMPONENT", screen.name, comp_name)
 
         self._write_screen_relations(screen)
 
         for section in sections:
-            sec_source = _capped_source_code(f"section {section.id}", section.source_code)
-            self._safe_execute(
-                "CREATE (:Section {id:$id, screen:$sc, name:$nm, "
-                "styles_json:$sj, components_json:$cj, texts_json:$tj, "
-                "source_code:$src, source_lang:$sl, detection_method:$dm})",
-                {
-                    "id": section.id, "sc": section.screen, "nm": section.name,
-                    "sj": json.dumps(section.styles),
-                    "cj": json.dumps(section.component_refs),
-                    "tj": json.dumps(section.texts),
-                    "src": sec_source,
-                    "sl": section.source_lang,
-                    "dm": section.detection_method,
-                },
-            )
-            self._safe_execute(
-                "MATCH (s:Screen {name:$sn}),(sec:Section {id:$sid}) "
-                "CREATE (s)-[:HAS_SECTION]->(sec)",
-                {"sn": screen.name, "sid": section.id},
-            )
-            self._write_section_styles(section.id, section.styles, section.element_styles)
-            self._write_section_texts(section.id, section.texts)
-            for comp_name in section.component_refs:
-                if comp_name in self._declared_screen_names:
-                    self._safe_execute(
-                        "MATCH (sec:Section {id:$sid}),(target:Screen {name:$tn}) "
-                        "CREATE (sec)-[:SECTION_USES_SCREEN]->(target)",
-                        {"sid": section.id, "tn": comp_name},
-                    )
-                    continue
-                self._ensure_component_exists(comp_name)
-                self._safe_execute(
-                    "MATCH (sec:Section {id:$sid}),(c:Component {name:$cn}) "
-                    "CREATE (sec)-[:SECTION_USES]->(c)",
-                    {"sid": section.id, "cn": comp_name},
-                )
+            self._write_section(screen.name, section)
 
-        logger.debug("writer: wrote screen %s with %d sections", screen.name, len(sections))
+        logger.debug("writer: collected screen %s with %d sections", screen.name, len(sections))
+
+    def _write_section(self, screen_name: str, section: ExtractedSection) -> None:
+        self._rows.put_node("Section", section.id, {
+            "id": section.id, "screen": section.screen, "name": section.name,
+            "styles_json": json.dumps(section.styles),
+            "components_json": json.dumps(section.component_refs),
+            "texts_json": json.dumps(section.texts),
+            "source_code": _capped_source_code(f"section {section.id}", section.source_code),
+            "source_lang": section.source_lang, "detection_method": section.detection_method,
+        })
+        self._rows.add_rel("HAS_SECTION", screen_name, section.id)
+        self._write_section_styles(section.id, section.styles, section.element_styles)
+        self._write_section_texts(section.id, section.texts)
+        for comp_name in section.component_refs:
+            if comp_name in self._declared_screen_names:
+                self._rows.add_rel("SECTION_USES_SCREEN", section.id, comp_name)
+                continue
+            self._ensure_component_exists(comp_name)
+            self._rows.add_rel("SECTION_USES", section.id, comp_name)
 
     def get_stats(self) -> dict[str, int]:
         """Execute STATS_QUERIES and return node/rel counts."""
@@ -584,14 +501,25 @@ class GraphWriter:
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    def _write_style_node_once(self, style: StyleEntry) -> None:
+    def _put_text_once(self, text: TextEntry) -> bool:
+        """Collect a UIText node unless one with its id already was. Returns True if new."""
+        if text.id in self._inserted_text_ids:
+            return False
+        self._inserted_text_ids.add(text.id)
+        self._rows.put_node("UIText", text.id, {
+            "id": text.id, "content": text.content, "text_type": text.text_type,
+            "source": text.source, "element": text.element,
+        })
+        return True
+
+    def _put_style_once(self, style: StyleEntry) -> None:
         """
-        Insert a Style node exactly once, no matter how many different
+        Collect a Style node exactly once, no matter how many different
         owners (components, sections) reference the same one — a shared
         CSS class resolves to the same StyleEntry id everywhere it's used
         (StyleEntry.from_css_class's seed is class+property+value, not the
-        owner). The caller is responsible for creating its own ownership
-        edge (HAS_STYLE/SECTION_HAS_STYLE) regardless of whether the node
+        owner). The caller is responsible for its own ownership edge
+        (HAS_STYLE/SECTION_HAS_STYLE) regardless of whether the node
         already existed — skipping the edge here, not just the node, used
         to make every owner after the first silently lose the relationship
         (see docs/changes/C36).
@@ -599,17 +527,16 @@ class GraphWriter:
         if style.id in self._inserted_style_ids:
             return
         self._inserted_style_ids.add(style.id)
-        self._safe_execute(
-            "CREATE (:Style {id:$id, element:$el, state:$st, property:$pr, value:$vl, media:$md})",
-            {"id": style.id, "el": style.element, "st": style.state,
-             "pr": style.property, "vl": style.value, "md": style.media or ""},
-        )
+        self._rows.put_node("Style", style.id, {
+            "id": style.id, "element": style.element, "state": style.state,
+            "property": style.property, "value": style.value, "media": style.media or "",
+        })
 
     def _write_section_styles(
         self, section_id: str, literal_styles: dict, element_styles: list[StyleEntry],
     ) -> None:
         """
-        Write section container styles as Style nodes linked via SECTION_HAS_STYLE.
+        Collect section container styles as Style nodes linked via SECTION_HAS_STYLE.
 
         `literal_styles` are property→value pairs from inline style={{}}
         objects found in the section's markup — no selector identity, so
@@ -626,16 +553,12 @@ class GraphWriter:
         ]
         entries.extend(element_styles)
         for style in entries:
-            self._write_style_node_once(style)
-            self._safe_execute(
-                "MATCH (sec:Section {id:$sid}),(s:Style {id:$sid2}) "
-                "CREATE (sec)-[:SECTION_HAS_STYLE]->(s)",
-                {"sid": section_id, "sid2": style.id},
-            )
+            self._put_style_once(style)
+            self._rows.add_rel("SECTION_HAS_STYLE", section_id, style.id)
 
     def _write_component_props(self, comp_name: str, props: list[ComponentProp]) -> None:
         """
-        Write ComponentProp nodes and HAS_PROP edges for a component.
+        Collect ComponentProp nodes and HAS_PROP edges for a component.
 
         Each declared prop becomes one ComponentProp node. Idempotent — duplicate
         prop ids are tracked and skipped so calling write_component twice is safe.
@@ -643,23 +566,16 @@ class GraphWriter:
         for prop in props:
             if prop.id in self._inserted_prop_ids:
                 continue
-            self._inserted_prop_ids.add(prop.id)  # guard before attempt — same as style/text writers
-            node_created = self._safe_execute(
-                "CREATE (:ComponentProp {id:$id, component_name:$cn, "
-                "prop_name:$pn, default_value:$dv})",
-                {"id": prop.id, "cn": prop.component_name,
-                 "pn": prop.prop_name, "dv": prop.default_value},
-            )
-            if node_created:
-                self._safe_execute(
-                    "MATCH (c:Component {name:$cn}),(p:ComponentProp {id:$pid}) "
-                    "CREATE (c)-[:HAS_PROP]->(p)",
-                    {"cn": comp_name, "pid": prop.id},
-                )
+            self._inserted_prop_ids.add(prop.id)
+            self._rows.put_node("ComponentProp", prop.id, {
+                "id": prop.id, "component_name": prop.component_name,
+                "prop_name": prop.prop_name, "default_value": prop.default_value,
+            })
+            self._rows.add_rel("HAS_PROP", comp_name, prop.id)
 
     def _write_section_texts(self, section_id: str, texts: list[str]) -> None:
         """
-        Write section text strings as UIText nodes linked via SECTION_HAS_TEXT.
+        Collect section text strings as UIText nodes linked via SECTION_HAS_TEXT.
 
         Each string becomes one UIText node with text_type='section_text' and
         source=section_id. This replaces the opaque texts_json blob as the
@@ -667,57 +583,24 @@ class GraphWriter:
         """
         for text in texts:
             entry = TextEntry.for_section(section_id=section_id, text=text)
-            if entry.id in self._inserted_text_ids:
-                continue
-            self._inserted_text_ids.add(entry.id)
-            self._safe_execute(
-                "CREATE (:UIText {id:$id, content:$ct, text_type:$ty, source:$src, element:$el})",
-                {"id": entry.id, "ct": entry.content, "ty": entry.text_type,
-                 "src": entry.source, "el": entry.element},
-            )
-            self._safe_execute(
-                "MATCH (sec:Section {id:$sid}),(t:UIText {id:$tid}) "
-                "CREATE (sec)-[:SECTION_HAS_TEXT]->(t)",
-                {"sid": section_id, "tid": entry.id},
-            )
+            if self._put_text_once(entry):
+                self._rows.add_rel("SECTION_HAS_TEXT", section_id, entry.id)
 
     def _ensure_component_exists(self, name: str) -> None:
-        """Create a minimal 'shell' component if it hasn't been inserted yet."""
+        """Collect a minimal 'shell' component unless one by that name already was."""
         if name in self._known_comp_names:
             return
-        if self._node_exists("Component", "name", name):
-            self._known_comp_names.add(name)
-            return
-        ok = self._safe_execute(
-            "CREATE (:Component {name:$n, comp_type:$t, source_code:'', source_lang:'', "
-            "source_simplified:false, declares_inline_styles:false, "
-            "occurrence:$o, classes:'', truncated_fields:'', referenced_data_json:''})",
-            {"n": name, "t": ComponentType.COMPONENT, "o": ComponentDefinitionStatus.UNRESOLVED.value},
-        )
-        if ok or self._node_exists("Component", "name", name):
-            self._known_comp_names.add(name)
-
-    def _node_exists(self, label: str, key: str, value: str) -> bool:
-        """
-        Return whether a node already exists.
-
-        label/key are internal schema constants selected by caller code, not
-        user input, so they are safe to interpolate while the value remains a
-        query parameter.
-        """
-        try:
-            result = self._conn.execute(
-                f"MATCH (n:{label} {{{key}:$value}}) RETURN count(n)",
-                {"value": value},
-            )
-            return bool(result.has_next() and result.get_next()[0] > 0)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("writer: existence check failed for %s.%s=%s: %s", label, key, value, exc)
-            return False
+        self._known_comp_names.add(name)
+        self._rows.put_node("Component", name, {
+            "name": name, "comp_type": ComponentType.COMPONENT, "source_code": "", "source_lang": "",
+            "source_simplified": False, "declares_inline_styles": False,
+            "occurrence": ComponentDefinitionStatus.UNRESOLVED.value, "classes": "",
+            "truncated_fields": "", "referenced_data_json": "",
+        })
 
     def _link_style_to_token(self, style: StyleEntry) -> None:
         """
-        Create STYLE_USES_TOKEN edges (Style → Token). A value that references
+        Collect STYLE_USES_TOKEN edges (Style → Token). A value that references
         custom properties (`var(--accent)`) uses each referenced token in
         every mode it was defined in. Otherwise the value is matched against
         token values — exact case-insensitive match first, then substring —
@@ -726,11 +609,7 @@ class GraphWriter:
         referenced = self._referenced_tokens(style.value)
         if referenced:
             for token in referenced:
-                self._safe_execute(
-                    "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
-                    "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
-                    {"sid": style.id, "tid": token.id},
-                )
+                self._rows.add_rel("STYLE_USES_TOKEN", style.id, token.id)
             return
 
         normalized = style.value.strip().lower()
@@ -738,21 +617,13 @@ class GraphWriter:
         # Fast path: exact match via the value index (already lowercased)
         exact_tokens = self._tokens_by_value.get(normalized, [])
         if exact_tokens:
-            self._safe_execute(
-                "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
-                "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
-                {"sid": style.id, "tid": exact_tokens[0].id},
-            )
+            self._rows.add_rel("STYLE_USES_TOKEN", style.id, exact_tokens[0].id)
             return
 
         # Substring match: token value appears inside style value (e.g. rgba with hex)
         for token_value_lower, tokens in self._tokens_by_value.items():
             if token_value_lower and len(token_value_lower) >= 4 and token_value_lower in normalized:
-                self._safe_execute(
-                    "MATCH (s:Style {id:$sid}),(t:Token {id:$tid}) "
-                    "CREATE (s)-[:STYLE_USES_TOKEN]->(t)",
-                    {"sid": style.id, "tid": tokens[0].id},
-                )
+                self._rows.add_rel("STYLE_USES_TOKEN", style.id, tokens[0].id)
                 return
 
     def _referenced_tokens(self, value: str) -> list[DesignToken]:
@@ -764,17 +635,3 @@ class GraphWriter:
         ]
 
     _MAX_TRACKED_WRITE_ERRORS = 50
-
-    def _safe_execute(self, cypher: str, params: dict | None = None) -> bool:
-        """Execute a Cypher statement. Returns False on error (never raises)."""
-        try:
-            self._conn.execute(cypher, params or {})
-            return True
-        except Exception as exc:  # noqa: BLE001
-            if "duplicated primary key" in str(exc).lower():
-                logger.debug("writer: skipped duplicate primary key statement: %r", exc)
-                return False
-            if len(self._write_errors) < self._MAX_TRACKED_WRITE_ERRORS:
-                self._write_errors.append(f"{type(exc).__name__}: {exc}")
-            logger.warning("writer: skipped statement (%s): %r", type(exc).__name__, exc)
-            return False

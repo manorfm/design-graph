@@ -144,6 +144,7 @@ class TestCheckNoOrphanedComponents:
         )
         gw.write_component(orphan)
         # No write_screen() call → OrphanComp has no USES_COMPONENT relationship
+        gw.commit()
         ro_db   = kuzu.Database(str(tmp_path / "orphan.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
         from design_graph.model.graph.reader import GraphReader
@@ -205,6 +206,7 @@ class TestCheckTokensHaveUsage:
         zero_token = DesignToken(id="col_zero", category="color",
                                  label="mystery", value="#abcdef", usage=0)
         gw.write_tokens([zero_token])
+        gw.commit()
         ro_db   = kuzu.Database(str(tmp_path / "tokens.db"), read_only=True)
         ro_conn = kuzu.Connection(ro_db)
         from design_graph.model.graph.reader import GraphReader

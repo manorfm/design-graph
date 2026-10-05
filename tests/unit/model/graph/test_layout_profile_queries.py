@@ -86,6 +86,7 @@ def layout_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [section])
 
+    gw.commit()
     return GraphReader(conn)
 
 
@@ -239,6 +240,7 @@ def section_only_layout_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [section])
 
+    gw.commit()
     return GraphReader(conn)
 
 
@@ -333,6 +335,7 @@ class TestScreenLayoutOrder:
                 for k in range(4)
             ]
             gw.write_screen(ExtractedScreen(name=f"S{s}", component_refs=[], sections_count=4), sections)
+        gw.commit()
         names = [profile["component_name"] for profile in GraphReader(conn).get_screen_layout("S3")]
         assert names == [
             "Sec0 — .own30", "Sec0 — .btn", "Sec1 — .own31", "Sec1 — .btn",

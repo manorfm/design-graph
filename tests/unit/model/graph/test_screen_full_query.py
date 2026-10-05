@@ -117,6 +117,7 @@ def full_screen_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [hero, content])
 
+    gw.commit()
     return GraphReader(conn)
 
 
@@ -336,6 +337,7 @@ def undecomposed_screen_graph(tmp_path_factory):
     )
     gw.write_screen(screen, [])
 
+    gw.commit()
     return GraphReader(conn)
 
 
@@ -399,6 +401,7 @@ def nested_screen_graph(tmp_path_factory):
     screen = ExtractedScreen(name="DeepScreen", component_refs=["TopCard"], sections_count=0)
     gw.write_screen(screen, [])
 
+    gw.commit()
     return GraphReader(conn)
 
 
