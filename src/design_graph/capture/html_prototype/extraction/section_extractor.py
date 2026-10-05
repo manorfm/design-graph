@@ -22,6 +22,8 @@ import re
 
 from bs4 import BeautifulSoup
 
+from design_graph.capture.markup import visible_texts
+
 from design_graph.capture.html_prototype.constants import (
     JS_FUNCTION_FALLBACK_WINDOW,
     JS_FUNCTION_SCAN_LIMIT,
@@ -34,6 +36,7 @@ from design_graph.model.entities import (
     ExtractedSection,
     StyleEntry,
     StyleState,
+    TextEntry,
 )
 from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule, resolve_classes
@@ -521,7 +524,7 @@ def _build_section(
     seen_texts: set[str] = set()
     for m in RE_UI_STRING.finditer(block):
         t = m.group(1).strip()
-        if t not in seen_texts and 3 < len(t) < 80 and not t.startswith("#"):
+        if t not in seen_texts and TextEntry.reads_as_copy(t):
             seen_texts.add(t)
             texts.append(t)
     for m in RE_PLACEHOLDER.finditer(block):
@@ -529,7 +532,6 @@ def _build_section(
         if t not in seen_texts:
             seen_texts.add(t)
             texts.append(f"[placeholder] {t}")
-    texts = texts[:15]
 
     return ExtractedSection.create(
         screen=screen_name,
@@ -580,15 +582,12 @@ def extract_sections_for_plain_html(
         name = raw.get("name", raw.get("tag", "Section").capitalize())
         html = raw.get("html", "")
 
-        # Extract texts: headings and visible text nodes from the HTML snippet
-        texts = _extract_texts_from_html(html)
-
         # index is included in the id so same-named sections stay unique
         sections.append(ExtractedSection.create_semantic(
             screen=screen_name,
             name=name,
             index=idx,
-            texts=texts[:10],
+            texts=visible_texts(BeautifulSoup(html, "html.parser")),
             source_code=html[:2_000],
         ))
 
@@ -606,19 +605,3 @@ def _detect_by_semantic(
 ) -> list[ExtractedSection]:
     """Internal alias used by tests and the coordinator for semantic strategy."""
     return extract_sections_for_plain_html(soup, screen_name)
-
-
-def _extract_texts_from_html(html: str) -> list[str]:
-    """Extract visible text strings from an HTML snippet (no JS required)."""
-    try:
-        soup = BeautifulSoup(html, "html.parser")
-        texts: list[str] = []
-        seen: set[str] = set()
-        for tag in soup.find_all(["h1", "h2", "h3", "h4", "p", "a", "button", "span"]):
-            text = tag.get_text(strip=True)
-            if text and len(text) > 2 and text not in seen:
-                seen.add(text)
-                texts.append(text)
-        return texts[:10]
-    except Exception:
-        return []

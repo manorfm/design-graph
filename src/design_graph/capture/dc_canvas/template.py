@@ -7,20 +7,20 @@ values ({{…}}) are never mistaken for copy or style literals.
 
 from __future__ import annotations
 
-from bs4 import BeautifulSoup, Comment, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
 
-from design_graph.model.entities import TextEntry
+from design_graph.capture import markup
+from design_graph.capture.markup import INTERPOLATION
 
 _TRANSPARENT = {"sc-for", "sc-if"}
 _RAW_PREFIX = "sc-raw-"
-_NOT_RENDERED = {"script", "style", "helmet", "template"}
-INTERPOLATION = "{{"
+_NOT_RENDERED = markup.NOT_RENDERED | {"helmet"}
 # Every stored DC source — page, block or component — is template markup.
 SOURCE_LANG = "html-template"
 
 
-def parse_markup(markup: str) -> BeautifulSoup:
-    return BeautifulSoup(markup, "html.parser")
+def parse_markup(source: str) -> BeautifulSoup:
+    return BeautifulSoup(source, "html.parser")
 
 
 def tag_of(element: Tag) -> str:
@@ -40,22 +40,13 @@ def element_children(element: Tag) -> list[Tag]:
 
 
 def visible_texts(element: Tag) -> list[str]:
-    """The literal copy an element shows, in reading order, each once."""
-    return [text for text, _ in visible_text_nodes(element)]
+    """The copy an element shows, in reading order, each once."""
+    return markup.visible_texts(element, not_rendered=_NOT_RENDERED)
 
 
 def visible_text_nodes(element: Tag) -> list[tuple[str, str]]:
-    """Each literal copy an element shows, once, with the tag of the element showing it."""
-    found: dict[str, str] = {}
-    for node in element.descendants:
-        if not isinstance(node, NavigableString) or isinstance(node, Comment):
-            continue
-        if any(parent.name in _NOT_RENDERED for parent in node.parents if isinstance(parent, Tag)):
-            continue
-        text = " ".join(node.split())
-        if text and INTERPOLATION not in text and TextEntry.is_plausible_content(text):
-            found.setdefault(text, tag_of(node.parent))
-    return list(found.items())
+    """Each copy an element shows, once, with the tag of the element showing it."""
+    return markup.visible_text_nodes(element, tag_of=tag_of, not_rendered=_NOT_RENDERED)
 
 
 def rendered_descendants(element: Tag) -> list[Tag]:

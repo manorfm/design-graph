@@ -465,3 +465,17 @@ class TestSectionElementStyleAttribution:
         )
         section = next(s for s in sections if "audit" in s.name.lower())
         assert section.element_styles == []
+
+
+class TestSectionTextsAreWhole:
+    _LONG = "Tem certeza de que deseja sair? Você precisará entrar de novo para acessar a equipe."
+
+    def test_long_texts_and_many_texts_are_kept(self):
+        rows = "".join(f'<p>{{"Linha de detalhe {n}"}}</p>' for n in range(25))
+        js = (
+            "function RestaurantsPage() {\n  return (\n    <div>\n      {/* ── Lista ── */}\n"
+            f'      <div style={{{{padding: \'16px\'}}}}><p>{{"{self._LONG}"}}</p>{rows}</div>\n    </div>\n  );\n}}'
+        )
+        section = next(s for s in extract_sections(js, _screen(), _boundary(js)) if s.name == "Lista")
+        assert self._LONG in section.texts
+        assert sum(t.startswith("Linha de detalhe") for t in section.texts) == 25

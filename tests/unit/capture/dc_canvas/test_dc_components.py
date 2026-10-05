@@ -84,7 +84,7 @@ class TestContent:
 
     def test_interpolated_values_are_not_styles_or_texts(self, tmp_path):
         item = _components(tmp_path)["PapelItem"]
-        assert item.styles == [] and item.texts == []
+        assert item.styles == [] and [text.content for text in item.texts] == ["·"]
         assert item.declares_inline_styles is True
 
 

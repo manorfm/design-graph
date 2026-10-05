@@ -90,7 +90,7 @@ def _extract_copy_pairs(obj_body: str, constant_name: str, depth: int) -> list[T
     for key, raw_value in iter_object_literal_pairs(obj_body):
         if is_quoted_string_literal(raw_value):
             content = unwrap_quoted_literal(raw_value).strip()
-            if TextEntry.is_plausible_content(content):
+            if TextEntry.reads_as_copy(content):
                 entries.append(TextEntry.create(
                     content=content,
                     text_type=_TEXT_TYPE_BY_PROPERTY_NAME.get(key, TextType.LABEL),

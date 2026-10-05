@@ -110,10 +110,10 @@ class TestBenchmark:
         assert report["build"]["seconds"] > 0
         assert report["build"]["write_errors"] == 0
 
-    def test_text_coverage_exposes_dropped_long_copy(self, report):
-        # "Tela 1", "Tela 2", "Seguir" and the long paragraph — the paragraph is dropped today
+    def test_text_coverage_counts_long_copy(self, report):
+        # "Tela 1", "Tela 2", "Seguir" and the long paragraph
         assert report["texts"]["truth"] == 4
-        assert report["texts"]["coverage"] == pytest.approx(3 / 4)
+        assert report["texts"]["coverage"] == 1.0
 
     def test_style_coverage_is_measured_per_screen(self, report):
         assert 0 < report["styles"]["coverage"] <= 1

@@ -133,3 +133,13 @@ class TestExtractSectionsForPlainHtml:
         soup = _soup("<html><body></body></html>")
         sections = extract_sections_for_plain_html(soup, "Empty")
         assert isinstance(sections, list)
+
+
+class TestSemanticSectionTextsAreWhole:
+    def test_every_visible_text_of_the_section_is_kept(self):
+        long_text = "Coleta aberta até 19 de setembro. A linha preta na barra marca o mínimo de respostas por time."
+        items = "".join(f"<li>item {n}</li>" for n in range(14))
+        html = f"<html><body><footer><div>{long_text}</div><ul>{items}</ul><td>gera</td></footer></body></html>"
+        footer = extract_sections_for_plain_html(_soup(html), "MainPage")[0]
+        assert long_text in footer.texts
+        assert sum(t.startswith("item ") for t in footer.texts) == 14

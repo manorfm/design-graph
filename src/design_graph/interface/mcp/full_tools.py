@@ -116,8 +116,7 @@ def get_full_texts(reader: GraphReader, name: str, screen: str, section: str) ->
 
     get_section/get_screen_full/get_component_spec/get_component_full
     all slice their text list for display ("+N mais" with no way back)
-    even though the reader already returns every text row up to the
-    extraction-time cap (MAX_TEXTS_PER_COMPONENT). Renders that same
+    even though the reader already returns every text row. Renders that same
     data without the display slice — no new query, just no truncation
     (mirrors get_full_styles's C36 fix; see docs/changes/C38).
     """

@@ -23,7 +23,6 @@ from design_graph.capture.html_prototype.constants import (
     MAX_CLASSES_PER_COMPONENT,
     MAX_INTERACTIONS_PER_COMPONENT,
     MAX_STYLES_PER_COMPONENT,
-    MAX_TEXTS_PER_COMPONENT,
     REACT_INTERNALS,
 )
 from design_graph.model.entities import (
@@ -373,10 +372,10 @@ def extract_component(
     # Text extraction
     def _add_text(content: str, text_type: TextType, element: str = "") -> None:
         c = content.strip()
-        if not TextEntry.is_plausible_content(c):
+        if not TextEntry.reads_as_copy(c):
             return
         entry = TextEntry.create(content=c, text_type=text_type, source=boundary.name, element=element)
-        if entry.id not in seen_text_ids and len(texts) < MAX_TEXTS_PER_COMPONENT:
+        if entry.id not in seen_text_ids:
             seen_text_ids.add(entry.id)
             texts.append(entry)
 
@@ -461,11 +460,11 @@ def extract_component(
 
     _cap = lambda count, limit: f"{count}{'[capped]' if count >= limit else ''}"
     logger.debug(
-        "extract_component: %s → %s styles, %s interactions, %s texts, %d children",
+        "extract_component: %s → %s styles, %s interactions, %d texts, %d children",
         boundary.name,
         _cap(len(styles),        MAX_STYLES_PER_COMPONENT),
         _cap(len(interactions),  MAX_INTERACTIONS_PER_COMPONENT),
-        _cap(len(texts),         MAX_TEXTS_PER_COMPONENT),
+        len(texts),
         len(child_refs),
     )
     # Surfaced to the graph (not just this debug log) as truncated_fields —
@@ -476,7 +475,6 @@ def extract_component(
         field_name for field_name, count, limit in (
             ("styles",       len(styles),       MAX_STYLES_PER_COMPONENT),
             ("interactions", len(interactions), MAX_INTERACTIONS_PER_COMPONENT),
-            ("texts",        len(texts),        MAX_TEXTS_PER_COMPONENT),
             ("classes",      len(classes),      MAX_CLASSES_PER_COMPONENT),
         )
         if count >= limit

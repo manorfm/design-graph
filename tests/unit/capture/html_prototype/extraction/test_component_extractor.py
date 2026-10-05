@@ -328,13 +328,6 @@ class TestHoverInteractionWithNonLiteralValues:
         comp = extract_component(js, b, 1)
         assert len(comp.styles) <= 40
 
-    def test_texts_capped_at_limit(self):
-        texts = " ".join(f'"Texto {i} é longo"' for i in range(40))
-        js = f"function TextHeavy() {{ return (<div>{texts}</div>) }}"
-        b = _boundary(js, "TextHeavy")
-        comp = extract_component(js, b, 1)
-        assert len(comp.texts) <= 30
-
     def test_child_refs_contain_no_empty_strings(self):
         b = _boundary(CARD_WITH_CHILDREN_JS, "RestCard")
         comp = extract_component(CARD_WITH_CHILDREN_JS, b, 1)
@@ -816,3 +809,30 @@ class TestInferComponentType:
 # sanitize_jsx has its own dedicated test module: test_jsx_sanitizer.py
 # (design_graph.capture.html_prototype.extraction.jsx_sanitizer) — not tested here to avoid
 # covering the same function from two different test-module "owners".
+
+
+class TestTextsAreNeverCutByLengthOrCount:
+    """Every piece of copy a component shows is captured — no length or count limit."""
+
+    _LONG = "Esta ação remove o membro da equipe e ele perde imediatamente o acesso a todos os toggles."
+
+    def _texts(self, body: str) -> dict[str, str]:
+        js = f"function Notice() {{ return ({body}); }}"
+        comp = extract_component(js, _boundary(js, "Notice"), 1)
+        return {t.content: t.text_type for t in comp.texts}, comp
+
+    def test_long_heading_label_placeholder_tooltip_and_string_are_whole(self):
+        texts, _ = self._texts(
+            f'<div title="{self._LONG}"><h2>{self._LONG} (h)</h2><span>{self._LONG} (s)</span>'
+            f'<input placeholder="{self._LONG} (p)" /><p>{{"{self._LONG} (q)"}}</p></div>'
+        )
+        assert texts[self._LONG] == "tooltip"
+        assert f"{self._LONG} (h)" in texts and f"{self._LONG} (s)" in texts
+        assert texts[f"{self._LONG} (p)"] == "placeholder"
+        assert f"{self._LONG} (q)" in texts
+
+    def test_every_text_is_kept_and_texts_are_not_reported_truncated(self):
+        spans = "".join(f"<span>Opção número {n}</span>" for n in range(45))
+        texts, comp = self._texts(f"<div>{spans}</div>")
+        assert sum(t.startswith("Opção número") for t in texts) == 45
+        assert "texts" not in comp.truncated_fields

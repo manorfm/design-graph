@@ -24,7 +24,7 @@ RE_CUSTOM_PROPERTY_REFERENCE = re.compile(r"var\(\s*(--[\w-]+)")
 # A raw string candidate that reads as a code artifact rather than visible
 # copy: a lowercase/underscore identifier (`flex_start`, `overview`) or a
 # color literal (`#1a1a1a`, `rgba(0,0,0,.5)` — the latter caught by its
-# `rgba` prefix, not this pattern). Backs TextEntry.is_plausible_content.
+# `rgba` prefix, not this pattern). Backs TextEntry.reads_as_copy.
 RE_IDENTIFIER_SHAPED_TOKEN = re.compile(r"^[a-z_]+$")
 
 
@@ -318,8 +318,7 @@ class TextEntry:
     source: str      # component name, section id, or module-level constant name
     element: str      # HTML tag context, e.g. "h1", "button"
 
-    _MIN_CONTENT_CHARS = 3
-    _MAX_CONTENT_CHARS = 80
+    _MIN_LITERAL_CHARS = 3
 
     @classmethod
     def create(cls, content: str, text_type: TextType, source: str, element: str = "") -> "TextEntry":
@@ -329,21 +328,19 @@ class TextEntry:
         )
 
     @staticmethod
-    def is_plausible_content(candidate: str) -> bool:
+    def reads_as_copy(literal: str) -> bool:
         """
-        True when `candidate` reads as real, visible UI copy rather than a
-        code artifact a naive string-literal scan can pick up alongside
-        genuine text: an identifier-shaped lowercase token (`primary`,
-        `flex_start`) or a raw color literal (`#1a1a1a`, `rgba(0,0,0,.5)`).
+        True when a string literal found in code reads as UI copy rather than
+        a code artifact a string-literal scan picks up alongside it: an
+        identifier-shaped lowercase token (`primary`, `flex_start`), a raw
+        color literal (`#1a1a1a`, `rgba(0,0,0,.5)`) or a fragment too short to
+        be a label. Length never disqualifies copy — a paragraph is copy.
 
-        The single definition every extractor that classifies string
-        literals as UI text shares, so "plausible" can't drift between
-        call sites — component-scoped text (component_extractor) and
-        module-level constant-array text (module_text_extractor) apply
-        the exact same judgment.
+        Only for literals: text nodes of rendered markup are copy by
+        definition and never go through this (see capture.markup).
         """
-        c = candidate.strip()
-        if not (TextEntry._MIN_CONTENT_CHARS <= len(c) <= TextEntry._MAX_CONTENT_CHARS):
+        c = literal.strip()
+        if len(c) < TextEntry._MIN_LITERAL_CHARS:
             return False
         if RE_IDENTIFIER_SHAPED_TOKEN.match(c) or c.startswith(("#", "rgba")):
             return False

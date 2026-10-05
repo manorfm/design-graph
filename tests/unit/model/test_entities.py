@@ -247,40 +247,38 @@ class TestTextEntryCreate:
         assert entry.element == "section"
 
 
-class TestTextEntryIsPlausibleContent:
+class TestTextEntryReadsAsCopy:
     """
-    component_extractor._add_text carried this exact filter inline as a
-    local closure — the only place a raw string candidate was ever
-    classified as "real UI copy" vs a code artifact. A second extractor
-    (module-level constant-array text) needs the identical judgment call;
-    duplicating the filter would let the two definitions of "plausible"
-    drift apart. Moved onto TextEntry itself: it's a fact about the value
-    type, not about the extractor that happens to be running.
+    A string literal found in code is UI copy unless it is shaped like a code
+    artifact (an identifier, a color). Length never disqualifies it: a
+    paragraph is copy. Text nodes of rendered markup never go through this —
+    they are copy by definition.
     """
 
-    def test_normal_sentence_is_plausible(self):
-        assert TextEntry.is_plausible_content("Cardápio & Preço") is True
+    def test_normal_sentence_reads_as_copy(self):
+        assert TextEntry.reads_as_copy("Cardápio & Preço") is True
 
-    def test_too_short_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("Ok") is False
+    def test_too_short_does_not_read_as_copy(self):
+        assert TextEntry.reads_as_copy("Ok") is False
 
-    def test_too_long_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("x" * 81) is False
+    def test_length_never_disqualifies_copy(self):
+        paragraph = "Em vez de opiniões gerais, vamos pedir que você pense em casos reais e recentes: " * 25
+        assert TextEntry.reads_as_copy(paragraph) is True
 
-    def test_lowercase_identifier_shaped_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("flex_start") is False
+    def test_lowercase_identifier_shaped_does_not_read_as_copy(self):
+        assert TextEntry.reads_as_copy("flex_start") is False
 
-    def test_hex_color_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("#1a1a1a") is False
+    def test_hex_color_does_not_read_as_copy(self):
+        assert TextEntry.reads_as_copy("#1a1a1a") is False
 
-    def test_rgba_color_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("rgba(0,0,0,.5)") is False
+    def test_rgba_color_does_not_read_as_copy(self):
+        assert TextEntry.reads_as_copy("rgba(0,0,0,.5)") is False
 
-    def test_empty_is_not_plausible(self):
-        assert TextEntry.is_plausible_content("") is False
+    def test_empty_does_not_read_as_copy(self):
+        assert TextEntry.reads_as_copy("") is False
 
     def test_surrounding_whitespace_is_stripped_before_judging(self):
-        assert TextEntry.is_plausible_content("  Mesas  ") is True
+        assert TextEntry.reads_as_copy("  Mesas  ") is True
 
 
 class TestInteractionEntryCreate:

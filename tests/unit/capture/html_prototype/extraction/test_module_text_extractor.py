@@ -59,7 +59,7 @@ class TestExtractModuleLevelTexts:
 
     def test_key_field_not_extracted_as_text(self):
         # 'overview'/'menus'/'sectors' are identifiers, not copy — also
-        # excluded by TextEntry.is_plausible_content's lowercase-token guard.
+        # excluded by TextEntry.reads_as_copy's lowercase-token guard.
         contents = {t.content for t in self._texts(DETAIL_TABS_JS)}
         assert "overview" not in contents
         assert "menus" not in contents
@@ -101,7 +101,7 @@ class TestExtractModuleLevelTexts:
         assert self._texts(js) == []
 
     def test_short_or_identifier_shaped_values_are_filtered(self):
-        # 'Ok' is too short (TextEntry.is_plausible_content) to be real copy.
+        # 'Ok' is too short (TextEntry.reads_as_copy) to be real copy.
         js = "const SHORT_LABELS = [{ key: 'a', label: 'Ok' }];"
         assert self._texts(js) == []
 

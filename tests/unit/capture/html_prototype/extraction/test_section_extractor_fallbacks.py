@@ -229,7 +229,7 @@ class TestBuildSectionPlaceholderTexts:
         search_texts = [t for t in section.texts if "Search" in t]
         assert len(search_texts) == 1
 
-    def test_texts_capped_at_15(self):
+    def test_every_text_is_kept(self):
         # Generate a block with many strings
         many_texts = " ".join(f'<p>"{chr(65 + i)} text here"</p>' for i in range(20))
         section = _build_section(
@@ -238,4 +238,4 @@ class TestBuildSectionPlaceholderTexts:
             screen_name="TestPage",
             detection_method="comment",
         )
-        assert len(section.texts) <= 15
+        assert len(section.texts) == 20

@@ -17,7 +17,6 @@ from design_graph.capture.html_prototype.constants import (
     MAX_INTERACTIONS_PER_COMPONENT,
     MAX_CLASSES_PER_COMPONENT,
     MAX_STYLES_PER_COMPONENT,
-    MAX_TEXTS_PER_COMPONENT,
 )
 from design_graph.capture.html_prototype.extraction.definition_merge import merge_definitions
 from design_graph.capture.html_prototype.extraction.component_extractor import extract_component
@@ -254,7 +253,7 @@ class TestTextFiltering:
         texts = [t.content for t in comp.texts]
         assert "OK" not in texts
 
-    def test_text_longer_than_80_chars_excluded(self):
+    def test_text_longer_than_80_chars_kept_whole(self):
         long_text = "A" * 85
         js = f"""
         function BtnLong() {{
@@ -264,7 +263,7 @@ class TestTextFiltering:
         b = _boundary(js, "BtnLong")
         comp = extract_component(js, b, 1)
         texts = [t.content for t in comp.texts]
-        assert long_text not in texts
+        assert long_text in texts
 
     def test_lowercase_only_text_excluded(self):
         js = """

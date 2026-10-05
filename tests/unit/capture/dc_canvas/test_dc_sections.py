@@ -84,3 +84,11 @@ class TestBlockNames:
     def test_long_names_are_cut_at_a_word_boundary(self, tmp_path):
         body = '<div><div><h2>Como o trabalho acontece de verdade por aqui hoje</h2></div><div><p>Fim do bloco</p></div></div>'
         assert _sections(tmp_path, body)[0].name == "Como o trabalho acontece de verdade por…"
+
+
+class TestEveryVisibleTextIsKept:
+    def test_long_paragraphs_lowercase_labels_and_symbols_are_copy(self, tmp_path):
+        paragraph = "Em vez de opiniões gerais, vamos pedir que você pense em casos reais e recentes: o último deploy."
+        body = f"<div><div><p>{paragraph}</p><span>gera</span><span>·</span></div><div><p>Fim</p></div></div>"
+        texts = _sections(tmp_path, body)[0].texts
+        assert texts == [paragraph, "gera", "·"]

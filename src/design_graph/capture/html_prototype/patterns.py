@@ -206,12 +206,12 @@ RE_CLASS_NAME = re.compile(r'className\s*[=:]\s*["\']([^"\']{2,120})["\']')
 
 # ── UI text extraction ────────────────────────────────────────────────────────
 
-RE_UI_STRING  = re.compile(r'["\']([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^"\']{2,80})["\']')
-RE_PLACEHOLDER = re.compile(r'placeholder[=:]\s*["\']([^"\']{3,60})["\']')
-RE_TOOLTIP_TEXT = re.compile(r'(?:title|aria-label|alt)\s*=\s*["\']([^"\']{3,80})["\']')
-RE_HEADING     = re.compile(r'<h[1-6][^>]*>\s*["\']?([^<"\']{3,60})')
-RE_BUTTON_TEXT = re.compile(r'<(?:button|Btn)[\s\S]*?>\s*\n?\s*([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^<"\']{1,39})')
-RE_LABEL_TEXT  = re.compile(r'<(?:label|span)[^>]*>\s*["\']?([^<"\']{3,60})')
+RE_UI_STRING  = re.compile(r'["\']([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^"\']{2,})["\']')
+RE_PLACEHOLDER = re.compile(r'placeholder[=:]\s*["\']([^"\']{3,})["\']')
+RE_TOOLTIP_TEXT = re.compile(r'(?:title|aria-label|alt)\s*=\s*["\']([^"\']{3,})["\']')
+RE_HEADING     = re.compile(r'<h[1-6][^>]*>\s*["\']?([^<"\']{3,})')
+RE_BUTTON_TEXT = re.compile(r'<(?:button|Btn)[\s\S]*?>\s*\n?\s*([A-ZÁÉÍÓÚÀÂÊÎÔÛÃÕÇ][^<"\']{1,})')
+RE_LABEL_TEXT  = re.compile(r'<(?:label|span)[^>]*>\s*["\']?([^<"\']{3,})')
 
 
 # ── JSX section comments ──────────────────────────────────────────────────────

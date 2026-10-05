@@ -259,6 +259,6 @@ def _texts(name: str, example: Tag) -> list[TextEntry]:
     for element in [example, *rendered_descendants(example)]:
         for attribute in ("title", "aria-label"):
             value = (element.get(attribute) or "").strip()
-            if value and INTERPOLATION not in value and TextEntry.is_plausible_content(value):
+            if value and INTERPOLATION not in value:
                 texts.append(TextEntry.create(value, TextType.TOOLTIP, source=name, element=tag_of(element)))
     return list({text.id: text for text in texts}.values())
