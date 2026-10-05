@@ -1336,12 +1336,17 @@ class GraphReader:
             for row in comp_rows
         ]
 
+        # Sections in the order the screen declares them, each one's styles in
+        # the order they were attached — a graph is written once per build in
+        # capture order, so storage offsets are that order. Without it, rows
+        # come in whatever order the join plan scans.
         sec_style_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:HAS_SECTION]->(sec:Section)"
-            "-[:SECTION_HAS_STYLE]->(st:Style) "
+            "-[r:SECTION_HAS_STYLE]->(st:Style) "
             "WHERE st.media = '' "
             "RETURN sec.name AS section_name, st.element AS element, "
-            "       st.property AS prop, st.value AS val",
+            "       st.property AS prop, st.value AS val "
+            "ORDER BY offset(ID(sec)), offset(ID(r))",
             {"n": resolved},
         )
 

@@ -305,3 +305,36 @@ class TestBuildLayoutProfileHidesDecorativeDimensions:
         profile = _build_layout_profile("Avatar", {"width": "48", "height": "48"})
         assert profile["width"] == "48"
         assert profile["height"] == "48"
+
+
+class TestScreenLayoutOrder:
+    """
+    Section layouts follow the screen's section order, then each section's
+    own style order — not whichever order the join plan happens to scan
+    (with many shared styles, Kuzu scans from the Style side and the
+    sections came out reversed).
+    """
+
+    def test_sections_are_listed_in_screen_order(self, tmp_path):
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "order.db")))
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+        shared = [StyleEntry.from_css_class("btn", prop, value)
+                  for prop, value in (("display", "flex"), ("gap", "8px"), ("height", "38px"))]
+        unrelated = [StyleEntry.from_css_class(f"x{i}", "color", f"#{i:06x}") for i in range(300)]
+        gw.write_component(ExtractedComponent(
+            name="Early", comp_type="component", source_code="", occurrence=1, classes="", styles=shared + unrelated,
+        ))
+        for s in range(8):
+            sections = [
+                ExtractedSection(id=f"sec_{s}_{k}", screen=f"S{s}", name=f"Sec{k}", styles={}, component_refs=[],
+                                 texts=[], source_code="", detection_method="comment",
+                                 element_styles=[StyleEntry.from_css_class(f"own{s}{k}", "display", "grid"), *shared])
+                for k in range(4)
+            ]
+            gw.write_screen(ExtractedScreen(name=f"S{s}", component_refs=[], sections_count=4), sections)
+        names = [profile["component_name"] for profile in GraphReader(conn).get_screen_layout("S3")]
+        assert names == [
+            "Sec0 — .own30", "Sec0 — .btn", "Sec1 — .own31", "Sec1 — .btn",
+            "Sec2 — .own32", "Sec2 — .btn", "Sec3 — .own33", "Sec3 — .btn",
+        ]
