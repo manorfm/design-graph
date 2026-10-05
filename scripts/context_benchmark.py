@@ -41,7 +41,9 @@ from bs4 import BeautifulSoup, Comment
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import read_bundle
 from design_graph.capture.dc_canvas.canvas import read_boards
-from design_graph.capture.dc_canvas.page import read_page
+from design_graph.capture.dc_canvas.page import DcPage, read_page
+from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
+from design_graph.capture.html_prototype.parsing.source_loader import decompose
 from design_graph.capture.registry import capture_for
 from design_graph.interface.mcp.metrics import read_records
 from design_graph.interface.mcp.tools import ToolDispatcher
@@ -102,13 +104,45 @@ def page_markups(document: PrototypeDocument, capture: str) -> dict[str, str] | 
     """Screen name → the markup that screen renders, when the format has it statically."""
     if capture != "dc_canvas":
         return None
+    return {name: page.markup for name, page in _dc_pages(document).items()}
+
+
+def _dc_pages(document: PrototypeDocument) -> dict[str, DcPage]:
     bundle = read_bundle(document.text)
-    markups = {}
+    pages = {}
     for board in read_boards(bundle.template):
         page = read_page(bundle.entry(board.page_id).decode("utf-8", errors="replace"))
         if page is not None:
-            markups[board.name] = page.markup
-    return markups
+            pages[board.name] = page
+    return pages
+
+
+def round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
+    """
+    How many screens and components the graph returns exactly as written:
+    every piece of the prototype that defines them (a DC page's markup, CSS
+    and logic; each React function declared under the name) appears verbatim
+    in the stored source.
+    """
+    if capture == "dc_canvas":
+        written = {
+            name: [part for part in (page.markup, page.styles, page.logic) if part]
+            for name, page in _dc_pages(document).items()
+        }
+    else:
+        js = decompose(document).js
+        written = {}
+        for boundary in find_all_boundaries(js):
+            written.setdefault(boundary.name, []).append(js[boundary.start:boundary.end])
+    names = [c["c.name"] for c in reader.list_components()] + [s["name"] for s in reader.list_screens()]
+    checked = verbatim = 0
+    for name in names:
+        stored = reader.get_full_source(name)
+        if name not in written or not stored:
+            continue
+        checked += 1
+        verbatim += all(part in stored["source_code"] for part in written[name])
+    return {"checked": checked, "verbatim": verbatim, "rate": verbatim / checked if checked else None}
 
 
 # ── Reading responses ─────────────────────────────────────────────────────────
@@ -229,6 +263,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
         "build": build,
         "texts": _coverage_entry(truth_texts, indexed_texts, markups is not None),
         "styles": _coverage_entry(truth_styles, shown_styles, markups is not None),
+        "round_trip": round_trip(document, capture, reader),
         "screens": screens,
         "searches": _search_report(tools, queries, prototype_text),
     }
@@ -255,6 +290,7 @@ def render_markdown(report: dict) -> str:
         f"| Build | {report['build']['seconds']} s · erros de gravação {report['build']['write_errors']} |",
         f"| Textos indexados | {_coverage_cell(report['texts'])} |",
         f"| Estilos legíveis ao montar as telas | {_coverage_cell(report['styles'])} |",
+        f"| Fontes devolvidos como escritos | {_round_trip_cell(report.get('round_trip'))} |",
         f"| Caracteres para montar todas as telas | {assembly} |",
         f"| Cortes anunciados | listas {totals['list']} · fontes {totals['source']} · captura {totals['capture']} |",
         f"| Buscas corretas | {searches['correct']}/{searches['total']} |",
@@ -272,6 +308,12 @@ def _screen_totals(screens) -> dict[str, int]:
     totals["responded"] = sum(s["response_chars"] for s in screens)
     totals["original"] = sum(s["original_chars"] or 0 for s in screens)
     return totals
+
+
+def _round_trip_cell(entry: dict | None) -> str:
+    if not entry or entry["rate"] is None:
+        return "n/d"
+    return f"{entry['rate']:.0%} ({entry['verbatim']}/{entry['checked']})"
 
 
 def _coverage_cell(entry: dict) -> str:

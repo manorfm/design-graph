@@ -115,6 +115,9 @@ class TestBenchmark:
         assert report["texts"]["truth"] == 4
         assert report["texts"]["coverage"] == 1.0
 
+    def test_every_page_source_comes_back_verbatim(self, report):
+        assert report["round_trip"] == {"checked": 2, "verbatim": 2, "rate": 1.0}
+
     def test_style_coverage_is_measured_per_screen(self, report):
         assert 0 < report["styles"]["coverage"] <= 1
 
@@ -133,6 +136,11 @@ class TestBenchmark:
         fixtures = Path(__file__).parents[2] / "fixtures"
         result = benchmark(fixtures / "simple.html", workdir=tmp_path, queries=[])
         assert result["texts"]["coverage"] is None and result["styles"]["coverage"] is None
+
+    def test_react_functions_come_back_verbatim(self, tmp_path):
+        fixtures = Path(__file__).parents[2] / "fixtures"
+        result = benchmark(fixtures / "simple.html", workdir=tmp_path, queries=[])
+        assert result["round_trip"]["checked"] > 0 and result["round_trip"]["rate"] == 1.0
 
 
 class TestRenderMarkdown:
