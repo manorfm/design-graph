@@ -84,7 +84,7 @@ def extract_dom_patterns(
             continue
 
         first_tag = sig_first_tag[sig]
-        html_snippet = str(first_tag)[:600]
+        html_snippet = str(first_tag)
         inferred_name = _infer_component_name(sig, first_tag)
         semantic_type = _infer_semantic_type(first_tag)
 
@@ -113,7 +113,7 @@ def extract_semantic_sections(soup: BeautifulSoup) -> list[dict]:
                 continue
 
             name = _section_name_from_tag(tag)
-            html_content = str(tag)[:2000]
+            html_content = str(tag)
 
             sections.append({
                 "name": name,

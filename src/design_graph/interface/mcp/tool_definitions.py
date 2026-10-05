@@ -143,11 +143,12 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "get_full_source",
-        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. When the capture simplified the source while storing it (e.g. collapsing dynamic expressions into markers like {[conditional:X]}), the response says so — this recovers what the display cap cut, not what the capture left out. Use when another tool truncated the source.",
+        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. When the capture simplified the source while storing it (e.g. collapsing dynamic expressions into markers like {[conditional:X]}), the response says so — this recovers what the display cap cut, not what the capture left out. Use when another tool truncated the source. A long source comes in pages (the response says 'página N/M' and gives the call for the next one) — nothing is ever cut.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Component or screen name"},
+                "page": {"type": "integer", "minimum": 1, "description": "Page of a long source (default 1)"},
                 "doc":  _doc_param(),
             },
             "required": ["name"],

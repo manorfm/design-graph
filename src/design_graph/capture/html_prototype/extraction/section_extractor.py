@@ -539,7 +539,7 @@ def _build_section(
         styles=styles,
         component_refs=comp_refs,
         texts=texts,
-        source_code=block[:3_000].strip(),
+        source_code=block.strip(),
         detection_method=detection_method,
         element_styles=element_styles,
     )
@@ -588,7 +588,7 @@ def extract_sections_for_plain_html(
             name=name,
             index=idx,
             texts=visible_texts(BeautifulSoup(html, "html.parser")),
-            source_code=html[:2_000],
+            source_code=html,
         ))
 
     logger.debug(

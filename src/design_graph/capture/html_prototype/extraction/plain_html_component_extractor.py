@@ -56,7 +56,7 @@ def dom_pattern_to_extracted_component(pattern: DOMPattern) -> ExtractedComponen
     were a named React component — same schema, different origin.
     """
     comp_type  = _SEMANTIC_TYPE_TO_COMP_TYPE.get(pattern.semantic_type, ComponentType.COMPONENT)
-    source_code = pattern.first_example[:3_000]
+    source_code = pattern.first_example
     classes    = _extract_css_classes(source_code)
     styles     = _extract_inline_styles(source_code, pattern.inferred_name)
 
@@ -121,8 +121,7 @@ def _extract_css_classes(html_snippet: str) -> str:
     """Extract the first CSS class list found in the HTML snippet."""
     m = _CLASS_ATTR_RE.search(html_snippet)
     if m:
-        classes = m.group(1).strip()
-        return classes[:120]
+        return m.group(1).strip()
     return ""
 
 

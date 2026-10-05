@@ -40,28 +40,8 @@ from design_graph.model.graph.schema import MODEL_VERSION, STATS_QUERIES, initia
 
 logger = logging.getLogger(__name__)
 
-# Maximum characters of source code stored per screen, section or component.
-# Prevents oversized components from bloating the database and MCP responses.
-MAX_SOURCE_CODE_CHARS = 8_000
-
-
 class BuildLockError(RuntimeError):
     """Raised when a build is already in progress for the target database."""
-
-
-def _capped_source_code(owner: str, source_code: str) -> str:
-    """
-    A source_code truncated to MAX_SOURCE_CODE_CHARS for storage, logging
-    when truncation actually happened. Shared by every node type that
-    stores one (Component, Section, Screen) so the cap and its log message
-    can't drift between them.
-    """
-    if len(source_code) > MAX_SOURCE_CODE_CHARS:
-        logger.debug(
-            "writer: source_code for %s capped at %d chars (was %d)",
-            owner, MAX_SOURCE_CODE_CHARS, len(source_code),
-        )
-    return source_code[:MAX_SOURCE_CODE_CHARS]
 
 
 class GraphWriteSession:
@@ -297,7 +277,7 @@ class GraphWriter:
     def _screen_row(screen: ExtractedScreen, component_count: int, sections_count: int) -> dict:
         return {
             "name": screen.name, "component_count": component_count, "sections_count": sections_count,
-            "source_code": _capped_source_code(screen.name, screen.source_code),
+            "source_code": screen.source_code,
             "source_lang": screen.source_lang, "source_simplified": screen.source_simplified,
             "viewport_width": screen.viewport_width, "viewport_height": screen.viewport_height,
         }
@@ -327,7 +307,7 @@ class GraphWriter:
 
         self._rows.replace_node("Component", comp.name, {
             "name": comp.name, "comp_type": comp.comp_type,
-            "source_code": _capped_source_code(comp.name, comp.source_code),
+            "source_code": comp.source_code,
             "source_lang": comp.source_lang, "source_simplified": comp.source_simplified,
             "declares_inline_styles": comp.declares_inline_styles, "occurrence": comp.occurrence,
             "classes": comp.classes, "truncated_fields": ",".join(sorted(comp.truncated_fields)),
@@ -473,7 +453,7 @@ class GraphWriter:
             "styles_json": json.dumps(section.styles),
             "components_json": json.dumps(section.component_refs),
             "texts_json": json.dumps(section.texts),
-            "source_code": _capped_source_code(f"section {section.id}", section.source_code),
+            "source_code": section.source_code,
             "source_lang": section.source_lang, "detection_method": section.detection_method,
         })
         self._rows.add_rel("HAS_SECTION", screen_name, section.id)

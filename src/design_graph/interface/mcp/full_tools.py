@@ -6,10 +6,21 @@ from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import dedupe_styles_by_property, named_entity_resolution_error
 
 
-def get_full_source(reader: GraphReader, name: str) -> str:
+# A page of source is about 5k tokens: enough for any one component, small
+# enough that a whole page's markup never lands in one response.
+SOURCE_PAGE_CHARS = 20_000
+
+
+def get_full_source(reader: GraphReader, name: str, page: object = 1) -> str:
+    """A screen's or component's stored source, whole — in pages when it is long."""
     source = reader.get_full_source(name)
     if not source:
         return f"Fonte não disponível para '{name}'. Rode: design-graph --force <proto.html>"
+
+    pages = source_pages(source["source_code"])
+    number = _page_number(page, len(pages))
+    if number is None:
+        return f"Página inválida: {page!r}. O fonte de '{name}' tem as páginas 1 a {len(pages)}."
 
     lang = source["source_lang"]
     if source["source_simplified"]:
@@ -22,7 +33,44 @@ def get_full_source(reader: GraphReader, name: str) -> str:
     else:
         header = f"# Fonte completo de {name} ({lang})"
         footer = ""
-    return f"{header}\n\n```{lang}\n{source['source_code']}\n```{footer}"
+    if len(pages) > 1:
+        header += f" — página {number}/{len(pages)}"
+        if number < len(pages):
+            footer += f"\n> Continua: get_full_source('{name}', page={number + 1})"
+    return f"{header}\n\n```{lang}\n{pages[number - 1]}\n```{footer}"
+
+
+def source_pages(source: str, size: int = SOURCE_PAGE_CHARS) -> list[str]:
+    """
+    `source` cut into pages of at most `size` characters, at line ends when
+    a line fits — joining the pages with newlines gives `source` back, except
+    that a line longer than a page is split across pages with no separator.
+    """
+    pages: list[str] = []
+    current: list[str] = []
+    length = 0
+    for line in source.split("\n"):
+        if current and length + 1 + len(line) > size:
+            pages.append("\n".join(current))
+            current, length = [], 0
+        while len(line) > size:
+            if current:
+                pages.append("\n".join(current))
+                current, length = [], 0
+            pages.append(line[:size])
+            line = line[size:]
+        length += len(line) + (1 if current else 0)
+        current.append(line)
+    pages.append("\n".join(current))
+    return pages
+
+
+def _page_number(page: object, total: int) -> int | None:
+    try:
+        number = int(page)
+    except (TypeError, ValueError):
+        return None
+    return number if 1 <= number <= total else None
 
 
 def get_full_styles(reader: GraphReader, name: str, screen: str, section: str) -> str:

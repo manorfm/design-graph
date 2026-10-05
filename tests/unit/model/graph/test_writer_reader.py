@@ -1002,87 +1002,6 @@ class TestGetImpact:
 
 # ── JSX snippet size cap ───────────────────────────────────────────────────────
 
-class TestSourceCodeSizeCap:
-    """
-    GraphWriter must cap source_code before persisting so that oversized JSX
-    cannot cause performance issues or exceed Kuzu string limits.
-    The cap must be enforced in write_component AND write_screen (sections).
-    """
-
-    @pytest.fixture()
-    def fresh_writer(self, tmp_path):
-        from types import SimpleNamespace
-        import kuzu
-        from design_graph.model.graph.schema import initialize_schema
-        from design_graph.model.graph.writer import GraphWriter
-        from design_graph.model.graph.reader import GraphReader
-        db   = kuzu.Database(str(tmp_path / "cap.db"))
-        conn = kuzu.Connection(db)
-        initialize_schema(conn)
-        # Use same connection for writer and reader — avoids two-instance locking
-        return writer_and_reader(conn)
-
-    def _oversized_jsx(self) -> str:
-        return "<div>" + ("x" * 30_000) + "</div>"
-
-    def test_oversized_component_jsx_is_capped(self, fresh_writer):
-        from design_graph.model.entities import ExtractedComponent
-        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
-        comp = ExtractedComponent(
-            name="BigComp", comp_type="card", source_code=self._oversized_jsx(),
-            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
-        )
-        fresh_writer.writer.write_component(comp)
-        result = fresh_writer.reader.get_component("BigComp")
-        assert result is not None
-        stored = result.get("c.source_code", "")
-        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
-            f"Stored source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
-        )
-
-    def test_oversized_section_jsx_is_capped(self, fresh_writer):
-        from design_graph.model.entities import ExtractedScreen, ExtractedSection
-        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
-        section = ExtractedSection(
-            id="sec_big", screen="BigPage", name="BigSection",
-            styles={}, component_refs=[], texts=[],
-            source_code=self._oversized_jsx(), detection_method="comment",
-        )
-        screen = ExtractedScreen(name="BigPage", component_refs=[], sections_count=1)
-        fresh_writer.writer.write_screen(screen, [section])
-        sec = fresh_writer.reader.get_section("BigPage", "BigSection")
-        assert sec is not None
-        stored = sec.get("source_code", "")
-        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
-            f"Stored section source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
-        )
-
-    def test_normal_jsx_is_stored_intact(self, fresh_writer):
-        from design_graph.model.entities import ExtractedComponent
-        jsx = "<div><button>OK</button></div>"
-        comp = ExtractedComponent(
-            name="SmallComp", comp_type="button", source_code=jsx,
-            occurrence=1, classes="", styles=[], interactions=[], texts=[], child_refs=[],
-        )
-        fresh_writer.writer.write_component(comp)
-        result = fresh_writer.reader.get_component("SmallComp")
-        assert result["c.source_code"] == jsx
-
-    def test_oversized_screen_jsx_is_capped(self, fresh_writer):
-        from design_graph.model.entities import ExtractedScreen
-        from design_graph.model.graph.writer import MAX_SOURCE_CODE_CHARS
-        screen = ExtractedScreen(
-            name="BigScreen", component_refs=[], sections_count=0,
-            source_code=self._oversized_jsx(),
-        )
-        fresh_writer.writer.declare_screens([screen])
-        stored = fresh_writer.reader.get_full_source("BigScreen")["source_code"]
-        assert stored.startswith("<div>"), "screen fallback did not return the stored source_code at all"
-        assert len(stored) <= MAX_SOURCE_CODE_CHARS, (
-            f"Stored screen source_code has {len(stored)} chars, expected ≤ {MAX_SOURCE_CODE_CHARS}"
-        )
-
-
 class TestGetFullSourceFallsBackToScreen:
     """
     get_full_source('ItemEditorV6') failed outright before this: a full-page
@@ -1302,3 +1221,18 @@ class TestTokensByMode:
 
     def test_mode_combines_with_category(self, reader):
         assert [r["t.value"] for r in reader.get_tokens("css_var", mode="claro")] == ["#0D5C63"]
+
+
+class TestWholeSourceIsStored:
+    def test_long_component_and_screen_sources_are_stored_whole(self, tmp_path):
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "whole.db")))
+        initialize_schema(conn)
+        gw = GraphWriter(conn)
+        long_source = "<div>" + "x" * 50_000 + "</div>"
+        gw.write_component(ExtractedComponent(name="Big", comp_type="component", source_code=long_source,
+                                              occurrence=1, classes=""))
+        gw.write_screen(ExtractedScreen(name="Page", component_refs=[], sections_count=0, source_code=long_source), [])
+        gw.commit()
+        reader = GraphReader(conn)
+        assert reader.get_full_source("Big")["source_code"] == long_source
+        assert reader.get_full_source("Page")["source_code"] == long_source

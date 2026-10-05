@@ -109,7 +109,7 @@ class ToolDispatcher:
             ),
             "find_token_usage":          lambda: discovery_tools.find_token_usage(reader, args.get("value", "")),
             "impact":                    lambda: discovery_tools.impact(reader, name),
-            "get_full_source":              lambda: full_tools.get_full_source(reader, name),
+            "get_full_source":           lambda: full_tools.get_full_source(reader, name, args.get("page", 1)),
             "get_full_styles":           lambda: full_tools.get_full_styles(reader, name, screen, section),
             "get_full_texts":            lambda: full_tools.get_full_texts(reader, name, screen, section),
             "get_component_data":        lambda: component_tools.get_component_data(reader, name),
