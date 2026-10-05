@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-
+from weakref import WeakKeyDictionary
 
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.aliases import get_aliases
@@ -160,57 +160,55 @@ def _word_coverage(result: SearchResult, query_words: set[str]) -> float:
     return matched / len(query_words)
 
 
-def _search_reader(
-    reader: GraphReader, doc_name: str, term: str
-) -> list[SearchResult]:
-    """Search one reader for one query term."""
-    results: list[SearchResult] = []
+@dataclass(frozen=True)
+class _IndexEntry:
+    """One searchable graph entity and the strings a term is matched against."""
 
-    for screen in reader.list_screens():
-        name = screen["name"]
-        s = score_match(name, term)
-        if s > 0:
-            results.append(SearchResult(
-                type="Screen", name=name, detail="", id=name, doc=doc_name, score=s
-            ))
+    type: str
+    name: str
+    detail: str
+    id: str
+    keys: tuple[str, ...]
 
-    for comp_row in reader.list_components():
-        comp_name = comp_row.get("c.name", "")
-        if not comp_name:
-            continue
-        s = score_match(comp_name, term)
-        if s > 0:
-            results.append(SearchResult(
-                type="Component", name=comp_name,
-                detail=comp_row.get("c.comp_type", ""),
-                id=comp_name, doc=doc_name, score=s,
-            ))
 
+# One index per reader, built on its first search. The MCP server replaces
+# its readers when a graph is rebuilt, so an index never outlives its graph.
+_INDEXES: WeakKeyDictionary[GraphReader, list[_IndexEntry]] = WeakKeyDictionary()
+
+
+def _index_of(reader: GraphReader) -> list[_IndexEntry]:
+    index = _INDEXES.get(reader)
+    if index is None:
+        index = _INDEXES[reader] = _build_index(reader)
+    return index
+
+
+def _build_index(reader: GraphReader) -> list[_IndexEntry]:
+    entries = [_IndexEntry("Screen", s["name"], "", s["name"], (s["name"],)) for s in reader.list_screens()]
+    entries += [
+        _IndexEntry("Component", c["c.name"], c.get("c.comp_type", ""), c["c.name"], (c["c.name"],))
+        for c in reader.list_components() if c.get("c.name")
+    ]
     for token in reader.get_tokens():
-        label = token.get("t.label", "")
-        value = token.get("t.value", "")
-        s = max(score_match(label, term), score_match(value, term))
-        if s > 0:
-            results.append(SearchResult(
-                type="Token", name=label, detail=value,
-                id=token.get("t.id", label), doc=doc_name, score=s,
-            ))
-
+        label, value = token.get("t.label", ""), token.get("t.value", "")
+        entries.append(_IndexEntry("Token", label, value, token.get("t.id", label), (label, value)))
     for text in reader.list_texts():
         content = text.get("t.content", "")
-        s = score_match(content, term)
-        if s > 0:
-            results.append(SearchResult(
-                type="UIText", name=content, detail=text.get("t.source", ""),
-                id=text.get("t.id", content), doc=doc_name, score=s,
-            ))
+        entries.append(_IndexEntry("UIText", content, text.get("t.source", ""), text.get("t.id", content), (content,)))
+    entries += [
+        _IndexEntry("CssClass", name, "classe CSS compartilhada", f"class:{name}", (name,))
+        for name in reader.list_shared_style_classes()
+    ]
+    return entries
 
-    for class_name in reader.list_shared_style_classes():
-        s = score_match(class_name, term)
-        if s > 0:
-            results.append(SearchResult(
-                type="CssClass", name=class_name, detail="classe CSS compartilhada",
-                id=f"class:{class_name}", doc=doc_name, score=s,
-            ))
 
+def _search_reader(reader: GraphReader, doc_name: str, term: str) -> list[SearchResult]:
+    """Search one reader's index for one query term."""
+    results = []
+    for entry in _index_of(reader):
+        score = max(score_match(key, term) for key in entry.keys)
+        if score > 0:
+            results.append(SearchResult(
+                type=entry.type, name=entry.name, detail=entry.detail, id=entry.id, doc=doc_name, score=score,
+            ))
     return results

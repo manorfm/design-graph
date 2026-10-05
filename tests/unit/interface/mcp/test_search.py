@@ -455,3 +455,30 @@ class TestSearchCoversUIText:
     def test_no_match_returns_no_uitext_results(self):
         results = self._run("xyz-not-present")
         assert not any(r.type == "UIText" for r in results)
+
+
+class _CountingReader(_StubReader):
+    """Counts how often each listing is read."""
+
+    def __init__(self):
+        self.reads = 0
+
+    def list_screens(self):
+        self.reads += 1
+        return super().list_screens()
+
+
+class TestSearchIndexIsBuiltOncePerReader:
+    def test_many_terms_and_searches_read_the_graph_once(self):
+        reader = _CountingReader()
+        first = search([("doc", reader)], "botão nav header")
+        again = search([("doc", reader)], "botão nav header")
+        search([("doc", reader)], "footer avatar")
+        assert reader.reads == 1
+        assert [r.name for r in first] == [r.name for r in again]
+
+    def test_a_new_reader_gets_its_own_index(self):
+        old, new = _CountingReader(), _CountingReader()
+        search([("doc", old)], "nav")
+        search([("doc", new)], "nav")
+        assert (old.reads, new.reads) == (1, 1)
