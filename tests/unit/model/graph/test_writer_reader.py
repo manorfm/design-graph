@@ -1176,6 +1176,40 @@ class TestTokenModesAndCustomProperties:
         assert self._linked_labels(graph, "Ghost") == []
 
 
+class TestTokenListOrder:
+    """Token lists are ordered by category, label and mode — never by the order tokens happened to be stored."""
+
+    @pytest.fixture()
+    def reader(self, tmp_path):
+        conn = kuzu.Connection(kuzu.Database(str(tmp_path / "order.db")))
+        initialize_schema(conn)
+        writer = GraphWriter(conn)
+        writer.write_tokens([
+            DesignToken(id="z_e", category="css_var", label="--zeta", value="#222", usage=1, mode="escuro"),
+            DesignToken(id="z_c", category="css_var", label="--zeta", value="#111", usage=1, mode="claro"),
+            DesignToken(id="a_c", category="css_var", label="--alfa", value="#333", usage=1, mode="claro"),
+        ])
+        writer.write_component(ExtractedComponent(
+            name="Card", comp_type="component", source_code="", occurrence=1, classes="",
+            styles=[StyleEntry.create("Card", "color", "var(--zeta)"), StyleEntry.create("Card", "background", "var(--alfa)")],
+        ))
+        getattr(writer, "commit", lambda: None)()
+        return GraphReader(conn)
+
+    _SORTED = [("--alfa", "claro"), ("--zeta", "claro"), ("--zeta", "escuro")]
+
+    def test_component_tokens(self, reader):
+        for read in (reader.get_component, reader.get_component_spec):
+            assert [(t["t.label"], t["t.mode"]) for t in read("Card")["tokens"]] == self._SORTED
+
+    def test_component_tree_tokens(self, reader):
+        tokens = reader.get_component_full("Card")["components"][0]["tokens"]
+        assert [(t["label"], t["mode"]) for t in tokens] == self._SORTED
+
+    def test_all_tokens(self, reader):
+        assert [(t["t.label"], t["t.mode"]) for t in reader.get_tokens()] == self._SORTED
+
+
 class TestTokensByMode:
     """Asking for one mode returns that mode's values plus the tokens every mode shares."""
 

@@ -277,7 +277,7 @@ class GraphReader:
         )
         tokens       = self._q(
             "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
-            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category",
+            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category, t.label, t.mode",
             {"n": resolved},
         )
         texts        = self._q(
@@ -367,7 +367,7 @@ class GraphReader:
 
         tokens = self._q(
             "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
-            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category",
+            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category, t.label, t.mode",
             {"n": resolved},
         )
         texts = self._q(
@@ -494,7 +494,7 @@ class GraphReader:
             "UNWIND $names AS cn "
             "MATCH (c:Component {name:cn})-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, t.value AS value, "
-            "t.category AS category, t.mode AS mode ORDER BY c.name, t.category",
+            "t.category AS category, t.mode AS mode ORDER BY c.name, t.category, t.label, t.mode",
             {"names": names},
         )
         comp_text_rows = self._q(
@@ -843,7 +843,7 @@ class GraphReader:
         return self._q(
             f"{match}WHERE {' AND '.join(conditions)} "
             "RETURN DISTINCT t.category, t.label, t.value, t.usage, t.mode "
-            "ORDER BY t.category, t.usage DESC, t.label",
+            "ORDER BY t.category, t.usage DESC, t.label, t.mode",
             params,
         )
 
@@ -1152,7 +1152,7 @@ class GraphReader:
             "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, "
             "       t.value AS value, t.category AS category, t.mode AS mode "
-            "ORDER BY c.name, t.category",
+            "ORDER BY c.name, t.category, t.label, t.mode",
             {"n": resolved},
         )
 
