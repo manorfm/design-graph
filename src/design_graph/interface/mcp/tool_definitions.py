@@ -25,36 +25,6 @@ TOOL_DEFINITIONS: list[dict] = [
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
     {
-        "name": "get_screen",
-        "description": (
-            "Returns a screen's structural overview: section names, component list (names and types) "
-            "and screen-level texts. Does NOT include component styles, props or source. "
-            "Use get_screen_full when you need to implement or replicate the screen. "
-            "Always pass 'doc' when multiple prototypes are loaded."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Screen name (e.g. RestaurantsPage)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
-        "name": "get_section",
-        "description": "Returns visual details of a specific section within a screen.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "screen":  {"type": "string", "description": "Screen name"},
-                "section": {"type": "string", "description": "Section name or partial name"},
-                "doc":     _doc_param(),
-            },
-            "required": ["screen", "section"],
-        },
-    },
-    {
         "name": "get_tokens",
         "description": (
             "Returns design tokens (color, spacing, typography, shadow, radius, "
@@ -142,6 +112,26 @@ TOOL_DEFINITIONS: list[dict] = [
                 "known": {"type": "array", "items": {"type": "string"},
                           "description": "Components you already have — their definitions are left out"},
                 "part": {"type": "integer", "minimum": 1, "description": "Part of a long answer (default 1)"},
+                "doc": _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "get_screen",
+        "description": (
+            "One screen, to inspect it (to build it, use assemble_page). detail=outline (default): its sections "
+            "and the components it uses, by name, plus navigation and variants. detail=full: every section with "
+            "its styles and texts and every component it renders, whole. detail=layout: the display/flex/grid and "
+            "size profile of each component and section. section=<name>: that section alone — styles by selector, "
+            "texts, components and source."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Screen name (fuzzy match)"},
+                "section": {"type": "string", "description": "Only this section of the screen"},
+                "detail": {"type": "string", "enum": ["outline", "full", "layout"], "description": "How much (default outline)"},
                 "doc": _doc_param(),
             },
             "required": ["name"],
@@ -328,40 +318,6 @@ TOOL_DEFINITIONS: list[dict] = [
                 "doc": _doc_param(),
             },
             "required": ["name", "source"],
-        },
-    },
-    {
-        "name": "get_screen_layout",
-        "description": (
-            "Returns the layout profile (display, width, height, flex/grid properties) "
-            "for every component on a screen. "
-            "Use this before reconstructing a screen to understand spatial structure."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Screen name (e.g. RestaurantsPage)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
-        "name": "get_screen_full",
-        "description": (
-            "Returns everything needed to implement or reconstruct a screen from the prototype: "
-            "all sections (with styles, texts, component refs and source), "
-            "all components (with styles grouped by state, design tokens, texts, "
-            "interactions, props and children), and layout profiles for spatial structure. "
-            "Use this as the first call when asked to implement, replicate or evolve a screen."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Screen name (e.g. RestaurantsPage)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
         },
     },
     {

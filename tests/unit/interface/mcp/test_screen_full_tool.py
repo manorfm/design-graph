@@ -115,28 +115,28 @@ def dispatcher(reader_with_full_screen):
 class TestGetScreenFullToolDefinition:
     def test_tool_exists_in_tool_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_screen_full" in names
+        assert "get_screen" in names
 
     def test_tool_requires_name_parameter(self):
-        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen_full")
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen")
         assert "name" in tool["inputSchema"]["required"]
+        assert "full" in tool["inputSchema"]["properties"]["detail"]["enum"]
 
-    def test_tool_description_mentions_implementation_or_reconstruction(self):
-        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen_full")
-        desc = tool["description"].lower()
-        assert "implement" in desc or "reconstruct" in desc
+    def test_tool_description_points_building_to_assemble_page(self):
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen")
+        assert "assemble_page" in tool["description"]
 
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 class TestGetScreenFullToolDispatch:
     def test_dispatches_to_reader_get_screen_full(self, dispatcher, reader_with_full_screen):
-        dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         reader_with_full_screen.get_screen_full.assert_called_once_with("HomeScreen")
 
     def test_returns_not_found_message_for_none_reader_result(self, dispatcher, reader_with_full_screen):
         reader_with_full_screen.get_screen_full.return_value = None
-        output = dispatcher.dispatch("get_screen_full", {"name": "NoScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "NoScreen"}, "myapp")
         assert "not found" in output.lower() or "não encontrada" in output.lower()
 
 
@@ -144,27 +144,27 @@ class TestGetScreenFullToolDispatch:
 
 class TestGetScreenFullToolSectionOutput:
     def test_renders_screen_name_as_top_heading(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "HomeScreen" in output
 
     def test_renders_section_name(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "HeroSection" in output
 
     def test_renders_section_styles(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "32px" in output
 
     def test_renders_section_component_refs(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "TopNav" in output
 
     def test_renders_section_texts(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "Welcome" in output
 
     def test_renders_section_jsx(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "section" in output.lower()
 
 
@@ -172,51 +172,51 @@ class TestGetScreenFullToolSectionOutput:
 
 class TestGetScreenFullToolComponentOutput:
     def test_renders_component_type(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "navigation" in output
 
     def test_renders_default_state_styles(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "flex" in output
 
     def test_renders_hover_state_styles(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "hover" in output
         assert "#f0f0f0" in output
 
     def test_renders_props_table_with_prop_names(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "title"   in output
         assert "variant" in output
 
     def test_renders_dash_for_prop_without_declared_default(self, dispatcher):
         """'title' has no declared default — must show a dash, not a false
         'required' claim JSX's prop system can't actually back up."""
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "| `title` | — |" in output
 
     def test_props_table_has_no_required_column(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "Required" not in output
 
     def test_renders_optional_prop_default_value(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "default" in output
 
     def test_renders_component_interactions(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "backgroundColor" in output
 
     def test_renders_component_tokens(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "primary" in output or "#007bff" in output
 
     def test_renders_component_children(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "Badge" in output
 
     def test_renders_component_source_code(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "<nav>" in output or "nav" in output
 
 
@@ -231,7 +231,7 @@ class TestGetScreenFullToolComponentOutput:
 
 class TestGetScreenFullToolDoesNotDuplicateLayoutSection:
     def test_does_not_render_layout_profiles_heading(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "Layout Profiles" not in output
 
     def test_layout_only_style_still_visible_via_component_styles_table(self, dispatcher):
@@ -241,5 +241,5 @@ class TestGetScreenFullToolDoesNotDuplicateLayoutSection:
         # duplicate section must not silently drop data that was only ever
         # available there. Guarded by asserting on a value both sections did
         # carry: "flex" (styles_by_state.default AND former layout_profiles).
-        output = dispatcher.dispatch("get_screen_full", {"name": "HomeScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "full", "name": "HomeScreen"}, "myapp")
         assert "flex" in output

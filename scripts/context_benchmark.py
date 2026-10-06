@@ -239,7 +239,7 @@ def _screen_report(tools: ToolDispatcher, name: str, page_source: str | None) ->
     What one screen costs: assembling it (get_screen_full plus the lists it
     says to fetch) apart from reading, in every part, the sources it points to.
     """
-    screen_full = tools.dispatch("get_screen_full", {"name": name}, "bench")
+    screen_full = tools.dispatch("get_screen", {"detail": "full", "name": name}, "bench")
     calls = recovery_calls(screen_full)
     assembly = [screen_full] + [tools.dispatch("get_full", args, "bench") for args in calls if args["aspect"] != "source"]
     sources = [part for args in calls if args["aspect"] == "source" for part in _source_parts(tools, args["name"])]

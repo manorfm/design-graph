@@ -37,7 +37,7 @@ def list_screens(readers: list[tuple[str, GraphReader]]) -> str:
     return "\n".join(lines) if len(lines) > 1 else "Nenhuma tela encontrada."
 
 
-def get_screen(reader: GraphReader, name: str) -> str:
+def get_screen_outline(reader: GraphReader, name: str) -> str:
     screen = reader.get_screen(name)
     if not screen:
         all_screens = [s["name"] for s in reader.list_screens()]
@@ -216,3 +216,23 @@ def get_section(reader: GraphReader, screen: str, section: str) -> str:
             sec["source_code"], sec["source_lang"], 3000, recoverable_via=None, heading="\n## Fonte",
         ))
     return "\n".join(lines)
+
+
+_DETAILS = ("outline", "full", "layout")
+
+
+def get_screen(reader: GraphReader, name: str, section: str = "", detail: str = "outline") -> str:
+    """
+    One screen, at the detail asked for: its outline (sections and the
+    components it uses, by name), everything (each section and component
+    whole), its layout profiles, or — with a section — that section alone.
+    """
+    if section:
+        return get_section(reader, name, section)
+    if detail == "full":
+        return get_screen_full(reader, name)
+    if detail == "layout":
+        return get_screen_layout(reader, name)
+    if detail in ("", "outline"):
+        return get_screen_outline(reader, name)
+    return f"detail inválido: {detail!r}. Use um de: {', '.join(_DETAILS)}."

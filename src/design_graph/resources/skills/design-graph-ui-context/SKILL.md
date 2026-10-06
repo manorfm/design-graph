@@ -64,11 +64,11 @@ list_components(comp_type="modal")         # filtra por tipo semântico
 
 | Situação | Tool | Por quê |
 |---|---|---|
-| Construir/replicar uma tela inteira | `get_screen_full(name)` | Traz seções, componentes, estilos por estado, tokens, textos, interações, props e filhos em ordem de renderização — tudo numa chamada |
-| Só a estrutura/layout de uma tela, sem detalhe visual completo | `get_screen_layout(name)` | Mais leve, só profile de layout por componente |
+| Construir/replicar uma tela inteira | `assemble_page(name, known=[…])` | Esqueleto da tela, cada componente uma vez, dados que eles repetem, tokens por modo e dependências — numa chamada; `known` deixa de fora os componentes que você já recebeu |
+| Só a estrutura/layout de uma tela, sem detalhe visual completo | `get_screen(name, detail="layout")` | Mais leve, só profile de layout por componente |
 | Um componente isolado (botão, card, input) | `get_component(name)` | Spec única focada em reconstrução: estilos por estado, tokens, interações, props, hierarquia, telas que usam |
 | Um componente complexo com filhos aninhados (modal, form, card com sub-widgets) | `get_component(name, depth=3)` | Componente + os aninhados (até 3 níveis) numa chamada só |
-| Uma seção específica de uma tela | `get_section(screen, section)` | Estilos, textos, componentes e fonte só daquela seção |
+| Uma seção específica de uma tela | `get_screen(name, section=…)` | Estilos, textos, componentes e fonte só daquela seção |
 
 **Sempre chame `get_tokens(category?, screen?)` antes de escrever um valor
 literal de cor/espaçamento/tipografia/sombra/raio.** Reaproveite o token

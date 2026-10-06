@@ -83,8 +83,7 @@ class TestStyleGapNoticeAppearsAcrossAllRenderSites:
         assert "source" in out.lower() and "runtime" in out.lower()
 
     def test_get_screen_full_warns_on_dynamic_only_styles(self):
-        out = self._dispatcher(_DynamicStyleReader).dispatch(
-            "get_screen_full", {"name": "Screen"}, "proto"
+        out = self._dispatcher(_DynamicStyleReader).dispatch("get_screen", {"detail": "full", "name": "Screen"}, "proto"
         )
         assert "runtime" in out.lower()
 
@@ -100,8 +99,7 @@ class TestStyleGapNoticeAppearsAcrossAllRenderSites:
         assert "runtime" not in out.lower()
 
     def test_get_screen_full_stays_silent_when_genuinely_unstyled(self):
-        out = self._dispatcher(_NoStyleAtAllReader).dispatch(
-            "get_screen_full", {"name": "Screen"}, "proto"
+        out = self._dispatcher(_NoStyleAtAllReader).dispatch("get_screen", {"detail": "full", "name": "Screen"}, "proto"
         )
         assert "runtime" not in out.lower()
 

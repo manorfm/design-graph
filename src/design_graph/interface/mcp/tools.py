@@ -102,13 +102,10 @@ class ToolDispatcher:
 
         screen, section = args.get("screen", ""), args.get("section", "")
         dispatch_map = {
-            "get_screen_layout":         lambda: screen_tools.get_screen_layout(reader, name),
-            "get_screen_full":           lambda: screen_tools.get_screen_full(reader, name),
             "assemble_page":             lambda: assemble_tool.assemble_page(
                 reader, name, args.get("known"), args.get("part", 1),
             ),
-            "get_screen":                lambda: screen_tools.get_screen(reader, name),
-            "get_section":               lambda: screen_tools.get_section(reader, screen, section),
+            "get_screen":                lambda: screen_tools.get_screen(reader, name or screen, section, args.get("detail", "outline")),
             "get_component":             lambda: component_tools.get_component(reader, name, args.get("depth", 0)),
             "get_tokens":                lambda: discovery_tools.get_tokens(
                 reader, args.get("category"), args.get("screen"), args.get("mode"),

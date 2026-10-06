@@ -275,7 +275,7 @@ _AGENT_INSTRUCTIONS = (
     "of assuming the earlier selection still holds. To build a screen, call "
     "assemble_page(name) — skeleton, each component once, data, tokens by mode and "
     "dependencies in one answer; pass known=[…] on the next screen to skip components you "
-    "already have. Use get_screen_full to inspect a screen's sections and styles, "
+    "already have. Use get_screen(name, detail=outline|full|layout, section?) to inspect a screen, "
     "get_component(name) for a single component, or get_component(name, depth=1..3) "
     "for one component plus the components it nests (a modal, form or card with "
     "nested children) in one call. Always call get_tokens before "

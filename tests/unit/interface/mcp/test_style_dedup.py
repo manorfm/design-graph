@@ -107,5 +107,5 @@ class TestStyleTruncationNoLongerHidesDistinctProperties:
         assert "| gridTemplateColumns |" in output
 
     def test_get_screen_full_shows_padding_for_nested_component(self):
-        output = self._dispatcher().dispatch("get_screen_full", {"name": "RestaurantsPage"}, "proto")
+        output = self._dispatcher().dispatch("get_screen", {"detail": "full", "name": "RestaurantsPage"}, "proto")
         assert "| padding |" in output

@@ -401,11 +401,8 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | Tool | Purpose | Parameters |
 |---|---|---|
 | `list_screens` | List screens across all loaded prototypes | — |
-| `get_screen` | Return a structural screen overview | `name`, `doc?` |
+| `get_screen` | Inspect one screen: `detail=outline` (sections and components by name, navigation, variants), `detail=full` (every section and component whole) or `detail=layout` (display/flex/grid and size profiles); `section=` returns that section alone | `name`, `section?`, `detail?`, `doc?` |
 | `assemble_page` | Build one screen in one call: header, the screen's skeleton, each component it renders once, the data they repeat, tokens by mode and dependencies — `known` leaves out components the agent already has; long answers come in parts | `name`, `known?`, `part?`, `doc?` |
-| `get_screen_full` | Return everything needed to reconstruct a screen | `name`, `doc?` |
-| `get_screen_layout` | Return layout profiles for a screen's components and, for any section styled via CSS classes, one profile per section selector | `name`, `doc?` |
-| `get_section` | Return visual details for a section | `screen`, `section`, `doc?` |
 | `list_components` | List components, optionally filtered by semantic type (capped at 100 by default) | `comp_type?`, `limit?`, `doc?` |
 | `get_component` | Return one component, whole — hierarchy, styles by state (incl. responsive), tokens by mode, texts, interactions, props with defaults, referenced data and source; `depth=1..3` adds the components it nests. Falls back to a CSS-class spec when the name is a shared class, and to the screen when it is a screen's name | `name`, `depth?`, `doc?` |
 | `get_full` | Return, whole, what another answer shortened — `aspect=source`: a component's or screen's source as the prototype wrote it (in parts, `part=`); `aspect=styles` / `aspect=texts`: the complete style or text list of a component (`name=`) or of a screen section (`screen=` + `section=`); `aspect=data`: the module-level data a component references (e.g. an icon-name → SVG-path table) | `aspect`, `name?`, `screen?`, `section?`, `part?`, `doc?` |
@@ -422,7 +419,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 
 `get_tokens.category` accepts `color`, `spacing`, `typography`, `shadow`, `radius` and `css_var`. Omit `category` to retrieve every extracted category. `mode` keeps that mode's values plus the tokens shared by every mode.
 
-`list_screens`, `get_screen` and `get_screen_full` also show each screen's viewport, where it navigates to and is reached from, and which screen it is a variant of (another viewport or mode).
+`list_screens`, `get_screen` and `assemble_page` also show each screen's viewport, where it navigates to and is reached from, and which screen it is a variant of (another viewport or mode).
 
 `validate_component_implementation` is best-effort, not a full re-extraction: it reliably catches missing/extra child components and missing inline styles/texts, but cannot verify styles that came from the prototype's own stylesheet classes or utility classes (e.g. `bg-blue-500`) — those require the original stylesheet, unavailable for a standalone fragment. Treat a clean report as "no red flags found", not proof of a pixel-perfect match. `source` is capped at 20,000 characters.
 
@@ -443,7 +440,7 @@ When multiple databases are loaded, the server selects a prototype in this order
 ```text
 set_prototype(name="app-v1")
 get_component(name="SectionCard")
-get_screen_full(name="HomePage", doc="admin")
+assemble_page(name="HomePage", doc="admin")
 ```
 
 The `doc` value is the database filename without `.db`.

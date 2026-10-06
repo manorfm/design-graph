@@ -76,7 +76,7 @@ class TestPropsRenderSitesAgreeOnHonesty:
         return ToolDispatcher([("proto", _PropsReader())])
 
     def test_get_screen_full_has_no_required_column(self):
-        out = self._dispatcher().dispatch("get_screen_full", {"name": "Screen"}, "proto")
+        out = self._dispatcher().dispatch("get_screen", {"detail": "full", "name": "Screen"}, "proto")
         assert "Required" not in out
         assert "| `icon` | — |" in out
         assert "| `variant` | `secondary` |" in out

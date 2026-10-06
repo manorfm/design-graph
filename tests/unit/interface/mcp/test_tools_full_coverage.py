@@ -389,7 +389,7 @@ class TestTruncationWarnings:
 
     def test_section_styles_truncation_warning(self):
         d = self._dispatcher()
-        result = d.dispatch("get_section", {"screen": "X", "section": "BigSection"}, "")
+        result = d.dispatch("get_screen", {"name": "X", "section": "BigSection"}, "")
         # 9 styles, limit 6 → must mention remaining count
         assert "+" in result and "mais" in result.lower(), (
             "Expected truncation notice '+N mais' in section styles output"
@@ -397,7 +397,7 @@ class TestTruncationWarnings:
 
     def test_section_texts_truncation_warning(self):
         d = self._dispatcher()
-        result = d.dispatch("get_section", {"screen": "X", "section": "BigSection"}, "")
+        result = d.dispatch("get_screen", {"name": "X", "section": "BigSection"}, "")
         # 9 texts, limit 8 → must mention remaining count
         assert "+" in result and "mais" in result.lower(), (
             "Expected truncation notice '+N mais' in section texts output"
@@ -429,7 +429,7 @@ class TestTruncationWarnings:
                     "component_refs": [], "texts": ["Hello"], "source_code": "", "source_lang": "jsx",
                 }
         d = ToolDispatcher([("proto", SmallReader())])
-        result = d.dispatch("get_section", {"screen": "X", "section": "Small"}, "")
+        result = d.dispatch("get_screen", {"name": "X", "section": "Small"}, "")
         assert "mais" not in result.lower()
 
 
@@ -571,18 +571,17 @@ class TestJsxTruncationWarnings:
         return ToolDispatcher([("proto", _JsxOverflowReader())])
 
     def test_get_section_notice_is_visible_without_a_false_lead(self):
-        result = self._dispatcher().dispatch(
-            "get_section", {"screen": "X", "section": "BigSection"}, "proto"
+        result = self._dispatcher().dispatch("get_screen", {"name": "X", "section": "BigSection"}, "proto"
         )
         assert "+" in result
         assert "get_full(" not in result
 
     def test_get_screen_full_component_notice_is_actionable(self):
-        result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
+        result = self._dispatcher().dispatch("get_screen", {"detail": "full", "name": "BigScreen"}, "proto")
         assert 'get_full(name="BigComp", aspect="source")' in result
 
     def test_get_screen_full_section_notice_has_no_false_lead(self):
-        result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
+        result = self._dispatcher().dispatch("get_screen", {"detail": "full", "name": "BigScreen"}, "proto")
         # Only the component-level cut may point to the full source; the
         # section-level cut must not carry the same (false) claim.
         assert result.count('aspect="source"') == 1

@@ -43,7 +43,7 @@ def test_screen_name_answers_as_the_screen(tool):
     assert "'App' é uma tela" in out
     assert "<main><Header/><Footer/></main>" in out
     assert "Header" in out and "Footer" in out
-    assert "get_screen_full('App')" in out
+    assert "assemble_page('App')" in out and 'get_screen(name="App", detail="full")' in out
 
 
 @pytest.mark.parametrize("tool", _TOOLS)

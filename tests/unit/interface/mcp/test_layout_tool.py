@@ -77,41 +77,42 @@ class TestGetScreenLayoutTool:
     def test_tool_exists_in_tool_definitions(self):
         from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_screen_layout" in names
+        assert "get_screen" in names
 
     def test_requires_name_parameter(self):
         from design_graph.interface.mcp.tool_definitions import TOOL_DEFINITIONS
-        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen_layout")
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_screen")
         assert "name" in tool["inputSchema"]["required"]
+        assert "layout" in tool["inputSchema"]["properties"]["detail"]["enum"]
 
     def test_dispatches_to_reader_get_screen_layout(self, dispatcher, reader_with_layout):
-        dispatcher.dispatch("get_screen_layout", {"name": "DashboardPage"}, "myapp")
+        dispatcher.dispatch("get_screen", {"detail": "layout", "name": "DashboardPage"}, "myapp")
         reader_with_layout.get_screen_layout.assert_called_once_with("DashboardPage")
 
     def test_output_contains_component_names(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_layout", {"name": "DashboardPage"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "DashboardPage"}, "myapp")
         assert "NavBar" in output
         assert "ContentGrid" in output
 
     def test_output_contains_display_value(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_layout", {"name": "DashboardPage"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "DashboardPage"}, "myapp")
         assert "flex" in output
         assert "grid" in output
 
     def test_output_contains_dimensions(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_layout", {"name": "DashboardPage"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "DashboardPage"}, "myapp")
         assert "100%" in output
         assert "64px" in output
 
     def test_output_contains_extra_layout(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_layout", {"name": "DashboardPage"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "DashboardPage"}, "myapp")
         assert "gridTemplateColumns" in output
 
     def test_returns_not_found_message_when_reader_returns_empty(self, dispatcher, reader_with_layout):
         reader_with_layout.get_screen_layout.return_value = []
-        output = dispatcher.dispatch("get_screen_layout", {"name": "NoScreen"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "NoScreen"}, "myapp")
         assert "not found" in output.lower() or "não encontrada" in output.lower()
 
     def test_unknown_tool_name_is_not_affected(self, dispatcher):
-        output = dispatcher.dispatch("get_screen_layout", {"name": "x"}, "myapp")
+        output = dispatcher.dispatch("get_screen", {"detail": "layout", "name": "x"}, "myapp")
         assert "Unknown tool" not in output

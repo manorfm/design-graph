@@ -52,7 +52,7 @@ def test_screens_and_variants_are_listed(tools):
 
 
 def test_screen_shows_navigation_and_sections(tools):
-    out = _call(tools, "get_screen_full", name="Tela 1")
+    out = _call(tools, "get_screen", name="Tela 1", detail="full")
     assert "**Navega para**: Tela 2 («Seguir»)" in out
     assert "### Tela 1" in out and "### Footer" in out
 

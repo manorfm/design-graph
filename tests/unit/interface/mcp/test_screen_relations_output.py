@@ -34,8 +34,8 @@ class _Reader:
                 "sections": [], "components": [], "layout_profiles": [], "relations": self.relations}
 
 
-def _call(tool, relations=RELATIONS):
-    return ToolDispatcher([("proto", _Reader(relations))]).dispatch(tool, {"name": "Welcome"}, "proto")
+def _call(tool, relations=RELATIONS, **args):
+    return ToolDispatcher([("proto", _Reader(relations))]).dispatch(tool, {"name": "Welcome", **args}, "proto")
 
 
 class TestScreenRelationsOutput:
@@ -47,7 +47,7 @@ class TestScreenRelationsOutput:
         assert "**Variantes**: Welcome (desktop) (viewport)" in out
 
     def test_screen_full_shows_the_same_relations(self):
-        out = _call("get_screen_full")
+        out = _call("get_screen", detail="full")
         assert "**Viewport**: 390×844" in out
         assert "**Navega para**: Perspective («Start»)" in out
 

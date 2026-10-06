@@ -68,20 +68,17 @@ class TestScreenStructureGapNotice:
         return ToolDispatcher([("proto", reader())])
 
     def test_warns_when_nothing_decomposed_but_jsx_is_substantial(self):
-        out = self._dispatcher(_NothingDecomposedReader).dispatch(
-            "get_screen_full", {"name": "HistoryView"}, "proto"
+        out = self._dispatcher(_NothingDecomposedReader).dispatch("get_screen", {"detail": "full", "name": "HistoryView"}, "proto"
         )
         assert 'aspect="source"' in out
         assert "HistoryView" in out
 
     def test_stays_silent_when_screen_genuinely_has_nothing(self):
-        out = self._dispatcher(_TrivialScreenReader).dispatch(
-            "get_screen_full", {"name": "EmptyScreen"}, "proto"
+        out = self._dispatcher(_TrivialScreenReader).dispatch("get_screen", {"detail": "full", "name": "EmptyScreen"}, "proto"
         )
         assert "get_full(" not in out
 
     def test_stays_silent_when_sections_were_found(self):
-        out = self._dispatcher(_DecomposedScreenReader).dispatch(
-            "get_screen_full", {"name": "NormalScreen"}, "proto"
+        out = self._dispatcher(_DecomposedScreenReader).dispatch("get_screen", {"detail": "full", "name": "NormalScreen"}, "proto"
         )
         assert "get_full(" not in out

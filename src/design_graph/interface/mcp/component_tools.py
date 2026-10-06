@@ -45,7 +45,8 @@ def _screen_instead(reader: GraphReader, name: str) -> str | None:
     return "\n".join([
         f"# '{entity.name}' é uma tela, não um componente",
         f"**Componentes diretos**: {components}",
-        f"> Para a tela inteira (seções, estilos e cada componente): get_screen_full('{entity.name}').\n",
+        f"> Para montar a tela: assemble_page('{entity.name}'); para inspecioná-la inteira: "
+        f"get_screen(name=\"{entity.name}\", detail=\"full\").\n",
         get_full_source(reader, entity.name),
     ])
 

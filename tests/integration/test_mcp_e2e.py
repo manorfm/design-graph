@@ -96,9 +96,9 @@ class TestServerOwnResponsibility:
     def test_tool_definitions_returns_all_expected_tools(self, single_server):
         names = {t["name"] for t in single_server.tool_definitions()}
         expected = {
-            "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
+            "list_screens", "get_screen", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full", "list_components", "get_screen_layout",
+            "get_full", "list_components",
             "set_prototype",
         }
         assert expected.issubset(names), f"Missing tools: {expected - names}"

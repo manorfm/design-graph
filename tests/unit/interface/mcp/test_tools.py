@@ -763,7 +763,7 @@ class TestToolDefinitions:
     def test_all_standard_tools_defined(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
-            "list_screens", "get_screen", "get_section", "get_component",
+            "list_screens", "get_screen", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
             "get_full", "list_components", "set_prototype",
         }
