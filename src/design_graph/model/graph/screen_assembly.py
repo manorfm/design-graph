@@ -35,69 +35,63 @@ class ScreenAssemblyQueries:
             "skeleton": self._resolve_icons(screen["skeleton"] or screen["source"] or ""),
             "source_lang": screen["lang"] or "",
             "relations": self.get_screen_relations(resolved),
-            "components": self._assembly_components(resolved, screen["skeleton"] or screen["source"] or ""),
+            "components": self._assembly_components(screen["skeleton"] or screen["source"] or ""),
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
         }
 
-    def _assembly_components(self, screen: str, skeleton: str) -> list[dict]:
-        """The screen's components, breadth first from the ones it uses directly, each once."""
-        top = [r["name"] for r in self._q(
-            "MATCH (s:Screen {name:$n})-[r:USES_COMPONENT]->(c:Component) RETURN c.name AS name ORDER BY offset(ID(r))",
-            {"n": screen},
-        )]
-        children: dict[str, list[str]] = defaultdict(list)
-        for r in self._q(
-            "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(:Component)-[:CONTAINS*0..3]->(p:Component) "
-            "WITH DISTINCT p MATCH (p)-[r:CONTAINS]->(c:Component) "
-            "RETURN p.name AS parent, c.name AS child ORDER BY p.name, r.order_index",
-            {"n": screen},
-        ):
-            children[r["parent"]].append(r["child"])
+    def _assembly_components(self, skeleton: str) -> list[dict]:
+        """
+        The components the skeleton uses as tags — then the ones their own
+        definitions use — each once, in the order they are first used. A
+        component whose markup is already written out inside another
+        definition is never sent again, and a word in a text is never a use.
+        """
         order: list[str] = []
-        queue = list(dict.fromkeys(top))
-        while queue:
-            current = queue.pop(0)
-            if current not in order:
-                order.append(current)
-                queue.extend(children.get(current, []))
-        rows = {r["name"]: r for r in self._q(
+        components: dict[str, dict] = {}
+        pending = _tags_in(skeleton)
+        while pending:
+            found = self._components_named([name for name in dict.fromkeys(pending) if name not in components])
+            components.update(found)
+            fresh = [name for name in dict.fromkeys(pending) if name in components and name not in order]
+            order += fresh
+            pending = [tag for name in fresh for tag in _tags_in(components[name]["source_code"])]
+        return [components[name] for name in order]
+
+    def _components_named(self, names: list[str]) -> dict[str, dict]:
+        """Each existing component among `names`, by exact name, with its props."""
+        if not names:
+            return {}
+        rows = self._q(
             "UNWIND $names AS cn MATCH (c:Component {name:cn}) "
             "RETURN c.name AS name, c.comp_type AS comp_type, c.source_code AS source_code, "
             "c.source_lang AS source_lang, c.occurrence AS occurrence, c.referenced_data_json AS data",
-            {"names": order},
-        )}
+            {"names": names},
+        )
         props: dict[str, list[dict]] = defaultdict(list)
         for r in self._q(
             "UNWIND $names AS cn MATCH (c:Component {name:cn})-[:HAS_PROP]->(p:ComponentProp) "
             "RETURN c.name AS name, p.prop_name AS prop_name, p.default_value AS default_value ORDER BY p.prop_name",
-            {"names": order},
+            {"names": names},
         ):
             props[r["name"]].append({"prop_name": r["prop_name"], "default_value": r["default_value"]})
-        components = [
-            {
-                "name": name,
-                "comp_type": rows[name]["comp_type"],
-                "source_code": self._resolve_icons(rows[name]["source_code"] or ""),
-                "source_lang": rows[name]["source_lang"] or "",
-                "defined": rows[name]["occurrence"] != ComponentDefinitionStatus.UNRESOLVED.value,
-                "props": props.get(name, []),
-                "referenced_data": json.loads(rows[name]["data"] or "{}"),
+        return {
+            row["name"]: {
+                "name": row["name"],
+                "comp_type": row["comp_type"],
+                "source_code": self._resolve_icons(row["source_code"] or ""),
+                "source_lang": row["source_lang"] or "",
+                "defined": row["occurrence"] != ComponentDefinitionStatus.UNRESOLVED.value,
+                "props": props.get(row["name"], []),
+                "referenced_data": json.loads(row["data"] or "{}"),
             }
-            for name in order if name in rows
-        ]
-        return _referenced(skeleton, components)
+            for row in rows
+        }
 
 
-def _referenced(skeleton: str, components: list[dict]) -> list[dict]:
-    """
-    Only the components the skeleton — or a definition already sent — names:
-    one whose markup is already written out inside another's definition is
-    not sent a second time.
-    """
-    text, sent = skeleton, []
-    for component in components:
-        if re.search(rf"\b{re.escape(component['name'])}\b", text):
-            sent.append(component)
-            text += "\n" + component["source_code"]
-    return sent
+_RE_TAG_USE = re.compile(r"<(\w[\w.-]*)|\{(\w+)\}")
+
+
+def _tags_in(text: str) -> list[str]:
+    """Names used as a tag (`<Name`) or passed as a value (`{Name}`), in order — candidates, not yet components."""
+    return [tag or value for tag, value in _RE_TAG_USE.findall(text)]

@@ -78,3 +78,16 @@ def test_a_component_already_written_out_inside_another_is_not_sent_again(tmp_pa
     assembly = GraphReader(conn).get_screen_assembly("Page")
     assert assembly["skeleton"] == "<main><Footer></Footer></main>"
     assert [c["name"] for c in assembly["components"]] == ["Footer"]
+
+
+def test_components_are_the_ones_the_skeleton_uses_as_tags_not_words_in_its_text(tmp_path):
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "tags.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Projeto", "<div>muito markup</div>"))
+    w.write_component(_comp("Cell", '<i style="background: {{slot.background}}"></i>'))
+    w.write_screen(ExtractedScreen(name="Page", component_refs=["Projeto"], sections_count=0,
+                                   source_code="<main><p>Projeto novo</p><i></i></main>",
+                                   skeleton='<main><p>Projeto novo</p><Cell background="red"></Cell></main>'), [])
+    w.commit()
+    assert [c["name"] for c in GraphReader(conn).get_screen_assembly("Page")["components"]] == ["Cell"]
