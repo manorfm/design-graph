@@ -163,6 +163,22 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_asset",
+        "description": (
+            "Writes the files of one font family or image the prototype embeds into the workspace, under "
+            "design-graph-assets/<name>/, and returns their paths — use it instead of recreating an icon or "
+            "guessing a font file. Names come from get_resources."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Resource name, as get_resources lists it"},
+                "doc": _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "get_resources",
         "description": (
             "Lists what the prototype loads besides its own markup: libraries with their version and "

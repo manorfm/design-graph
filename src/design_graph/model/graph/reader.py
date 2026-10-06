@@ -10,6 +10,7 @@ Fuzzy name resolution is built in: get_screen("Restaurants") resolves to
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from collections import defaultdict
@@ -812,11 +813,22 @@ class GraphReader(ScreenAssemblyQueries):
         match = "MATCH (s:Screen {name:$screen})-[:USES_RESOURCE]->(r:Resource) " if screen else "MATCH (r:Resource) "
         return self._q(
             f"{match}WHERE $kind = '' OR r.kind = $kind "
-            "RETURN DISTINCT r.kind AS kind, r.name AS name, r.version AS version, r.origin AS origin, "
-            "r.certainty AS certainty, r.detail AS detail, r.size AS size, r.import_line AS import_line "
+            "WITH DISTINCT r OPTIONAL MATCH (r)-[:HAS_FILE]->(a:Asset) "
+            "RETURN r.kind AS kind, r.name AS name, r.version AS version, r.origin AS origin, "
+            "r.certainty AS certainty, r.detail AS detail, r.size AS size, r.import_line AS import_line, "
+            "count(DISTINCT a) AS files "
             "ORDER BY kind, name, version",
             {"kind": kind or "", **({"screen": screen} if screen else {})},
         )
+
+    def get_resource_files(self, name: str) -> list[dict]:
+        """The files a resource (a font family, an image) is made of: content, type and hash, each once."""
+        rows = self._q(
+            "MATCH (r:Resource {name:$n})-[:HAS_FILE]->(a:Asset) "
+            "RETURN DISTINCT a.id AS sha256, a.mime AS mime, a.data AS data ORDER BY sha256",
+            {"n": name},
+        )
+        return [{"sha256": r["sha256"], "mime": r["mime"], "content": base64.b64decode(r["data"])} for r in rows]
 
     def get_tokens(
         self, category: str | None = None, screen: str | None = None, mode: str | None = None,

@@ -83,6 +83,8 @@ def _resource_line(row: dict) -> str:
     origin = f"{row['origin']} ({row['certainty']})" if row["certainty"] == "inferida" else row["origin"]
     parts = [f"- **{row['name']}**" + (f" {row['version']}" if row["version"] else "")]
     parts += [part for part in (row["detail"], origin) if part]
+    if row.get("files"):
+        parts.append(f"{row['files']} arquivo{'s' if row['files'] > 1 else ''}: get_asset('{row['name']}')")
     return " · ".join(parts)
 
 

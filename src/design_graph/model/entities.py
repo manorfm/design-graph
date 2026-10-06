@@ -205,6 +205,18 @@ class Certainty(StrEnum):
 
 
 @dataclass(frozen=True)
+class AssetFile:
+    """One embedded file a resource is made of (a font file, an image), kept so an agent can have it written out."""
+
+    mime: str
+    content: bytes
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(self.content).hexdigest()
+
+
+@dataclass(frozen=True)
 class Resource:
     """
     Something a prototype loads besides its own markup: a library, the
@@ -223,13 +235,15 @@ class Resource:
     size: int            # bytes the prototype embeds for it
     sha256: str          # of the embedded file, when it is one file
     import_line: str     # the line that brings it into a project, when its origin gives one
+    files: tuple[AssetFile, ...] = ()  # fonts' and images' files; never a library's or runtime's code
 
     @classmethod
     def create(cls, kind: ResourceKind, name: str, version: str = "", *, origin: str, certainty: Certainty,
-               detail: str = "", size: int = 0, sha256: str = "", import_line: str = "") -> "Resource":
+               detail: str = "", size: int = 0, sha256: str = "", import_line: str = "",
+               files: tuple[AssetFile, ...] = ()) -> "Resource":
         return cls(id=EntityId.derive("res", f"{kind}:{name}:{version}:{origin}"), kind=kind, name=name,
                    version=version, origin=origin, certainty=certainty, detail=detail, size=size, sha256=sha256,
-                   import_line=import_line)
+                   import_line=import_line, files=files)
 
 
 def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:

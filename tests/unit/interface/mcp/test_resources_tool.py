@@ -10,7 +10,8 @@ _ROWS = [
      "certainty": "declarada", "detail": "", "size": 3137752},
     {"kind": "font", "name": "IBM Plex Sans", "version": "", "origin": "Google Fonts", "certainty": "inferida",
      "detail": "pesos 400, 600 · normal", "size": 0,
-     "import_line": '@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");'},
+     "import_line": '@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");',
+     "files": 2},
     {"kind": "module", "name": "views.jsx", "version": "v2.6", "origin": "embutido no protótipo", "certainty": "inferida",
      "detail": "", "size": 40411},
 ]
@@ -33,6 +34,7 @@ def test_resources_are_grouped_by_what_to_do_with_them():
     assert "- **IBM Plex Sans** · pesos 400, 600 · normal · Google Fonts (inferida)" in out
     assert '  `@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");`' in out
     assert "## Módulos do protótipo" in out and "views.jsx" in out
+    assert "IBM Plex Sans** · pesos 400, 600 · normal · Google Fonts (inferida) · 2 arquivos: get_asset('IBM Plex Sans')" in out
 
 
 def test_nothing_found_says_so():

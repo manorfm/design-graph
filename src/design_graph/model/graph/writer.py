@@ -11,6 +11,7 @@ Design rules:
 
 from __future__ import annotations
 
+import base64
 import fcntl
 import json
 import logging
@@ -245,6 +246,12 @@ class GraphWriter:
                 "origin": resource.origin, "certainty": resource.certainty, "detail": resource.detail,
                 "size": resource.size, "sha256": resource.sha256, "import_line": resource.import_line,
             })
+            for asset in dict.fromkeys(resource.files):
+                self._rows.put_node("Asset", asset.sha256, {
+                    "id": asset.sha256, "mime": asset.mime, "size": len(asset.content),
+                    "data": base64.b64encode(asset.content).decode("ascii"),
+                })
+                self._rows.add_rel("HAS_FILE", resource.id, asset.sha256)
 
     def write_icons(self, icons: list[IconAsset]) -> int:
         """

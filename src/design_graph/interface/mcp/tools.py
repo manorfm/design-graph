@@ -11,8 +11,11 @@ ToolDispatcher.pick_reader() resolves which prototype to use:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from design_graph.interface.mcp import (
     assemble_tool,
+    asset_tool,
     build_tools,
     component_tools,
     discovery_tools,
@@ -113,6 +116,7 @@ class ToolDispatcher:
             ),
             "find_token_usage":          lambda: discovery_tools.find_token_usage(reader, args.get("value", "")),
             "get_resources":             lambda: discovery_tools.get_resources(reader, args.get("kind"), args.get("screen")),
+            "get_asset":                 lambda: asset_tool.get_asset(reader, name, Path.cwd()),
             "impact":                    lambda: discovery_tools.impact(reader, name),
             "get_full_source":           lambda: full_tools.get_full_source(reader, name, args.get("part", 1)),
             "get_full_styles":           lambda: full_tools.get_full_styles(reader, name, screen, section),

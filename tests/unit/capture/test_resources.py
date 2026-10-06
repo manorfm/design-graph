@@ -130,3 +130,13 @@ def test_minified_react_builds_are_versioned_too():
     dom_min = b'/**\n * @license React\n * react-dom.production.min.js\n */\nvar x={rendererPackageName:"react-dom",reconcilerVersion:"18.3.1"};'
     assert script_resource("r", react_min).version == "18.3.1"
     assert (script_resource("d", dom_min).name, script_resource("d", dom_min).version) == ("react-dom", "18.3.1")
+
+
+def test_fonts_and_images_keep_their_files_libraries_do_not():
+    files = {"f1": b"x" * 10, "f2": b"y" * 20, "f3": b"z"}
+    plex = next(f for f in font_resources(FONT_CSS, files) if f.name == "IBM Plex Sans")
+    assert [(a.mime, a.content) for a in plex.files] == [("font/woff2", b"x" * 10), ("font/woff2", b"y" * 20)]
+    assert plex.files[0].sha256 == hashlib.sha256(b"x" * 10).hexdigest()
+    favicon = image_resource("i1", b"<svg/>", "image/svg+xml", "favicon")
+    assert [(a.mime, a.content) for a in favicon.files] == [("image/svg+xml", b"<svg/>")]
+    assert script_resource("e1", REACT).files == ()

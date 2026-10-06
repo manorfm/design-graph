@@ -36,3 +36,19 @@ def test_resources_filter_by_kind_and_screen(reader):
     assert [r["name"] for r in reader.get_resources(kind="library")] == ["react"]
     assert [r["name"] for r in reader.get_resources(screen="Sobre")] == ["react"]
     assert reader.get_resources(screen="Ninguém") == []
+
+
+def test_a_resource_files_are_stored_once_by_content_and_read_back_whole(tmp_path):
+    from design_graph.model.entities import AssetFile
+
+    woff = AssetFile("font/woff2", b"wOF2" + bytes(range(256)))
+    font = Resource.create(ResourceKind.FONT, "Plex", origin="embutido no protótipo", certainty=Certainty.STATED,
+                           files=(woff, woff))
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "files.db")))
+    initialize_schema(conn)
+    writer = GraphWriter(conn)
+    writer.write_resources([font])
+    writer.commit()
+    reader = GraphReader(conn)
+    assert reader.get_resource_files("Plex") == [{"sha256": woff.sha256, "mime": "font/woff2", "content": woff.content}]
+    assert reader.get_resource_files("Ninguém") == []

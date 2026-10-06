@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
-from design_graph.model.entities import Certainty, Resource, ResourceKind
+from design_graph.model.entities import AssetFile, Certainty, Resource, ResourceKind
 
 EMBEDDED = "embutido no protótipo"
 _SCRIPT_MIMES = ("javascript", "ecmascript", "jsx", "typescript", "babel")
@@ -114,7 +114,9 @@ def _opening_comment(head: str) -> list[str]:
 
 _RE_FONT_FACE = re.compile(r"(?:/\*\s*([\w-]+)\s*\*/\s*)?@font-face\s*\{([^}]*)\}")
 _RE_DESCRIPTOR = re.compile(r"([\w-]+)\s*:\s*([^;]+);?")
-_RE_URL = re.compile(r"""url\(\s*["']?([^"')]+)["']?\s*\)""")
+# url("id") format('woff2') — the file and, when stated, its format
+_RE_SOURCE = re.compile(r"""url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([\w-]+)["']?\s*\))?""")
+_FONT_MIMES = {"woff2": "font/woff2", "woff": "font/woff", "truetype": "font/ttf", "opentype": "font/otf"}
 _GOOGLE_FONTS_HINTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 
 
@@ -130,12 +132,15 @@ def font_resources(css: str, files: dict[str, bytes], hints: str = "") -> list[R
         family = descriptors.get("font-family", "").strip("'\" ")
         if not family:
             continue
-        found = families.setdefault(family, {"weights": set(), "styles": set(), "subsets": set(), "size": 0})
+        found = families.setdefault(family, {"weights": set(), "styles": set(), "subsets": set(), "size": 0, "files": []})
         found["weights"].add(descriptors.get("font-weight", "400"))
         found["styles"].add(descriptors.get("font-style", "normal"))
         if subset:
             found["subsets"].add(subset)
-        found["size"] += sum(len(files.get(src, b"")) for src in _RE_URL.findall(descriptors.get("src", "")))
+        for src, kind in _RE_SOURCE.findall(descriptors.get("src", "")):
+            if src in files:
+                found["size"] += len(files[src])
+                found["files"].append(AssetFile(_FONT_MIMES.get(kind.lower(), "font/woff2"), files[src]))
     hinted = any(hint in hints for hint in _GOOGLE_FONTS_HINTS)
     return [_font_resource(family, found, google=hinted or bool(found["subsets"])) for family, found in families.items()]
 
@@ -144,9 +149,10 @@ def _font_resource(family: str, found: dict, *, google: bool) -> Resource:
     """A font family; one served the Google Fonts way (subset comments, a preconnect) says so, as inferred."""
     if not google:
         return Resource.create(ResourceKind.FONT, family, origin=EMBEDDED, certainty=Certainty.STATED,
-                               detail=_font_detail(found), size=found["size"])
+                               detail=_font_detail(found), size=found["size"], files=tuple(found["files"]))
     return Resource.create(ResourceKind.FONT, family, origin="Google Fonts", certainty=Certainty.INFERRED,
-                           detail=_font_detail(found), size=found["size"], import_line=_google_import(family, found))
+                           detail=_font_detail(found), size=found["size"], import_line=_google_import(family, found),
+                           files=tuple(found["files"]))
 
 
 def _google_import(family: str, found: dict) -> str:
@@ -185,4 +191,4 @@ def image_resource(entry_id: str, content: bytes, mime: str, role: str = "") -> 
     """An image the prototype embeds, named by the role the page gives it (favicon…), else by its id."""
     return Resource.create(ResourceKind.IMAGE, role or f"imagem {entry_id[:8]}", origin=EMBEDDED,
                            certainty=Certainty.STATED, detail=mime, size=len(content),
-                           sha256=hashlib.sha256(content).hexdigest())
+                           sha256=hashlib.sha256(content).hexdigest(), files=(AssetFile(mime, content),))
