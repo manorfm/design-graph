@@ -92,71 +92,69 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
     loads — libraries, the in-browser compiler, fonts, images — described as
     resources and never read as the prototype's code.
     """
-    js_parts:   list[str] = []
-    css_parts:  list[str] = []
-    entries:    dict[str, tuple[str, bytes]] = {}
-    inner_html = ""
-    skipped = 0
-
-    for script in soup.find_all("script"):
-        text: str = script.get_text().strip()
-        if not text:
-            continue
-
-        # Large JSON map — the actual bundle
-        if len(text) > 10_000 and text.startswith("{"):
-            bundle_entries, entry_skipped = _decompress_bundle_map(text)
-            entries.update(bundle_entries)
-            skipped += entry_skipped
-            continue
-
-        # Short JSON string containing inner HTML
-        if text.startswith('"'):
-            try:
-                content = json.loads(text)
-                if isinstance(content, str) and "<!DOCTYPE" in content:
-                    inner_html = content
-            except json.JSONDecodeError:
-                pass
-            continue
-
-        # Plain JS block
-        if len(text) > _MIN_BUNDLE_SCRIPT_LEN and not text.startswith(("[", "{")):
-            js_parts.append(text)
-
-    resources: list[Resource] = []
-    files: dict[str, bytes] = {}
-    for key, (mime, content) in entries.items():
+    scripts = _read_scripts(soup)
+    parts = _BundleParts(
+        js="", css="", inner_html=scripts.inner_html, skipped=scripts.skipped, resources=[],
+    )
+    js_parts, css_parts, files = list(scripts.js), [], {}
+    for key, (mime, content) in scripts.entries.items():
         text = content.decode("utf-8", errors="replace")
         if "<!DOCTYPE" in text[:200]:
-            inner_html = text
+            parts.inner_html = text
         elif "css" in mime:
             css_parts.append(text)
         elif mime.startswith(("font/", "image/")):
             files[key] = content
         elif any(kind in mime for kind in _SCRIPT_MIMES):
             resource = script_resource(key, content)
-            resources.append(resource)
+            parts.resources.append(resource)
             if not is_infrastructure(resource):
                 js_parts.append(text)
 
-    if not inner_html:
-        inner_html = str(soup)
-
+    parts.inner_html = parts.inner_html or str(soup)
     # The page's own static <style> tag — the shell React hydrates into —
     # lives inside inner_html, not in a bundle entry with a "css" mime.
     # Additive: a bundle that also ships a separate CSS-mime entry keeps
     # contributing both.
-    page = BeautifulSoup(inner_html, "html.parser")
-    for style_tag in page.find_all("style"):
-        style_text = style_tag.get_text()
-        if style_text.strip():
-            css_parts.append(style_text)
+    page = BeautifulSoup(parts.inner_html, "html.parser")
+    css_parts += [tag.get_text() for tag in page.find_all("style") if tag.get_text().strip()]
 
-    css = "\n".join(css_parts)
-    resources += font_resources(css, files, hints=inner_html)
-    resources += _image_resources(page, entries)
-    return _BundleParts("\n".join(js_parts), css, inner_html, skipped, resources)
+    parts.js, parts.css = "\n".join(js_parts), "\n".join(css_parts)
+    parts.resources += font_resources(parts.css, files, hints=parts.inner_html)
+    parts.resources += _image_resources(page, scripts.entries)
+    return parts
+
+
+@dataclass
+class _Scripts:
+    js: list[str]                               # plain JS blocks written straight into the page
+    entries: dict[str, tuple[str, bytes]]       # bundle entries, id → (mime, bytes)
+    inner_html: str
+    skipped: int
+
+
+def _read_scripts(soup: BeautifulSoup) -> _Scripts:
+    """What the page's <script> tags hold: the bundle map's entries, an inner HTML string, plain JS."""
+    scripts = _Scripts(js=[], entries={}, inner_html="", skipped=0)
+    for script in soup.find_all("script"):
+        text: str = script.get_text().strip()
+        if len(text) > 10_000 and text.startswith("{"):  # the bundle map itself
+            entries, skipped = _decompress_bundle_map(text)
+            scripts.entries.update(entries)
+            scripts.skipped += skipped
+        elif text.startswith('"'):  # a JSON string holding the inner HTML
+            scripts.inner_html = _inner_html_string(text) or scripts.inner_html
+        elif len(text) > _MIN_BUNDLE_SCRIPT_LEN and not text.startswith(("[", "{")):
+            scripts.js.append(text)
+    return scripts
+
+
+def _inner_html_string(text: str) -> str:
+    try:
+        content = json.loads(text)
+    except json.JSONDecodeError:
+        return ""
+    return content if isinstance(content, str) and "<!DOCTYPE" in content else ""
 
 
 def _image_resources(page: BeautifulSoup, entries: dict[str, tuple[str, bytes]]) -> list[Resource]:
