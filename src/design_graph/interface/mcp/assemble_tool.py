@@ -118,7 +118,7 @@ def _token_lines(rows: list[dict]) -> list[str]:
         if len(values) == 1 and not values[0][0]:
             lines.append(f"- **{label}**: `{values[0][1]}`")
         else:
-            lines.append(f"- **{label}**: " + " · ".join(f"{mode or 'todos'} `{value}`" for mode, value in values))
+            lines.append(f"- **{label}**: " + " · ".join(f"{mode} `{value}`" if mode else f"`{value}`" for mode, value in values))
     return lines or ["Nenhum token ligado aos componentes desta tela."]
 
 

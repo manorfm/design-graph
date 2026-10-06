@@ -101,3 +101,12 @@ def test_dispatcher_passes_known_and_part():
     reader = _Reader()
     out = ToolDispatcher([("doc", reader)]).dispatch("assemble_page", {"name": "Home", "known": ["List"]}, "doc")
     assert "Omitidos (você já tem): List" in out
+
+
+def test_same_named_tokens_without_modes_show_each_value_once():
+    assembly = _assembly()
+    assembly["tokens"] = [
+        {"t.category": "radius", "t.label": "radius_xs", "t.value": "4px", "t.usage": 1, "t.mode": ""},
+        {"t.category": "radius", "t.label": "radius_xs", "t.value": "2px", "t.usage": 1, "t.mode": ""},
+    ]
+    assert "- **radius_xs**: `4px` · `2px`" in assemble_page(_Reader(assembly), "Home")
