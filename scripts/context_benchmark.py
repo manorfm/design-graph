@@ -125,6 +125,14 @@ def _dc_pages(document: PrototypeDocument) -> dict[str, DcPage]:
     return pages
 
 
+def prototype_text(document: PrototypeDocument, capture: str) -> str:
+    """Everything the prototype says, readable: a DC canvas's pages, or a bundled prototype's unpacked code and page."""
+    if capture == "dc_canvas":
+        return "\n".join(page.source for page in _dc_pages(document).values())
+    sources = decompose(document)
+    return f"{sources.js}\n{sources.css}\n{sources.inner_html}"
+
+
 def round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
     """
     How many screens and components the graph returns exactly as written:
@@ -329,7 +337,6 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
 
     truth_texts = set().union(*map(visible_texts, markups.values())) if markups else set()
     indexed_texts = {" ".join(t["t.content"].split()) for t in reader.list_texts()}
-    prototype_text = "\n".join(markups.values()) if markups else document.text
     return {
         "prototype": html.stem,
         "capture": capture,
@@ -341,7 +348,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
         "assemble": _assembly_summary(screens, "assemble_chars"),
         "assemble_known": _assembly_summary(screens, "assemble_known_chars"),
         "screens": screens,
-        "searches": _search_report(tools, queries, prototype_text),
+        "searches": _search_report(tools, queries, prototype_text(document, capture)),
     }
 
 

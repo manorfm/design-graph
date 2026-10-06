@@ -232,3 +232,13 @@ class TestOriginalIsWhatRendersTheScreen:
         html.write_text(canvas_html([Page("1 · Tela", "<div><p>Oi</p></div>", helmet_css=css)]))
         result = benchmark(html, workdir=tmp_path, queries=[])
         assert result["screens"]["Tela"]["original_chars"] > len(css)
+
+
+class TestSearchGroundTruth:
+    def test_a_bundled_prototype_is_searched_in_its_unpacked_code_not_its_compressed_file(self, tmp_path):
+        from context_benchmark import prototype_text
+        from design_graph.capture.base import PrototypeDocument
+
+        fixtures = Path(__file__).parents[2] / "fixtures"
+        document = PrototypeDocument.read(fixtures / "large_bundle.html")
+        assert "function " in prototype_text(document, "html_prototype")
