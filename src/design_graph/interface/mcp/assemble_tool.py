@@ -44,8 +44,8 @@ def assemble_page(reader: GraphReader, name: str, known: object = None, part: ob
         lines += ["### Partes", *(f"- Parte {n}: {', '.join(b.title for b in blocks)}" for n, blocks in enumerate(parts, 1)), ""]
     lines += [block.text for block in parts[number - 1]]
     if number < len(parts):
-        carried = f"known={sorted(known_names)!r}, " if known_names else ""
-        lines.append(f"> Continua: assemble_page('{assembly['name']}', {carried}part={number + 1})")
+        same_known = " — com o mesmo known" if known_names else ""
+        lines.append(f"> Continua: assemble_page('{assembly['name']}', part={number + 1}){same_known}")
     return "\n".join(lines)
 
 

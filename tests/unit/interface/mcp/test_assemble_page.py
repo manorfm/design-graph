@@ -89,7 +89,8 @@ def test_a_long_assembly_comes_in_parts_that_together_hold_everything():
 def test_known_is_carried_to_the_next_part():
     long_source = "function List() {\n" + "\n".join(f"  const linha{n} = {n};" for n in range(3000)) + "\n}"
     first = assemble_page(_Reader(_assembly(long_source)), "Home", known=["Header"])
-    assert "Continua: assemble_page('Home', known=['Header'], part=2)" in first
+    assert "Continua: assemble_page('Home', part=2) — com o mesmo known" in first
+    assert "known=['Header']" not in first
 
 
 def test_unknown_screen_and_bad_part():
