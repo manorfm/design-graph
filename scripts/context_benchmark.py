@@ -12,7 +12,8 @@ For one prototype it builds a fresh graph and measures:
             file): assembling it — get_screen_full plus the lists its
             recovery hints point to — apart from reading, in every part,
             the whole sources it points to; and the cuts it announces.
-            Summed up as the median and the worst screen; the sum over all
+            Weighed against everything that renders the screen (a DC
+            page's markup, CSS and logic). Summed up as the median and the worst screen; the sum over all
             screens is reported last
   round_trip  screens and components whose stored source holds, verbatim,
             everything the prototype wrote for them
@@ -47,6 +48,7 @@ from bs4 import BeautifulSoup, Comment
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import read_bundle
 from design_graph.capture.dc_canvas.canvas import read_boards
+from design_graph.capture.dc_canvas.instances import expand_skeleton
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 from design_graph.capture.html_prototype.parsing.source_loader import decompose
@@ -148,7 +150,24 @@ def round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -
             continue
         checked += 1
         verbatim += all(part in stored["source_code"] for part in written[name])
-    return {"checked": checked, "verbatim": verbatim, "rate": verbatim / checked if checked else None}
+    return {"checked": checked, "verbatim": verbatim, "rate": verbatim / checked if checked else None,
+            **_skeleton_round_trip(document, capture, reader)}
+
+
+def _skeleton_round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
+    """DC screens whose skeleton, expanded with the component definitions, has the same DOM as the page."""
+    if capture != "dc_canvas":
+        return {"skeletons_checked": 0, "skeletons_exact": 0}
+    templates = {c["c.name"]: (reader.get_full_source(c["c.name"]) or {}).get("source_code", "")
+                 for c in reader.list_components()}
+    dom = lambda markup: str(BeautifulSoup(markup, "html.parser"))  # noqa: E731
+    checked = exact = 0
+    for name, page in _dc_pages(document).items():
+        assembly = reader.get_screen_assembly(name)
+        if assembly:
+            checked += 1
+            exact += dom(expand_skeleton(assembly["skeleton"], templates)) == dom(page.source)
+    return {"skeletons_checked": checked, "skeletons_exact": exact}
 
 
 # ── Reading responses ─────────────────────────────────────────────────────────
@@ -217,7 +236,7 @@ def _build(html: Path, workdir: Path) -> tuple[Path, dict]:
     }
 
 
-def _screen_report(tools: ToolDispatcher, name: str, markup: str | None) -> tuple[dict, str]:
+def _screen_report(tools: ToolDispatcher, name: str, page_source: str | None) -> tuple[dict, str]:
     """
     What one screen costs: assembling it (get_screen_full plus the lists it
     says to fetch) apart from reading, in every part, the sources it points to.
@@ -227,7 +246,7 @@ def _screen_report(tools: ToolDispatcher, name: str, markup: str | None) -> tupl
     assembly = [screen_full] + [tools.dispatch(tool, args, "bench") for tool, args in calls if tool != "get_full_source"]
     sources = [part for tool, args in calls if tool == "get_full_source" for part in _source_parts(tools, args["name"])]
     assembly_chars = sum(map(len, assembly))
-    original = len(markup) if markup is not None else None
+    original = len(page_source) if page_source is not None else None
     return {
         "assembly_chars": assembly_chars,
         "source_chars": sum(map(len, sources)),
@@ -290,6 +309,8 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
     document = PrototypeDocument.read(html)
     capture = capture_for(document).name
     markups = page_markups(document, capture)
+    # What renders each screen — markup, CSS and logic — is what an answer is weighed against.
+    page_sources = {name: page.source for name, page in _dc_pages(document).items()} if markups is not None else {}
     db_path, build = _build(html, workdir)
     reader = GraphReader(kuzu.Connection(kuzu.Database(str(db_path), read_only=True)))
     tools = ToolDispatcher([("bench", reader)])
@@ -297,7 +318,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
     screens, shown_styles, truth_styles, known = {}, set(), set(), []
     for screen in reader.list_screens():
         markup = markups.get(screen["name"]) if markups else None
-        screens[screen["name"]], corpus = _screen_report(tools, screen["name"], markup)
+        screens[screen["name"]], corpus = _screen_report(tools, screen["name"], page_sources.get(screen["name"]))
         screens[screen["name"]]["assemble_chars"] = _assemble_chars(tools, screen["name"], [])
         screens[screen["name"]]["assemble_known_chars"] = _assemble_chars(tools, screen["name"], known)
         assembly = reader.get_screen_assembly(screen["name"]) or {"components": []}
@@ -376,14 +397,17 @@ def _one_screen_cell(entry: dict | None) -> str:
         return "n/d"
     cell = f"{entry['median_chars']:,.0f} · {entry['worst_chars']:,} ({entry['worst_chars_screen']}) caracteres"
     if entry["median_ratio"] is not None:
-        cell += f" — {entry['median_ratio']:.0%} · {entry['worst_ratio']:.0%} ({entry['worst_screen']}) do markup da tela"
+        cell += f" — {entry['median_ratio']:.0%} · {entry['worst_ratio']:.0%} ({entry['worst_screen']}) do fonte da tela"
     return cell
 
 
 def _round_trip_cell(entry: dict | None) -> str:
     if not entry or entry["rate"] is None:
         return "n/d"
-    return f"{entry['rate']:.0%} ({entry['verbatim']}/{entry['checked']})"
+    cell = f"{entry['rate']:.0%} ({entry['verbatim']}/{entry['checked']})"
+    if entry.get("skeletons_checked"):
+        cell += f" · esqueletos que expandem para a página: {entry['skeletons_exact']}/{entry['skeletons_checked']}"
+    return cell
 
 
 def _coverage_cell(entry: dict) -> str:

@@ -116,14 +116,17 @@ class TestBenchmark:
         assert report["texts"]["coverage"] == 1.0
 
     def test_every_page_source_comes_back_verbatim(self, report):
-        assert report["round_trip"] == {"checked": 2, "verbatim": 2, "rate": 1.0}
+        assert report["round_trip"]["checked"] == 2 and report["round_trip"]["verbatim"] == 2
+
+    def test_every_skeleton_expands_back_to_its_page(self, report):
+        assert report["round_trip"]["skeletons_checked"] == 2 and report["round_trip"]["skeletons_exact"] == 2
 
     def test_style_coverage_is_measured_per_screen(self, report):
         assert 0 < report["styles"]["coverage"] <= 1
 
     def test_assembling_a_screen_is_measured_apart_from_reading_whole_sources(self, report):
         screen = report["screens"]["Tela 1"]
-        assert screen["assembly_chars"] > 0 and screen["original_chars"] > 0
+        assert screen["assembly_chars"] > 0 and screen["original_chars"] > len("<h1>Tela 1</h1>")
         assert screen["ratio"] == pytest.approx(screen["assembly_chars"] / screen["original_chars"])
         assert screen["source_chars"] >= 0
 
@@ -181,9 +184,9 @@ class TestRenderMarkdown:
         markdown = render_markdown(report)
         assert "n/d (sem gabarito estático" in markdown
         assert "50% (5/10)" in markdown
-        assert "| Montar uma tela com assemble_page (mediana · pior) | 50 · 80 (A) caracteres — 50% · 80% (A) do markup da tela |" in markdown
-        assert "| … telas em sequência, com known (mediana · pior) | 20 · 30 (A) caracteres — 20% · 30% (A) do markup da tela |" in markdown
-        assert "| Spec completa de uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do markup da tela |" in markdown
+        assert "| Montar uma tela com assemble_page (mediana · pior) | 50 · 80 (A) caracteres — 50% · 80% (A) do fonte da tela |" in markdown
+        assert "| … telas em sequência, com known (mediana · pior) | 20 · 30 (A) caracteres — 20% · 30% (A) do fonte da tela |" in markdown
+        assert "| Spec completa de uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do fonte da tela |" in markdown
         assert "| Montar todas as telas (soma) | 300 (300% do original) |" in markdown
         assert "| Ler os fontes inteiros indicados (soma) | 900 |" in markdown
         assert "listas 2 · fontes 1 · captura 0" in markdown
@@ -221,3 +224,12 @@ class TestDeclarationsShown:
         entry = {"median_ratio": None, "worst_screen": None, "worst_ratio": None,
                  "median_chars": 1200, "worst_chars_screen": "App", "worst_chars": 9000}
         assert _one_screen_cell(entry) == "1,200 · 9,000 (App) caracteres"
+
+
+class TestOriginalIsWhatRendersTheScreen:
+    def test_a_dc_screen_is_compared_with_its_whole_page_source(self, tmp_path):
+        css = ".x { color: red; }" * 50
+        html = tmp_path / "c.html"
+        html.write_text(canvas_html([Page("1 · Tela", "<div><p>Oi</p></div>", helmet_css=css)]))
+        result = benchmark(html, workdir=tmp_path, queries=[])
+        assert result["screens"]["Tela"]["original_chars"] > len(css)
