@@ -21,7 +21,8 @@ Schema changes:
        screens; a Model node recording this version and the capture used
   v11 — lossless capture: sources stored as the prototype wrote them (source_simplified
        removed); no per-component caps, so truncated_fields is removed too;
-       SCREEN_HAS_STYLE for a screen's own elements; Resource nodes and USES_RESOURCE
+       SCREEN_HAS_STYLE for a screen's own elements; Resource nodes and USES_RESOURCE;
+       Screen.skeleton (the source with component occurrences as instance tags)
 """
 
 from __future__ import annotations
@@ -61,6 +62,7 @@ _NODE_TABLES: list[str] = [
         "  source_lang STRING,"
         "  viewport_width INT64,"
         "  viewport_height INT64,"
+        "  skeleton STRING,"
         "  PRIMARY KEY(name)"
         ")"
     ),

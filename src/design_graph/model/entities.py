@@ -449,6 +449,7 @@ class ExtractedScreen:
     source_lang: str = ""
     styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
     resource_ids: list[str] = field(default_factory=list)  # ids of the Resources this screen loads
+    skeleton: str = ""  # source with each component occurrence as an instance tag; "" when the source already is one
     viewport_width: int = 0                             # px the screen was designed for; 0 = unknown
     viewport_height: int = 0
     links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens

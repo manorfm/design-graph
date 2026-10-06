@@ -63,3 +63,18 @@ def test_tokens_and_resources_are_the_screen_own(reader):
 
 def test_unknown_screen_has_no_assembly(reader):
     assert reader.get_screen_assembly("Nada") is None
+
+
+def test_a_component_already_written_out_inside_another_is_not_sent_again(tmp_path):
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "nested.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("FooterLink", '<a href="{{slot.href}}">{{slot.texto}}</a>'))
+    w.write_component(_comp("Footer", '<footer><a href="x">Sobre</a></footer>', child_refs=["FooterLink"]))
+    w.write_screen(ExtractedScreen(name="Page", component_refs=["Footer"], sections_count=0,
+                                   source_code="<main><footer><a href='x'>Sobre</a></footer></main>",
+                                   skeleton="<main><Footer></Footer></main>"), [])
+    w.commit()
+    assembly = GraphReader(conn).get_screen_assembly("Page")
+    assert assembly["skeleton"] == "<main><Footer></Footer></main>"
+    assert [c["name"] for c in assembly["components"]] == ["Footer"]

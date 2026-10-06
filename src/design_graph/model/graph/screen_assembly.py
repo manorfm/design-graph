@@ -7,6 +7,7 @@ tokens and resources it uses. Mixed into GraphReader, whose queries it uses.
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 
 from design_graph.model.entities import ComponentDefinitionStatus
@@ -26,19 +27,20 @@ class ScreenAssemblyQueries:
         if not resolved:
             return None
         screen = self._q(
-            "MATCH (s:Screen {name:$n}) RETURN s.source_code AS source, s.source_lang AS lang", {"n": resolved},
+            "MATCH (s:Screen {name:$n}) RETURN s.source_code AS source, s.skeleton AS skeleton, s.source_lang AS lang",
+            {"n": resolved},
         )[0]
         return {
             "name": resolved,
-            "skeleton": self._resolve_icons(screen["source"] or ""),
+            "skeleton": self._resolve_icons(screen["skeleton"] or screen["source"] or ""),
             "source_lang": screen["lang"] or "",
             "relations": self.get_screen_relations(resolved),
-            "components": self._assembly_components(resolved),
+            "components": self._assembly_components(resolved, screen["skeleton"] or screen["source"] or ""),
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
         }
 
-    def _assembly_components(self, screen: str) -> list[dict]:
+    def _assembly_components(self, screen: str, skeleton: str) -> list[dict]:
         """The screen's components, breadth first from the ones it uses directly, each once."""
         top = [r["name"] for r in self._q(
             "MATCH (s:Screen {name:$n})-[r:USES_COMPONENT]->(c:Component) RETURN c.name AS name ORDER BY offset(ID(r))",
@@ -72,7 +74,7 @@ class ScreenAssemblyQueries:
             {"names": order},
         ):
             props[r["name"]].append({"prop_name": r["prop_name"], "default_value": r["default_value"]})
-        return [
+        components = [
             {
                 "name": name,
                 "comp_type": rows[name]["comp_type"],
@@ -84,3 +86,18 @@ class ScreenAssemblyQueries:
             }
             for name in order if name in rows
         ]
+        return _referenced(skeleton, components)
+
+
+def _referenced(skeleton: str, components: list[dict]) -> list[dict]:
+    """
+    Only the components the skeleton — or a definition already sent — names:
+    one whose markup is already written out inside another's definition is
+    not sent a second time.
+    """
+    text, sent = skeleton, []
+    for component in components:
+        if re.search(rf"\b{re.escape(component['name'])}\b", text):
+            sent.append(component)
+            text += "\n" + component["source_code"]
+    return sent

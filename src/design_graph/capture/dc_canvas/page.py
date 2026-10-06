@@ -32,8 +32,12 @@ class DcPage:
     @property
     def source(self) -> str:
         """Everything that renders the page, as the author wrote it."""
+        return self.source_with(self.markup)
+
+    def source_with(self, markup: str) -> str:
+        """The page's source with `markup` in place of its own — its styles and logic around it."""
         parts = [f"<style>\n{self.styles}\n</style>"] if self.styles else []
-        parts.append(self.markup)
+        parts.append(markup)
         if self.logic:
             parts.append(f'<script type="text/x-dc">\n{self.logic}\n</script>')
         return "\n".join(parts)

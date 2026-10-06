@@ -290,6 +290,7 @@ class GraphWriter:
             "source_code": screen.source_code,
             "source_lang": screen.source_lang,
             "viewport_width": screen.viewport_width, "viewport_height": screen.viewport_height,
+            "skeleton": screen.skeleton,
         }
 
     def _write_screen_relations(self, screen: ExtractedScreen) -> None:

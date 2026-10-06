@@ -6,19 +6,23 @@ documents (an <x-dc> template, a logic class and their own bundled assets).
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
+
+from bs4 import Tag
 
 from design_graph.capture.base import CaptureResult, ComponentProgress, PrototypeDocument
 from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.dc_canvas.components import fragment_component, infer_components
+from design_graph.capture.dc_canvas.instances import Definition, definition_of, replace_with_instances
 from design_graph.capture.dc_canvas.logic import literal_lists
 from design_graph.capture.dc_canvas.sections import page_blocks, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
-from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup
+from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup, rendered_descendants
 from design_graph.capture.html_prototype.parsing.css_class_resolver import extract_tag_pseudo_rules
 from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
-from design_graph.model.entities import ExtractedComponent, ExtractedScreen
+from design_graph.model.entities import ComponentProp, ExtractedComponent, ExtractedScreen
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +57,19 @@ class DcCanvasCapture:
         )
         screens = [_screen(board, pages[board.page_id], boards, board_variants) for board in boards]
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
+        definitions = _definitions(blocks, found.name_of)
+        components = [_defined(component, definitions.get(component.name)) for component in found.components]
+        board_page = {board.name: pages[board.page_id] for board in boards}
         for screen in screens:
             screen.sections_count = len(sections[screen.name])
             screen.styles = page_styles(blocks[screen.name])
             screen.component_refs = list(dict.fromkeys(
                 ref for block in blocks[screen.name] for ref in found.outermost_in(block)
             ))
+        for screen in screens:  # last: swapping occurrences for instances rewrites the parsed pages
+            screen.skeleton = _skeleton(board_page[screen.name], blocks[screen.name], found.name_of, definitions)
         return CaptureResult(
-            capture=CAPTURE_NAME, components=found.components, screens=screens, sections=sections,
+            capture=CAPTURE_NAME, components=components, screens=screens, sections=sections,
             tokens=extract_canvas_tokens(list(pages.values())), skipped_entries=skipped,
             resources=list({r.id: r for page in pages.values() for r in page.resources}.values()),
         )
@@ -94,6 +103,35 @@ def _read_board_page(bundle: Bundle, board: Board) -> DcPage | None:
     if page is None:
         logger.warning("dc_canvas: board %r skipped — its page is not a DC page", board.title)
     return page
+
+
+def _definitions(blocks: dict[str, list[Tag]], name_of: dict[int, str]) -> dict[str, Definition]:
+    """Each component's definition, from every occurrence across the screens, first seen first."""
+    occurrences: dict[str, list[Tag]] = {}
+    for screen_blocks in blocks.values():
+        for element in (e for block in screen_blocks for e in [block, *rendered_descendants(block)]):
+            if id(element) in name_of:
+                occurrences.setdefault(name_of[id(element)], []).append(element)
+    return {name: definition_of(elements) for name, elements in occurrences.items()}
+
+
+def _defined(component: ExtractedComponent, definition: Definition | None) -> ExtractedComponent:
+    """The component with its template as source and its slots as props."""
+    if definition is None:
+        return component
+    return replace(
+        component, source_code=definition.markup,
+        props=[ComponentProp.create(component.name, slot, value) for slot, value in definition.slots],
+    )
+
+
+def _skeleton(page: DcPage, screen_blocks: list[Tag], name_of: dict[int, str], definitions: dict[str, Definition]) -> str:
+    """The page's source with every component occurrence that fits its definition as an instance tag."""
+    if not screen_blocks:
+        return ""
+    root = next(parent for parent in screen_blocks[0].parents if parent.parent is None)
+    replace_with_instances(root, name_of, definitions)
+    return page.source_with(str(root))
 
 
 def _screen(board: Board, page: DcPage, boards: list[Board], board_variants: dict[str, Variant]) -> ExtractedScreen:
