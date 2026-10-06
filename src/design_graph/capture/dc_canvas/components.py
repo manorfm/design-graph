@@ -2,9 +2,9 @@
 Components of a DC canvas, inferred from what its pages repeat.
 
 DC pages are written out in full — nothing names a reusable piece — so a
-component is a structure the author repeated: the same element (tag, literal
-style, shape of its children) on at least MIN_PAGES pages, or the item a
-<sc-for> loop repeats by construction. Only elements at or below a page's
+component is a structure the author repeated: the same element (tag, the
+properties it styles, its children's tags) at least MIN_REPEATS times, on one
+page or across pages, or the item a <sc-for> loop repeats by construction. Only elements at or below a page's
 blocks qualify; the page skeleton around the blocks is layout, not a
 component.
 """
@@ -22,6 +22,7 @@ from design_graph.capture.dc_canvas.template import (
     SOURCE_LANG,
     element_children,
     element_paths,
+    inline_property_names,
     inline_styles,
     rendered_descendants,
     tag_of,
@@ -37,8 +38,9 @@ from design_graph.model.entities import (
     TextType,
 )
 
-MIN_PAGES = 3
+MIN_REPEATS = 3
 _MIN_DESCENDANTS = 2
+_MIN_STYLED_PROPERTIES = 3
 _INTERACTIVE = {"a", "button", "input", "select", "textarea"}
 _TYPE_BY_TAG = {
     "nav": ComponentType.NAVIGATION, "a": ComponentType.BUTTON, "button": ComponentType.BUTTON,
@@ -120,8 +122,8 @@ def _no_loop_data(screen: str, name: str) -> None:
 
 
 def _is_repeated(signature: str, occurrences: dict, loop_lists: dict[str, str]) -> bool:
-    """A loop item repeats by construction; anything else must recur on MIN_PAGES pages."""
-    return signature in loop_lists or len({screen for screen, _ in occurrences[signature]}) >= MIN_PAGES
+    """A loop item repeats by construction; anything else must recur MIN_REPEATS times, on one page or across pages."""
+    return signature in loop_lists or len(occurrences[signature]) >= MIN_REPEATS
 
 
 def _occurrences(
@@ -143,10 +145,12 @@ def _occurrences(
 
 
 def _is_candidate(element: Tag) -> bool:
+    """Worth recognizing when repeated: interactive, given a role, with children of its own, or styled at length (a cell)."""
     return (
         tag_of(element) in _INTERACTIVE
         or bool(element.get("role"))
         or len(rendered_descendants(element)) >= _MIN_DESCENDANTS
+        or len(inline_property_names(element)) >= _MIN_STYLED_PROPERTIES
     )
 
 
@@ -160,7 +164,8 @@ def _loop_list(element: Tag) -> str | None:
 
 
 def _signature(element: Tag) -> str:
-    style = _RE_INTERPOLATION.sub("{{}}", " ".join((element.get("style") or "").lower().split()))
+    """What a repeated piece keeps: its tag, role, which properties it styles (values may vary) and its children's tags."""
+    style = ",".join(sorted(inline_property_names(element)))
     children = ",".join(tag_of(child) for child in element_children(element))
     return f"{tag_of(element)}|{element.get('role') or ''}|{style}|{children}"
 

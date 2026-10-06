@@ -64,3 +64,45 @@ def test_an_instance_named_like_an_html_tag_never_swallows_the_real_tag():
     assert _dom(expand_skeleton(skeleton, templates)) == _dom(
         '<main><footer>literal</footer><footer class="x"><a href="a.html">Ir &amp; voltar</a></footer></main>'
     )
+
+
+def test_only_the_style_properties_that_vary_become_slots():
+    from design_graph.capture.dc_canvas.instances import definition_of, slot_marker
+
+    cells = BeautifulSoup(
+        "".join(f'<div style="width: 24px;  background: {color}; border-radius: 4px">{n}</div>'
+                for n, color in enumerate(["#e8f1ef", "#0d5c63", "#5fb0b0"])),
+        "html.parser",
+    ).find_all("div")
+    definition = definition_of(cells)
+    assert definition.markup == (
+        f'<div style="width: 24px;  background: {slot_marker("background")}; border-radius: 4px">{slot_marker("texto")}</div>'
+    )
+    assert definition.values[id(cells[1])] == {"background": "#0d5c63", "texto": "1"}
+    skeleton = '<main><Cell background="#0d5c63" texto="1"></Cell></main>'
+    assert _dom(expand_skeleton(skeleton, {"Cell": definition.markup})) == _dom(f"<main>{cells[1]}</main>")
+
+
+def test_a_styled_cell_repeated_within_one_page_is_a_component(tmp_path):
+    cells = "".join(
+        f'<div style="width: 24px; background: {color}; border-radius: 4px">{n}</div>'
+        for n, color in enumerate(["#e8f1ef", "#0d5c63", "#5fb0b0", "#e8f1ef"])
+    )
+    path = tmp_path / "canvas.html"
+    path.write_text(canvas_html([Page("1 · Mapa", f'<main><h1>Mapa</h1><section style="display: grid">{cells}</section></main>')]))
+    document = PrototypeDocument.read(path)
+    result = asyncio.run(capture_for(document).capture(document, concurrency=1))
+    cell = next(c for c in result.components if "{{slot.background}}" in c.source_code)
+    assert cell.occurrence == 4
+    assert result.screens[0].skeleton.count(f"<{cell.name} ") == 4
+
+
+def test_styles_written_differently_never_share_a_template():
+    from design_graph.capture.dc_canvas.instances import definition_of
+
+    cells = BeautifulSoup(
+        '<i style="fill: red; stroke: 1;">a</i><i style="fill: blue; stroke: 1">b</i><i style="fill: green; stroke: 1">c</i>',
+        "html.parser",
+    ).find_all("i")
+    definition = definition_of(cells)
+    assert set(definition.values) == {id(cells[1]), id(cells[2])}  # the trailing-";" one stays literal

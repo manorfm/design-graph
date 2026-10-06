@@ -99,7 +99,9 @@ class TestInteractiveNames:
             for n in (1, 2, 3)
         ]
         components = _components(tmp_path, pages)
-        assert components["Relatório"].child_refs == ["RelatórioLink", "FixoLink"]
+        assert components["Relatório"].child_refs == ["RelatórioLink"]
+        # Links that differ only in their color value are one component, the color a slot.
+        assert {p.prop_name for p in components["RelatórioLink"].props} == {"color", "texto"}
 
 
 

@@ -75,6 +75,12 @@ def element_paths(root: Tag) -> list[tuple[str, Tag]]:
     return found
 
 
+def inline_property_names(element: Tag) -> list[str]:
+    """The properties an element styles inline, interpolated or not."""
+    names = (declaration.partition(":")[0].strip().lower() for declaration in (element.get("style") or "").split(";"))
+    return [name for name in names if name]
+
+
 def inline_styles(element: Tag) -> dict[str, str]:
     """An element's own literal style declarations; interpolated values are left out."""
     styles: dict[str, str] = {}

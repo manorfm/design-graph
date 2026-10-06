@@ -46,26 +46,76 @@ class Definition:
 
 # ── Shapes and positions ──────────────────────────────────────────────────────
 
+@dataclass(frozen=True)
+class _Position:
+    """One value that may vary between occurrences: a text, an attribute, or one declaration of a style."""
+
+    node: object
+    attribute: str | None   # None for a text
+    declaration: int | None  # which `;`-separated declaration of a style attribute
+    value: str
+    name: str                # what its slot is called
+
+
 def _shape(node) -> tuple:
-    """What must match for two occurrences to share a template: elements and attribute names, all the way down."""
+    """
+    What must match for two occurrences to share a template: elements,
+    attribute names and the properties each style declares, in order, all
+    the way down.
+    """
     if isinstance(node, Tag):
-        return (node.name, tuple(sorted(node.attrs)), tuple(_shape(child) for child in node.children))
+        style = _with_slots(node.get("style") or "", {}, blank=True)
+        return (node.name, tuple(sorted(node.attrs)), style, tuple(_shape(child) for child in node.children))
     if isinstance(node, PreformattedString):  # comments and the like: kept verbatim, part of the shape
         return ("#literal", str(node))
     return ("#text",)
 
 
-def _positions(node) -> list[tuple]:
-    """Every value that may vary, in document order: (node, attribute name or None for a text, value)."""
-    found: list[tuple] = []
+def _positions(node) -> list[_Position]:
+    """Every value that may vary, in document order."""
+    found: list[_Position] = []
     if isinstance(node, Tag):
         for name in node.attrs:
-            found.append((node, name, _attribute(node, name)))
+            if name == "style":
+                found += [_Position(node, name, index, value, prop)
+                          for index, (prop, value) in enumerate(_declarations(node.attrs[name]))]
+            else:
+                found.append(_Position(node, name, None, _attribute(node, name), name))
         for child in node.children:
             found.extend(_positions(child))
     elif not isinstance(node, PreformattedString):
-        found.append((node, None, str(node)))
+        found.append(_Position(node, None, None, str(node), "texto"))
     return found
+
+
+def _declarations(style: str) -> list[tuple[str, str]]:
+    """(property, value) of each declaration of a style attribute, in order."""
+    found = []
+    for segment in style.split(";"):
+        prop, colon, value = segment.partition(":")
+        if colon:
+            found.append((prop.strip().lower(), value.strip()))
+    return found
+
+
+def _with_slots(style: str, slots: dict[int, str], blank: bool = False) -> str:
+    """
+    A style attribute with the values of some declarations swapped for slot
+    markers — spacing and separators kept as written. `blank` swaps every
+    value, leaving the frame a style is written in: what two occurrences must
+    share to fill one template exactly.
+    """
+    segments, index = style.split(";"), 0
+    for n, segment in enumerate(segments):
+        prop, colon, value = segment.partition(":")
+        if not colon:
+            continue
+        if blank or index in slots:
+            lead = value[: len(value) - len(value.lstrip())]
+            trail = value[len(value.rstrip()):]
+            segments[n] = f"{prop}{colon}{lead}{'' if blank else slot_marker(slots[index])}{trail}"
+        index += 1
+    return ";".join(segments)
 
 
 def _attribute(tag: Tag, name: str) -> str:
@@ -84,19 +134,24 @@ def definition_of(occurrences: list[Tag]) -> Definition:
     columns = list(zip(*(_positions(element) for element in same)))
     slots: list[tuple[str, str]] = []
     values: dict[int, dict[str, str]] = {id(element): {} for element in same}
+    style_slots: dict[int, tuple[Tag, dict[int, str]]] = {}
     used: set[str] = set()
-    for column, (node, attribute, _) in zip(columns, _positions(template)):
-        observed = [value for _, _, value in column]
+    for column, position in zip(columns, _positions(template)):
+        observed = [p.value for p in column]
         if len(set(observed)) == 1:
             continue
-        slot = _unique(attribute or "texto", used)
+        slot = _unique(position.name, used)
         slots.append((slot, observed[0]))
         for element, value in zip(same, observed):
             values[id(element)][slot] = value
-        if attribute is None:
-            node.replace_with(slot_marker(slot))
+        if position.attribute is None:
+            position.node.replace_with(slot_marker(slot))
+        elif position.declaration is None:
+            position.node.attrs[position.attribute] = slot_marker(slot)
         else:
-            node.attrs[attribute] = slot_marker(slot)
+            style_slots.setdefault(id(position.node), (position.node, {}))[1][position.declaration] = slot
+    for node, by_declaration in style_slots.values():
+        node.attrs["style"] = _with_slots(node.attrs["style"], by_declaration)
     return Definition(markup=str(template), slots=slots, values=values)
 
 
@@ -138,6 +193,6 @@ def expand_skeleton(skeleton: str, templates: dict[str, str]) -> str:
         filled = _RE_ATTRIBUTE_SLOT.sub(
             lambda m: f'="{html.escape(values.get(m.group(1), m.group(0)), quote=True)}"', templates[name],
         )
-        return _RE_TEXT_SLOT.sub(lambda m: html.escape(values.get(m.group(1), m.group(0)), quote=False), filled)
+        return _RE_TEXT_SLOT.sub(lambda m: html.escape(values.get(m.group(1), m.group(0)), quote=True), filled)
 
     return _RE_INSTANCE.sub(expand, skeleton)
