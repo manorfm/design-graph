@@ -101,19 +101,27 @@ def _token_usage(value: str, usages: list[dict]) -> str:
     return "\n".join(lines)
 
 
+_CLOSEST = 5
+
+
 def tool_search(readers: list[tuple[str, GraphReader]], query: str) -> str:
+    """
+    What the prototype has that is named or says the query — as a whole. A
+    phrase whose words only appear apart does not exist, and the answer says
+    so, with the closest things it does have.
+    """
     results = search(readers, query)
-    if not results:
-        return f"Nenhum resultado para '{query}'."
-    shown = results[:30]
-    lines = [f"# Resultados para: '{query}'\n"]
-    if all(r.word_coverage < 1.0 for r in shown):
-        lines.append(
-            "> Nenhum resultado cobre todas as palavras da busca — os itens "
-            "abaixo são correspondências **parciais** (compartilham só parte "
-            "dos termos), não confirmam que a frase completa existe no "
-            "protótipo.\n"
+    shown = [r for r in results if r.has_phrase][:30]
+    if not shown:
+        message = (
+            f"Nenhum resultado para '{query}' — não existe no protótipo "
+            "(nem em nomes, seções, props, textos, tokens ou código)."
         )
+        if results:
+            closest = ", ".join(f"{r.name} ({r.type})" for r in results[:_CLOSEST])
+            message += f" Mais próximos: {closest}."
+        return message
+    lines = [f"# Resultados para: '{query}'\n"]
     by_type: dict[str, list] = {}
     for r in shown:
         by_type.setdefault(r.type, []).append(r)
@@ -122,8 +130,7 @@ def tool_search(readers: list[tuple[str, GraphReader]], query: str) -> str:
         for item in items:
             doc_tag = f" `[{item.doc}]`" if len(readers) > 1 else ""
             detail  = f" — {item.detail}" if item.detail else ""
-            partial_tag = " *(parcial)*" if item.word_coverage < 1.0 else ""
-            lines.append(f"- **{item.name}**{doc_tag}{detail}{partial_tag}{_hierarchy_tag(item)}")
+            lines.append(f"- **{item.name}**{doc_tag}{detail}{_hierarchy_tag(item)}")
         lines.append("")
     return "\n".join(lines)
 

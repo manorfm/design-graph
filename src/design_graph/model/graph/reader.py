@@ -812,6 +812,24 @@ class GraphReader(ScreenAssemblyQueries):
             params,
         )
 
+    def list_sections(self) -> list[dict]:
+        """Every section, with the screen it belongs to — so a section id can be shown as "Tela › Seção"."""
+        return self._q("MATCH (sec:Section) RETURN sec.id AS id, sec.screen AS screen, sec.name AS name")
+
+    def list_props(self) -> list[dict]:
+        """Every declared prop, with its component."""
+        return self._q(
+            "MATCH (c:Component)-[:HAS_PROP]->(p:ComponentProp) RETURN c.name AS component, p.prop_name AS prop"
+        )
+
+    def list_sources(self) -> list[dict]:
+        """Every component's and screen's own source, for searching what the code names."""
+        return [
+            {"name": r["name"], "kind": kind, "source_code": r["source"] or ""}
+            for kind in ("Component", "Screen")
+            for r in self._q(f"MATCH (n:{kind}) RETURN n.name AS name, n.source_code AS source")
+        ]
+
     def list_texts(self) -> list[dict]:
         """
         Return every UIText node for cross-prototype search.

@@ -112,7 +112,20 @@ class TestPtAliasesCoverage:
 
 # ── Search component coverage: all components, not just top-5 ────────────────
 
-class _StubReader:
+class _EmptyCatalog:
+    """Readers in these tests know nothing beyond what each one states."""
+
+    def list_sections(self):
+        return []
+
+    def list_props(self):
+        return []
+
+    def list_sources(self):
+        return []
+
+
+class _StubReader(_EmptyCatalog):
     """
     Minimal reader stub for component search coverage tests.
     list_screens() returns exactly 5 top_components per screen.
@@ -189,7 +202,7 @@ class TestSearchCoversAllComponents:
 # The tool's own description promises "screens, components, tokens and
 # texts", but the implementation never queried UIText at all.
 
-class _StubReaderWithTexts:
+class _StubReaderWithTexts(_EmptyCatalog):
     def list_screens(self):
         return []
 
@@ -235,7 +248,7 @@ class TestMultiWordQueryTokenization:
         assert results == []  # nothing in _StubReader matches — just must not crash
 
 
-class _StubReaderForCoverage:
+class _StubReaderForCoverage(_EmptyCatalog):
     """Two components sharing one word — isolates coverage-based ranking."""
 
     def list_screens(self):
@@ -271,7 +284,7 @@ class TestCoverageRanking:
         assert "AvatarBadge" in names
 
 
-class _StubReaderForPartialMatch:
+class _StubReaderForPartialMatch(_EmptyCatalog):
     """One UIText sharing only one of the query's two words — isolates the
     'weak match found, no strong match exists' case from a genuine hit."""
 
@@ -321,7 +334,7 @@ class TestWordCoverageExposedOnResult:
         assert by_name["AvatarBadge"] < 1.0
 
 
-class _StubReaderWithHierarchy:
+class _StubReaderWithHierarchy(_EmptyCatalog):
     """
     One component with a known parent and a known owning screen —
     isolates hierarchy enrichment on Component-type search results.
@@ -394,7 +407,7 @@ class TestSearchHasNoRegexInjectionSurface:
         assert "import re" not in source
 
 
-class _StubReaderWithSharedClasses:
+class _StubReaderWithSharedClasses(_EmptyCatalog):
     def list_screens(self):
         return []
 
@@ -482,3 +495,82 @@ class TestSearchIndexIsBuiltOncePerReader:
         search([("doc", old)], "nav")
         search([("doc", new)], "nav")
         assert (old.reads, new.reads) == (1, 1)
+
+
+
+class _CatalogReader(_EmptyCatalog):
+    """A small prototype: a sign-in screen, a member list section, a button type, a prop and some code."""
+
+    def list_screens(self):
+        return [{"name": "LoginScreen", "component_count": 1, "sections_count": 1, "top_components": []}]
+
+    def list_components(self, comp_type=None):
+        return [{"c.name": "PrimaryAction", "c.comp_type": "button", "c.occurrence": 2}]
+
+    def get_tokens(self, category=None):
+        return []
+
+    def list_texts(self):
+        return [
+            {"t.id": "t1", "t.content": "Sign in to continue", "t.source": "sec_1", "t.text_type": "heading"},
+            {"t.id": "t2", "t.content": "Remove", "t.source": "PrimaryAction", "t.text_type": "button"},
+        ]
+
+    def list_shared_style_classes(self):
+        return []
+
+    def list_sections(self):
+        return [{"id": "sec_1", "screen": "LoginScreen", "name": "Member list"}]
+
+    def list_props(self):
+        return [{"component": "PrimaryAction", "prop": "onConfirm"}]
+
+    def get_component_parents(self, name):
+        return []
+
+    def find_screens_using_comp_transitively(self, name):
+        return []
+
+    def list_sources(self):
+        return [{"name": "PrimaryAction", "kind": "Component",
+                 "source_code": "function PrimaryAction({ onConfirm }) { const handleRemoveMember = () => {}; }"}]
+
+
+def _tool(query):
+    from design_graph.interface.mcp.discovery_tools import tool_search
+
+    return tool_search([("doc", _CatalogReader())], query)
+
+
+class TestSearchAnswersWhatExists:
+    def test_an_identifier_in_the_code_is_found(self):
+        out = _tool("handleRemoveMember")
+        assert out.startswith("# Resultados") and "handleRemoveMember" in out and "PrimaryAction" in out
+
+    def test_part_of_an_identifier_is_found_too(self):
+        assert _tool("removemember").startswith("# Resultados")
+
+    def test_a_section_is_found_by_name_with_its_screen(self):
+        assert "Member list" in _tool("member list") and "LoginScreen" in _tool("member list")
+
+    def test_a_text_shows_where_it_is_not_an_internal_id(self):
+        out = _tool("sign in")
+        assert "LoginScreen › Member list" in out and "sec_1" not in out
+
+    def test_a_prop_is_found_with_its_component(self):
+        out = _tool("onConfirm")
+        assert "onConfirm" in out and "PrimaryAction" in out
+
+    def test_a_component_is_found_by_its_type_in_portuguese(self):
+        assert "PrimaryAction" in _tool("botão")
+
+
+class TestSearchSaysWhatDoesNotExist:
+    def test_a_phrase_made_of_words_found_apart_does_not_exist(self):
+        out = _tool("remove member")
+        assert out.startswith("Nenhum resultado para 'remove member'")
+        assert "não existe no protótipo" in out and "Mais próximos" in out
+
+    def test_nothing_close_says_so_without_a_list(self):
+        out = _tool("zzqx")
+        assert out.startswith("Nenhum resultado para 'zzqx'") and "Mais próximos" not in out

@@ -13,6 +13,7 @@ from weakref import WeakKeyDictionary
 
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.aliases import get_aliases
+from design_graph.interface.mcp.identifiers import identifiers_in
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,10 @@ class SearchResult:
     # every non-Component result type.
     parents: list[str] = field(default_factory=list)
     screens_using: list[str] = field(default_factory=list)
+    # Whether the whole query (or an alias of it) appears in what this result
+    # names — a result that only shares some of its words does not confirm it exists.
+    has_phrase: bool = False
+    haystack: str = field(default="", repr=False)
 
 
 def score_match(name: str, query: str) -> int:
@@ -119,17 +124,19 @@ def search(
     for doc_name, reader in readers:
         for term in terms:
             for result in _search_reader(reader, doc_name, term):
-                key = (result.doc, result.id)
+                key = (result.doc, result.type, result.id)
                 current_best = best_by_key.get(key)
                 if current_best is None or result.score > current_best.score:
                     best_by_key[key] = result
 
+    phrases = _phrases(query, aliases)
     for result in best_by_key.values():
         result.word_coverage = _word_coverage(result, query_words)
+        result.has_phrase = any(phrase in result.haystack for phrase in phrases)
 
     ranked = sorted(
         best_by_key.values(),
-        key=lambda r: (-r.word_coverage, -r.score),
+        key=lambda r: (not r.has_phrase, -r.word_coverage, -r.score, _TYPE_RANK.get(r.type, 9)),
     )
     top = ranked[:max_results]
 
@@ -150,6 +157,16 @@ def search(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+# Names first, then what lives inside screens, then copy, then code.
+_TYPE_RANK = {"Screen": 0, "Component": 0, "Section": 1, "Prop": 1, "Token": 1, "UIText": 2, "CssClass": 2, "Código": 3}
+
+
+def _phrases(query: str, aliases: dict[str, list[str]]) -> list[str]:
+    """The query as one phrase, and what it means in the other language when it is one known word."""
+    phrase = " ".join(query.lower().split())
+    return [phrase, *(e.lower() for key, expansions in aliases.items() if key == phrase for e in expansions)]
+
 
 def _word_coverage(result: SearchResult, query_words: set[str]) -> float:
     """Fraction of the query's distinct words present in this result's own text."""
@@ -186,19 +203,45 @@ def _index_of(reader: GraphReader) -> list[_IndexEntry]:
 def _build_index(reader: GraphReader) -> list[_IndexEntry]:
     entries = [_IndexEntry("Screen", s["name"], "", s["name"], (s["name"],)) for s in reader.list_screens()]
     entries += [
-        _IndexEntry("Component", c["c.name"], c.get("c.comp_type", ""), c["c.name"], (c["c.name"],))
+        _IndexEntry("Component", c["c.name"], c.get("c.comp_type", ""), c["c.name"], (c["c.name"], c.get("c.comp_type", "")))
         for c in reader.list_components() if c.get("c.name")
     ]
+    sections = {s["id"]: s for s in reader.list_sections()}
+    entries += [
+        _IndexEntry("Section", s["name"], f"tela {s['screen']}", s["id"], (s["name"],)) for s in sections.values()
+    ]
+    entries += [
+        _IndexEntry("Prop", p["prop"], f"de {p['component']}", f"{p['component']}.{p['prop']}", (p["prop"],))
+        for p in reader.list_props()
+    ]
+    entries += _code_entries(reader.list_sources())
     for token in reader.get_tokens():
         label, value = token.get("t.label", ""), token.get("t.value", "")
         entries.append(_IndexEntry("Token", label, value, token.get("t.id", label), (label, value)))
     for text in reader.list_texts():
         content = text.get("t.content", "")
-        entries.append(_IndexEntry("UIText", content, text.get("t.source", ""), text.get("t.id", content), (content,)))
+        entries.append(_IndexEntry("UIText", content, _place(text.get("t.source", ""), sections),
+                                   text.get("t.id", content), (content,)))
     entries += [
         _IndexEntry("CssClass", name, "classe CSS compartilhada", f"class:{name}", (name,))
         for name in reader.list_shared_style_classes()
     ]
+    return entries
+
+
+def _place(source: str, sections: dict[str, dict]) -> str:
+    """Where a text lives, readable: "Tela › Seção" for a section's, the component's name otherwise."""
+    section = sections.get(source)
+    return f"{section['screen']} › {section['name']}" if section else source
+
+
+def _code_entries(sources: list[dict]) -> list[_IndexEntry]:
+    """Each name the code of a component or screen uses (handlers, state, helpers), once per owner."""
+    entries = []
+    for source in sources:
+        for identifier in identifiers_in(source["source_code"]):
+            entries.append(_IndexEntry("Código", identifier, f"no código de {source['name']}",
+                                       f"{source['name']}:{identifier}", (identifier,)))
     return entries
 
 
@@ -210,5 +253,6 @@ def _search_reader(reader: GraphReader, doc_name: str, term: str) -> list[Search
         if score > 0:
             results.append(SearchResult(
                 type=entry.type, name=entry.name, detail=entry.detail, id=entry.id, doc=doc_name, score=score,
+                haystack=" ".join(" ".join(key.lower().split()) for key in entry.keys),
             ))
     return results

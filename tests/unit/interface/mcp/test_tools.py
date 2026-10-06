@@ -12,6 +12,15 @@ from design_graph.interface.mcp.tools import ToolDispatcher
 # ── Mock reader ───────────────────────────────────────────────────────────────
 
 class MockReader:
+    def list_sections(self):
+        return []
+
+    def list_props(self):
+        return []
+
+    def list_sources(self):
+        return []
+
     def model_info(self):
         return {"version": 10, "capture": "html_prototype"}
 
@@ -270,6 +279,15 @@ class _WeakMatchOnlyReader:
     nothing in the rendered output to say it's a partial, not exact, hit.
     """
 
+    def list_sections(self):
+        return []
+
+    def list_props(self):
+        return []
+
+    def list_sources(self):
+        return []
+
     def list_screens(self): return []
     def list_components(self, comp_type=None): return []
     def get_tokens(self, category=None): return []
@@ -280,11 +298,11 @@ class _WeakMatchOnlyReader:
 
 
 class TestSearchWeakMatchWarning:
-    def test_partial_only_results_carry_an_explicit_warning(self):
+    def test_words_found_only_apart_mean_the_phrase_does_not_exist(self):
         d = ToolDispatcher([("doc1", _WeakMatchOnlyReader())])
         result = d.dispatch("search", {"query": "Destinos operacionais"}, "doc1")
-        assert "Alertas operacionais" in result
-        assert "parcial" in result.lower()
+        assert result.startswith("Nenhum resultado para 'Destinos operacionais' — não existe no protótipo")
+        assert "Mais próximos: Alertas operacionais" in result
 
     def test_full_match_carries_no_partial_warning(self):
         d = ToolDispatcher([("doc1", MockReader())])
@@ -300,6 +318,15 @@ class _ComponentHierarchyReader:
     component lives in the tree, even though the graph already has that
     edge (see docs/investigation/design-graph-findings.md).
     """
+
+    def list_sections(self):
+        return []
+
+    def list_props(self):
+        return []
+
+    def list_sources(self):
+        return []
 
     def list_screens(self):
         return [{"name": "TeamsView", "component_count": 1,
