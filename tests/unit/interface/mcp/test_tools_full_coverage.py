@@ -633,21 +633,21 @@ class TestJsxTruncationWarnings:
     def test_get_component_notice_is_visible_and_actionable(self):
         result = self._dispatcher().dispatch("get_component", {"name": "BigComp"}, "proto")
         assert "+" in result
-        assert "get_full_source('BigComp')" in result
+        assert 'get_full(name="BigComp", aspect="source")' in result
 
     def test_get_section_notice_is_visible_without_a_false_lead(self):
         result = self._dispatcher().dispatch(
             "get_section", {"screen": "X", "section": "BigSection"}, "proto"
         )
         assert "+" in result
-        assert "get_full_source" not in result
+        assert "get_full(" not in result
 
     def test_get_screen_full_component_notice_is_actionable(self):
         result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
-        assert "get_full_source('BigComp')" in result
+        assert 'get_full(name="BigComp", aspect="source")' in result
 
     def test_get_screen_full_section_notice_has_no_false_lead(self):
         result = self._dispatcher().dispatch("get_screen_full", {"name": "BigScreen"}, "proto")
-        # Only the component-level cut may reference get_full_source; the
+        # Only the component-level cut may point to the full source; the
         # section-level cut must not carry the same (false) claim.
-        assert result.count("get_full_source") == 1
+        assert result.count('aspect="source"') == 1

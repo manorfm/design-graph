@@ -8,6 +8,7 @@ from design_graph.model.entities import PropDefault, StyleState
 from design_graph.model.graph.reader import SECTION_OWN_STYLES, NamedEntityResolution
 from design_graph.interface.mcp.notices import (
     StyleExtractionGap,
+    full_call,
     source_block_lines,
     truncation_notice,
 )
@@ -102,7 +103,7 @@ def section_style_group_lines(
         if notice:
             lines.append(f"  {notice}")
     if nested:
-        lines.append(f"- {nested} elementos internos com estilo próprio — chame `get_full_styles({recoverable_via})`")
+        lines.append(f"- {nested} elementos internos com estilo próprio — chame `{full_call('styles', recoverable_via)}`")
     return lines
 
 
@@ -141,7 +142,7 @@ def referenced_data_lines(referenced_data: dict[str, object], recoverable_via: s
             lines.append(f"  - `{key}`: `{render_referenced_data_value(value)}`")
         notice = truncation_notice(
             len(items), _REFERENCED_DATA_ENTRY_CAP,
-            recoverable_via=recoverable_via, tool="get_component_data",
+            recoverable_via=recoverable_via, aspect="data",
         )
         if notice:
             lines.append(f"  {notice}")
@@ -207,7 +208,7 @@ def _component_text_lines(comp: dict) -> list[str]:
         return []
     lines = ["\n#### Textos"]
     lines.extend(f'- "{t["content"]}" ({t["text_type"]})' for t in comp["texts"][:8])
-    notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=comp["name"], tool="get_full_texts")
+    notice = truncation_notice(len(comp["texts"]), 8, recoverable_via=comp["name"], aspect="texts")
     return lines + ([notice] if notice else [])
 
 

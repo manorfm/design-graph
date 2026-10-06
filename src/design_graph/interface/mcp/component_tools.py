@@ -11,10 +11,8 @@ from design_graph.interface.mcp.markdown import (
     mode_tag,
     component_lines,
     dedupe_styles_by_property,
-    named_entity_resolution_error,
     props_table_lines,
     referenced_data_lines,
-    render_referenced_data_value,
 )
 from design_graph.interface.mcp.notices import (
     StyleExtractionGap,
@@ -158,7 +156,7 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
         lines.append("\n## Textos")
         for t in spec["texts"][:8]:
             lines.append(f'- "{t.get("t.content")}" ({t.get("t.text_type")})')
-        notice = truncation_notice(len(spec["texts"]), 8, recoverable_via=cname, tool="get_full_texts")
+        notice = truncation_notice(len(spec["texts"]), 8, recoverable_via=cname, aspect="texts")
         if notice:
             lines.append(notice)
     if spec.get("interactions"):
@@ -275,46 +273,6 @@ def get_component_interactions(reader: GraphReader, name: str) -> str:
         lines.append(f"  Para: `{i.get('i.to_val')}`")
         if i.get("i.transition"):
             lines.append(f"  Transition: `{i['i.transition']}`")
-        lines.append("")
-    return "\n".join(lines)
-
-
-def get_component_data(reader: GraphReader, name: str) -> str:
-    """
-    Uncapped referenced-module-data — the get_full_styles/get_full_texts
-    equivalent for a component's referenced_data (see
-    extraction/module_data_extractor.py, docs/changes/C39).
-
-    get_component_spec/get_component/get_component_full/get_screen_full
-    all slice each referenced constant's own entries for display
-    ("+N mais" with no way back) even though the reader already returns
-    every entry. Renders that same data without the slice — no new
-    query, just no truncation.
-    """
-    resolution = reader.resolve_named_entity(name)
-    error = named_entity_resolution_error(name, resolution)
-    if error:
-        return error
-    assert resolution.entity is not None
-    if resolution.entity.kind == "screen":
-        return (
-            f"'{resolution.entity.name}' é uma tela; dados referenciados de módulo "
-            "ainda só estão disponíveis para componentes."
-        )
-    spec = reader.get_component_spec(resolution.entity.name)
-    if not spec:
-        return f"Componente '{resolution.entity.name}' não encontrado."
-    referenced_data = spec.get("referenced_data") or {}
-    if not referenced_data:
-        return (
-            f"Nenhum dado referenciado encontrado para o componente '{spec['c.name']}' "
-            "(nenhuma constante de módulo é referenciada pelo nome no corpo dele)."
-        )
-    lines = [f"# Dados referenciados completos: {spec['c.name']}\n"]
-    for const_name, entries in sorted(referenced_data.items()):
-        items = list(entries.items()) if isinstance(entries, dict) else list(enumerate(entries))
-        lines.append(f"## {const_name}")
-        lines.extend(f"- `{key}`: `{render_referenced_data_value(value)}`" for key, value in items)
         lines.append("")
     return "\n".join(lines)
 

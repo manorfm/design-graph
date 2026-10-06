@@ -58,26 +58,25 @@ class TestCutNotices:
     def test_counts_each_kind_of_cut(self):
         response = (
             "> ... +3 mais\n> ... +2 mais\n"
-            "> ... +120 caracteres (chame get_full_source('Card') para o fonte completo)\n"
-            "> ⚠ Extração truncada em: styles — esta spec pode estar incompleta."
+            '> ... +120 caracteres (chame get_full(name="Card", aspect="source") para o fonte completo)\n'
         )
-        assert cut_notices(response) == {"list": 2, "source": 1, "capture": 1}
+        assert cut_notices(response) == {"list": 2, "source": 1}
 
     def test_clean_response_has_no_cuts(self):
-        assert cut_notices("# Tela\nnada cortado") == {"list": 0, "source": 0, "capture": 0}
+        assert cut_notices("# Tela\nnada cortado") == {"list": 0, "source": 0}
 
 
 class TestRecoveryCalls:
     def test_follows_every_recovery_hint_once(self):
         response = (
-            "chame get_full_source('Card') … chame get_full_source('Card') …\n"
-            "> ... +4 mais — chame `get_full_styles(Card)` para a lista completa\n"
-            "chame get_full_texts(screen=\"Home\", section=\"Header\")"
+            'chame get_full(name="Card", aspect="source") … chame get_full(name="Card", aspect="source") …\n'
+            '> ... +4 mais — chame `get_full(name="Card", aspect="styles")` para a lista completa\n'
+            'chame get_full(screen="Home", section="Header", aspect="texts")'
         )
         assert recovery_calls(response) == [
-            ("get_full_source", {"name": "Card"}),
-            ("get_full_styles", {"name": "Card"}),
-            ("get_full_texts", {"screen": "Home", "section": "Header"}),
+            {"name": "Card", "aspect": "source"},
+            {"name": "Card", "aspect": "styles"},
+            {"screen": "Home", "section": "Header", "aspect": "texts"},
         ]
 
 
@@ -177,7 +176,7 @@ class TestRenderMarkdown:
             "assemble_known": {"median_ratio": 0.2, "worst_screen": "A", "worst_ratio": 0.3,
                                "median_chars": 20, "worst_chars_screen": "A", "worst_chars": 30},
             "screens": {"A": {"assembly_chars": 300, "source_chars": 900, "original_chars": 100, "ratio": 3.0,
-                              "cuts": {"list": 2, "source": 1, "capture": 0}, "recovery_calls": 1}},
+                              "cuts": {"list": 2, "source": 1}, "recovery_calls": 1}},
             "searches": {"queries": [{"query": "logout", "exists": False, "verdict": "partial", "correct": False}],
                          "correct": 0, "total": 1},
         }
@@ -189,7 +188,7 @@ class TestRenderMarkdown:
         assert "| Spec completa de uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do fonte da tela |" in markdown
         assert "| Montar todas as telas (soma) | 300 (300% do original) |" in markdown
         assert "| Ler os fontes inteiros indicados (soma) | 900 |" in markdown
-        assert "listas 2 · fontes 1 · captura 0" in markdown
+        assert "listas 2 · fontes 1" in markdown
         assert "`logout` — existe: não, resposta: partial" in markdown
 
 

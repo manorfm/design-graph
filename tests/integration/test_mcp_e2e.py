@@ -98,7 +98,7 @@ class TestServerOwnResponsibility:
         expected = {
             "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full_source", "get_component_interactions",
+            "get_full", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
             "get_component_props", "get_screen_layout",
             "set_prototype",
@@ -241,11 +241,11 @@ class TestGetTokensTool:
 
 class TestGetFullJsxTool:
     def test_known_component_returns_jsx(self, single_server):
-        resp = _call(single_server, "get_full_source", {"name": "RestaurantsPage"})
+        resp = _call(single_server, "get_full", {"aspect": "source", "name": "RestaurantsPage"})
         assert isinstance(_text(resp), str)
 
     def test_nonexistent_returns_graceful_message(self, single_server):
-        resp = _call(single_server, "get_full_source", {"name": "Ghost999"})
+        resp = _call(single_server, "get_full", {"aspect": "source", "name": "Ghost999"})
         text = _text(resp)
         assert isinstance(text, str)
 
@@ -254,18 +254,18 @@ class TestGetFullJsxTool:
 
 class TestExactScreenIdentity:
     def test_full_texts_prefers_exact_screen_over_prefix_component(self, root_screen_server):
-        text = _text(_call(root_screen_server, "get_full_texts", {"name": "App"}))
+        text = _text(_call(root_screen_server, "get_full", {"aspect": "texts", "name": "App"}))
         assert "# Textos completos: App" in text
         assert "Exact root screen text" in text
         assert "# Textos completos: AppStep" not in text
 
     def test_component_data_does_not_resolve_exact_screen_to_prefix_component(self, root_screen_server):
-        text = _text(_call(root_screen_server, "get_component_data", {"name": "App"}))
+        text = _text(_call(root_screen_server, "get_full", {"aspect": "data", "name": "App"}))
         assert "é uma tela" in text
         assert "AppStep" not in text
 
     def test_partial_name_with_screen_and_component_candidates_is_ambiguous(self, root_screen_server):
-        text = _text(_call(root_screen_server, "get_full_texts", {"name": "Ap"}))
+        text = _text(_call(root_screen_server, "get_full", {"aspect": "texts", "name": "Ap"}))
         assert "ambíguo" in text
         assert "App" in text
         assert "AppStep" in text

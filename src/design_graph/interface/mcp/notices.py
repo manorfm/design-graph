@@ -2,30 +2,38 @@
 
 from __future__ import annotations
 
+def full_call(aspect: str, target: str, part: int | None = None) -> str:
+    """
+    The get_full call that returns the rest of something an answer shortened.
+    `target` is a component or screen name, or `screen="X", section="Y"`.
+    """
+    where = target if target.startswith("screen=") else f'name="{target}"'
+    return f'get_full({where}, aspect="{aspect}"' + (f", part={part})" if part else ")")
+
+
 def truncation_notice(
-    total: int, shown: int, recoverable_via: str | None = None, tool: str = "get_full_styles",
+    total: int, shown: int, recoverable_via: str | None = None, aspect: str = "styles",
 ) -> str | None:
     """
     Return a Markdown blockquote notice when a list was cut, else None.
 
     recoverable_via: when a real escape hatch exists for what got cut
-    (styles via get_full_styles, texts via get_full_texts — see
+    (styles, texts and data via get_full — see
     docs/changes/C36 and C38), the exact call to make — same "never
     truncate without naming the way back" convention already used by
     CappedSource.notice for source_code/component
     truncation. None (a caller with no escape hatch at all) keeps the
     notice as it was before this parameter existed.
 
-    tool: which uncapped tool recovers this particular list — callers pass
-    "get_full_texts" for text tables, default "get_full_styles" for style
-    tables, so the same helper serves both without duplicating this
-    formatting.
+    aspect: which aspect of get_full recovers this particular list — "texts"
+    for text tables, "data" for referenced data, default "styles" — so the
+    same helper serves all of them without duplicating this formatting.
     """
     if total <= shown:
         return None
     notice = f"> ... +{total - shown} mais"
     if recoverable_via:
-        notice += f" — chame `{tool}({recoverable_via})` para a lista completa"
+        notice += f" — chame `{full_call(aspect, recoverable_via)}` para a lista completa"
     return notice
 
 
@@ -53,8 +61,8 @@ class CappedSource(str):
         """
         A Markdown blockquote naming what was cut, or None when nothing was.
 
-        recoverable_via: name to pass get_full_source() when that tool can
-        recover the rest. get_full_source lifts this display limit, not any
+        recoverable_via: name to pass get_full(aspect="source") when it can
+        recover the rest. get_full lifts this display limit, not any
         simplification the capture already applied to the stored source —
         it only matches screens and components, so callers rendering a
         section pass None instead of a false lead.
@@ -63,7 +71,7 @@ class CappedSource(str):
             return None
         cut = self.full_length - len(self)
         if recoverable_via:
-            return f"> ... +{cut} caracteres (chame get_full_source('{recoverable_via}') para o fonte completo)"
+            return f"> ... +{cut} caracteres (chame {full_call('source', recoverable_via)} para o fonte completo)"
         return f"> ... +{cut} caracteres cortados"
 
 
@@ -92,7 +100,7 @@ class ScreenStructureGap:
         return (
             f"> ⚠ Nenhuma estrutura extraída para '{recoverable_via}' — containers, "
             f"classes, textos e ícones condicionais podem estar invisíveis aqui. "
-            f"Chame get_full_source('{recoverable_via}') para o fonte completo."
+            f"Chame {full_call('source', recoverable_via)} para o fonte completo."
         )
 
 

@@ -45,10 +45,10 @@ class TestCappedJsxNotice:
 
     def test_points_to_get_full_jsx_when_recoverable(self):
         jsx = CappedSource("x" * 150, limit=100)
-        assert "get_full_source('RestCard')" in jsx.notice(recoverable_via="RestCard")
+        assert 'get_full(name="RestCard", aspect="source")' in jsx.notice(recoverable_via="RestCard")
 
     def test_no_false_recovery_lead_when_not_recoverable(self):
         """Sections have no get_full_source path — reader.get_full_source only
         matches Component nodes — so the notice must not claim one exists."""
         jsx = CappedSource("x" * 150, limit=100)
-        assert "get_full_source" not in jsx.notice(recoverable_via=None)
+        assert "get_full" not in jsx.notice(recoverable_via=None)

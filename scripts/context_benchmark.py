@@ -64,7 +64,7 @@ _INTERPOLATION = "{{"
 _RE_STYLE_ATTRIBUTE = re.compile(r'style="([^"]*)"')
 _RE_STYLE_ROW = re.compile(r"^\|\s*([a-z-]+)\s*\|\s*([^|]+?)\s*\|\s*$", re.MULTILINE)
 _RE_STYLE_ITEM = re.compile(r"`([a-z-]+)`: `([^`]+)`")
-_RE_RECOVERY_CALL = re.compile(r"(get_full_source|get_full_styles|get_full_texts|get_component_data)\(([^()]*)\)")
+_RE_RECOVERY_CALL = re.compile(r"get_full\(([^()]*)\)")
 _RE_KEYWORD_ARG = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 _RE_LIST_CUT = re.compile(r"\+\d+ mais")
 _RE_SOURCE_CUT = re.compile(r"\+\d+ caracteres")
@@ -180,18 +180,16 @@ def cut_notices(response: str) -> dict[str, int]:
     return {
         "list": len(_RE_LIST_CUT.findall(response)),
         "source": len(_RE_SOURCE_CUT.findall(response)),
-        "capture": response.count("Extração truncada"),
     }
 
 
-def recovery_calls(response: str) -> list[tuple[str, dict]]:
-    """Each distinct call a response tells the agent to make to recover what it cut."""
-    calls: list[tuple[str, dict]] = []
-    for tool, raw in _RE_RECOVERY_CALL.findall(response):
-        keywords = dict(_RE_KEYWORD_ARG.findall(raw))
-        args = keywords or {"name": raw.strip().strip("'\"` ")}
-        if args.get("name") != "" and (tool, args) not in calls:
-            calls.append((tool, args))
+def recovery_calls(response: str) -> list[dict]:
+    """The arguments of each distinct get_full call a response tells the agent to make to recover what it cut."""
+    calls: list[dict] = []
+    for raw in _RE_RECOVERY_CALL.findall(response):
+        args = dict(_RE_KEYWORD_ARG.findall(raw))
+        if args.get("aspect") and args.get("name", "x") and args not in calls:
+            calls.append(args)
     return calls
 
 
@@ -243,8 +241,8 @@ def _screen_report(tools: ToolDispatcher, name: str, page_source: str | None) ->
     """
     screen_full = tools.dispatch("get_screen_full", {"name": name}, "bench")
     calls = recovery_calls(screen_full)
-    assembly = [screen_full] + [tools.dispatch(tool, args, "bench") for tool, args in calls if tool != "get_full_source"]
-    sources = [part for tool, args in calls if tool == "get_full_source" for part in _source_parts(tools, args["name"])]
+    assembly = [screen_full] + [tools.dispatch("get_full", args, "bench") for args in calls if args["aspect"] != "source"]
+    sources = [part for args in calls if args["aspect"] == "source" for part in _source_parts(tools, args["name"])]
     assembly_chars = sum(map(len, assembly))
     original = len(page_source) if page_source is not None else None
     return {
@@ -258,10 +256,11 @@ def _screen_report(tools: ToolDispatcher, name: str, page_source: str | None) ->
 
 
 def _source_parts(tools: ToolDispatcher, name: str) -> list[str]:
-    """Every part of one get_full_source, following each 'Continua' to the next."""
-    parts = [tools.dispatch("get_full_source", {"name": name}, "bench")]
-    while "Continua: get_full_source(" in parts[-1]:
-        parts.append(tools.dispatch("get_full_source", {"name": name, "part": len(parts) + 1}, "bench"))
+    """Every part of one full source, following each 'Continua' to the next."""
+    args = {"name": name, "aspect": "source"}
+    parts = [tools.dispatch("get_full", args, "bench")]
+    while "Continua: get_full(" in parts[-1]:
+        parts.append(tools.dispatch("get_full", {**args, "part": len(parts) + 1}, "bench"))
     return parts
 
 
@@ -373,7 +372,7 @@ def render_markdown(report: dict) -> str:
         f"| Spec completa de uma tela (mediana · pior) | {_one_screen_cell(report.get('assembly'))} |",
         f"| Montar todas as telas (soma) | {assembly} |",
         f"| Ler os fontes inteiros indicados (soma) | {totals['sources']:,} |",
-        f"| Cortes anunciados | listas {totals['list']} · fontes {totals['source']} · captura {totals['capture']} |",
+        f"| Cortes anunciados | listas {totals['list']} · fontes {totals['source']} |",
         f"| Buscas corretas | {searches['correct']}/{searches['total']} |",
     ]
     wrong = [q for q in searches["queries"] if not q["correct"]]
@@ -385,7 +384,7 @@ def render_markdown(report: dict) -> str:
 
 def _screen_totals(screens) -> dict[str, int]:
     screens = list(screens)
-    totals = {kind: sum(s["cuts"][kind] for s in screens) for kind in ("list", "source", "capture")}
+    totals = {kind: sum(s["cuts"][kind] for s in screens) for kind in ("list", "source")}
     totals["assembled"] = sum(s["assembly_chars"] for s in screens)
     totals["sources"] = sum(s["source_chars"] for s in screens)
     totals["original"] = sum(s["original_chars"] or 0 for s in screens)

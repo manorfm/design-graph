@@ -163,6 +163,28 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_full",
+        "description": (
+            "Returns, whole, what another answer shortened — every '+N mais' or cut notice names the exact call. "
+            "aspect=source: a component's or screen's source as the prototype wrote it, in parts for long ones "
+            "(part=N). aspect=styles / aspect=texts: the complete style or text list of a component (name=) or of "
+            "a screen section (screen= and section=). aspect=data: a component's referenced module data (e.g. an "
+            "icon-name → SVG-path table) — reuse those exact values."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "aspect": {"type": "string", "enum": ["source", "styles", "texts", "data"]},
+                "name": {"type": "string", "description": "Component or screen name"},
+                "screen": {"type": "string", "description": "Screen of the section (styles/texts of a section)"},
+                "section": {"type": "string", "description": "Section name (styles/texts of a section)"},
+                "part": {"type": "integer", "minimum": 1, "description": "Part of a long source (default 1)"},
+                "doc": _doc_param(),
+            },
+            "required": ["aspect"],
+        },
+    },
+    {
         "name": "get_asset",
         "description": (
             "Writes the files of one font family or image the prototype embeds into the workspace, under "
@@ -195,57 +217,6 @@ TOOL_DEFINITIONS: list[dict] = [
                 "screen": {"type": "string", "description": "Only what this screen loads"},
                 "doc": _doc_param(),
             },
-        },
-    },
-    {
-        "name": "get_full_source",
-        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. Use when another tool truncated the source. A long source comes in parts (the response says 'parte N/M' and gives the call for the next one) — nothing is ever cut.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component or screen name"},
-                "part": {"type": "integer", "minimum": 1, "description": "Part of a long source (default 1)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
-        "name": "get_full_styles",
-        "description": "Returns a component's or a screen section's complete style list, without the display cap other tools apply ('+N mais'). The get_full_source equivalent for styles. Pass name= for a component, or screen= + section= for a screen section. Use when get_section/get_screen_full/get_component_spec truncated a style table.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name":    {"type": "string", "description": "Component name (mutually exclusive with screen/section)"},
-                "screen":  {"type": "string", "description": "Screen name (use together with section)"},
-                "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
-                "doc":     _doc_param(),
-            },
-        },
-    },
-    {
-        "name": "get_full_texts",
-        "description": "Returns a component's, screen's, or screen section's complete text list, without the display cap other tools apply ('+N mais'). Pass name= for a component or screen, or screen= + section= for one section. Exact names are resolved before partial matches; ambiguous partial names return their candidates.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name":    {"type": "string", "description": "Component or screen name (mutually exclusive with screen/section)"},
-                "screen":  {"type": "string", "description": "Screen name (use together with section)"},
-                "section": {"type": "string", "description": "Section name or partial name (use together with screen)"},
-                "doc":     _doc_param(),
-            },
-        },
-    },
-    {
-        "name": "get_component_data",
-        "description": "Returns the complete, uncapped content of every module-level constant a component's own body references by name (e.g. an icon-name -> SVG-path lookup table indexed as ICONS[name], or a role-key -> badge metadata table) — the exact same data the prototype itself renders from, not a substitute. Use this before inventing an icon/asset for a component whose spec showed a 'Dados referenciados' section, or when that section was truncated ('+N mais').",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component name"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
         },
     },
     {
@@ -405,7 +376,7 @@ TOOL_DEFINITIONS: list[dict] = [
         "description": (
             "Compares an implementation you wrote against a component's stored spec (children, "
             "default-state styles, texts) and reports discrepancies. The source is read by the same "
-            "capture that built this prototype, in the same format get_full_source returns. Best-effort, "
+            "capture that built this prototype, in the same format get_full(aspect=source) returns. Best-effort, "
             "not a full re-extraction: it reliably catches missing/extra child components and missing "
             "inline styles/texts, but CANNOT verify styles that came from the prototype's own "
             "stylesheet classes or utility classes (e.g. bg-blue-500), which a standalone fragment "

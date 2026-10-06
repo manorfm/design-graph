@@ -3,7 +3,30 @@
 from __future__ import annotations
 
 from design_graph.model.graph.reader import GraphReader
-from design_graph.interface.mcp.markdown import dedupe_styles_by_property, named_entity_resolution_error
+from design_graph.interface.mcp.markdown import (
+    dedupe_styles_by_property,
+    named_entity_resolution_error,
+    render_referenced_data_value,
+)
+from design_graph.interface.mcp.notices import full_call
+
+
+_ASPECTS = ("source", "styles", "texts", "data")
+
+
+def get_full(
+    reader: GraphReader, name: str, aspect: str, screen: str = "", section: str = "", part: object = 1,
+) -> str:
+    """Whatever another answer shortened, whole: a source (in parts), a style or text list, a component's data."""
+    if aspect == "source":
+        return get_full_source(reader, name, part)
+    if aspect == "styles":
+        return get_full_styles(reader, name, screen, section)
+    if aspect == "texts":
+        return get_full_texts(reader, name, screen, section)
+    if aspect == "data":
+        return get_full_data(reader, name)
+    return f"aspect inválido: {aspect!r}. Use um de: {', '.join(_ASPECTS)}."
 
 
 # A part of a source is about 5k tokens: enough for any one component,
@@ -33,7 +56,7 @@ def get_full_source(reader: GraphReader, name: str, part: object = 1) -> str:
         if mid_line:
             footer += f"\n> {MID_LINE_NOTICE}"
         if number < len(parts):
-            footer += f"\n> Continua: get_full_source('{name}', part={number + 1})"
+            footer += f"\n> Continua: {full_call('source', name, number + 1)}"
     return f"{header}\n\n```{lang}\n{text}\n```{footer}"
 
 
@@ -74,7 +97,7 @@ def _part_number(part: object, total: int) -> int | None:
 
 def get_full_styles(reader: GraphReader, name: str, screen: str, section: str) -> str:
     """
-    Uncapped style list — the get_full_source equivalent for styles.
+    Uncapped style list — the "source" aspect's equivalent for styles.
 
     The reader already returns every style row; get_section/
     get_screen_full/get_component_spec only ever slice it for display
@@ -159,13 +182,13 @@ def get_full_styles(reader: GraphReader, name: str, screen: str, section: str) -
 
 def get_full_texts(reader: GraphReader, name: str, screen: str, section: str) -> str:
     """
-    Uncapped text list — the get_full_styles equivalent for texts.
+    Uncapped text list — the "styles" aspect's equivalent for texts.
 
     get_section/get_screen_full/get_component_spec/get_component_full
     all slice their text list for display ("+N mais" with no way back)
     even though the reader already returns every text row. Renders that same
     data without the display slice — no new query, just no truncation
-    (mirrors get_full_styles's C36 fix; see docs/changes/C38).
+    (mirrors the styles aspect's C36 fix; see docs/changes/C38).
     """
     if screen and section:
         sec = reader.get_section(screen, section)
@@ -206,3 +229,42 @@ def get_full_texts(reader: GraphReader, name: str, screen: str, section: str) ->
         return "\n".join(lines)
 
     return "Informe `name` (componente) ou `screen` + `section` (seção)."
+
+
+def get_full_data(reader: GraphReader, name: str) -> str:
+    """
+    Uncapped referenced-module-data — the styles/texts aspects' equivalent for a component's referenced_data (see
+    extraction/module_data_extractor.py, docs/changes/C39).
+
+    get_component_spec/get_component/get_component_full/get_screen_full
+    all slice each referenced constant's own entries for display
+    ("+N mais" with no way back) even though the reader already returns
+    every entry. Renders that same data without the slice — no new
+    query, just no truncation.
+    """
+    resolution = reader.resolve_named_entity(name)
+    error = named_entity_resolution_error(name, resolution)
+    if error:
+        return error
+    assert resolution.entity is not None
+    if resolution.entity.kind == "screen":
+        return (
+            f"'{resolution.entity.name}' é uma tela; dados referenciados de módulo "
+            "ainda só estão disponíveis para componentes."
+        )
+    spec = reader.get_component_spec(resolution.entity.name)
+    if not spec:
+        return f"Componente '{resolution.entity.name}' não encontrado."
+    referenced_data = spec.get("referenced_data") or {}
+    if not referenced_data:
+        return (
+            f"Nenhum dado referenciado encontrado para o componente '{spec['c.name']}' "
+            "(nenhuma constante de módulo é referenciada pelo nome no corpo dele)."
+        )
+    lines = [f"# Dados referenciados completos: {spec['c.name']}\n"]
+    for const_name, entries in sorted(referenced_data.items()):
+        items = list(entries.items()) if isinstance(entries, dict) else list(enumerate(entries))
+        lines.append(f"## {const_name}")
+        lines.extend(f"- `{key}`: `{render_referenced_data_value(value)}`" for key, value in items)
+        lines.append("")
+    return "\n".join(lines)

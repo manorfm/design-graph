@@ -78,12 +78,15 @@ fica consistente com o resto do design system do protótipo.
 
 ## Passo 4 — atenção a avisos de truncamento
 
-Uma resposta que traga um aviso `⚠ Extração truncada em: ...` está
-**incompleta** para os campos citados — não é o componente inteiro, é o que
-coube no limite de extração. Antes de confiar na spec como completa, chame:
+A captura não descarta nada. Quando uma resposta encurta uma lista ou um
+fonte para caber, ela termina com um aviso que traz a chamada exata que
+devolve o resto:
 
 ```
-get_full_source(name)   # fonte completo, na linguagem do protótipo, sem corte
+get_full(name, aspect="source")   # fonte como escrito, em partes (part=N) se for longo
+get_full(name, aspect="styles")   # todos os estilos (ou screen= + section= de uma seção)
+get_full(name, aspect="texts")    # todos os textos
+get_full(name, aspect="data")     # dados que o componente referencia (ex.: tabela de ícones)
 ```
 
 ## Passo 5 — depois de implementar, valide (opcional, mas recomendado)

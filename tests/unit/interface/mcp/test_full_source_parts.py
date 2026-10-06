@@ -32,7 +32,7 @@ def test_long_source_comes_in_parts_that_join_back_to_it():
     reader = _Reader(source)
     first = get_full_source(reader, "Card")
     total = int(re.search(r"parte 1/(\d+)", first).group(1))
-    assert total > 1 and "get_full_source('Card', part=2)" in first
+    assert total > 1 and 'get_full(name="Card", aspect="source", part=2)' in first
     parts = [_body(get_full_source(reader, "Card", part=n)) for n in range(1, total + 1)]
     assert "\n".join(parts) == source
     assert all(len(part) <= SOURCE_PART_CHARS for part in parts)
@@ -57,5 +57,5 @@ def test_out_of_range_part_says_which_parts_exist(part):
 
 def test_dispatcher_passes_the_part():
     reader = _Reader("\n".join([_LINE] * 50))
-    out = ToolDispatcher([("doc", reader)]).dispatch("get_full_source", {"name": "Card", "part": 2}, "doc")
+    out = ToolDispatcher([("doc", reader)]).dispatch("get_full", {"aspect": "source", "name": "Card", "part": 2}, "doc")
     assert "parte 2/" in out

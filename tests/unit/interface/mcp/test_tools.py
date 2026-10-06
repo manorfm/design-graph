@@ -443,30 +443,27 @@ class TestGetFullStylesTool:
 
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_full_styles" in names
+        assert "get_full" in names
 
     def test_section_styles_are_not_truncated(self):
-        result = _dispatcher(1).dispatch(
-            "get_full_styles", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "screen": "HistoryView", "section": "Header"}, "doc1",
         )
         assert "prop9" in result  # 10th entry — beyond any display cap
         assert "mais" not in result.lower()
 
     def test_section_styles_grouped_by_selector(self):
-        result = _dispatcher(1).dispatch(
-            "get_full_styles", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "screen": "HistoryView", "section": "Header"}, "doc1",
         )
         assert ".audit-item" in result
         assert ".audit-dot" in result
 
     def test_unknown_section_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch(
-            "get_full_styles", {"screen": "HistoryView", "section": "Ghost"}, "doc1",
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "screen": "HistoryView", "section": "Ghost"}, "doc1",
         )
         assert "não encontrada" in result.lower() or "not found" in result.lower()
 
     def test_component_styles_are_not_truncated(self):
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ManyStylesComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "ManyStylesComp"}, "doc1")
         assert "prop14" in result  # 15th entry — beyond the 12-item display cap
         assert "mais" not in result.lower()
 
@@ -477,7 +474,7 @@ class TestGetFullStylesTool:
         get_full_styles is the only escape hatch, and previously didn't
         render @media data at all (docs/changes/C41).
         """
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ResponsiveOnlyComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "ResponsiveOnlyComp"}, "doc1")
         assert "prop14" in result  # 15th entry — beyond the 12-item display cap
         assert "mais" not in result.lower()
         assert "(max-width: 600px)" in result
@@ -485,11 +482,11 @@ class TestGetFullStylesTool:
     def test_component_with_only_responsive_styles_is_not_reported_as_styleless(self):
         # Previously: styles_by_state empty -> "Nenhum estilo encontrado",
         # even when the component has real @media-scoped styles.
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "ResponsiveOnlyComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "ResponsiveOnlyComp"}, "doc1")
         assert "nenhum estilo encontrado" not in result.lower()
 
     def test_default_and_responsive_styles_both_shown_without_mixing(self):
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "MixedResponsiveComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "MixedResponsiveComp"}, "doc1")
         assert "Estado: default" in result
         assert "@media (max-width: 600px)" in result
 
@@ -500,16 +497,16 @@ class TestGetFullStylesTool:
         do the same, or a class-only lookup silently works through one tool
         and not its "full" counterpart (reported gap, docs/changes/C37).
         """
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "page-title"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "page-title"}, "doc1")
         assert "font-size" in result
         assert "25px" in result
 
     def test_unknown_component_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch("get_full_styles", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", "name": "GhostComp"}, "doc1")
         assert "não encontrado" in result.lower() or "not found" in result.lower()
 
     def test_neither_name_nor_screen_section_given(self):
-        result = _dispatcher(1).dispatch("get_full_styles", {}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "styles", }, "doc1")
         assert "name" in result.lower() or "screen" in result.lower()
 
 
@@ -523,32 +520,30 @@ class TestGetFullTextsTool:
 
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_full_texts" in names
+        assert "get_full" in names
 
     def test_section_texts_are_not_truncated(self):
-        result = _dispatcher(1).dispatch(
-            "get_full_texts", {"screen": "HistoryView", "section": "Header"}, "doc1",
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "texts", "screen": "HistoryView", "section": "Header"}, "doc1",
         )
         assert "text9" in result  # 10th entry — beyond any display cap
         assert "mais" not in result.lower()
 
     def test_unknown_section_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch(
-            "get_full_texts", {"screen": "HistoryView", "section": "Ghost"}, "doc1",
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "texts", "screen": "HistoryView", "section": "Ghost"}, "doc1",
         )
         assert "não encontrada" in result.lower() or "not found" in result.lower()
 
     def test_component_texts_are_not_truncated(self):
-        result = _dispatcher(1).dispatch("get_full_texts", {"name": "ManyTextsComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "texts", "name": "ManyTextsComp"}, "doc1")
         assert "text9" in result  # 10th entry — beyond the 8-item display cap
         assert "mais" not in result.lower()
 
     def test_unknown_component_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch("get_full_texts", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "texts", "name": "GhostComp"}, "doc1")
         assert "não encontrado" in result.lower() or "not found" in result.lower()
 
     def test_neither_name_nor_screen_section_given(self):
-        result = _dispatcher(1).dispatch("get_full_texts", {}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "texts", }, "doc1")
         assert "name" in result.lower() or "screen" in result.lower()
 
 
@@ -559,21 +554,21 @@ class TestTruncationNoticesPointToFullTools:
     (docs/investigation/design-graph-findings.md) flagged as misleading.
     """
 
-    def test_component_spec_texts_point_to_get_full_texts(self):
+    def test_component_spec_texts_point_to_get_full(name="self", aspect="texts"):
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyTextsComp"}, "doc1")
-        assert "get_full_texts(ManyTextsComp)" in result
+        assert 'get_full(name="ManyTextsComp", aspect="texts")' in result
 
-    def test_component_spec_styles_point_to_get_full_styles(self):
+    def test_component_spec_styles_point_to_get_full(name="self", aspect="styles"):
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyStylesComp"}, "doc1")
-        assert "get_full_styles(ManyStylesComp)" in result
+        assert 'get_full(name="ManyStylesComp", aspect="styles")' in result
 
-    def test_component_full_texts_point_to_get_full_texts(self):
+    def test_component_full_texts_point_to_get_full(name="self", aspect="texts"):
         result = _dispatcher(1).dispatch("get_component_full", {"name": "ManyTextsComp"}, "doc1")
-        assert "get_full_texts(ManyTextsComp)" in result
+        assert 'get_full(name="ManyTextsComp", aspect="texts")' in result
 
-    def test_component_spec_responsive_styles_point_to_get_full_styles(self):
+    def test_component_spec_responsive_styles_point_to_get_full(name="self", aspect="styles"):
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "ResponsiveOnlyComp"}, "doc1")
-        assert "get_full_styles(ResponsiveOnlyComp)" in result
+        assert 'get_full(name="ResponsiveOnlyComp", aspect="styles")' in result
 
 
 class TestReferencedDataInComponentSpec:
@@ -598,33 +593,33 @@ class TestReferencedDataInComponentSpec:
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
         assert "Dados referenciados" not in result
 
-    def test_large_table_is_truncated_with_pointer_to_get_component_data(self):
+    def test_large_table_is_truncated_with_pointer_to_get_full(name="self", aspect="data"):
         result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyRefDataComp"}, "doc1")
         assert "mais" in result.lower()
-        assert "get_component_data(ManyRefDataComp)" in result
+        assert 'get_full(name="ManyRefDataComp", aspect="data")' in result
 
 
 class TestGetComponentDataTool:
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_component_data" in names
+        assert "get_full" in names
 
     def test_returns_complete_uncapped_table(self):
-        result = _dispatcher(1).dispatch("get_component_data", {"name": "ManyRefDataComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "data", "name": "ManyRefDataComp"}, "doc1")
         assert "icon34" in result  # 35th entry — beyond the 30-item display cap
         assert "mais" not in result.lower()
 
     def test_returns_full_values_for_small_table(self):
-        result = _dispatcher(1).dispatch("get_component_data", {"name": "Icon"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "data", "name": "Icon"}, "doc1")
         assert "M21 2l-2 2" in result
         assert "M3 6h18" in result
 
     def test_unknown_component_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch("get_component_data", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "data", "name": "GhostComp"}, "doc1")
         assert "não encontrado" in result.lower()
 
     def test_component_without_referenced_data_returns_explanatory_message(self):
-        result = _dispatcher(1).dispatch("get_component_data", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_full", {"aspect": "data", "name": "BtnPrimary"}, "doc1")
         assert "nenhum dado referenciado" in result.lower()
 
 
@@ -789,7 +784,7 @@ class TestToolDefinitions:
         expected = {
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full_source", "get_full_styles", "get_component_interactions",
+            "get_full", "get_component_interactions",
             "get_component_children", "list_components", "get_component_spec",
             "get_component_full", "set_prototype",
         }

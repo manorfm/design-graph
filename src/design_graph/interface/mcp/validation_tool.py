@@ -50,7 +50,7 @@ def validate_component_implementation(reader: GraphReader, name: str, source: st
     if candidate is None:
         return (
             f"Não foi possível ler `source` no formato deste protótipo ({info['capture']}) — "
-            "passe o fonte do componente no mesmo formato que get_full_source devolve."
+            "passe o fonte do componente no mesmo formato que get_full(aspect='source') devolve."
         )
 
     lines = [
@@ -101,6 +101,6 @@ def _text_lines(spec: dict, candidate: ExtractedComponent, cname: str) -> list[s
         return ["\n✅ Textos batem com a spec."] if stored else []
     lines = ["\n⚠ **Textos ausentes na implementação**:"]
     lines.extend(f'- "{t}"' for t in missing[:10])
-    notice = truncation_notice(len(missing), 10, recoverable_via=cname, tool="get_full_texts")
+    notice = truncation_notice(len(missing), 10, recoverable_via=cname, aspect="texts")
     return lines + ([notice] if notice else [])
 

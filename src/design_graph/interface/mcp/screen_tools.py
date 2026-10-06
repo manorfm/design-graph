@@ -135,7 +135,7 @@ def _section_lines(screen_name: str, sec: dict) -> list[str]:
             lines.append(f'- "{t}"')
         notice = truncation_notice(
             len(sec["texts"]), 6,
-            recoverable_via=f'screen="{screen_name}", section="{sec["name"]}"', tool="get_full_texts",
+            recoverable_via=f'screen="{screen_name}", section="{sec["name"]}"', aspect="texts",
         )
         if notice:
             lines.append(notice)
@@ -207,7 +207,7 @@ def get_section(reader: GraphReader, screen: str, section: str) -> str:
             lines.append(f'- "{t}"')
         notice = truncation_notice(
             len(sec["texts"]), 8,
-            recoverable_via=f'screen="{screen}", section="{sec["name"]}"', tool="get_full_texts",
+            recoverable_via=f'screen="{screen}", section="{sec["name"]}"', aspect="texts",
         )
         if notice:
             lines.append(notice)

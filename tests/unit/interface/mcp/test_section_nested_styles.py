@@ -25,7 +25,7 @@ def test_own_and_class_styles_are_listed():
 def test_nested_elements_are_summed_up_with_the_call_that_lists_them():
     out = "\n".join(section_style_group_lines(_GROUPS, recoverable_via=_CALL))
     assert "38px" not in out and "ul > li" not in out
-    assert f"3 elementos internos com estilo próprio — chame `get_full_styles({_CALL})`" in out
+    assert f'3 elementos internos com estilo próprio — chame `get_full({_CALL}, aspect="styles")`' in out
 
 
 def test_no_summary_without_nested_elements():

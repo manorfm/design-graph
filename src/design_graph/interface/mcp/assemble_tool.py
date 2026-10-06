@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from design_graph.interface.mcp.discovery_tools import resource_lines
 from design_graph.interface.mcp.full_tools import source_parts
 from design_graph.interface.mcp.markdown import props_table_lines, screen_relation_lines
+from design_graph.interface.mcp.notices import full_call
 from design_graph.model.graph.reader import GraphReader
 
 ASSEMBLY_PART_CHARS = 20_000
@@ -127,7 +128,7 @@ def _completeness_lines(screen: str, omitted: list[str]) -> list[str]:
     if omitted:
         lines.append(f"Omitidos (você já tem): {', '.join(omitted)}")
     lines += [
-        f"Fonte original da tela, como escrito: get_full_source('{screen}')",
+        f"Fonte original da tela, como escrito: {full_call('source', screen)}",
         "Comportamento (o que cada ação faz) ainda não é capturado.",
     ]
     return lines
