@@ -731,14 +731,6 @@ class TestGetComponentFull:
         assert full["root"] == "RestaurantCard"
 
 
-class TestComponentExists:
-    def test_true_for_existing_component(self, populated_db):
-        assert populated_db.reader.component_exists("BtnWithBadge") is True
-
-    def test_false_for_leaf_lookalike_that_does_not_exist(self, populated_db):
-        assert populated_db.reader.component_exists("TotallyUnknown") is False
-
-
 class TestFuzzyFastPath:
     """C27/T52: an exact match must short-circuit before the full-scan fuzzy fallback."""
 
@@ -1008,7 +1000,7 @@ class TestSourceFactsRoundTrip:
         graph.writer.write_component(comp)
         full = graph.reader.get_full_source("CartList")
         assert full == {"source_code": "<ul>{[list:Item]}</ul>", "source_lang": "jsx"}
-        assert graph.reader.get_component("CartList")["c.declares_inline_styles"] is True
+        assert graph.reader.get_component_spec("CartList")["c.declares_inline_styles"] is True
 
     def test_screen_source_facts_survive_write_and_read(self, graph):
         screen = ExtractedScreen(
@@ -1084,7 +1076,7 @@ class TestTokenModesAndCustomProperties:
     def test_component_reads_carry_each_token_mode(self, graph):
         graph.writer.write_tokens([self._accent("claro", "#0D5C63"), self._accent("escuro", "#5FB0B0")])
         graph.writer.write_component(self._styled("Cta", "var(--accent)"))
-        for read in (graph.reader.get_component, graph.reader.get_component_spec):
+        for read in (graph.reader.get_component_spec,):
             assert sorted(t["t.mode"] for t in read("Cta")["tokens"]) == ["claro", "escuro"]
         tree = graph.reader.get_component_full("Cta")["components"][0]
         assert sorted(t["mode"] for t in tree["tokens"]) == ["claro", "escuro"]
@@ -1123,7 +1115,7 @@ class TestTokenListOrder:
     _SORTED = [("--alfa", "claro"), ("--zeta", "claro"), ("--zeta", "escuro")]
 
     def test_component_tokens(self, reader):
-        for read in (reader.get_component, reader.get_component_spec):
+        for read in (reader.get_component_spec,):
             assert [(t["t.label"], t["t.mode"]) for t in read("Card")["tokens"]] == self._SORTED
 
     def test_component_tree_tokens(self, reader):

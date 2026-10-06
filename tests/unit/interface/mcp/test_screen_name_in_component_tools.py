@@ -27,10 +27,11 @@ class _Reader:
         return {"name": "App", "components": [{"c.name": "Header", "c.comp_type": "layout"},
                                              {"c.name": "Footer", "c.comp_type": "layout"}]}
 
-    def get_component(self, name):
+    def get_component_spec(self, name):
         return None
 
-    get_component_spec = get_component_full = get_component
+    def get_component_full(self, name, depth=3):
+        return None
 
     def find_styles_by_class(self, name):
         return []

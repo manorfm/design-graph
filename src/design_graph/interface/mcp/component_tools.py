@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 
-from design_graph.model.entities import StyleState
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.full_tools import get_full_source
 from design_graph.interface.mcp.markdown import (
@@ -51,47 +50,20 @@ def _screen_instead(reader: GraphReader, name: str) -> str | None:
     ])
 
 
-def get_component(reader: GraphReader, name: str) -> str:
-    comp = reader.get_component(name)
-    if not comp:
-        return _screen_instead(reader, name) or _not_found(name)
-
-    cname = comp.get("c.name", name)
-    lines = [
-        f"# Componente: {cname}",
-        f"Tipo: **{comp.get('c.comp_type', '')}**  |  Ocorrências: {comp.get('c.occurrence', '')}",
-        f"Usado em: {', '.join(comp.get('screens_using', [])) or 'não detectado'}",
-    ]
-    if comp.get("c.source_code"):
-        lines += ["", *source_block_lines(
-            comp["c.source_code"], comp["c.source_lang"], 4000, recoverable_via=cname, heading="## Fonte",
-        )]
-    if comp.get("styles"):
-        lines.append("\n## Estilos")
-        by_state: dict[str, list[str]] = {}
-        for s in comp["styles"]:
-            by_state.setdefault(s.get("s.state", "default"), []).append(
-                f"`{s.get('s.property')}`: `{s.get('s.value')}`"
-            )
-        for state in StyleState:
-            if state in by_state:
-                lines.append(f"**{state}**: {' | '.join(by_state[state][:6])}")
-    else:
-        notice = StyleExtractionGap(bool(comp.get("c.declares_inline_styles"))).notice()
-        if notice:
-            lines.append(f"\n{notice}")
-    if comp.get("tokens"):
-        lines.append("\n## Tokens de design")
-        for t in comp["tokens"]:
-            lines.append(
-                f"- **{t.get('t.label')}**{mode_tag(t.get('t.mode'))} = `{t.get('t.value')}` ({t.get('t.category')})"
-            )
-    if comp.get("children"):
-        lines.append(f"\n## Componentes filhos\n{', '.join(comp['children'])}")
-    if comp.get("referenced_data"):
-        lines.append("\n## Dados referenciados")
-        lines.extend(referenced_data_lines(comp["referenced_data"], recoverable_via=cname))
-    return "\n".join(lines)
+def get_component(reader: GraphReader, name: str, depth: object = 0) -> str:
+    """
+    One component, whole: its spec (hierarchy, styles by state, tokens,
+    texts, interactions, props, referenced data, source) — and with depth 1
+    to 3 the components it nests, that many levels down. A screen's name is
+    answered as that screen.
+    """
+    try:
+        levels = int(depth)
+    except (TypeError, ValueError):
+        levels = -1
+    if not 0 <= levels <= 3:
+        return f"depth inválido: {depth!r}. Use 0 (só o componente) a 3 (com os aninhados até 3 níveis)."
+    return get_component_spec(reader, name) if levels == 0 else get_component_full(reader, name, levels)
 
 
 def get_component_spec(reader: GraphReader, name: str) -> str:
@@ -212,13 +184,13 @@ def _render_shared_css_class_spec(
     return "\n".join(lines)
 
 
-def get_component_full(reader: GraphReader, name: str) -> str:
+def get_component_full(reader: GraphReader, name: str, depth: int = 3) -> str:
     """
-    Render the root component plus every descendant (via CONTAINS, up
-    to 3 levels) as Markdown — one call to reconstruct a complex
-    component instead of cascading get_component_children per level.
+    Render the root component plus every descendant (via CONTAINS, up to
+    `depth` levels) as Markdown — one call to reconstruct a complex
+    component instead of asking for each nested one.
     """
-    full = reader.get_component_full(name)
+    full = reader.get_component_full(name, depth)
     if not full:
         return _screen_instead(reader, name) or _not_found(name)
 
@@ -232,48 +204,6 @@ def get_component_full(reader: GraphReader, name: str) -> str:
         lines.extend(component_lines(comp, heading=f"## {comp['name']}{marker}"))
 
     logger.debug("tools: get_component_full(%s) — %d components", root_name, len(full["components"]))
-    return "\n".join(lines)
-
-
-def get_component_props(reader: GraphReader, name: str) -> str:
-    """Return declared props for a component as a Markdown table."""
-    props = reader.get_component_props(name)
-    if not props:
-        return (
-            f"No declared props found for '{name}'. "
-            "The component may use positional props, TypeScript interfaces, or have no props."
-        )
-    lines = [f"# Props: {name}\n", *props_table_lines(props)]
-    logger.debug("tools: get_component_props(%s) — %d props", name, len(props))
-    return "\n".join(lines)
-
-
-def get_component_children(reader: GraphReader, name: str) -> str:
-    children = reader.get_component_children(name)
-    if not children:
-        if not reader.component_exists(name):
-            return f"'{name}' não encontrado. Use search() para localizar."
-        return f"'{name}' é um componente folha — não possui filhos detectados."
-    lines = [f"# Filhos de: {name}\n"]
-    for child in children:
-        lines.append(f"- `{child}`")
-    return "\n".join(lines)
-
-
-def get_component_interactions(reader: GraphReader, name: str) -> str:
-    interactions = reader.get_interactions(name)
-    if not interactions:
-        return f"Nenhuma interação detectada para '{name}'."
-    lines = [f"# Interações: {name}\n"]
-    for i in interactions:
-        lines.append(f"**{i.get('i.trigger', '').upper()}**")
-        lines.append(f"  Propriedade: `{i.get('i.css_prop')}`")
-        if i.get("i.from_val"):
-            lines.append(f"  De: `{i['i.from_val']}`")
-        lines.append(f"  Para: `{i.get('i.to_val')}`")
-        if i.get("i.transition"):
-            lines.append(f"  Transition: `{i['i.transition']}`")
-        lines.append("")
     return "\n".join(lines)
 
 

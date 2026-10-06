@@ -74,7 +74,7 @@ class TestLargePrototypePipelineOutput:
 
     def test_known_components_present(self, reader):
         for name in ("BtnPrimary", "CardRestaurant", "NavBar", "SearchBar"):
-            comp = reader.get_component(name)
+            comp = reader.get_component_spec(name)
             assert comp is not None, f"Expected component {name!r} in graph"
 
     def test_known_screens_present(self, reader):
@@ -144,7 +144,7 @@ class TestLargePrototypeChunking:
         for s in screens:
             for cname in s.component_refs:
                 if cname not in components:
-                    raw = reader.get_component(cname)
+                    raw = reader.get_component_spec(cname)
                     if raw:
                         components[cname] = ExtractedComponent(
                             name=cname,

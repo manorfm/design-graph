@@ -54,7 +54,7 @@ class _NoStyleAtAllReader(_DynamicStyleReader):
     honest "no styling" case, which must stay silent (no false gap notice)."""
 
     def get_component(self, name):
-        d = super().get_component(name)
+        d = super().get_component_spec(name)
         d["c.source_code"] = "<span>{initials}</span>"
         d["c.declares_inline_styles"] = False
         return d
@@ -89,8 +89,7 @@ class TestStyleGapNoticeAppearsAcrossAllRenderSites:
         assert "runtime" in out.lower()
 
     def test_get_component_spec_warns_on_dynamic_only_styles(self):
-        out = self._dispatcher(_DynamicStyleReader).dispatch(
-            "get_component_spec", {"name": "RestaurantAvatar"}, "proto"
+        out = self._dispatcher(_DynamicStyleReader).dispatch("get_component", {"name": "RestaurantAvatar"}, "proto"
         )
         assert "runtime" in out.lower()
 
@@ -107,7 +106,6 @@ class TestStyleGapNoticeAppearsAcrossAllRenderSites:
         assert "runtime" not in out.lower()
 
     def test_get_component_spec_stays_silent_when_genuinely_unstyled(self):
-        out = self._dispatcher(_NoStyleAtAllReader).dispatch(
-            "get_component_spec", {"name": "RestaurantAvatar"}, "proto"
+        out = self._dispatcher(_NoStyleAtAllReader).dispatch("get_component", {"name": "RestaurantAvatar"}, "proto"
         )
         assert "runtime" not in out.lower()

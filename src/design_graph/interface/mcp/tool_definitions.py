@@ -55,21 +55,6 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
-        "name": "get_component",
-        "description": (
-            "Returns a component's implementation: source, styles (default/hover/focus), "
-            "design tokens used, texts, interactions, and child components."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component name (e.g. SectionCard)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
         "name": "get_tokens",
         "description": (
             "Returns design tokens (color, spacing, typography, shadow, radius, "
@@ -163,6 +148,25 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "get_component",
+        "description": (
+            "One component, whole: hierarchy (parents, children, screens using it), styles by state (default, "
+            "hover, focus, responsive), tokens by mode, texts, interactions, props with defaults, referenced data "
+            "and its source. depth=1..3 also returns the components it nests, that many levels down — a modal, "
+            "form or card with everything inside it in one call. A screen's name is answered as that screen."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Component name (fuzzy match)"},
+                "depth": {"type": "integer", "minimum": 0, "maximum": 3,
+                          "description": "0: only this component (default); 1-3: plus its nested components"},
+                "doc": _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "get_full",
         "description": (
             "Returns, whole, what another answer shortened — every '+N mais' or cut notice names the exact call. "
@@ -217,33 +221,6 @@ TOOL_DEFINITIONS: list[dict] = [
                 "screen": {"type": "string", "description": "Only what this screen loads"},
                 "doc": _doc_param(),
             },
-        },
-    },
-    {
-        "name": "get_component_interactions",
-        "description": "Returns hover/focus interaction effects for a component.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component name"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
-        "name": "get_component_children",
-        "description": (
-            "Returns the direct child components rendered by a parent component. "
-            "Uses the CONTAINS relationship built during prototype analysis."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Parent component name"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
         },
     },
     {
@@ -316,46 +293,6 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
-        "name": "get_component_spec",
-        "description": (
-            "Returns the complete spec of a component structured for screen reconstruction: "
-            "styles grouped by state (default/hover/focus), design tokens, texts, interactions, "
-            "parent/child hierarchy, and which screens use it. If any of the component's classes "
-            "carry an @media-scoped override, those values appear in a separate 'Estilos "
-            "responsivos' section labeled with their raw condition — never mixed into the "
-            "default styles above. This is the only tool that surfaces @media data; all other "
-            "style-reading tools only ever return the unconditional value. "
-            "Use instead of get_component when building or reproducing UI."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component name (partial name accepted)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
-        "name": "get_component_full",
-        "description": (
-            "Returns the full component tree rooted at name: the component itself plus "
-            "every descendant reachable via CONTAINS (up to 3 levels deep), each with its "
-            "own styles, tokens, texts, interactions, props and children, in render order. "
-            "Use instead of get_component_spec + repeated get_component_children calls when "
-            "reconstructing one complex component in isolation (a modal, a form, a card with "
-            "nested widgets) — one call instead of cascading through every grandchild."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Root component name (partial name accepted)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
-        },
-    },
-    {
         "name": "get_build_diff",
         "description": (
             "Returns what changed in this prototype's most recent build relative to the "
@@ -391,22 +328,6 @@ TOOL_DEFINITIONS: list[dict] = [
                 "doc": _doc_param(),
             },
             "required": ["name", "source"],
-        },
-    },
-    {
-        "name": "get_component_props",
-        "description": (
-            "Returns the declared props (API) of a component: prop names, "
-            "whether each is required or optional, and default values. "
-            "Use before instantiating a component to know what can be configured."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Component name (partial name accepted)"},
-                "doc":  _doc_param(),
-            },
-            "required": ["name"],
         },
     },
     {

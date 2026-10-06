@@ -98,9 +98,7 @@ class TestServerOwnResponsibility:
         expected = {
             "list_screens", "get_screen", "get_screen_full", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full", "get_component_interactions",
-            "get_component_children", "list_components", "get_component_spec",
-            "get_component_props", "get_screen_layout",
+            "get_full", "list_components", "get_screen_layout",
             "set_prototype",
         }
         assert expected.issubset(names), f"Missing tools: {expected - names}"
@@ -167,18 +165,16 @@ class TestGetComponentTool:
         assert "SectionCard" in _text(resp)
 
 
-# ── get_component_children tool ───────────────────────────────────────────────
+# ── get_component with depth ──────────────────────────────────────────────────
 
-class TestGetComponentChildrenTool:
-    def test_returns_string_result(self, single_server):
-        resp = _call(single_server, "get_component_children", {"name": "BtnPrimary"})
-        assert isinstance(_text(resp), str)
+class TestGetComponentWithDepth:
+    def test_nested_components_come_with_depth(self, single_server):
+        text = _text(_call(single_server, "get_component", {"name": "BtnPrimary", "depth": 1}))
+        assert "BtnPrimary" in text
 
     def test_nonexistent_component_returns_graceful_message(self, single_server):
-        resp = _call(single_server, "get_component_children", {"name": "NoSuchWidget999"})
-        text = _text(resp)
-        # Should not raise; returns a readable message
-        assert isinstance(text, str)
+        text = _text(_call(single_server, "get_component", {"name": "NoSuchWidget999", "depth": 2}))
+        assert "não encontrado" in text.lower() or "not found" in text.lower()
 
 
 # ── search tool ───────────────────────────────────────────────────────────────

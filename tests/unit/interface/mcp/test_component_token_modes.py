@@ -24,13 +24,6 @@ class _Reader:
                 "props": [], "children": []}
 
 
-def test_get_component_shows_each_token_mode():
-    out = get_component(_Reader(), "Sidebar")
-    assert "- **--sunk** [claro] = `#F4F1EA` (css_var)" in out
-    assert "- **--sunk** [escuro] = `#1C1B19` (css_var)" in out
-    assert "- **space_16** = `16px` (spacing)" in out
-
-
 def test_get_component_spec_shows_each_token_mode():
     out = get_component_spec(_Reader(), "Sidebar")
     assert "| --sunk [claro] | #F4F1EA | css_var |" in out

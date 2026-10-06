@@ -171,7 +171,7 @@ class MockReader:
             return {"components": [], "sections": [{"screen": "Applications", "section": "Header"}]}
         return {"components": [], "sections": []}
 
-    def get_component_full(self, name):
+    def get_component_full(self, name, depth=3):
         if "Ghost" in name or "Nonexistent" in name:
             return None
         root_texts = (
@@ -255,25 +255,6 @@ class TestDispatch:
         d = ToolDispatcher([("doc1", MockReader())])
         result = d.dispatch("nonexistent_tool", {}, "doc1")
         assert "unknown" in result.lower() or "nonexistent" in result.lower()
-
-    def test_get_component_children_returns_markdown(self):
-        d = ToolDispatcher([("doc1", MockReader())])
-        result = d.dispatch("get_component_children", {"name": "BtnWithBadge"}, "doc1")
-        assert "Badge" in result
-
-    def test_get_component_children_leaf_component_message(self):
-        # Exists (component_exists=True) but has no children — distinct
-        # message from "not found" (C27/T53).
-        d = ToolDispatcher([("doc1", MockReader())])
-        result = d.dispatch("get_component_children", {"name": "SectionCard"}, "doc1")
-        assert "folha" in result
-        assert "não encontrado" not in result
-
-    def test_get_component_children_not_found_message(self):
-        d = ToolDispatcher([("doc1", MockReader())])
-        result = d.dispatch("get_component_children", {"name": "TotallyUnknown"}, "doc1")
-        assert "não encontrado" in result
-        assert "folha" not in result
 
     def test_search_cross_prototype(self):
         d = _dispatcher(2)
@@ -378,23 +359,23 @@ class TestListComponentsTool:
 class TestGetComponentSpecTool:
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_component_spec" in names
+        assert "get_component" in names
 
     def test_tool_requires_name_in_schema(self):
-        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component_spec")
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component")
         assert "name" in tool["inputSchema"].get("required", [])
 
     def test_dispatch_known_component_returns_markdown(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "BtnPrimary"}, "doc1")
         assert isinstance(result, str)
         assert "BtnPrimary" in result
 
     def test_dispatch_unknown_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "GhostComp"}, "doc1")
         assert "not found" in result.lower() or "ghostcomp" in result.lower()
 
     def test_output_contains_style_section(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "BtnPrimary"}, "doc1")
         assert "default" in result.lower() or "estilo" in result.lower() or "style" in result.lower()
 
 
@@ -409,26 +390,26 @@ class TestGetComponentSpecFallsBackToSharedCssClass:
     """
 
     def test_falls_back_to_shared_class_when_no_component_matches(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "page-title"}, "doc1")
         assert "font-size" in result
         assert "25px" in result
 
     def test_labeled_as_css_class_not_component(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "page-title"}, "doc1")
         assert "classe css" in result.lower() or "css class" in result.lower()
 
     def test_reports_screen_using_the_class(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "page-title"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "page-title"}, "doc1")
         assert "Applications" in result
 
     def test_real_component_match_never_falls_back(self):
         """A genuine component hit must win outright — the class fallback
         only runs when component resolution finds literally nothing."""
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "BtnPrimary"}, "doc1")
         assert "classe css" not in result.lower()
 
     def test_unknown_name_that_is_also_not_a_class_stays_not_found(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "GhostComp"}, "doc1")
         assert "not found" in result.lower() or "ghostcomp" in result.lower()
 
 
@@ -555,19 +536,19 @@ class TestTruncationNoticesPointToFullTools:
     """
 
     def test_component_spec_texts_point_to_get_full(name="self", aspect="texts"):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyTextsComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "ManyTextsComp"}, "doc1")
         assert 'get_full(name="ManyTextsComp", aspect="texts")' in result
 
     def test_component_spec_styles_point_to_get_full(name="self", aspect="styles"):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyStylesComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "ManyStylesComp"}, "doc1")
         assert 'get_full(name="ManyStylesComp", aspect="styles")' in result
 
     def test_component_full_texts_point_to_get_full(name="self", aspect="texts"):
-        result = _dispatcher(1).dispatch("get_component_full", {"name": "ManyTextsComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"depth": 3, "name": "ManyTextsComp"}, "doc1")
         assert 'get_full(name="ManyTextsComp", aspect="texts")' in result
 
     def test_component_spec_responsive_styles_point_to_get_full(name="self", aspect="styles"):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ResponsiveOnlyComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "ResponsiveOnlyComp"}, "doc1")
         assert 'get_full(name="ResponsiveOnlyComp", aspect="styles")' in result
 
 
@@ -580,21 +561,21 @@ class TestReferencedDataInComponentSpec:
     """
 
     def test_referenced_data_section_present(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "Icon"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "Icon"}, "doc1")
         assert "Dados referenciados" in result
         assert "ICONS" in result
 
     def test_referenced_data_values_shown(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "Icon"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "Icon"}, "doc1")
         assert "M21 2l-2 2" in result
         assert "M3 6h18" in result
 
     def test_no_section_when_component_has_no_referenced_data(self):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "BtnPrimary"}, "doc1")
         assert "Dados referenciados" not in result
 
     def test_large_table_is_truncated_with_pointer_to_get_full(name="self", aspect="data"):
-        result = _dispatcher(1).dispatch("get_component_spec", {"name": "ManyRefDataComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"name": "ManyRefDataComp"}, "doc1")
         assert "mais" in result.lower()
         assert 'get_full(name="ManyRefDataComp", aspect="data")' in result
 
@@ -665,24 +646,24 @@ class TestGetBuildDiffSkippedEntriesNotice:
 class TestGetComponentFullTool:
     def test_tool_in_definitions(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
-        assert "get_component_full" in names
+        assert "get_component" in names
 
     def test_tool_requires_name_in_schema(self):
-        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component_full")
+        tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_component")
         assert "name" in tool["inputSchema"].get("required", [])
 
     def test_dispatch_known_component_returns_markdown_with_descendants(self):
-        result = _dispatcher(1).dispatch("get_component_full", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"depth": 3, "name": "BtnPrimary"}, "doc1")
         assert isinstance(result, str)
         assert "BtnPrimary" in result
         assert "Badge" in result  # descendant included, not just the root
 
     def test_dispatch_unknown_returns_not_found_message(self):
-        result = _dispatcher(1).dispatch("get_component_full", {"name": "GhostComp"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"depth": 3, "name": "GhostComp"}, "doc1")
         assert "não encontrado" in result.lower() or "ghostcomp" in result.lower()
 
     def test_root_marked_in_output(self):
-        result = _dispatcher(1).dispatch("get_component_full", {"name": "BtnPrimary"}, "doc1")
+        result = _dispatcher(1).dispatch("get_component", {"depth": 3, "name": "BtnPrimary"}, "doc1")
         assert "(raiz)" in result
 
 
@@ -784,9 +765,7 @@ class TestToolDefinitions:
         expected = {
             "list_screens", "get_screen", "get_section", "get_component",
             "get_tokens", "find_token_usage", "search", "impact",
-            "get_full", "get_component_interactions",
-            "get_component_children", "list_components", "get_component_spec",
-            "get_component_full", "set_prototype",
+            "get_full", "list_components", "set_prototype",
         }
         assert expected.issubset(names)
 
@@ -813,7 +792,7 @@ class TestMCPServer:
 
     def test_tool_definitions_includes_new_tool(self):
         names = [t["name"] for t in self._server().tool_definitions()]
-        assert "get_component_children" in names
+        assert "get_component" in names
 
     def test_dispatch_list_screens(self):
         result = self._server().dispatch_tool_call("list_screens", {})
@@ -969,3 +948,14 @@ class TestGetTokensModes:
     def test_mode_is_an_input_of_the_tool(self):
         tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "get_tokens")
         assert "mode" in tool["inputSchema"]["properties"]
+
+
+
+class TestGetComponentRouting:
+    """get_component answers with the spec, or with the nested tree when depth is given."""
+
+    def test_depth_must_be_between_0_and_3(self):
+        from design_graph.interface.mcp import component_tools
+
+        assert "depth inválido" in component_tools.get_component(MockReader(), "BtnPrimary", depth=7)
+        assert "depth inválido" in component_tools.get_component(MockReader(), "BtnPrimary", depth="x")

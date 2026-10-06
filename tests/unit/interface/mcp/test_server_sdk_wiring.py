@@ -54,7 +54,7 @@ class TestAgentInstructions:
         assert "set_prototype" in _AGENT_INSTRUCTIONS
 
     def test_covers_component_subtree_reconstruction(self):
-        assert "get_component_full" in _AGENT_INSTRUCTIONS
+        assert "get_component(name, depth=1..3)" in _AGENT_INSTRUCTIONS
 
     def test_covers_token_reuse_before_literal_values(self):
         assert "get_tokens" in _AGENT_INSTRUCTIONS

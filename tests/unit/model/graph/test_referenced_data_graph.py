@@ -54,7 +54,7 @@ def reader(icon_graph):
 
 class TestReferencedDataRoundTrip:
     def test_get_component_returns_referenced_data(self, reader):
-        comp = reader.get_component("Icon")
+        comp = reader.get_component_spec("Icon")
         assert comp["referenced_data"] == {"ICONS": ICONS_DATA}
 
     def test_get_component_spec_returns_referenced_data(self, reader):
@@ -67,7 +67,7 @@ class TestReferencedDataRoundTrip:
         assert root["referenced_data"] == {"ICONS": ICONS_DATA}
 
     def test_component_without_referenced_data_gets_empty_dict(self, reader):
-        comp = reader.get_component("Btn")
+        comp = reader.get_component_spec("Btn")
         assert comp["referenced_data"] == {}
 
     def test_get_screen_full_includes_referenced_data_per_component(self, reader):

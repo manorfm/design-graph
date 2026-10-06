@@ -5,7 +5,7 @@ Covers branches missed by the existing test_writer_reader.py:
   - get_screen / get_component returning None for unknown names
   - get_section with and without content
   - find_token_usage with component and screen cross-references
-  - get_interactions for component with and without interactions
+  - interactions for component with and without interactions (through the spec)
   - get_impact for both component and token impact paths
   - count_nodes returning all schema categories
   - _fuzzy_match suffix and contains matching
@@ -142,10 +142,10 @@ class TestGetScreen:
 
 class TestGetComponent:
     def test_returns_none_for_nonexistent_component(self, rich_graph):
-        assert rich_graph.reader.get_component("NoSuchComp999") is None
+        assert rich_graph.reader.get_component_spec("NoSuchComp999") is None
 
     def test_returns_dict_for_known_component(self, rich_graph):
-        result = rich_graph.reader.get_component("BtnPrimary")
+        result = rich_graph.reader.get_component_spec("BtnPrimary")
         assert result is not None
 
 
@@ -236,24 +236,24 @@ class TestFindTokenUsage:
             assert "components" in u
 
 
-# ── get_interactions ──────────────────────────────────────────────────────────
+# ── interactions (through the spec) ──────────────────────────────────────────────────────────
 
 class TestGetInteractions:
     def test_returns_interactions_for_component_with_hover(self, rich_graph):
-        interactions = rich_graph.reader.get_interactions("CartItem")
+        interactions = (rich_graph.reader.get_component_spec("CartItem") or {}).get('interactions', [])
         assert len(interactions) >= 1
         assert any(i.get("i.trigger") == "hover" for i in interactions)
 
     def test_returns_empty_for_component_without_interactions(self, rich_graph):
-        interactions = rich_graph.reader.get_interactions("BtnPrimary")
+        interactions = (rich_graph.reader.get_component_spec("BtnPrimary") or {}).get('interactions', [])
         assert isinstance(interactions, list)
 
     def test_returns_empty_for_nonexistent_component(self, rich_graph):
-        interactions = rich_graph.reader.get_interactions("GhostComp999")
+        interactions = (rich_graph.reader.get_component_spec("GhostComp999") or {}).get('interactions', [])
         assert interactions == []
 
     def test_interaction_has_required_fields(self, rich_graph):
-        interactions = rich_graph.reader.get_interactions("CartItem")
+        interactions = (rich_graph.reader.get_component_spec("CartItem") or {}).get('interactions', [])
         for i in interactions:
             assert "i.trigger"   in i
             assert "i.css_prop"  in i
@@ -461,11 +461,6 @@ class TestGetStylesWithTokens:
 # under (max-width:600px) — see rich_graph above.) ───────────────────────────
 
 class TestMediaScopedStylesExcludedElsewhere:
-    def test_get_component_excludes_responsive_style(self, rich_graph):
-        comp = rich_graph.reader.get_component("ResponsiveCard")
-        widths = {s["s.value"] for s in comp["styles"] if s["s.property"] == "width"}
-        assert widths == {"200px"}
-
     def test_get_component_full_excludes_responsive_style(self, rich_graph):
         full = rich_graph.reader.get_component_full("ResponsiveCard")
         card = next(c for c in full["components"] if c["name"] == "ResponsiveCard")
@@ -693,14 +688,14 @@ class TestGetComponentScreensUsingDepth:
         return SimpleNamespace(reader=GraphReader(ro_conn))
 
     def test_depth2_leaf_found_in_screens_using(self, deep_graph):
-        comp = deep_graph.reader.get_component("DeepLeaf")
+        comp = deep_graph.reader.get_component_spec("DeepLeaf")
         assert "DeepPage" in comp["screens_using"], (
             "get_component.screens_using must traverse CONTAINS*0..3 like "
             "get_component_spec — DeepLeaf is at depth 2 but was not found."
         )
 
     def test_consistent_with_get_component_spec(self, deep_graph):
-        direct_tool = set(deep_graph.reader.get_component("DeepLeaf")["screens_using"])
+        direct_tool = set(deep_graph.reader.get_component_spec("DeepLeaf")["screens_using"])
         spec_tool   = set(deep_graph.reader.get_component_spec("DeepLeaf")["screens_using"])
         assert direct_tool == spec_tool, (
             f"get_component.screens_using={direct_tool} differs from "

@@ -102,7 +102,6 @@ class ToolDispatcher:
 
         screen, section = args.get("screen", ""), args.get("section", "")
         dispatch_map = {
-            "get_component_props":       lambda: component_tools.get_component_props(reader, name),
             "get_screen_layout":         lambda: screen_tools.get_screen_layout(reader, name),
             "get_screen_full":           lambda: screen_tools.get_screen_full(reader, name),
             "assemble_page":             lambda: assemble_tool.assemble_page(
@@ -110,7 +109,7 @@ class ToolDispatcher:
             ),
             "get_screen":                lambda: screen_tools.get_screen(reader, name),
             "get_section":               lambda: screen_tools.get_section(reader, screen, section),
-            "get_component":             lambda: component_tools.get_component(reader, name),
+            "get_component":             lambda: component_tools.get_component(reader, name, args.get("depth", 0)),
             "get_tokens":                lambda: discovery_tools.get_tokens(
                 reader, args.get("category"), args.get("screen"), args.get("mode"),
             ),
@@ -121,11 +120,7 @@ class ToolDispatcher:
                 reader, name, args.get("aspect", ""), screen, section, args.get("part", 1),
             ),
             "impact":                    lambda: discovery_tools.impact(reader, name),
-            "get_component_interactions": lambda: component_tools.get_component_interactions(reader, name),
-            "get_component_children":    lambda: component_tools.get_component_children(reader, name),
             "list_components":           lambda: component_tools.list_components(reader, args.get("comp_type"), args.get("limit")),
-            "get_component_spec":        lambda: component_tools.get_component_spec(reader, name),
-            "get_component_full":        lambda: component_tools.get_component_full(reader, name),
             "get_build_diff":            lambda: build_tools.get_build_diff(reader),
             "validate_component_implementation": lambda: validation_tool.validate_component_implementation(
                 reader, name, args.get("source", ""),

@@ -58,7 +58,7 @@ def test_screen_shows_navigation_and_sections(tools):
 
 
 def test_repeated_footer_is_a_component_with_its_source(tools):
-    out = _call(tools, "get_component_spec", name="Footer")
+    out = _call(tools, "get_component", name="Footer")
     assert "```html-template" in out and "<footer" in out
 
 

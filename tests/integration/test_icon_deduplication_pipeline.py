@@ -72,8 +72,8 @@ class TestIconStoredOnceAcrossComponents:
 
     def test_get_component_expands_marker_back_to_full_svg(self, icon_reader):
         reader, _ = icon_reader
-        comp_a = reader.get_component("IconButtonA")
-        comp_b = reader.get_component("IconButtonB")
+        comp_a = reader.get_component_spec("IconButtonA")
+        comp_b = reader.get_component_spec("IconButtonB")
         assert ICON_SVG in comp_a["c.source_code"]
         assert ICON_SVG in comp_b["c.source_code"]
         assert "{[icon:" not in comp_a["c.source_code"]

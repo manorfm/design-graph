@@ -83,7 +83,7 @@ class TestPlainHtmlGraphContent:
         """The repeating .card div pattern should produce a Card component."""
         # Try multiple possible names the extractor might use
         found = any(
-            plain_reader.get_component(name) is not None
+            plain_reader.get_component_spec(name) is not None
             for name in ("Card", "CardComponent", "RestaurantCard")
         )
         assert found, "Expected a Card-like component from the .card DOM pattern"

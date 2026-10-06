@@ -99,11 +99,11 @@ class TestStyleTruncationNoLongerHidesDistinctProperties:
         return ToolDispatcher([("proto", MockReaderWithCrowdedStyles())])
 
     def test_get_component_spec_shows_padding_despite_28_raw_rows(self):
-        output = self._dispatcher().dispatch("get_component_spec", {"name": "RestCard"}, "proto")
+        output = self._dispatcher().dispatch("get_component", {"name": "RestCard"}, "proto")
         assert "| padding |" in output
 
     def test_get_component_spec_shows_grid_template_columns(self):
-        output = self._dispatcher().dispatch("get_component_spec", {"name": "RestCard"}, "proto")
+        output = self._dispatcher().dispatch("get_component", {"name": "RestCard"}, "proto")
         assert "| gridTemplateColumns |" in output
 
     def test_get_screen_full_shows_padding_for_nested_component(self):

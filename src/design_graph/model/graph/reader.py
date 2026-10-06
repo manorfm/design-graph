@@ -251,59 +251,6 @@ class GraphReader(ScreenAssemblyQueries):
 
     # ── Components ────────────────────────────────────────────────────────────
 
-    def get_component(self, name: str) -> dict | None:
-        resolved = self._fuzzy_find_component(name)
-        if not resolved:
-            return None
-
-        rows = self._q(
-            "MATCH (c:Component {name:$n}) "
-            "RETURN " + _COMPONENT_FIELDS,
-            {"n": resolved},
-        )
-        if not rows:
-            return None
-        comp = rows[0]
-        comp["c.source_code"] = self._resolve_icons(comp["c.source_code"])
-        comp["referenced_data"] = json.loads(comp.get("c.referenced_data_json") or "{}")
-
-        styles       = self._q(
-            # media != '' rows are @media-scoped variants (C35) — this tool
-            # doesn't distinguish them from the unconditional default, so it
-            # excludes them rather than silently presenting one as the other
-            # (get_component_spec is the one place that surfaces them, labeled).
-            "MATCH (c:Component {name:$n})-[:HAS_STYLE]->(s:Style) "
-            "WHERE s.media = '' "
-            "RETURN s.state, s.property, s.value ORDER BY s.state, s.property",
-            {"n": resolved},
-        )
-        tokens       = self._q(
-            "MATCH (c:Component {name:$n})-[:USES_TOKEN]->(t:Token) "
-            "RETURN t.label, t.value, t.category, t.mode ORDER BY t.category, t.label, t.mode",
-            {"n": resolved},
-        )
-        texts        = self._q(
-            "MATCH (c:Component {name:$n})-[:COMP_HAS_TEXT]->(t:UIText) "
-            "RETURN t.content, t.text_type, t.element ORDER BY t.text_type",
-            {"n": resolved},
-        )
-        interactions = self._q(
-            "MATCH (c:Component {name:$n})-[:HAS_INTERACTION]->(i:Interaction) "
-            "RETURN i.trigger, i.css_prop, i.from_val, i.to_val, i.transition",
-            {"n": resolved},
-        )
-        children = self.get_component_children(resolved)
-
-        return {
-            **comp,
-            "styles":        styles,
-            "tokens":        tokens,
-            "texts":         texts[:15],
-            "interactions":  interactions,
-            "screens_using": self.find_screens_using_comp_transitively(resolved),
-            "children":      children,
-        }
-
     def list_components(self, comp_type: str | None = None) -> list[dict]:
         """
         Return all components sorted by occurrence descending.
@@ -423,11 +370,6 @@ class GraphReader(ScreenAssemblyQueries):
         logger.debug("reader: get_component_props(%s) — %d props", resolved, len(rows))
         return rows
 
-    def component_exists(self, name: str) -> bool:
-        """Return whether a Component node with this exact name exists."""
-        rows = self._q("MATCH (c:Component {name:$n}) RETURN c.name", {"n": name})
-        return bool(rows)
-
     def get_component_children(self, name: str) -> list[str]:
         """
         Return names of components directly contained by this component
@@ -450,13 +392,12 @@ class GraphReader(ScreenAssemblyQueries):
         )
         return [r["p.name"] for r in rows]
 
-    def get_component_full(self, name: str) -> dict | None:
+    def get_component_full(self, name: str, depth: int = 3) -> dict | None:
         """
         Return the full component tree rooted at `name`: the resolved root
-        plus every descendant reachable via CONTAINS (3 levels deep — the
-        same depth already used throughout this file for screen-level
-        closures, a literal bound Kuzu requires on variable-length
-        patterns), each with its own styles/tokens/texts/interactions/props
+        plus every descendant reachable via CONTAINS, `depth` levels deep
+        (1 to 3 — Kuzu needs a literal bound on variable-length patterns,
+        so it is clamped to that range), each with its own styles/tokens/texts/interactions/props
         and ordered children. One call to reconstruct a complex component
         without cascading through get_component_children for every
         grandchild. Returns None when the root isn't found.
@@ -465,8 +406,9 @@ class GraphReader(ScreenAssemblyQueries):
         if resolved is None:
             return None
 
+        levels = min(max(int(depth), 1), 3)
         descendant_rows = self._q(
-            "MATCH (root:Component {name:$n})-[:CONTAINS*1..3]->(c:Component) "
+            f"MATCH (root:Component {{name:$n}})-[:CONTAINS*1..{levels}]->(c:Component) "
             "RETURN DISTINCT c.name",
             {"n": resolved},
         )
@@ -945,16 +887,6 @@ class GraphReader(ScreenAssemblyQueries):
         ]
 
     # ── Interactions ──────────────────────────────────────────────────────────
-
-    def get_interactions(self, comp_name: str) -> list[dict]:
-        resolved = self._fuzzy_find_component(comp_name)
-        if not resolved:
-            return []
-        return self._q(
-            "MATCH (c:Component {name:$n})-[:HAS_INTERACTION]->(i:Interaction) "
-            "RETURN i.trigger, i.css_prop, i.from_val, i.to_val, i.transition",
-            {"n": resolved},
-        )
 
     # ── Full JSX ──────────────────────────────────────────────────────────────
 

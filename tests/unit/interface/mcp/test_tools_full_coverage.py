@@ -208,35 +208,6 @@ class TestGetSectionTool:
 
 # ── get_component: rich rendering ────────────────────────────────────────────
 
-class TestGetComponentRichRendering:
-    def _d(self):
-        return ToolDispatcher([("doc", RichMockReader())])
-
-    def test_component_with_styles_shows_state_groups(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component(r, "BtnWithStyles")
-        assert "default" in result or "hover" in result
-
-    def test_component_with_tokens_listed(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component(r, "BtnWithStyles")
-        assert "primary" in result
-
-    def test_component_with_children_listed(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component(r, "BtnWithStyles")
-        assert "Badge" in result
-
-    def test_component_with_source_code_rendered(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component(r, "BtnWithStyles")
-        assert "button" in result.lower()
-
-
 # ── find_token_usage ──────────────────────────────────────────────────────────
 
 class TestFindTokenUsageTool:
@@ -341,37 +312,6 @@ class TestGetFullSourceTool:
 
 # ── get_component_interactions ────────────────────────────────────────────────
 
-class TestGetComponentInteractionsTool:
-    def _d(self):
-        return ToolDispatcher([("doc", RichMockReader())])
-
-    def test_component_with_interactions_rendered(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component_interactions(r, "BtnHover")
-        assert "HOVER" in result or "hover" in result
-        assert "backgroundColor" in result
-
-    def test_from_and_to_values_shown(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component_interactions(r, "BtnHover")
-        assert "#ffb81c" in result
-        assert "#f59e0b" in result
-
-    def test_transition_shown(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component_interactions(r, "BtnHover")
-        assert "0.2s" in result
-
-    def test_no_interactions_returns_graceful_message(self):
-        d = self._d()
-        r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = component_tools.get_component_interactions(r, "SectionCard")
-        assert "nenhuma" in result.lower() or "não detectada" in result.lower()
-
-
 # ── _find_reader substring match ─────────────────────────────────────────────
 
 class TestFindReaderSubstringMatch:
@@ -465,7 +405,7 @@ class TestTruncationWarnings:
 
     def test_spec_styles_truncation_warning(self):
         d = self._dispatcher()
-        result = d.dispatch("get_component_spec", {"name": "OverflowComp"}, "")
+        result = d.dispatch("get_component", {"name": "OverflowComp"}, "")
         # 15 styles in 'default' state, limit 12 → must mention remaining count
         assert "+" in result and "mais" in result.lower(), (
             "Expected truncation notice '+N mais' in component spec styles output"
@@ -473,7 +413,7 @@ class TestTruncationWarnings:
 
     def test_spec_texts_truncation_warning(self):
         d = self._dispatcher()
-        result = d.dispatch("get_component_spec", {"name": "OverflowComp"}, "")
+        result = d.dispatch("get_component", {"name": "OverflowComp"}, "")
         # 16 texts, limit 8 → must mention remaining count
         assert "+" in result and "mais" in result.lower(), (
             "Expected truncation notice '+N mais' in component spec texts output"
@@ -629,11 +569,6 @@ class TestJsxTruncationWarnings:
 
     def _dispatcher(self):
         return ToolDispatcher([("proto", _JsxOverflowReader())])
-
-    def test_get_component_notice_is_visible_and_actionable(self):
-        result = self._dispatcher().dispatch("get_component", {"name": "BigComp"}, "proto")
-        assert "+" in result
-        assert 'get_full(name="BigComp", aspect="source")' in result
 
     def test_get_section_notice_is_visible_without_a_false_lead(self):
         result = self._dispatcher().dispatch(

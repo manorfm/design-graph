@@ -407,12 +407,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_screen_layout` | Return layout profiles for a screen's components and, for any section styled via CSS classes, one profile per section selector | `name`, `doc?` |
 | `get_section` | Return visual details for a section | `screen`, `section`, `doc?` |
 | `list_components` | List components, optionally filtered by semantic type (capped at 100 by default) | `comp_type?`, `limit?`, `doc?` |
-| `get_component` | Return source, styles, tokens, text, interactions and children | `name`, `doc?` |
-| `get_component_spec` | Return a reconstruction-oriented component specification. Falls back to a CSS-class spec (styles + which screens/components use it) when `name` matches no component — for a shared class like `.page-title` or `.chip` that was never factored into a named component | `name`, `doc?` |
-| `get_component_full` | Return a component plus every descendant (up to 3 levels via CONTAINS), each with its own styles, tokens, texts, interactions and props | `name`, `doc?` |
-| `get_component_props` | Return declared component props and defaults | `name`, `doc?` |
-| `get_component_children` | Return direct child components, in render order | `name`, `doc?` |
-| `get_component_interactions` | Return hover/focus effects and transitions | `name`, `doc?` |
+| `get_component` | Return one component, whole — hierarchy, styles by state (incl. responsive), tokens by mode, texts, interactions, props with defaults, referenced data and source; `depth=1..3` adds the components it nests. Falls back to a CSS-class spec when the name is a shared class, and to the screen when it is a screen's name | `name`, `depth?`, `doc?` |
 | `get_full` | Return, whole, what another answer shortened — `aspect=source`: a component's or screen's source as the prototype wrote it (in parts, `part=`); `aspect=styles` / `aspect=texts`: the complete style or text list of a component (`name=`) or of a screen section (`screen=` + `section=`); `aspect=data`: the module-level data a component references (e.g. an icon-name → SVG-path table) | `aspect`, `name?`, `screen?`, `section?`, `part?`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
 | `get_asset` | Write the files of one embedded font family or image into `design-graph-assets/<name>/` in the workspace and return their paths — content checked against its hash, names never taken from the prototype | `name`, `doc?` |
@@ -529,7 +524,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Semantic screen roles that keep forms, tabs, sections and modals as components unless they are true navigation surfaces
 - Sections detected from padding/margin-heavy containers, whether the padding is inline or class-resolved
 - Consolidation of same-named definitions without dropping props, source, styles or child references
-- Tailwind utility and custom CSS class resolution, attributed per selector; shared classes stay discoverable via search and `get_component_spec`
+- Tailwind utility and custom CSS class resolution, attributed per selector; shared classes stay discoverable via search and `get_component`
 - Each component's and screen's whole function as its source — hooks, handlers, lists and conditions included; children rendered behind lists, conditions and ternaries still linked
 - Module-level data a component references (e.g. icon tables) attached verbatim
 - External/library component references kept visible instead of dropped

@@ -75,12 +75,6 @@ class TestPropsRenderSitesAgreeOnHonesty:
     def _dispatcher(self):
         return ToolDispatcher([("proto", _PropsReader())])
 
-    def test_get_component_props_has_no_required_column(self):
-        out = self._dispatcher().dispatch("get_component_props", {"name": "Btn"}, "proto")
-        assert "Required" not in out
-        assert "| `icon` | — |" in out
-        assert "| `variant` | `secondary` |" in out
-
     def test_get_screen_full_has_no_required_column(self):
         out = self._dispatcher().dispatch("get_screen_full", {"name": "Screen"}, "proto")
         assert "Required" not in out
@@ -88,7 +82,7 @@ class TestPropsRenderSitesAgreeOnHonesty:
         assert "| `variant` | `secondary` |" in out
 
     def test_get_component_spec_has_no_required_column(self):
-        out = self._dispatcher().dispatch("get_component_spec", {"name": "Btn"}, "proto")
+        out = self._dispatcher().dispatch("get_component", {"name": "Btn"}, "proto")
         assert "Required" not in out
         assert "| `icon` | — |" in out
         assert "| `variant` | `secondary` |" in out
