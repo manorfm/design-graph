@@ -162,12 +162,12 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "get_full_source",
-        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. Use when another tool truncated the source. A long source comes in pages (the response says 'página N/M' and gives the call for the next one) — nothing is ever cut.",
+        "description": "Returns a component's or screen's complete stored source, in its own language, without the display length cap other tools apply. Use when another tool truncated the source. A long source comes in parts (the response says 'parte N/M' and gives the call for the next one) — nothing is ever cut.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Component or screen name"},
-                "page": {"type": "integer", "minimum": 1, "description": "Page of a long source (default 1)"},
+                "part": {"type": "integer", "minimum": 1, "description": "Part of a long source (default 1)"},
                 "doc":  _doc_param(),
             },
             "required": ["name"],

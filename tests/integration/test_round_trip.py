@@ -1,7 +1,7 @@
 """
 Round-trip: what the tools return as a source is what the prototype wrote —
 every function of a React prototype and every part of a DC page comes back
-verbatim, across as many get_full_source pages as it takes.
+verbatim, across as many get_full_source parts as it takes.
 """
 
 from __future__ import annotations
@@ -42,12 +42,12 @@ def _build(tmp_path, html: str) -> GraphReader:
 
 
 def _whole_source(reader: GraphReader, name: str) -> str:
-    """Every page of get_full_source, joined back — what an agent reading them all gets."""
+    """Every part of get_full_source, joined back — what an agent reading them all gets."""
     first = get_full_source(reader, name)
-    total = int(m.group(1)) if (m := re.search(r"página 1/(\d+)", first)) else 1
+    total = int(m.group(1)) if (m := re.search(r"parte 1/(\d+)", first)) else 1
     source = ""
     for n in range(1, total + 1):
-        response = get_full_source(reader, name, page=n)
+        response = get_full_source(reader, name, part=n)
         source += re.search(r"```[\w-]*\n(.*)\n```", response, re.S).group(1)
         if n < total:
             source += "" if MID_LINE_NOTICE in response else "\n"

@@ -280,7 +280,7 @@ _AGENT_INSTRUCTIONS = (
     "writing a literal color/spacing/typography/shadow/radius value — "
     "reuse the token instead of inventing one. Lists and sources a response "
     "shortens for size end with a notice naming the call that returns the "
-    "rest (get_full_styles, get_full_texts, get_full_source with page=) — "
+    "rest (get_full_styles, get_full_texts, get_full_source with part=) — "
     "nothing is ever dropped at capture. When a "
     "component's spec shows a 'Dados referenciados'/'Referenced data' "
     "section (e.g. an icon-name -> SVG-path lookup table), reuse those exact "

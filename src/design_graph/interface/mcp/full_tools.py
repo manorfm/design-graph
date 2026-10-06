@@ -6,67 +6,67 @@ from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.markdown import dedupe_styles_by_property, named_entity_resolution_error
 
 
-# A page of source is about 5k tokens: enough for any one component, small
-# enough that a whole page's markup never lands in one response.
-SOURCE_PAGE_CHARS = 20_000
+# A part of a source is about 5k tokens: enough for any one component,
+# small enough that a whole screen's markup never lands in one response.
+SOURCE_PART_CHARS = 20_000
 
 
-MID_LINE_NOTICE = "Esta página termina no meio de uma linha: a próxima continua a mesma linha."
+MID_LINE_NOTICE = "Esta parte termina no meio de uma linha: a próxima continua a mesma linha."
 
 
-def get_full_source(reader: GraphReader, name: str, page: object = 1) -> str:
-    """A screen's or component's stored source, whole — in pages when it is long."""
+def get_full_source(reader: GraphReader, name: str, part: object = 1) -> str:
+    """A screen's or component's stored source, whole — in parts when it is long."""
     source = reader.get_full_source(name)
     if not source:
         return f"Fonte não disponível para '{name}'. Rode: design-graph --force <proto.html>"
 
-    pages = source_pages(source["source_code"])
-    number = _page_number(page, len(pages))
+    parts = source_parts(source["source_code"])
+    number = _part_number(part, len(parts))
     if number is None:
-        return f"Página inválida: {page!r}. O fonte de '{name}' tem as páginas 1 a {len(pages)}."
+        return f"Parte inválida: {part!r}. O fonte de '{name}' tem as partes 1 a {len(parts)}."
 
     lang = source["source_lang"]
-    text, mid_line = pages[number - 1]
+    text, mid_line = parts[number - 1]
     header, footer = f"# Fonte completo de {name} ({lang})", ""
-    if len(pages) > 1:
-        header += f" — página {number}/{len(pages)}"
+    if len(parts) > 1:
+        header += f" — parte {number}/{len(parts)}"
         if mid_line:
             footer += f"\n> {MID_LINE_NOTICE}"
-        if number < len(pages):
-            footer += f"\n> Continua: get_full_source('{name}', page={number + 1})"
+        if number < len(parts):
+            footer += f"\n> Continua: get_full_source('{name}', part={number + 1})"
     return f"{header}\n\n```{lang}\n{text}\n```{footer}"
 
 
-def source_pages(source: str, size: int = SOURCE_PAGE_CHARS) -> list[tuple[str, bool]]:
+def source_parts(source: str, size: int = SOURCE_PART_CHARS) -> list[tuple[str, bool]]:
     """
-    `source` cut into pages of at most `size` characters, each with whether
-    it ends in the middle of a line. Pages end at line ends whenever a line
-    fits; a line longer than a page is the only thing cut mid-line. Joining
-    the pages — with a newline after each one that does not end mid-line —
+    `source` cut into parts of at most `size` characters, each with whether
+    it ends in the middle of a line. Parts end at line ends whenever a line
+    fits; a line longer than a part is the only thing cut mid-line. Joining
+    the parts — with a newline after each one that does not end mid-line —
     gives `source` back exactly.
     """
-    pages: list[tuple[str, bool]] = []
+    parts: list[tuple[str, bool]] = []
     current: list[str] = []
     length = 0
     for line in source.split("\n"):
         if current and length + 1 + len(line) > size:
-            pages.append(("\n".join(current), False))
+            parts.append(("\n".join(current), False))
             current, length = [], 0
         while len(line) > size:
             if current:
-                pages.append(("\n".join(current), False))
+                parts.append(("\n".join(current), False))
                 current, length = [], 0
-            pages.append((line[:size], True))
+            parts.append((line[:size], True))
             line = line[size:]
         length += len(line) + (1 if current else 0)
         current.append(line)
-    pages.append(("\n".join(current), False))
-    return pages
+    parts.append(("\n".join(current), False))
+    return parts
 
 
-def _page_number(page: object, total: int) -> int | None:
+def _part_number(part: object, total: int) -> int | None:
     try:
-        number = int(page)
+        number = int(part)
     except (TypeError, ValueError):
         return None
     return number if 1 <= number <= total else None
