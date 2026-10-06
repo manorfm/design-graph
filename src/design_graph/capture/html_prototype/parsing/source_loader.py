@@ -14,15 +14,21 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import BundleEntryError, decode_entry
 from design_graph.capture.html_prototype.sources import RawSources
+from design_graph.capture.resources import font_resources, image_resource, is_infrastructure, script_resource
+from design_graph.model.entities import Resource
 from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
 logger = logging.getLogger(__name__)
+
+# Bundle entries read as code; any other kind of file is never read as the prototype's code.
+_SCRIPT_MIMES = ("javascript", "ecmascript", "jsx", "typescript", "babel")
 
 # A script tag shorter than this won't be treated as a bundled JS file
 _MIN_BUNDLE_SCRIPT_LEN = 1_000
@@ -37,9 +43,12 @@ def decompose(document: PrototypeDocument) -> RawSources:
     soup = BeautifulSoup(document.text, "html.parser")
     fmt  = detect(document.text, soup)
 
-    skipped_entries = 0
+    skipped_entries, resources = 0, []
     if fmt == BUNDLED_REACT:
-        js, css, inner_html, skipped_entries = _extract_bundled_react(soup)
+        parts = _extract_bundled_react(soup)
+        js, css, inner_html, skipped_entries, resources = (
+            parts.js, parts.css, parts.inner_html, parts.skipped, parts.resources,
+        )
     else:
         js, css, inner_html = _extract_plain(document.text, soup)
 
@@ -61,18 +70,31 @@ def decompose(document: PrototypeDocument) -> RawSources:
         html_hash=document.digest,
         format=fmt,
         skipped_entries=skipped_entries,
+        resources=tuple(resources),
     )
 
 
 # ── Extraction strategies ─────────────────────────────────────────────────────
 
-def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
+@dataclass
+class _BundleParts:
+    js: str
+    css: str
+    inner_html: str
+    skipped: int
+    resources: list[Resource]
+
+
+def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
     """
-    Decompress and separate JS, CSS, and inner HTML from a React bundle.
-    Bundle format: <script> containing a JSON map of {id: {data, compressed, mime}}.
+    Decompress a React bundle and separate what it holds: the prototype's
+    own code (read as JS), its CSS and inner HTML, and everything else it
+    loads — libraries, the in-browser compiler, fonts, images — described as
+    resources and never read as the prototype's code.
     """
     js_parts:   list[str] = []
     css_parts:  list[str] = []
+    entries:    dict[str, tuple[str, bytes]] = {}
     inner_html = ""
     skipped = 0
 
@@ -83,12 +105,9 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
 
         # Large JSON map — the actual bundle
         if len(text) > 10_000 and text.startswith("{"):
-            js_part, css_part, html_part, entry_skipped = _decompress_bundle_map(text)
-            js_parts.extend(js_part)
-            css_parts.extend(css_part)
+            bundle_entries, entry_skipped = _decompress_bundle_map(text)
+            entries.update(bundle_entries)
             skipped += entry_skipped
-            if html_part:
-                inner_html = html_part
             continue
 
         # Short JSON string containing inner HTML
@@ -105,6 +124,22 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
         if len(text) > _MIN_BUNDLE_SCRIPT_LEN and not text.startswith(("[", "{")):
             js_parts.append(text)
 
+    resources: list[Resource] = []
+    files: dict[str, bytes] = {}
+    for key, (mime, content) in entries.items():
+        text = content.decode("utf-8", errors="replace")
+        if "<!DOCTYPE" in text[:200]:
+            inner_html = text
+        elif "css" in mime:
+            css_parts.append(text)
+        elif mime.startswith(("font/", "image/")):
+            files[key] = content
+        elif any(kind in mime for kind in _SCRIPT_MIMES):
+            resource = script_resource(key, content)
+            resources.append(resource)
+            if not is_infrastructure(resource):
+                js_parts.append(text)
+
     if not inner_html:
         inner_html = str(soup)
 
@@ -112,38 +147,52 @@ def _extract_bundled_react(soup: BeautifulSoup) -> tuple[str, str, str, int]:
     # lives inside inner_html, not in a bundle entry with a "css" mime.
     # Additive: a bundle that also ships a separate CSS-mime entry keeps
     # contributing both.
-    for style_tag in BeautifulSoup(inner_html, "html.parser").find_all("style"):
+    page = BeautifulSoup(inner_html, "html.parser")
+    for style_tag in page.find_all("style"):
         style_text = style_tag.get_text()
         if style_text.strip():
             css_parts.append(style_text)
 
-    return "\n".join(js_parts), "\n".join(css_parts), inner_html, skipped
+    css = "\n".join(css_parts)
+    resources += font_resources(css, files, hints=inner_html)
+    resources += _image_resources(page, entries)
+    return _BundleParts("\n".join(js_parts), css, inner_html, skipped, resources)
 
 
-def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str, int]:
-    """Parse a bundle JSON map and decompress each entry."""
-    js_parts:  list[str] = []
-    css_parts: list[str] = []
-    html_part = ""
+def _image_resources(page: BeautifulSoup, entries: dict[str, tuple[str, bytes]]) -> list[Resource]:
+    """Every embedded image, named by the role the page gives it (`<link rel="icon">` → favicon)."""
+    roles = {
+        link.get("href"): "favicon"
+        for link in page.find_all("link", href=True)
+        if "icon" in " ".join(link.get("rel") or [])
+    }
+    return [
+        image_resource(key, content, mime, roles.get(key, ""))
+        for key, (mime, content) in entries.items() if mime.startswith("image/")
+    ]
+
+
+def _decompress_bundle_map(text: str) -> tuple[dict[str, tuple[str, bytes]], int]:
+    """Parse a bundle JSON map and decompress each entry: id → (mime, bytes)."""
+    entries: dict[str, tuple[str, bytes]] = {}
     skipped = 0
 
     try:
         bundle = json.loads(text)
     except json.JSONDecodeError as exc:
         logger.warning("bundle JSON parse error (skipping script): %s", exc)
-        return js_parts, css_parts, html_part, skipped
+        return entries, skipped
 
     if isinstance(bundle, str) and "<!DOCTYPE" in bundle:
-        return [], [], bundle, skipped
-
+        return {"inner.html": ("text/html", bundle.encode())}, skipped
     if not isinstance(bundle, dict):
-        return js_parts, css_parts, html_part, skipped
+        return entries, skipped
 
     for key, val in bundle.items():
         if not isinstance(val, dict) or not val.get("data"):
             continue
         try:
-            content = decode_entry(val).decode("utf-8", errors="replace")
+            entries[key] = (val.get("mime", ""), decode_entry(val))
         except BundleEntryError as exc:
             skipped += 1
             logger.warning(
@@ -151,17 +200,7 @@ def _decompress_bundle_map(text: str) -> tuple[list[str], list[str], str, int]:
                 "dropped, extraction will be incomplete: %s",
                 key, val.get("mime", "?"), exc,
             )
-            continue
-
-        mime: str = val.get("mime", "")
-        if "<!DOCTYPE" in content[:200]:
-            html_part = content
-        elif "css" in mime:
-            css_parts.append(content)
-        else:
-            js_parts.append(content)
-
-    return js_parts, css_parts, html_part, skipped
+    return entries, skipped
 
 
 def _extract_plain(html: str, soup: BeautifulSoup) -> tuple[str, str, str]:

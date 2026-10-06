@@ -525,6 +525,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 
 **Single-file HTML (React, Tailwind, plain HTML)**
 
+- Embedded libraries (React, ReactDOM, …), the in-browser compiler (Babel standalone), fonts and images identified as resources with name, version and origin — only the prototype's own modules are read as its code
 - Visual-function filtering that excludes non-rendering React/Babel runtime internals, and lexical scanning that handles destructured parameters, strings, templates and comments
 - Semantic screen roles that keep forms, tabs, sections and modals as components unless they are true navigation surfaces
 - Sections detected from padding/margin-heavy containers, whether the padding is inline or class-resolved

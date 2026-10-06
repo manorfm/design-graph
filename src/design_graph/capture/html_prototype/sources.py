@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from design_graph.model.entities import StrEnum
+from design_graph.model.entities import Resource, StrEnum
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,7 @@ class RawSources:
     html_hash: str
     format: SourceFormat
     skipped_entries: int = 0  # bundle entries that failed base64/gzip decode (bundled_react only)
+    resources: tuple[Resource, ...] = ()  # what the bundle loads besides the prototype's own code
 
 
 @dataclass(frozen=True)

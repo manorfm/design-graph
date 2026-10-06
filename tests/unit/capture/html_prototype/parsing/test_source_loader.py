@@ -127,17 +127,20 @@ class TestExtractBundledReactStyleTagInInnerHtml:
     )
 
     def test_style_tag_css_is_captured(self):
-        _js, css, _html, _skipped = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        _parts = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        _js, css, _html, _skipped = _parts.js, _parts.css, _parts.inner_html, _parts.skipped
         assert ".pulse-dot" in css
         assert "input:focus" in css
 
     def test_inner_html_itself_is_still_returned_unchanged(self):
-        _js, _css, html_out, _skipped = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        _parts = _extract_bundled_react(_bundle_soup(self.STYLE_INNER_HTML))
+        _js, _css, html_out, _skipped = _parts.js, _parts.css, _parts.inner_html, _parts.skipped
         assert html_out == self.STYLE_INNER_HTML
 
     def test_no_style_tag_yields_empty_css_without_error(self):
         inner_html = "<!DOCTYPE html><html><body><div>no styles here</div></body></html>"
-        _js, css, _html, _skipped = _extract_bundled_react(_bundle_soup(inner_html))
+        _parts = _extract_bundled_react(_bundle_soup(inner_html))
+        _js, css, _html, _skipped = _parts.js, _parts.css, _parts.inner_html, _parts.skipped
         assert css == ""
 
     def test_style_from_bundle_css_mime_entry_still_works_alongside_inner_html_style(self):
@@ -158,6 +161,7 @@ class TestExtractBundledReactStyleTagInInnerHtml:
         }
         html = f"<html><body><script>{json.dumps(bundle)}</script></body></html>"
         soup = BeautifulSoup(html, "html.parser")
-        _js, css, _html, _skipped = _extract_bundled_react(soup)
+        _parts = _extract_bundled_react(soup)
+        _js, css, _html, _skipped = _parts.js, _parts.css, _parts.inner_html, _parts.skipped
         assert ".from-bundle-entry" in css
         assert ".pulse-dot" in css

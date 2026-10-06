@@ -178,6 +178,10 @@ async def extract_react(
             aliases, extracted_comps, screens, sections_map,
         )
 
+    # A single-page app loads everything for every screen it renders.
+    resource_ids = [resource.id for resource in sources.resources]
+    screens = [replace(screen, resource_ids=resource_ids) for screen in screens]
+
     return _described(CaptureResult(
         capture=CAPTURE_NAME,
         components=extracted_comps,
@@ -185,6 +189,7 @@ async def extract_react(
         sections=sections_map,
         tokens=tokens,
         module_texts=module_texts,
+        resources=list(sources.resources),
         skipped_entries=sources.skipped_entries,
     ), _JSX)
 
