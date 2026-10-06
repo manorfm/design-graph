@@ -222,12 +222,14 @@ class Resource:
     detail: str          # what else identifies it (a font's weights and subsets, an image's type)
     size: int            # bytes the prototype embeds for it
     sha256: str          # of the embedded file, when it is one file
+    import_line: str     # the line that brings it into a project, when its origin gives one
 
     @classmethod
     def create(cls, kind: ResourceKind, name: str, version: str = "", *, origin: str, certainty: Certainty,
-               detail: str = "", size: int = 0, sha256: str = "") -> "Resource":
+               detail: str = "", size: int = 0, sha256: str = "", import_line: str = "") -> "Resource":
         return cls(id=EntityId.derive("res", f"{kind}:{name}:{version}:{origin}"), kind=kind, name=name,
-                   version=version, origin=origin, certainty=certainty, detail=detail, size=size, sha256=sha256)
+                   version=version, origin=origin, certainty=certainty, detail=detail, size=size, sha256=sha256,
+                   import_line=import_line)
 
 
 def resolve_icon_markers(text: str, markup_by_id: dict[str, str]) -> str:

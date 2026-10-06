@@ -62,6 +62,7 @@ class DcCanvasCapture:
         return CaptureResult(
             capture=CAPTURE_NAME, components=found.components, screens=screens, sections=sections,
             tokens=extract_canvas_tokens(list(pages.values())), skipped_entries=skipped,
+            resources=list({r.id: r for page in pages.values() for r in page.resources}.values()),
         )
 
     def capture_fragment(self, source: str) -> ExtractedComponent | None:
@@ -104,6 +105,7 @@ def _screen(board: Board, page: DcPage, boards: list[Board], board_variants: dic
         viewport_width=board.width,
         viewport_height=board.height,
         links=links(page, boards, set(board_variants)),
+        resource_ids=[resource.id for resource in page.resources],
         variant_of=variant.base if variant else "",
         variant_axis=variant.axis if variant else "",
     )

@@ -152,6 +152,7 @@ _NODE_TABLES: list[str] = [
         "  detail STRING,"
         "  size INT64,"
         "  sha256 STRING,"
+        "  import_line STRING,"
         "  PRIMARY KEY(id)"
         ")"
     ),

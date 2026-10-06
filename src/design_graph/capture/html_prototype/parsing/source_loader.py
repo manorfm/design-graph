@@ -21,14 +21,17 @@ from bs4 import BeautifulSoup
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import BundleEntryError, decode_entry
 from design_graph.capture.html_prototype.sources import RawSources
-from design_graph.capture.resources import font_resources, image_resource, is_infrastructure, script_resource
+from design_graph.capture.resources import (
+    font_resources,
+    image_resources,
+    is_infrastructure,
+    is_script,
+    script_resource,
+)
 from design_graph.model.entities import Resource
 from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
 logger = logging.getLogger(__name__)
-
-# Bundle entries read as code; any other kind of file is never read as the prototype's code.
-_SCRIPT_MIMES = ("javascript", "ecmascript", "jsx", "typescript", "babel")
 
 # A script tag shorter than this won't be treated as a bundled JS file
 _MIN_BUNDLE_SCRIPT_LEN = 1_000
@@ -105,7 +108,7 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
             css_parts.append(text)
         elif mime.startswith(("font/", "image/")):
             files[key] = content
-        elif any(kind in mime for kind in _SCRIPT_MIMES):
+        elif is_script(mime):
             resource = script_resource(key, content)
             parts.resources.append(resource)
             if not is_infrastructure(resource):
@@ -121,7 +124,7 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
 
     parts.js, parts.css = "\n".join(js_parts), "\n".join(css_parts)
     parts.resources += font_resources(parts.css, files, hints=parts.inner_html)
-    parts.resources += _image_resources(page, scripts.entries)
+    parts.resources += image_resources(scripts.entries, parts.inner_html)
     return parts
 
 
@@ -155,19 +158,6 @@ def _inner_html_string(text: str) -> str:
     except json.JSONDecodeError:
         return ""
     return content if isinstance(content, str) and "<!DOCTYPE" in content else ""
-
-
-def _image_resources(page: BeautifulSoup, entries: dict[str, tuple[str, bytes]]) -> list[Resource]:
-    """Every embedded image, named by the role the page gives it (`<link rel="icon">` → favicon)."""
-    roles = {
-        link.get("href"): "favicon"
-        for link in page.find_all("link", href=True)
-        if "icon" in " ".join(link.get("rel") or [])
-    }
-    return [
-        image_resource(key, content, mime, roles.get(key, ""))
-        for key, (mime, content) in entries.items() if mime.startswith("image/")
-    ]
 
 
 def _decompress_bundle_map(text: str) -> tuple[dict[str, tuple[str, bytes]], int]:

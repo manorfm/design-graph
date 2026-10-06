@@ -9,7 +9,8 @@ _ROWS = [
     {"kind": "runtime", "name": "@babel/standalone", "version": "7.29.0", "origin": "embutido no protótipo",
      "certainty": "declarada", "detail": "", "size": 3137752},
     {"kind": "font", "name": "IBM Plex Sans", "version": "", "origin": "Google Fonts", "certainty": "inferida",
-     "detail": "pesos 400, 600 · normal", "size": 0},
+     "detail": "pesos 400, 600 · normal", "size": 0,
+     "import_line": '@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");'},
     {"kind": "module", "name": "views.jsx", "version": "v2.6", "origin": "embutido no protótipo", "certainty": "inferida",
      "detail": "", "size": 40411},
 ]
@@ -30,6 +31,7 @@ def test_resources_are_grouped_by_what_to_do_with_them():
     assert "- **react** 18.3.1 · https://cdn/react" in out
     assert "## Não reproduzir (infraestrutura do protótipo)" in out and "@babel/standalone" in out
     assert "- **IBM Plex Sans** · pesos 400, 600 · normal · Google Fonts (inferida)" in out
+    assert '  `@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");`' in out
     assert "## Módulos do protótipo" in out and "views.jsx" in out
 
 

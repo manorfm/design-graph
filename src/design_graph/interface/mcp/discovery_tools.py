@@ -65,7 +65,10 @@ def get_resources(reader: GraphReader, kind: str | None, screen: str | None = No
         members = [r for r in rows if r["kind"] == group]
         if members:
             lines.append(f"## {title}")
-            lines.extend(_resource_line(r) for r in members)
+            for resource in members:
+                lines.append(_resource_line(resource))
+                if resource.get("import_line"):
+                    lines.append(f"  `{resource['import_line']}`")
             lines.append("")
     return "\n".join(lines)
 

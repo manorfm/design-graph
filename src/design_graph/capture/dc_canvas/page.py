@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup
 
-from design_graph.capture.bundler import read_bundle
+from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
+from design_graph.capture.resources import font_resources, image_resources, is_script, script_resource
+from design_graph.model.entities import Resource
 
 _RE_X_DC = re.compile(r"<x-dc(?:\s[^>]*)?>(.*)</x-dc>", re.DOTALL)
 _RE_HELMET = re.compile(r"<helmet>(.*?)</helmet>", re.DOTALL)
@@ -25,6 +27,7 @@ class DcPage:
     font_faces: str    # the helmet's @font-face rules
     logic: str         # body of the logic script (class Component extends DCLogic …)
     props: dict = field(default_factory=dict)  # editable props, "$"-prefixed meta keys removed
+    resources: tuple[Resource, ...] = ()       # what the page loads: the DC runtime, libraries, fonts, images
 
     @property
     def source(self) -> str:
@@ -59,7 +62,26 @@ def read_page(page_text: str) -> DcPage | None:
         font_faces="\n".join(_RE_FONT_FACE.findall(helmet_css)),
         logic=script.get_text().strip() if script else "",
         props=_props(script.get("data-props") if script else None),
+        resources=_resources(bundle, helmet_css, document) if bundle else (),
     )
+
+
+def _resources(bundle: Bundle, helmet_css: str, document: str) -> tuple[Resource, ...]:
+    """Every file the page's bundle carries, described: scripts with their declared URL, fonts, images."""
+    files = {}
+    for key, meta in bundle.manifest.items():
+        try:
+            files[key] = (meta.get("mime", "") if isinstance(meta, dict) else "", bundle.entry(key))
+        except BundleEntryError:
+            continue
+    scripts = [
+        script_resource(key, content, url=bundle.urls.get(key, ""))
+        for key, (mime, content) in files.items() if is_script(mime)
+    ]
+    fonts = font_resources(
+        helmet_css, {key: content for key, (mime, content) in files.items() if mime.startswith("font/")}, hints=document,
+    )
+    return (*scripts, *fonts, *image_resources(files, document))
 
 
 def _props(raw: str | None) -> dict:

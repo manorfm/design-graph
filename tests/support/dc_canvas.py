@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 
 RUNTIME_JS = "// GENERATED from dc-runtime/src/*.ts - do not edit.\n(()=>{})();"
 FONT_BYTES = b"wOF2-fake-font"
+REACT_JS = '/**\n * @license React\n * react.production.min.js\n */\n(function(){c.version="18.3.1"})();'
+REACT_URL = "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"
 
 
 @dataclass
@@ -62,7 +64,7 @@ def _bundle(title: str, template: str, manifest: dict, ext_resources: list | Non
 
 def page_html(page: Page) -> str:
     """The inner bundle of one page."""
-    runtime_id, font_id = str(uuid.uuid4()), str(uuid.uuid4())
+    runtime_id, font_id, react_id = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     font_face = (
         f"@font-face {{\n  font-family: '{page.font_family}';\n  font-style: normal;\n  font-weight: 400;\n"
         f"  src: url(\"{font_id}\") format('woff2');\n}}\n"
@@ -71,7 +73,7 @@ def page_html(page: Page) -> str:
     root = "x-dc" if page.is_dc else "div"
     template = (
         f"<!DOCTYPE html>\n<html lang=\"pt-BR\"><head>\n<meta charset=\"utf-8\">\n<title>{html.escape(page.title)}</title>\n"
-        f"<script src=\"{runtime_id}\"></script>\n</head>\n<body>\n<{root}>\n<helmet>\n"
+        f"<script src=\"{react_id}\"></script>\n<script src=\"{runtime_id}\"></script>\n</head>\n<body>\n<{root}>\n<helmet>\n"
         f"<style>{font_face}</style>\n<style>{page.helmet_css}</style>\n</helmet>\n{page.body}\n</{root}>\n"
         f"<script type=\"text/x-dc\" data-dc-script=\"\" data-props=\"{html.escape(json.dumps(props))}\">\n"
         f"{page.logic}\n</script>\n</body></html>"
@@ -79,8 +81,9 @@ def page_html(page: Page) -> str:
     manifest = {
         runtime_id: _entry(RUNTIME_JS.encode(), "text/javascript"),
         font_id: _entry(FONT_BYTES, "font/woff2"),
+        react_id: _entry(REACT_JS.encode(), "text/javascript"),
     }
-    return _bundle(page.title, template, manifest)
+    return _bundle(page.title, template, manifest, ext_resources=[{"id": REACT_URL, "uuid": react_id}])
 
 
 def canvas_html(pages: list[Page], title: str = "Prototype") -> str:

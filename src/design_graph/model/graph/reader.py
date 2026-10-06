@@ -812,7 +812,7 @@ class GraphReader:
         return self._q(
             f"{match}WHERE $kind = '' OR r.kind = $kind "
             "RETURN DISTINCT r.kind AS kind, r.name AS name, r.version AS version, r.origin AS origin, "
-            "r.certainty AS certainty, r.detail AS detail, r.size AS size "
+            "r.certainty AS certainty, r.detail AS detail, r.size AS size, r.import_line AS import_line "
             "ORDER BY kind, name, version",
             {"kind": kind or "", **({"screen": screen} if screen else {})},
         )

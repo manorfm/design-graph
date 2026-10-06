@@ -243,7 +243,7 @@ class GraphWriter:
             self._rows.put_node("Resource", resource.id, {
                 "id": resource.id, "kind": resource.kind, "name": resource.name, "version": resource.version,
                 "origin": resource.origin, "certainty": resource.certainty, "detail": resource.detail,
-                "size": resource.size, "sha256": resource.sha256,
+                "size": resource.size, "sha256": resource.sha256, "import_line": resource.import_line,
             })
 
     def write_icons(self, icons: list[IconAsset]) -> int:

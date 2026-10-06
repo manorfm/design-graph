@@ -543,6 +543,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items, with the literal list a loop repeats attached as referenced data
 - `<sc-for>`, `<sc-if>` and `<sc-raw-*>` read without rewriting the stored template
 - The inline style of every element, attributed by its path (`ul > li:2 > span`) to the section, component or page that contains it
+- What each page loads: the DC runtime, libraries with the CDN URL the bundle declares, and fonts with weights, subsets and a ready `@import` line when they come from Google Fonts
 
 ## Graph schema
 

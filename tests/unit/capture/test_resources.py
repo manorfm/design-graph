@@ -83,10 +83,21 @@ def test_fonts_are_described_per_family_with_weights_styles_and_subsets():
     assert fonts["JetBrains Mono"].detail == "pesos 400 · italic"
 
 
-def test_font_origin_is_inferred_from_the_page_hints_and_says_so():
-    plex = font_resources(FONT_CSS, {}, hints='<link rel="preconnect" href="https://fonts.googleapis.com">')[0]
-    assert (plex.origin, plex.certainty) == ("Google Fonts", Certainty.INFERRED)
-    assert font_resources(FONT_CSS, {})[0].origin == "embutido no protótipo"
+def test_font_origin_is_inferred_from_the_page_hints_or_google_subset_comments_and_says_so():
+    hinted = font_resources(FONT_CSS, {}, hints='<link rel="preconnect" href="https://fonts.googleapis.com">')
+    assert {(f.name, f.origin, f.certainty) for f in hinted} == {
+        ("IBM Plex Sans", "Google Fonts", Certainty.INFERRED), ("JetBrains Mono", "Google Fonts", Certainty.INFERRED),
+    }
+    plain = {f.name: f for f in font_resources(FONT_CSS, {})}
+    assert (plain["IBM Plex Sans"].origin, plain["IBM Plex Sans"].certainty) == ("Google Fonts", Certainty.INFERRED)
+    assert plain["JetBrains Mono"].origin == "embutido no protótipo"
+
+
+def test_a_google_font_comes_with_its_import_line():
+    plex = next(f for f in font_resources(FONT_CSS, {}) if f.name == "IBM Plex Sans")
+    assert plex.import_line == (
+        '@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");'
+    )
 
 
 def test_images_keep_their_role_and_size():
@@ -112,3 +123,10 @@ def test_a_module_without_a_file_name_is_named_by_its_first_heading_line():
 
 def test_a_module_starting_with_code_is_named_by_its_id():
     assert script_resource("3c7ac179-aaaa", b"const { useState } = React;\n/* \xe2\x94\x80 TOKENS */").name == "módulo 3c7ac179"
+
+
+def test_minified_react_builds_are_versioned_too():
+    react_min = b'/**\n * @license React\n * react.production.min.js\n */\n(function(){c.useTransition=1;c.version="18.3.1"})();'
+    dom_min = b'/**\n * @license React\n * react-dom.production.min.js\n */\nvar x={rendererPackageName:"react-dom",reconcilerVersion:"18.3.1"};'
+    assert script_resource("r", react_min).version == "18.3.1"
+    assert (script_resource("d", dom_min).name, script_resource("d", dom_min).version) == ("react-dom", "18.3.1")

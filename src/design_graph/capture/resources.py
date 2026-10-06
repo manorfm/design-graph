@@ -14,9 +14,12 @@ import hashlib
 import re
 from dataclasses import dataclass
 
+from bs4 import BeautifulSoup
+
 from design_graph.model.entities import Certainty, Resource, ResourceKind
 
 EMBEDDED = "embutido no protótipo"
+_SCRIPT_MIMES = ("javascript", "ecmascript", "jsx", "typescript", "babel")
 _HEAD_CHARS = 2_000  # signatures and headings sit at the top of a file
 
 
@@ -28,7 +31,8 @@ class _Signature:
     version: re.Pattern | None = None
 
 
-_RE_REACT_VERSION = re.compile(r"ReactVersion\s*=\s*'([\d.]+)'")
+# Development builds keep `ReactVersion = '18.3.1'`; minified ones keep `c.version="…"` / `reconcilerVersion:"…"`.
+_RE_REACT_VERSION = re.compile(r"""(?:ReactVersion\s*=\s*'|(?:reconcilerVersion:|\w\.version=)")(\d+\.\d+\.\d+)""")
 _SIGNATURES = (
     _Signature(ResourceKind.LIBRARY, "react-dom", re.compile(r"@license React\s*\*\s*react-dom\."), _RE_REACT_VERSION),
     _Signature(ResourceKind.LIBRARY, "react", re.compile(r"@license React\s*\*\s*react\."), _RE_REACT_VERSION),
@@ -58,6 +62,11 @@ def script_resource(entry_id: str, content: bytes, url: str = "") -> Resource:
                                origin=origin, certainty=certainty, **files)
     name, version = _module_name(head, entry_id)
     return Resource.create(ResourceKind.MODULE, name, version, origin=origin, certainty=Certainty.INFERRED, **files)
+
+
+def is_script(mime: str) -> bool:
+    """A file read as code; any other kind of file is never read as a prototype's code."""
+    return any(kind in mime for kind in _SCRIPT_MIMES)
 
 
 def is_infrastructure(resource: Resource) -> bool:
@@ -127,13 +136,27 @@ def font_resources(css: str, files: dict[str, bytes], hints: str = "") -> list[R
         if subset:
             found["subsets"].add(subset)
         found["size"] += sum(len(files.get(src, b"")) for src in _RE_URL.findall(descriptors.get("src", "")))
-    google = any(hint in hints for hint in _GOOGLE_FONTS_HINTS)
-    origin, certainty = ("Google Fonts", Certainty.INFERRED) if google else (EMBEDDED, Certainty.STATED)
-    return [
-        Resource.create(ResourceKind.FONT, family, origin=origin, certainty=certainty,
-                        detail=_font_detail(found), size=found["size"])
-        for family, found in families.items()
-    ]
+    hinted = any(hint in hints for hint in _GOOGLE_FONTS_HINTS)
+    return [_font_resource(family, found, google=hinted or bool(found["subsets"])) for family, found in families.items()]
+
+
+def _font_resource(family: str, found: dict, *, google: bool) -> Resource:
+    """A font family; one served the Google Fonts way (subset comments, a preconnect) says so, as inferred."""
+    if not google:
+        return Resource.create(ResourceKind.FONT, family, origin=EMBEDDED, certainty=Certainty.STATED,
+                               detail=_font_detail(found), size=found["size"])
+    return Resource.create(ResourceKind.FONT, family, origin="Google Fonts", certainty=Certainty.INFERRED,
+                           detail=_font_detail(found), size=found["size"], import_line=_google_import(family, found))
+
+
+def _google_import(family: str, found: dict) -> str:
+    weights = sorted(found["weights"], key=lambda w: int(w) if w.isdigit() else 0)
+    if "italic" in found["styles"]:
+        axes = ";".join(f"{italic},{w}" for italic in ("0", "1") for w in weights)
+        spec = f"ital,wght@{axes}"
+    else:
+        spec = f"wght@{';'.join(weights)}"
+    return f'@import url("https://fonts.googleapis.com/css2?family={family.replace(" ", "+")}:{spec}&display=swap");'
 
 
 def _font_detail(found: dict) -> str:
@@ -144,6 +167,19 @@ def _font_detail(found: dict) -> str:
 
 
 # ── Images ────────────────────────────────────────────────────────────────────
+
+def image_resources(files: dict[str, tuple[str, bytes]], page_html: str) -> list[Resource]:
+    """Every embedded image (id → (mime, bytes)), named by the role the page gives it (`<link rel="icon">` → favicon)."""
+    roles = {
+        link.get("href"): "favicon"
+        for link in BeautifulSoup(page_html, "html.parser").find_all("link", href=True)
+        if "icon" in " ".join(link.get("rel") or [])
+    }
+    return [
+        image_resource(key, content, mime, roles.get(key, ""))
+        for key, (mime, content) in files.items() if mime.startswith("image/")
+    ]
+
 
 def image_resource(entry_id: str, content: bytes, mime: str, role: str = "") -> Resource:
     """An image the prototype embeds, named by the role the page gives it (favicon…), else by its id."""

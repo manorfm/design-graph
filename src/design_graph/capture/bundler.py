@@ -15,7 +15,7 @@ import binascii
 import json
 import re
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Largest file one manifest entry may expand to. Real entries stay under a
 # few MB; the cap stops a crafted entry from inflating without bound.
@@ -33,6 +33,7 @@ class Bundle:
     manifest: dict[str, dict]  # id → {"mime", "compressed", "data"}
     template: str              # the page that lays the bundle out
     page_order: list[str]
+    urls: dict[str, str] = field(default_factory=dict)  # file id → the web URL it was bundled from
 
     def entry(self, entry_id: str) -> bytes:
         """The decoded content of one manifest entry; raises BundleEntryError."""
@@ -55,7 +56,29 @@ def read_bundle(text: str) -> Bundle | None:
         return None
     if not isinstance(manifest, dict) or not isinstance(template, str) or not isinstance(page_order, list):
         return None
-    return Bundle(manifest=manifest, template=template, page_order=[str(i) for i in page_order])
+    return Bundle(
+        manifest=manifest, template=template, page_order=[str(i) for i in page_order],
+        urls=_declared_urls(scripts.get("ext_resources")),
+    )
+
+
+def _declared_urls(raw: str | None) -> dict[str, str]:
+    """
+    file id → the URL the bundler says it came from. Only http(s) URLs are
+    kept: they are shown to an agent as where to get a library, never fetched.
+    """
+    try:
+        declared = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(declared, list):
+        return {}
+    return {
+        item["uuid"]: item["id"]
+        for item in declared
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].startswith(("https://", "http://"))
+        and isinstance(item.get("uuid"), str)
+    }
 
 
 def decode_entry(entry: dict) -> bytes:

@@ -38,6 +38,21 @@ class TestReadBundle:
         text = '<script type="__bundler/manifest">{broken</script><script type="__bundler/template">"x"</script>'
         assert read_bundle(text) is None
 
+    def test_declared_urls_are_read_by_file_id_and_only_web_urls_count(self):
+        resources = [
+            {"id": "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js", "uuid": "r1"},
+            {"id": "javascript:alert(1)", "uuid": "x1"},
+            {"id": 42, "uuid": "x2"},
+            "not-an-object",
+        ]
+        text = _document({}) + f'<script type="__bundler/ext_resources">{json.dumps(resources)}</script>'
+        assert read_bundle(text).urls == {"r1": "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"}
+
+    def test_a_bundle_without_declared_urls_has_none(self):
+        assert read_bundle(_document({})).urls == {}
+        odd = _document({}) + '<script type="__bundler/ext_resources">42</script>'
+        assert read_bundle(odd).urls == {}
+
     def test_missing_entry_is_an_entry_error(self):
         with pytest.raises(BundleEntryError):
             read_bundle(_document({})).entry("ghost")
