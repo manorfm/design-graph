@@ -142,6 +142,27 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "assemble_page",
+        "description": (
+            "Everything needed to build one screen, in one call and in a fixed order: header (viewport, "
+            "modes, navigation, components), the screen's own skeleton, each component it renders once, "
+            "the data they repeat, the tokens it uses by mode, and the libraries and fonts to install. "
+            "Pass known=[names] with the components you already received for another screen to leave "
+            "their definitions out. A long answer comes in parts (part=N); nothing is cut."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Screen name"},
+                "known": {"type": "array", "items": {"type": "string"},
+                          "description": "Components you already have — their definitions are left out"},
+                "part": {"type": "integer", "minimum": 1, "description": "Part of a long answer (default 1)"},
+                "doc": _doc_param(),
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "get_resources",
         "description": (
             "Lists what the prototype loads besides its own markup: libraries with their version and "

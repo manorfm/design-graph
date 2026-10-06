@@ -61,16 +61,22 @@ def get_resources(reader: GraphReader, kind: str | None, screen: str | None = No
     if not rows:
         return f"Nenhum recurso encontrado{f' para a tela {screen!r}' if screen else ''}."
     lines = [f"# Recursos — tela {screen}\n" if screen else "# Recursos\n"]
+    return "\n".join(lines + resource_lines(rows, heading="##"))
+
+
+def resource_lines(rows: list[dict], heading: str) -> list[str]:
+    """Resources grouped by what an agent does with them — declare, load, never reproduce."""
+    lines: list[str] = []
     for group, title in _RESOURCE_GROUPS:
         members = [r for r in rows if r["kind"] == group]
         if members:
-            lines.append(f"## {title}")
+            lines.append(f"{heading} {title}")
             for resource in members:
                 lines.append(_resource_line(resource))
                 if resource.get("import_line"):
                     lines.append(f"  `{resource['import_line']}`")
             lines.append("")
-    return "\n".join(lines)
+    return lines
 
 
 def _resource_line(row: dict) -> str:

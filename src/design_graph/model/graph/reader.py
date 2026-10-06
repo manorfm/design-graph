@@ -22,6 +22,7 @@ import kuzu
 
 from design_graph.model.entities import RE_ICON_MARKER, resolve_icon_markers
 from design_graph.model.graph.schema import MODEL_VERSION
+from design_graph.model.graph.screen_assembly import ScreenAssemblyQueries
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class NamedEntityResolution:
         return bool(self.candidates)
 
 
-class GraphReader:
+class GraphReader(ScreenAssemblyQueries):
     """Read-only interface to a Kuzu design-graph database."""
 
     def __init__(self, conn: kuzu.Connection, state_path: Path | None = None) -> None:

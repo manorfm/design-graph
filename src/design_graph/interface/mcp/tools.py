@@ -12,6 +12,7 @@ ToolDispatcher.pick_reader() resolves which prototype to use:
 from __future__ import annotations
 
 from design_graph.interface.mcp import (
+    assemble_tool,
     build_tools,
     component_tools,
     discovery_tools,
@@ -101,6 +102,9 @@ class ToolDispatcher:
             "get_component_props":       lambda: component_tools.get_component_props(reader, name),
             "get_screen_layout":         lambda: screen_tools.get_screen_layout(reader, name),
             "get_screen_full":           lambda: screen_tools.get_screen_full(reader, name),
+            "assemble_page":             lambda: assemble_tool.assemble_page(
+                reader, name, args.get("known"), args.get("part", 1),
+            ),
             "get_screen":                lambda: screen_tools.get_screen(reader, name),
             "get_section":               lambda: screen_tools.get_section(reader, screen, section),
             "get_component":             lambda: component_tools.get_component(reader, name),

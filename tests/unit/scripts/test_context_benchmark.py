@@ -127,6 +127,12 @@ class TestBenchmark:
         assert screen["ratio"] == pytest.approx(screen["assembly_chars"] / screen["original_chars"])
         assert screen["source_chars"] >= 0
 
+    def test_assembling_with_assemble_page_alone_and_in_sequence(self, report):
+        first, second = (report["screens"][name] for name in ("Tela 1", "Tela 2"))
+        assert first["assemble_chars"] > 0 and first["assemble_known_chars"] == first["assemble_chars"]
+        assert 0 < second["assemble_known_chars"] <= second["assemble_chars"]
+        assert report["assemble"]["median_ratio"] is not None and report["assemble_known"]["median_chars"] > 0
+
     def test_screens_are_summed_up_by_median_and_worst(self, report):
         ratios = sorted(s["ratio"] for s in report["screens"].values())
         assert report["assembly"]["median_ratio"] == pytest.approx((ratios[0] + ratios[1]) / 2)
@@ -163,6 +169,10 @@ class TestRenderMarkdown:
             "styles": {"truth": 10, "recovered": 5, "coverage": 0.5},
             "assembly": {"median_ratio": 2.0, "worst_screen": "A", "worst_ratio": 3.0,
                          "median_chars": 250, "worst_chars_screen": "A", "worst_chars": 300},
+            "assemble": {"median_ratio": 0.5, "worst_screen": "A", "worst_ratio": 0.8,
+                         "median_chars": 50, "worst_chars_screen": "A", "worst_chars": 80},
+            "assemble_known": {"median_ratio": 0.2, "worst_screen": "A", "worst_ratio": 0.3,
+                               "median_chars": 20, "worst_chars_screen": "A", "worst_chars": 30},
             "screens": {"A": {"assembly_chars": 300, "source_chars": 900, "original_chars": 100, "ratio": 3.0,
                               "cuts": {"list": 2, "source": 1, "capture": 0}, "recovery_calls": 1}},
             "searches": {"queries": [{"query": "logout", "exists": False, "verdict": "partial", "correct": False}],
@@ -171,7 +181,9 @@ class TestRenderMarkdown:
         markdown = render_markdown(report)
         assert "n/d (sem gabarito estático" in markdown
         assert "50% (5/10)" in markdown
-        assert "| Montar uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do markup da tela |" in markdown
+        assert "| Montar uma tela com assemble_page (mediana · pior) | 50 · 80 (A) caracteres — 50% · 80% (A) do markup da tela |" in markdown
+        assert "| … telas em sequência, com known (mediana · pior) | 20 · 30 (A) caracteres — 20% · 30% (A) do markup da tela |" in markdown
+        assert "| Spec completa de uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do markup da tela |" in markdown
         assert "| Montar todas as telas (soma) | 300 (300% do original) |" in markdown
         assert "| Ler os fontes inteiros indicados (soma) | 900 |" in markdown
         assert "listas 2 · fontes 1 · captura 0" in markdown

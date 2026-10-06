@@ -246,19 +246,29 @@ def _source_parts(tools: ToolDispatcher, name: str) -> list[str]:
     return parts
 
 
-def _assembly_summary(screens: dict[str, dict]) -> dict:
+def _assemble_chars(tools: ToolDispatcher, name: str, known: list[str]) -> int:
+    """Characters of every part of assemble_page for one screen, told which components the agent already has."""
+    args = {"name": name, "known": list(known)}
+    parts = [tools.dispatch("assemble_page", args, "bench")]
+    while "Continua: assemble_page(" in parts[-1]:
+        parts.append(tools.dispatch("assemble_page", {**args, "part": len(parts) + 1}, "bench"))
+    return sum(map(len, parts))
+
+
+def _assembly_summary(screens: dict[str, dict], key: str) -> dict:
     """
-    One screen's cost as the typical (median) and the worst screen — in
-    characters, and against that screen's own markup when the format has it.
+    One screen's cost (`key`, in characters) as the typical (median) and the
+    worst screen — in characters, and against that screen's own markup when
+    the format has it.
     """
     summary = {"median_ratio": None, "worst_screen": None, "worst_ratio": None,
                "median_chars": None, "worst_chars_screen": None, "worst_chars": None}
     if not screens:
         return summary
-    sizes = {name: s["assembly_chars"] for name, s in screens.items()}
+    sizes = {name: s[key] for name, s in screens.items()}
     biggest = max(sizes, key=sizes.get)
     summary.update(median_chars=statistics.median(sizes.values()), worst_chars_screen=biggest, worst_chars=sizes[biggest])
-    ratios = {name: s["ratio"] for name, s in screens.items() if s["ratio"] is not None}
+    ratios = {name: s[key] / s["original_chars"] for name, s in screens.items() if s["original_chars"]}
     if ratios:
         worst = max(ratios, key=ratios.get)
         summary.update(median_ratio=statistics.median(ratios.values()), worst_screen=worst, worst_ratio=ratios[worst])
@@ -284,10 +294,14 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
     reader = GraphReader(kuzu.Connection(kuzu.Database(str(db_path), read_only=True)))
     tools = ToolDispatcher([("bench", reader)])
 
-    screens, shown_styles, truth_styles = {}, set(), set()
+    screens, shown_styles, truth_styles, known = {}, set(), set(), []
     for screen in reader.list_screens():
         markup = markups.get(screen["name"]) if markups else None
         screens[screen["name"]], corpus = _screen_report(tools, screen["name"], markup)
+        screens[screen["name"]]["assemble_chars"] = _assemble_chars(tools, screen["name"], [])
+        screens[screen["name"]]["assemble_known_chars"] = _assemble_chars(tools, screen["name"], known)
+        assembly = reader.get_screen_assembly(screen["name"]) or {"components": []}
+        known += [c["name"] for c in assembly["components"] if c["name"] not in known]
         if markup is not None:
             declarations = style_declarations(markup)
             truth_styles |= declarations
@@ -303,7 +317,9 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
         "texts": _coverage_entry(truth_texts, indexed_texts, markups is not None),
         "styles": _coverage_entry(truth_styles, shown_styles, markups is not None),
         "round_trip": round_trip(document, capture, reader),
-        "assembly": _assembly_summary(screens),
+        "assembly": _assembly_summary(screens, "assembly_chars"),
+        "assemble": _assembly_summary(screens, "assemble_chars"),
+        "assemble_known": _assembly_summary(screens, "assemble_known_chars"),
         "screens": screens,
         "searches": _search_report(tools, queries, prototype_text),
     }
@@ -331,7 +347,9 @@ def render_markdown(report: dict) -> str:
         f"| Textos indexados | {_coverage_cell(report['texts'])} |",
         f"| Estilos legíveis ao montar as telas | {_coverage_cell(report['styles'])} |",
         f"| Fontes devolvidos como escritos | {_round_trip_cell(report.get('round_trip'))} |",
-        f"| Montar uma tela (mediana · pior) | {_one_screen_cell(report.get('assembly'))} |",
+        f"| Montar uma tela com assemble_page (mediana · pior) | {_one_screen_cell(report.get('assemble'))} |",
+        f"| … telas em sequência, com known (mediana · pior) | {_one_screen_cell(report.get('assemble_known'))} |",
+        f"| Spec completa de uma tela (mediana · pior) | {_one_screen_cell(report.get('assembly'))} |",
         f"| Montar todas as telas (soma) | {assembly} |",
         f"| Ler os fontes inteiros indicados (soma) | {totals['sources']:,} |",
         f"| Cortes anunciados | listas {totals['list']} · fontes {totals['source']} · captura {totals['capture']} |",

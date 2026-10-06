@@ -402,6 +402,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 |---|---|---|
 | `list_screens` | List screens across all loaded prototypes | — |
 | `get_screen` | Return a structural screen overview | `name`, `doc?` |
+| `assemble_page` | Build one screen in one call: header, the screen's skeleton, each component it renders once, the data they repeat, tokens by mode and dependencies — `known` leaves out components the agent already has; long answers come in parts | `name`, `known?`, `part?`, `doc?` |
 | `get_screen_full` | Return everything needed to reconstruct a screen | `name`, `doc?` |
 | `get_screen_layout` | Return layout profiles for a screen's components and, for any section styled via CSS classes, one profile per section selector | `name`, `doc?` |
 | `get_section` | Return visual details for a section | `screen`, `section`, `doc?` |
