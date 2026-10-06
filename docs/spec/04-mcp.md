@@ -78,24 +78,29 @@ class ToolDispatcher:
         """
 ```
 
-### Assinaturas das ferramentas
+### As ferramentas — uma por pergunta
 
-```python
-def list_screens(self) -> str: ...
-def get_screen(self, reader: GraphReader, name: str) -> str: ...
-def get_section(self, reader: GraphReader, screen: str, section: str) -> str: ...
-def get_component(self, reader: GraphReader, name: str) -> str: ...
-def get_tokens(self, reader: GraphReader, category: str | None) -> str: ...
-def find_token_usage(self, reader: GraphReader, value: str) -> str: ...
-def search(self, query: str) -> str: ...   # busca em TODOS os readers
-def impact(self, reader: GraphReader, name: str) -> str: ...
-def get_full(self, reader: GraphReader, name: str, aspect: str, screen: str, section: str, part: int) -> str: ...
-def get_component_interactions(self, reader: GraphReader, name: str) -> str: ...
-def set_prototype(self, name: str) -> str: ...
+Cada ferramenta é dona de uma pergunta e de um tipo de entidade; uma resposta
+nunca copia a de outra, só a referencia pelo nome. As regras ficam em módulos
+por assunto (`screen_tools`, `component_tools`, `full_tools`,
+`assemble_tool`, `asset_tool`, `discovery_tools`, `build_tools`,
+`validation_tool`); `tools.py` só escolhe o protótipo e despacha.
 
-# NOVO: aproveita CONTAINS
-def get_component_children(self, reader: GraphReader, name: str) -> str: ...
-```
+| Pergunta | Ferramenta |
+|---|---|
+| O que existe? | `list_screens()`, `list_components(comp_type?, limit?)` |
+| Onde está X? | `search(query)` |
+| Montar esta tela | `assemble_page(name, known?, part?)` — esqueleto, cada componente uma vez, dados, tokens por modo, dependências |
+| Como é esta tela? | `get_screen(name, section?, detail=outline\|full\|layout)` |
+| Como é este componente? | `get_component(name, depth=0..3)` |
+| O resto do que foi encurtado | `get_full(aspect=source\|styles\|texts\|data, name?\|screen?+section?, part?)` |
+| Tokens | `get_tokens(category?, screen?, mode?)` |
+| O que a tela carrega / os arquivos | `get_resources(kind?, screen?)`, `get_asset(name)` |
+| Quem usa X / o que quebra | `impact(name)` — componente, tela, token ou valor literal |
+| Operação | `validate_component_implementation`, `set_prototype`, `get_build_diff`, `get_metrics` |
+
+Todo aviso de corte aponta a chamada exata de `get_full` que devolve o resto;
+a captura nunca descarta nada.
 
 ### Formato de saída Markdown
 
@@ -199,7 +204,7 @@ Para adicionar um alias, basta editar `aliases.py`. Nenhum outro arquivo muda.
 
 ## Schema MCP (tool definitions)
 
-O schema das tools fica em `tools.py` como constante `TOOL_DEFINITIONS: list[dict]`.
+O schema das tools fica em `tool_definitions.py` como constante `TOOL_DEFINITIONS: list[dict]`.
 O `server.py` importa e expõe diretamente. Não há geração dinâmica de schema.
 
 ```python
@@ -211,25 +216,4 @@ TOOL_DEFINITIONS = [
     },
     # ... cada tool com description atualizada
 ]
-```
-
-### Nova tool: `get_component_children`
-
-```python
-{
-    "name": "get_component_children",
-    "description": (
-        "Retorna os componentes filhos diretos que um componente renderiza. "
-        "Aproveita a relação CONTAINS do grafo para mostrar hierarquia de composição. "
-        "Ex: get_component_children(name='RestaurantCard') → [Badge, StarRating, BtnOrder]"
-    ),
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Nome do componente pai"},
-            "doc": _doc_param(),
-        },
-        "required": ["name"],
-    },
-}
 ```

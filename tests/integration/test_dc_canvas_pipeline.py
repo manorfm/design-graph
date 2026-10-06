@@ -68,5 +68,5 @@ def test_tokens_answer_per_mode(tools):
 
 
 def test_style_references_link_to_every_mode_of_the_token(tools):
-    out = _call(tools, "find_token_usage", value="--rule")
+    out = _call(tools, "impact", name="--rule")
     assert "Footer" in out

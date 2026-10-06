@@ -65,17 +65,20 @@ list_components(comp_type="modal")         # filtra por tipo semântico
 | Situação | Tool | Por quê |
 |---|---|---|
 | Construir/replicar uma tela inteira | `assemble_page(name, known=[…])` | Esqueleto da tela, cada componente uma vez, dados que eles repetem, tokens por modo e dependências — numa chamada; `known` deixa de fora os componentes que você já recebeu |
+| Inspecionar uma tela sem montá-la | `get_screen(name)` · `get_screen(name, detail="full")` | Seções e componentes pelo nome; com `full`, cada seção e componente inteiros |
 | Só a estrutura/layout de uma tela, sem detalhe visual completo | `get_screen(name, detail="layout")` | Mais leve, só profile de layout por componente |
 | Um componente isolado (botão, card, input) | `get_component(name)` | Spec única focada em reconstrução: estilos por estado, tokens, interações, props, hierarquia, telas que usam |
 | Um componente complexo com filhos aninhados (modal, form, card com sub-widgets) | `get_component(name, depth=3)` | Componente + os aninhados (até 3 níveis) numa chamada só |
 | Uma seção específica de uma tela | `get_screen(name, section=…)` | Estilos, textos, componentes e fonte só daquela seção |
+| Fontes, imagens e bibliotecas que a tela usa | `get_resources(screen=…)` · `get_asset(name)` | O que declarar no projeto (bibliotecas, `@import` de fontes) e os arquivos de fontes/imagens gravados no workspace — nunca recriar um ícone ou adivinhar uma fonte |
+| Quem usa X / o que muda se X mudar | `impact(name)` | Componente, tela, token pelo nome ou um valor literal (`#FFB81C`) |
 
 **Sempre chame `get_tokens(category?, screen?)` antes de escrever um valor
 literal de cor/espaçamento/tipografia/sombra/raio.** Reaproveite o token
 existente em vez de inventar um valor novo — é assim que a implementação
 fica consistente com o resto do design system do protótipo.
 
-## Passo 4 — atenção a avisos de truncamento
+## Passo 4 — quando uma resposta encurta algo
 
 A captura não descarta nada. Quando uma resposta encurta uma lista ou um
 fonte para caber, ela termina com um aviso que traz a chamada exata que

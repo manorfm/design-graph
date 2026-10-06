@@ -409,9 +409,8 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
 | `get_asset` | Write the files of one embedded font family or image into `design-graph-assets/<name>/` in the workspace and return their paths — content checked against its hash, names never taken from the prototype | `name`, `doc?` |
 | `get_resources` | List what the prototype loads besides its markup — libraries with version and origin, fonts with weights and subsets, images, the design tool's runtime and the prototype's own modules — described, never embedded | `kind?`, `screen?`, `doc?` |
-| `find_token_usage` | Find components and screens using a token | `value`, `doc?` |
 | `search` | Search screens, components, tokens, text and shared CSS classes across prototypes | `query` |
-| `impact` | Find screens and sections affected by a component or token | `name`, `doc?` |
+| `impact` | Who uses X and what a change would reach — a component or screen (screens affected), a token by name (components using it) or a literal value such as `#FFB81C` (the tokens holding it and who uses them) | `name`, `doc?` |
 | `get_build_diff` | Return screens/components added or removed since the previous build, plus a warning when any bundle entry failed to decode and was dropped from that build | `doc?` |
 | `validate_component_implementation` | Compare a component source you wrote against its stored spec (children, default-state styles, texts), read by the capture the prototype was built with | `name`, `source`, `doc?` |
 | `set_prototype` | Set or inspect the active prototype for this MCP connection — resets on a connection restart (e.g. a client `/mcp` reconnect), even mid-task | `name?` |

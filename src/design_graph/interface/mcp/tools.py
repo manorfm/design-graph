@@ -110,7 +110,6 @@ class ToolDispatcher:
             "get_tokens":                lambda: discovery_tools.get_tokens(
                 reader, args.get("category"), args.get("screen"), args.get("mode"),
             ),
-            "find_token_usage":          lambda: discovery_tools.find_token_usage(reader, args.get("value", "")),
             "get_resources":             lambda: discovery_tools.get_resources(reader, args.get("kind"), args.get("screen")),
             "get_asset":                 lambda: asset_tool.get_asset(reader, name, Path.cwd()),
             "get_full":                  lambda: full_tools.get_full(

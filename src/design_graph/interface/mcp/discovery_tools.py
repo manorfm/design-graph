@@ -88,10 +88,7 @@ def _resource_line(row: dict) -> str:
     return " · ".join(parts)
 
 
-def find_token_usage(reader: GraphReader, value: str) -> str:
-    usages = reader.find_token_usage(value)
-    if not usages:
-        return f"Token '{value}' não encontrado."
+def _token_usage(value: str, usages: list[dict]) -> str:
     lines = [f"# Uso do token: `{value}`\n"]
     for u in usages:
         lines.append(f"## {u.get('t.label')} = `{u.get('t.value')}` ({u.get('t.category')})")
@@ -132,8 +129,12 @@ def tool_search(readers: list[tuple[str, GraphReader]], query: str) -> str:
 
 
 def impact(reader: GraphReader, name: str) -> str:
+    """Who uses X — a component, a screen, a token by name, or a literal value through the tokens holding it."""
     result = reader.get_impact(name)
     if not result.get("found"):
+        usages = reader.find_token_usage(name)
+        if usages:
+            return _token_usage(name, usages)
         return f"'{name}' não encontrado. Use search() para localizar."
     lines = [f"# Análise de impacto: {name}\n"]
     if "type" in result:

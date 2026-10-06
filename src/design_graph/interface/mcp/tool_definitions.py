@@ -61,18 +61,6 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
-        "name": "find_token_usage",
-        "description": "Given a token value or label, returns which components and screens use it.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "value": {"type": "string", "description": "Token value or label (e.g. '#FFB81C', 'primary')"},
-                "doc":   _doc_param(),
-            },
-            "required": ["value"],
-        },
-    },
-    {
         "name": "search",
         "description": (
             "Search across screens, components, tokens and texts in all prototypes. "
@@ -86,11 +74,15 @@ TOOL_DEFINITIONS: list[dict] = [
     },
     {
         "name": "impact",
-        "description": "Given a component or token, returns which screens and sections would be affected by a change.",
+        "description": (
+            "Who uses X, and what a change to it would reach: a component or screen (the screens affected), a "
+            "token by name (the components using it), or a literal value such as #FFB81C (the tokens holding it, "
+            "and the components and screens using them)."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Component or token name"},
+                "name": {"type": "string", "description": "Component, screen, token name, or a literal value"},
                 "doc":  _doc_param(),
             },
             "required": ["name"],

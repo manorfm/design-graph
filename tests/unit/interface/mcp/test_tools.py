@@ -763,11 +763,11 @@ class TestToolDefinitions:
     def test_all_standard_tools_defined(self):
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
-            "list_screens", "get_screen", "get_component",
-            "get_tokens", "find_token_usage", "search", "impact",
-            "get_full", "list_components", "set_prototype",
+            "list_screens", "list_components", "search", "assemble_page", "get_screen", "get_component",
+            "get_full", "get_tokens", "get_resources", "get_asset", "impact",
+            "validate_component_implementation", "set_prototype", "get_build_diff", "get_metrics",
         }
-        assert expected.issubset(names)
+        assert names == expected
 
     def test_each_tool_has_meaningful_description(self):
         for tool in TOOL_DEFINITIONS:
@@ -959,3 +959,27 @@ class TestGetComponentRouting:
 
         assert "depth inválido" in component_tools.get_component(MockReader(), "BtnPrimary", depth=7)
         assert "depth inválido" in component_tools.get_component(MockReader(), "BtnPrimary", depth="x")
+
+
+class TestImpactCoversTokenValues:
+    """impact answers "who uses X" for a component, a screen, a token's name — and a literal value."""
+
+    class _Reader:
+        def get_impact(self, name):
+            return {"found": False}
+
+        def find_token_usage(self, value):
+            if value != "#FFB81C":
+                return []
+            return [{"t.label": "accent", "t.value": "#FFB81C", "t.category": "color",
+                     "components": [{"c.name": "BtnPrimary"}], "screens": ["Home"]}]
+
+    def test_a_literal_value_lists_its_tokens_and_who_uses_them(self):
+        out = ToolDispatcher([("doc", self._Reader())]).dispatch("impact", {"name": "#FFB81C"}, "doc")
+        assert "accent" in out and "BtnPrimary" in out and "Home" in out
+
+    def test_nothing_found_says_so(self):
+        assert "não encontrado" in ToolDispatcher([("doc", self._Reader())]).dispatch("impact", {"name": "#000"}, "doc")
+
+    def test_find_token_usage_is_gone(self):
+        assert "find_token_usage" not in {t["name"] for t in TOOL_DEFINITIONS}

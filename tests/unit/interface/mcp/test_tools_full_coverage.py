@@ -217,25 +217,25 @@ class TestFindTokenUsageTool:
     def test_found_token_includes_value(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = discovery_tools.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.impact(r, "#ffb81c")
         assert "#ffb81c" in result
 
     def test_found_token_includes_components(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = discovery_tools.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.impact(r, "#ffb81c")
         assert "BtnPrimary" in result
 
     def test_found_token_includes_screens(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = discovery_tools.find_token_usage(r, "#ffb81c")
+        result = discovery_tools.impact(r, "#ffb81c")
         assert "RestaurantsPage" in result
 
     def test_not_found_returns_graceful_message(self):
         d = self._d()
         r, _ = d.pick_reader(doc="doc", active_doc="")
-        result = discovery_tools.find_token_usage(r, "zzz_unknown_token")
+        result = discovery_tools.impact(r, "zzz_unknown_token")
         assert "zzz_unknown_token" in result or "não encontrado" in result.lower()
 
 
