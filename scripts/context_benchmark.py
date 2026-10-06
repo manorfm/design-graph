@@ -8,9 +8,14 @@ For one prototype it builds a fresh graph and measures:
   texts     visible copy of the pages that is indexed as text in the graph
   styles    literal style declarations an agent can read in the responses it
             gets while assembling each screen
-  screens   per screen: characters returned by get_screen_full plus every
-            call its recovery hints point to, compared with the original
-            markup; and how many cuts those responses announce
+  screens   per screen, against that screen's own markup (never the whole
+            file): assembling it — get_screen_full plus the lists its
+            recovery hints point to — apart from reading, in every part,
+            the whole sources it points to; and the cuts it announces.
+            Summed up as the median and the worst screen; the sum over all
+            screens is reported last
+  round_trip  screens and components whose stored source holds, verbatim,
+            everything the prototype wrote for them
   searches  real search queries (from the metrics log) checked against the
             prototype: does a term that exists come back, and does a term
             that does not exist come back empty?
@@ -30,6 +35,7 @@ import argparse
 import asyncio
 import json
 import re
+import statistics
 import sys
 import time
 from enum import Enum
@@ -212,18 +218,51 @@ def _build(html: Path, workdir: Path) -> tuple[Path, dict]:
 
 
 def _screen_report(tools: ToolDispatcher, name: str, markup: str | None) -> tuple[dict, str]:
+    """
+    What one screen costs: assembling it (get_screen_full plus the lists it
+    says to fetch) apart from reading, in every part, the sources it points to.
+    """
     screen_full = tools.dispatch("get_screen_full", {"name": name}, "bench")
-    responses = [screen_full] + [tools.dispatch(tool, args, "bench") for tool, args in recovery_calls(screen_full)]
-    corpus = "\n".join(responses)
-    response_chars = sum(map(len, responses))
+    calls = recovery_calls(screen_full)
+    assembly = [screen_full] + [tools.dispatch(tool, args, "bench") for tool, args in calls if tool != "get_full_source"]
+    sources = [part for tool, args in calls if tool == "get_full_source" for part in _source_parts(tools, args["name"])]
+    assembly_chars = sum(map(len, assembly))
     original = len(markup) if markup is not None else None
     return {
-        "response_chars": response_chars,
+        "assembly_chars": assembly_chars,
+        "source_chars": sum(map(len, sources)),
         "original_chars": original,
-        "ratio": response_chars / original if original else None,
+        "ratio": assembly_chars / original if original else None,
         "cuts": cut_notices(screen_full),
-        "recovery_calls": len(responses) - 1,
-    }, corpus
+        "recovery_calls": len(calls),
+    }, "\n".join(assembly + sources)
+
+
+def _source_parts(tools: ToolDispatcher, name: str) -> list[str]:
+    """Every part of one get_full_source, following each 'Continua' to the next."""
+    parts = [tools.dispatch("get_full_source", {"name": name}, "bench")]
+    while "Continua: get_full_source(" in parts[-1]:
+        parts.append(tools.dispatch("get_full_source", {"name": name, "part": len(parts) + 1}, "bench"))
+    return parts
+
+
+def _assembly_summary(screens: dict[str, dict]) -> dict:
+    """
+    One screen's cost as the typical (median) and the worst screen — in
+    characters, and against that screen's own markup when the format has it.
+    """
+    summary = {"median_ratio": None, "worst_screen": None, "worst_ratio": None,
+               "median_chars": None, "worst_chars_screen": None, "worst_chars": None}
+    if not screens:
+        return summary
+    sizes = {name: s["assembly_chars"] for name, s in screens.items()}
+    biggest = max(sizes, key=sizes.get)
+    summary.update(median_chars=statistics.median(sizes.values()), worst_chars_screen=biggest, worst_chars=sizes[biggest])
+    ratios = {name: s["ratio"] for name, s in screens.items() if s["ratio"] is not None}
+    if ratios:
+        worst = max(ratios, key=ratios.get)
+        summary.update(median_ratio=statistics.median(ratios.values()), worst_screen=worst, worst_ratio=ratios[worst])
+    return summary
 
 
 def _search_report(tools: ToolDispatcher, queries: list[str], prototype_text: str) -> dict:
@@ -264,6 +303,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
         "texts": _coverage_entry(truth_texts, indexed_texts, markups is not None),
         "styles": _coverage_entry(truth_styles, shown_styles, markups is not None),
         "round_trip": round_trip(document, capture, reader),
+        "assembly": _assembly_summary(screens),
         "screens": screens,
         "searches": _search_report(tools, queries, prototype_text),
     }
@@ -279,9 +319,9 @@ def _coverage_entry(truth: set[str], recovered: set[str], measurable: bool) -> d
 
 def render_markdown(report: dict) -> str:
     totals, searches = _screen_totals(report["screens"].values()), report["searches"]
-    assembly = f"{totals['responded']:,}"
+    assembly = f"{totals['assembled']:,}"
     if totals["original"]:
-        assembly += f" ({totals['responded'] / totals['original']:.0%} do original)"
+        assembly += f" ({totals['assembled'] / totals['original']:.0%} do original)"
     lines = [
         f"# Context benchmark — {report['prototype']} ({report['capture']})",
         "",
@@ -291,7 +331,9 @@ def render_markdown(report: dict) -> str:
         f"| Textos indexados | {_coverage_cell(report['texts'])} |",
         f"| Estilos legíveis ao montar as telas | {_coverage_cell(report['styles'])} |",
         f"| Fontes devolvidos como escritos | {_round_trip_cell(report.get('round_trip'))} |",
-        f"| Caracteres para montar todas as telas | {assembly} |",
+        f"| Montar uma tela (mediana · pior) | {_one_screen_cell(report.get('assembly'))} |",
+        f"| Montar todas as telas (soma) | {assembly} |",
+        f"| Ler os fontes inteiros indicados (soma) | {totals['sources']:,} |",
         f"| Cortes anunciados | listas {totals['list']} · fontes {totals['source']} · captura {totals['capture']} |",
         f"| Buscas corretas | {searches['correct']}/{searches['total']} |",
     ]
@@ -305,9 +347,19 @@ def render_markdown(report: dict) -> str:
 def _screen_totals(screens) -> dict[str, int]:
     screens = list(screens)
     totals = {kind: sum(s["cuts"][kind] for s in screens) for kind in ("list", "source", "capture")}
-    totals["responded"] = sum(s["response_chars"] for s in screens)
+    totals["assembled"] = sum(s["assembly_chars"] for s in screens)
+    totals["sources"] = sum(s["source_chars"] for s in screens)
     totals["original"] = sum(s["original_chars"] or 0 for s in screens)
     return totals
+
+
+def _one_screen_cell(entry: dict | None) -> str:
+    if not entry or entry.get("median_chars") is None:
+        return "n/d"
+    cell = f"{entry['median_chars']:,.0f} · {entry['worst_chars']:,} ({entry['worst_chars_screen']}) caracteres"
+    if entry["median_ratio"] is not None:
+        cell += f" — {entry['median_ratio']:.0%} · {entry['worst_ratio']:.0%} ({entry['worst_screen']}) do markup da tela"
+    return cell
 
 
 def _round_trip_cell(entry: dict | None) -> str:

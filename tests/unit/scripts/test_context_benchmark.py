@@ -121,10 +121,19 @@ class TestBenchmark:
     def test_style_coverage_is_measured_per_screen(self, report):
         assert 0 < report["styles"]["coverage"] <= 1
 
-    def test_assembly_cost_compares_responses_with_the_original(self, report):
+    def test_assembling_a_screen_is_measured_apart_from_reading_whole_sources(self, report):
         screen = report["screens"]["Tela 1"]
-        assert screen["response_chars"] > 0 and screen["original_chars"] > 0
-        assert screen["ratio"] == pytest.approx(screen["response_chars"] / screen["original_chars"])
+        assert screen["assembly_chars"] > 0 and screen["original_chars"] > 0
+        assert screen["ratio"] == pytest.approx(screen["assembly_chars"] / screen["original_chars"])
+        assert screen["source_chars"] >= 0
+
+    def test_screens_are_summed_up_by_median_and_worst(self, report):
+        ratios = sorted(s["ratio"] for s in report["screens"].values())
+        assert report["assembly"]["median_ratio"] == pytest.approx((ratios[0] + ratios[1]) / 2)
+        worst = max(report["screens"], key=lambda name: report["screens"][name]["ratio"])
+        assert (report["assembly"]["worst_screen"], report["assembly"]["worst_ratio"]) == (worst, ratios[-1])
+        sizes = sorted(s["assembly_chars"] for s in report["screens"].values())
+        assert (report["assembly"]["median_chars"], report["assembly"]["worst_chars"]) == ((sizes[0] + sizes[1]) / 2, sizes[-1])
 
     def test_search_answers_are_checked_against_the_prototype(self, report):
         verdicts = {q["query"]: (q["exists"], q["verdict"]) for q in report["searches"]["queries"]}
@@ -152,7 +161,9 @@ class TestRenderMarkdown:
             "build": {"seconds": 1.5, "phases": {}, "write_errors": 0},
             "texts": {"truth": None, "recovered": None, "coverage": None},
             "styles": {"truth": 10, "recovered": 5, "coverage": 0.5},
-            "screens": {"A": {"response_chars": 300, "original_chars": 100, "ratio": 3.0,
+            "assembly": {"median_ratio": 2.0, "worst_screen": "A", "worst_ratio": 3.0,
+                         "median_chars": 250, "worst_chars_screen": "A", "worst_chars": 300},
+            "screens": {"A": {"assembly_chars": 300, "source_chars": 900, "original_chars": 100, "ratio": 3.0,
                               "cuts": {"list": 2, "source": 1, "capture": 0}, "recovery_calls": 1}},
             "searches": {"queries": [{"query": "logout", "exists": False, "verdict": "partial", "correct": False}],
                          "correct": 0, "total": 1},
@@ -160,7 +171,9 @@ class TestRenderMarkdown:
         markdown = render_markdown(report)
         assert "n/d (sem gabarito estático" in markdown
         assert "50% (5/10)" in markdown
-        assert "300 (300% do original)" in markdown
+        assert "| Montar uma tela (mediana · pior) | 250 · 300 (A) caracteres — 200% · 300% (A) do markup da tela |" in markdown
+        assert "| Montar todas as telas (soma) | 300 (300% do original) |" in markdown
+        assert "| Ler os fontes inteiros indicados (soma) | 900 |" in markdown
         assert "listas 2 · fontes 1 · captura 0" in markdown
         assert "`logout` — existe: não, resposta: partial" in markdown
 
@@ -188,3 +201,11 @@ class TestDeclarationsShown:
 
         response = '| gap | 4px |\n- **div** `width`: `390px`\n  - `color`: `red`\n<p style="margin: 0"></p>'
         assert _declarations_shown(response) == {"gap: 4px", "width: 390px", "color: red", "margin: 0"}
+
+
+    def test_without_screen_markup_one_screen_is_still_measured_in_characters(self):
+        from context_benchmark import _one_screen_cell
+
+        entry = {"median_ratio": None, "worst_screen": None, "worst_ratio": None,
+                 "median_chars": 1200, "worst_chars_screen": "App", "worst_chars": 9000}
+        assert _one_screen_cell(entry) == "1,200 · 9,000 (App) caracteres"
