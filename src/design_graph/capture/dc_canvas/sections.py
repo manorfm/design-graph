@@ -34,7 +34,7 @@ def page_sections(
     """One section per block, referencing the components found inside it."""
     sections, used = [], set()
     for index, block in enumerate(blocks):
-        name = _unique(_block_name(block, index), used)
+        name = _unique(block_name(block, index), used)
         sections.append(ExtractedSection.create(
             screen=screen, name=name, styles=inline_styles(block), component_refs=components_in(block),
             texts=visible_texts(block), source_code=str(block),
@@ -79,7 +79,8 @@ def _blocks(container: Tag) -> list[Tag]:
     return blocks
 
 
-def _block_name(block: Tag, index: int) -> str:
+def block_name(block: Tag, index: int) -> str:
+    """What a reader calls a block: its label, its heading, its semantic role or the copy it opens with."""
     if block.get("aria-label"):
         return block["aria-label"].strip()
     heading = next((h for h in block.find_all(True) if tag_of(h) in _HEADINGS), None)

@@ -114,3 +114,38 @@ class TestEveryElementStyle:
             ("Sidebar > nav > a:1", "background", "var(--accent-soft)"),
             ("Sidebar > nav > a:2", "color", "var(--ink2)"),
         }
+
+
+class TestReadableNames:
+    """A component without a name of its own is named by where it lives and what it is — never by a bare tag or sample copy."""
+
+    HEATMAP = (
+        '<main><div aria-label="Perspectivas × capacidades" style="display: grid">'
+        + "".join(f'<div style="width: 24px; height: 24px; background: {c}">{n}</div>'
+                  for n, c in enumerate(["#e8f1ef", "#0d5c63", "#5fb0b0", "#e8f1ef"]))
+        + '</div><section><h2>Radar</h2><svg>'
+        + "".join(f'<polygon points="{n},0 1,1" style="fill: red; stroke: blue; stroke-width: 1"></polygon>' for n in range(3))
+        + "</svg></section></main>"
+    )
+
+    def test_no_component_is_named_after_a_bare_tag(self, tmp_path):
+        names = set(_components(tmp_path, [Page("1 · Mapa", self.HEATMAP)]))
+        assert not names & {"Div", "Span", "Td", "Polygon", "Rect", "Path", "Line", "A"}
+
+    def test_a_repeated_cell_is_named_by_its_block_and_role(self, tmp_path):
+        components = _components(tmp_path, [Page("1 · Mapa", self.HEATMAP)])
+        assert "PerspectivasCapacidadesCell" in components
+
+    def test_a_chart_mark_is_named_by_its_block_and_role(self, tmp_path):
+        assert "RadarChartMark" in _components(tmp_path, [Page("1 · Mapa", self.HEATMAP)])
+
+    def test_copy_that_varies_never_names_a_component(self, tmp_path):
+        cards = "".join(f'<div style="border: 1px solid red"><h3>Projeto {n}</h3><p>descrição</p></div>' for n in range(3))
+        names = set(_components(tmp_path, [Page("1 · Lista", f'<main><section aria-label="Projetos">{cards}</section></main>')]))
+        assert "ProjetosCard" in names and not any(name.startswith("Projeto0") for name in names)
+
+    def test_the_block_context_skips_little_words(self, tmp_path):
+        cells = "".join(f'<div style="width: 24px; height: 24px; background: {c}">{n}</div>'
+                        for n, c in enumerate(["#e8f1ef", "#0d5c63", "#5fb0b0"]))
+        page = Page("1 · Convites", f'<main><div aria-label="Convites e participação" style="display: grid">{cells}</div><p>x</p></main>')
+        assert "ConvitesParticipaçãoCell" in _components(tmp_path, [page])

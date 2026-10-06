@@ -17,6 +17,7 @@ from typing import Callable
 
 from bs4 import Tag
 
+from design_graph.capture.dc_canvas.sections import block_name
 from design_graph.capture.dc_canvas.template import (
     INTERPOLATION,
     SOURCE_LANG,
@@ -59,6 +60,18 @@ _STATES = {"hover": StyleState.HOVER, "focus": StyleState.FOCUS, "focus-visible"
 _RE_INTERPOLATION = re.compile(r"\{\{[^}]*\}\}")
 _RE_LOOP_LIST = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 _MAX_NAME_WORDS = 3
+_MAX_CONTEXT_WORDS = 2
+# Articles, prepositions and conjunctions carry no meaning in a name ("Convites e participação" → ConvitesParticipação).
+_LITTLE_WORDS = frozenset(
+    "a o as os um uma de da do das dos e ou em no na nos nas por para com que se the of and or to in on for".split()
+)
+_ROUND = {"50%", "999px", "9999px", "100%"}
+_SVG_MARKS = ("path", "line", "polyline", "polygon", "rect", "circle", "ellipse", "text")
+_ROLE_BY_TAG = {
+    "td": "Cell", "th": "Cell", "tr": "Row", "li": "Item", "ul": "List", "ol": "List", "img": "Image",
+    "p": "Text", "label": "Label", "svg": "Chart", **{f"h{n}": "Heading" for n in range(1, 7)},
+    **{mark: "ChartMark" for mark in _SVG_MARKS},
+}
 
 
 @dataclass
@@ -93,10 +106,11 @@ def infer_components(
     occurrences, loop_lists = _occurrences(blocks_by_screen)
     promoted = [signature for signature in occurrences if _is_repeated(signature, occurrences, loop_lists)]
     result = CanvasComponents(components=[])
+    block_of = _blocks_by_element(blocks_by_screen)
     used: set[str] = set()
     for signature in promoted:
         elements = [element for _, element in occurrences[signature]]
-        name = _unique(_name(elements, loop_lists.get(signature), result.name_of), used)
+        name = _unique(_name(elements, loop_lists.get(signature), result.name_of, block_of), used)
         result.name_of.update({id(element): name for element in elements})
     details = _Details(tag_rules or {}, loop_data or _no_loop_data)
     result.components = [
@@ -170,12 +184,14 @@ def _signature(element: Tag) -> str:
     return f"{tag_of(element)}|{element.get('role') or ''}|{style}|{children}"
 
 
-def _name(elements: list[Tag], loop_list: str | None, name_of: dict[int, str]) -> str:
+def _name(elements: list[Tag], loop_list: str | None, name_of: dict[int, str], block_of: dict[int, str]) -> str:
     """
     A loop item is named after its list, then an explicit label or role.
     An interactive element is named by its text when every occurrence shows
-    the same one, else after the component holding it; anything else by its
-    semantic tag or the copy it shows.
+    the same one, else after the component holding it; a semantic element by
+    its tag. Anything else by the short copy every occurrence shows — never
+    copy that varies, which is sample content — or else by the block it lives
+    in and what it is (`PerspectivasCapacidadesCell`, `RadarChartMark`).
     """
     example = elements[0]
     explicit = _explicit_name(example, loop_list)
@@ -186,8 +202,52 @@ def _name(elements: list[Tag], loop_list: str | None, name_of: dict[int, str]) -
         return _interactive_name(elements, name_of) + _NAME_BY_TAG[tag]
     if tag in _NAME_BY_TAG:
         return _NAME_BY_TAG[tag]
-    wordy = _first_wordy_text(example)
-    return _pascal(wordy) if wordy else _pascal(tag)
+    texts = {_first_wordy_text(element) for element in elements}
+    if len(texts) == 1 and None not in texts and len(texts_words := texts.pop().split()) <= _MAX_NAME_WORDS:
+        return _pascal(" ".join(texts_words))
+    context = " ".join(word for word in block_of.get(id(example), "").split() if word.lower() not in _LITTLE_WORDS)
+    return _pascal(context, _MAX_CONTEXT_WORDS) + _role(example)
+
+
+def _role(element: Tag) -> str:
+    """What an element is, from its tag or else its shape and style."""
+    tag = tag_of(element)
+    if tag in _ROLE_BY_TAG:
+        return _ROLE_BY_TAG[tag]
+    styles = inline_styles(element)
+    display = styles.get("display", "")
+    if not element_children(element):
+        if styles.get("border-radius") in _ROUND and not _first_wordy_text(element):
+            return "Dot"
+        parent = element.parent
+        in_grid = isinstance(parent, Tag) and "grid" in inline_styles(parent).get("display", "")
+        return "Cell" if in_grid else "Tag"
+    if "grid" in display:
+        return "Grid"
+    if "flex" in display:
+        return "Stack" if styles.get("flex-direction", "").startswith("column") else "Row"
+    if any(prop in styles for prop in ("border", "box-shadow", "background", "border-radius")):
+        return "Card"
+    return "Group"
+
+
+def _blocks_by_element(blocks_by_screen: dict[str, list[Tag]]) -> dict[int, str]:
+    """
+    id(element) → the name of what it lives in: the page block holding it,
+    or — for a block itself, whose own name is its sample copy — the label
+    of the nearest labeled element around it.
+    """
+    found: dict[int, str] = {}
+    for blocks in blocks_by_screen.values():
+        for index, block in enumerate(blocks):
+            name = block_name(block, index)
+            found.update({id(element): name for element in rendered_descendants(block)})
+            found[id(block)] = next(
+                (parent["aria-label"] for parent in block.parents
+                 if isinstance(parent, Tag) and parent.get("aria-label") and INTERPOLATION not in parent["aria-label"]),
+                "",
+            )
+    return found
 
 
 def _explicit_name(example: Tag, loop_list: str | None) -> str | None:
@@ -215,8 +275,8 @@ def _container_name(element: Tag, name_of: dict[int, str]) -> str:
     return next((name_of[id(parent)] for parent in element.parents if id(parent) in name_of), "")
 
 
-def _pascal(text: str) -> str:
-    words = [w for w in re.split(r"[^\w]+", text) if w and not w.isdigit()][:_MAX_NAME_WORDS]
+def _pascal(text: str, max_words: int = 0) -> str:
+    words = [w for w in re.split(r"[^\w]+", text) if w and not w.isdigit()][:max_words or _MAX_NAME_WORDS]
     return "".join(w[:1].upper() + w[1:] for w in words) or "Component"
 
 
