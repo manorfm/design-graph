@@ -540,9 +540,146 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 
 ## Graph schema
 
-![Schema](./schema.svg)
+Generated from the schema's DDL by `python scripts/schema_diagram.py --write`; a test keeps it in sync.
 
-Editable source: [`diagram.excalidraw`](./diagram.excalidraw).
+<!-- schema:begin -->
+```mermaid
+erDiagram
+    n_Model["Model"] {
+        INT64 version PK
+        STRING capture
+    }
+    n_Screen["Screen"] {
+        STRING name PK
+        INT64 component_count
+        INT64 sections_count
+        STRING source_code
+        STRING source_lang
+        INT64 viewport_width
+        INT64 viewport_height
+        STRING skeleton
+    }
+    n_Section["Section"] {
+        STRING id PK
+        STRING screen
+        STRING name
+        STRING styles_json
+        STRING components_json
+        STRING texts_json
+        STRING source_code
+        STRING source_lang
+        STRING detection_method
+    }
+    n_Component["Component"] {
+        STRING name PK
+        STRING comp_type
+        STRING source_code
+        STRING source_lang
+        BOOLEAN declares_inline_styles
+        INT64 occurrence
+        STRING classes
+        STRING referenced_data_json
+    }
+    n_Token["Token"] {
+        STRING id PK
+        STRING category
+        STRING label
+        STRING value
+        INT64 usage
+        STRING mode
+    }
+    n_Icon["Icon"] {
+        STRING id PK
+        STRING markup
+    }
+    n_UIText["UIText"] {
+        STRING id PK
+        STRING content
+        STRING text_type
+        STRING source
+        STRING element
+    }
+    n_Style["Style"] {
+        STRING id PK
+        STRING element
+        STRING state
+        STRING property
+        STRING value
+        STRING media
+    }
+    n_Interaction["Interaction"] {
+        STRING id PK
+        STRING trigger
+        STRING css_prop
+        STRING from_val
+        STRING to_val
+        STRING transition
+    }
+    n_Resource["Resource"] {
+        STRING id PK
+        STRING kind
+        STRING name
+        STRING version
+        STRING origin
+        STRING certainty
+        STRING detail
+        INT64 size
+        STRING sha256
+        STRING import_line
+    }
+    n_Action["Action"] {
+        STRING id PK
+        STRING owner
+        STRING trigger
+        STRING element
+        STRING handler
+        STRING effect
+    }
+    n_State["State"] {
+        STRING id PK
+        STRING owner
+        STRING name
+        STRING initial
+    }
+    n_Asset["Asset"] {
+        STRING id PK
+        STRING mime
+        INT64 size
+        STRING data
+    }
+    n_ComponentProp["ComponentProp"] {
+        STRING id PK
+        STRING component_name
+        STRING prop_name
+        STRING default_value
+    }
+    n_Screen ||--o{ n_Component : USES_COMPONENT
+    n_Screen ||--o{ n_Screen : USES_SCREEN
+    n_Screen ||--o{ n_Screen : NAVIGATES_TO
+    n_Screen ||--o{ n_Screen : VARIANT_OF
+    n_Screen ||--o{ n_Section : HAS_SECTION
+    n_Section ||--o{ n_Component : SECTION_USES
+    n_Section ||--o{ n_Screen : SECTION_USES_SCREEN
+    n_Component ||--o{ n_Style : HAS_STYLE
+    n_Screen ||--o{ n_Style : SCREEN_HAS_STYLE
+    n_Screen ||--o{ n_Resource : USES_RESOURCE
+    n_Resource ||--o{ n_Asset : HAS_FILE
+    n_Component ||--o{ n_Action : HAS_ACTION
+    n_Screen ||--o{ n_Action : SCREEN_HAS_ACTION
+    n_Component ||--o{ n_State : HAS_STATE
+    n_Screen ||--o{ n_State : SCREEN_HAS_STATE
+    n_Component ||--o{ n_Component : USES_HOOK
+    n_Screen ||--o{ n_Component : SCREEN_USES_HOOK
+    n_Component ||--o{ n_Token : USES_TOKEN
+    n_Component ||--o{ n_UIText : COMP_HAS_TEXT
+    n_Component ||--o{ n_Interaction : HAS_INTERACTION
+    n_Component ||--o{ n_Component : CONTAINS
+    n_Style ||--o{ n_Token : STYLE_USES_TOKEN
+    n_Section ||--o{ n_Style : SECTION_HAS_STYLE
+    n_Section ||--o{ n_UIText : SECTION_HAS_TEXT
+    n_Component ||--o{ n_ComponentProp : HAS_PROP
+```
+<!-- schema:end -->
 
 See [`schema.py`](./src/design_graph/model/graph/schema.py) for the authoritative node and relationship definitions — including the `Model` node (model version and capture), `Screen` viewports and the `NAVIGATES_TO` and `VARIANT_OF` relationships between screens.
 
@@ -612,5 +749,5 @@ tests/            # unit and integration tests, including architecture guardrail
 docs/             # architecture specs, plans and change records
 pyproject.toml    # package metadata and CLI entry points
 Makefile          # local workflow shortcuts
-schema.svg        # graph schema diagram
+scripts/          # context benchmark, schema diagram and release helpers
 ```

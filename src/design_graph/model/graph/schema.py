@@ -223,6 +223,7 @@ _REL_TABLES: list[str] = [
     # v11: what a component or screen remembers between interactions
     "CREATE REL TABLE HAS_STATE(FROM Component TO State)",
     "CREATE REL TABLE SCREEN_HAS_STATE(FROM Screen TO State)",
+    # v11: the prototype's own hooks a component or screen calls
     "CREATE REL TABLE USES_HOOK(FROM Component TO Component)",
     "CREATE REL TABLE SCREEN_USES_HOOK(FROM Screen TO Component)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
