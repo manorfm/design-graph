@@ -404,7 +404,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_screen` | Inspect one screen: `detail=outline` (sections and components by name, navigation, variants), `detail=full` (every section and component whole) or `detail=layout` (display/flex/grid and size profiles); `section=` returns that section alone; `compare=` lists the components, texts and style declarations only one of two screens has (what a variant changes) | `name`, `section?`, `detail?`, `compare?`, `doc?` |
 | `assemble_page` | Build one screen in one call: header, the screen's skeleton, each component it renders once, the data they repeat, tokens by mode and dependencies — `known` leaves out components the agent already has; long answers come in parts | `name`, `known?`, `part?`, `doc?` |
 | `list_components` | List components, optionally filtered by semantic type (capped at 100 by default) | `comp_type?`, `limit?`, `doc?` |
-| `get_component` | Return one component, whole — hierarchy, styles by state (incl. responsive), tokens by mode, texts, interactions, props with defaults, referenced data and source; `depth=1..3` adds the components it nests. Falls back to a CSS-class spec when the name is a shared class, and to the screen when it is a screen's name | `name`, `depth?`, `doc?` |
+| `get_component` | Return one component, whole — hierarchy, styles by state (incl. responsive), tokens by mode, texts, interactions, props with defaults, states, actions, referenced data and source; `depth=1..3` adds the components it nests. Falls back to a CSS-class spec when the name is a shared class, and to the screen when it is a screen's name | `name`, `depth?`, `doc?` |
 | `get_full` | Return, whole, what another answer shortened — `aspect=source`: a component's or screen's source as the prototype wrote it (in parts, `part=`); `aspect=styles` / `aspect=texts`: the complete style or text list of a component (`name=`) or of a screen section (`screen=` + `section=`); `aspect=data`: the module-level data a component references (e.g. an icon-name → SVG-path table) | `aspect`, `name?`, `screen?`, `section?`, `part?`, `doc?` |
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
 | `get_asset` | Write the files of one embedded font family or image into `design-graph-assets/<name>/` in the workspace and return their paths — content checked against its hash, names never taken from the prototype | `name`, `doc?` |
@@ -502,6 +502,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 **Every prototype**
 
 - Screens, sections and reusable components, with hierarchy in render order and occurrence counts
+- Actions — what each element does when used: trigger, element, handler as written and its effect (*muda estado X*, *repassa ao pai onX*, *chama f*) — and states with their initial values, per component and screen
 - Default, hover and focus styles; component- and property-level token linkage, including `var(--x)` references to custom-property tokens in every mode
 - Color, spacing, typography, shadow, radius and CSS-variable tokens, with light/dark (or any other) modes
 - UI text with semantic types (heading, button, label, description, tooltip); sections also list their placeholders, tooltips and charts (`[placeholder]`, `[dica]`, `[gráfico]`)
@@ -533,6 +534,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items, with the literal list a loop repeats attached as referenced data
 - `<sc-for>`, `<sc-if>` and `<sc-raw-*>` read without rewriting the stored template
 - The inline style of every element, attributed by its path (`ul > li:2 > span`) to the section, component or page that contains it
+- Events (`sc-camel-on-click="{{o.pick}}"`) read in the page logic of the list that repeats the element, states from `this.state` defaults, and a style chosen by a selection ternary kept as the component's default and selected styles
 - What each page loads: the DC runtime, libraries with the CDN URL the bundle declares, and fonts with weights, subsets and a ready `@import` line when they come from Google Fonts
 
 ## Graph schema
