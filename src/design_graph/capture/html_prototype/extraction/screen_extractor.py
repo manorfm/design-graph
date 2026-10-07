@@ -23,7 +23,6 @@ from design_graph.capture.html_prototype.extraction.action_extractor import extr
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.capture.html_prototype.extraction.visual_function import VisualFunctionCandidate
-from design_graph.capture.html_prototype.parsing.js_parser import extract_return_block
 
 logger = logging.getLogger(__name__)
 
