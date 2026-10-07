@@ -22,7 +22,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from design_graph.capture.markup import visible_texts
+from design_graph.capture.markup import hint_texts, visible_texts
 
 from design_graph.capture.html_prototype.constants import (
     JS_FUNCTION_FALLBACK_WINDOW,
@@ -53,6 +53,7 @@ from design_graph.capture.html_prototype.patterns import (
     RE_JSX_ROW_CLASS_NAME,
     RE_JSX_TAG,
     RE_PLACEHOLDER,
+    RE_TOOLTIP_TEXT,
     RE_SECTION_COMMENT,
     RE_UI_STRING,
 )
@@ -519,30 +520,28 @@ def _build_section(
                 seen_comp_refs.add(name)
                 comp_refs.append(name)
 
-    # Texts
-    texts: list[str] = []
-    seen_texts: set[str] = set()
-    for m in RE_UI_STRING.finditer(block):
-        t = m.group(1).strip()
-        if t not in seen_texts and TextEntry.reads_as_copy(t):
-            seen_texts.add(t)
-            texts.append(t)
-    for m in RE_PLACEHOLDER.finditer(block):
-        t = m.group(1).strip()
-        if t not in seen_texts:
-            seen_texts.add(t)
-            texts.append(f"[placeholder] {t}")
-
     return ExtractedSection.create(
         screen=screen_name,
         name=sec_name,
         styles=styles,
         component_refs=comp_refs,
-        texts=texts,
+        texts=_section_texts(block),
         source_code=block.strip(),
         detection_method=detection_method,
         element_styles=element_styles,
     )
+
+
+def _section_texts(block: str) -> list[str]:
+    """The copy of a section in order, a placeholder or tooltip tagged as such even where it reads as copy."""
+    hints: dict[str, str] = {}
+    for pattern, kind in ((RE_PLACEHOLDER, "placeholder"), (RE_TOOLTIP_TEXT, "dica")):
+        for m in pattern.finditer(block):
+            hint = m.group(1).strip()
+            hints.setdefault(hint, f"[{kind}] {hint}")
+    found = (m.group(1).strip() for m in RE_UI_STRING.finditer(block))
+    texts = [hints.get(t, t) for t in found if t in hints or TextEntry.reads_as_copy(t)]
+    return list(dict.fromkeys([*texts, *hints.values()]))
 
 
 # ── Quality filter ────────────────────────────────────────────────────────────
@@ -581,13 +580,14 @@ def extract_sections_for_plain_html(
     for idx, raw in enumerate(raw_sections):
         name = raw.get("name", raw.get("tag", "Section").capitalize())
         html = raw.get("html", "")
+        fragment = BeautifulSoup(html, "html.parser")
 
         # index is included in the id so same-named sections stay unique
         sections.append(ExtractedSection.create_semantic(
             screen=screen_name,
             name=name,
             index=idx,
-            texts=visible_texts(BeautifulSoup(html, "html.parser")),
+            texts=[*visible_texts(fragment), *hint_texts(fragment)],
             source_code=html,
         ))
 

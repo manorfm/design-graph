@@ -14,6 +14,7 @@ from design_graph.capture.dc_canvas.template import (
     SOURCE_LANG,
     element_children,
     element_paths,
+    hint_texts,
     inline_styles,
     parse_markup,
     tag_of,
@@ -37,7 +38,7 @@ def page_sections(
         name = _unique(block_name(block, index), used)
         sections.append(ExtractedSection.create(
             screen=screen, name=name, styles=inline_styles(block), component_refs=components_in(block),
-            texts=visible_texts(block), source_code=str(block),
+            texts=[*visible_texts(block), *hint_texts(block)], source_code=str(block),
             element_styles=[
                 StyleEntry.create(path, prop, value)
                 for path, element in element_paths(block)

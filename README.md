@@ -504,7 +504,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Screens, sections and reusable components, with hierarchy in render order and occurrence counts
 - Default, hover and focus styles; component- and property-level token linkage, including `var(--x)` references to custom-property tokens in every mode
 - Color, spacing, typography, shadow, radius and CSS-variable tokens, with light/dark (or any other) modes
-- UI text with semantic types (heading, button, label, description, tooltip)
+- UI text with semantic types (heading, button, label, description, tooltip); sections also list their placeholders, tooltips and charts (`[placeholder]`, `[dica]`, `[gráfico]`)
 - Screen viewports, navigation between screens and screen variants (another viewport or mode)
 - Every source stored whole and exactly as written, with its language — long sources are paged by the tools, never cut
 - Layout profiles for flex/grid and dimensions, per component and per section selector

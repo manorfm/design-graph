@@ -143,3 +143,8 @@ class TestSemanticSectionTextsAreWhole:
         footer = extract_sections_for_plain_html(_soup(html), "MainPage")[0]
         assert long_text in footer.texts
         assert sum(t.startswith("item ") for t in footer.texts) == 14
+
+    def test_hints_follow_the_visible_copy(self):
+        html = '<html><body><header><input placeholder="Buscar por nome"><h1 title="Ajuda da tela">Lojas</h1></header></body></html>'
+        header = extract_sections_for_plain_html(_soup(html), "MainPage")[0]
+        assert header.texts == ["Lojas", "[placeholder] Buscar por nome", "[dica] Ajuda da tela"]

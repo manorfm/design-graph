@@ -44,6 +44,11 @@ def visible_texts(element: Tag) -> list[str]:
     return markup.visible_texts(element, not_rendered=_NOT_RENDERED)
 
 
+def hint_texts(element: Tag) -> list[str]:
+    """The placeholders, tooltips and chart descriptions below an element, tagged by kind."""
+    return markup.hint_texts(element, not_rendered=_NOT_RENDERED)
+
+
 def visible_text_nodes(element: Tag) -> list[tuple[str, str]]:
     """Each copy an element shows, once, with the tag of the element showing it."""
     return markup.visible_text_nodes(element, tag_of=tag_of, not_rendered=_NOT_RENDERED)

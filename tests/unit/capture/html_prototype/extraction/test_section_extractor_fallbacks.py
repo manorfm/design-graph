@@ -215,6 +215,11 @@ class TestBuildSectionPlaceholderTexts:
         placeholder_texts = [t for t in section.texts if "[placeholder]" in t]
         assert any("type your search" in t.lower() for t in placeholder_texts)
 
+    def test_tagged_even_when_it_reads_as_copy(self):
+        block = '<div><input placeholder="Buscar categoria" /><button title="Fechar painel">x</button></div>'
+        section = _build_section(block=block, sec_name="S", screen_name="P", detection_method="structural")
+        assert section.texts == ["[placeholder] Buscar categoria", "[dica] Fechar painel"]
+
     def test_duplicate_placeholders_not_added_twice(self):
         block = """
         <input placeholder="Search..." />

@@ -57,6 +57,11 @@ class TestBlockContent:
         block = _sections(tmp_path, MOBILE)[1]
         assert block.texts == ["Como o trabalho acontece", "Este questionário ajuda a entender."]
 
+    def test_hints_and_charts_follow_the_visible_copy(self, tmp_path):
+        chart = '<svg role="img" aria-label="Radar"><circle/><circle/><polygon/></svg>'
+        body = f'<div><div><p>Como foi?</p><textarea placeholder="Em uma frase"></textarea>{chart}</div><div>x</div></div>'
+        assert _sections(tmp_path, body)[0].texts == ["Como foi?", "[placeholder] Em uma frase", "[gráfico] Radar"]
+
     def test_styles_are_the_block_own_literal_declarations(self, tmp_path):
         assert _sections(tmp_path, MOBILE)[0].styles == {"padding": "20px 24px 0 24px"}
         assert "background" not in _sections(tmp_path, MOBILE)[1].styles

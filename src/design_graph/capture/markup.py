@@ -7,6 +7,10 @@ case or tag, it is kept. Only what the browser never shows (scripts, styles,
 comments, doctypes) and template interpolations (`{{…}}`) are left out — unlike string
 literals scanned out of code, which need TextEntry.reads_as_copy to tell copy
 from code.
+
+Hints are the copy a reader meets without it being shown in the flow: a
+field's placeholder, a title or aria-label, and the description of a chart —
+an svg that is not hidden from readers and draws data marks.
 """
 
 from __future__ import annotations
@@ -18,6 +22,10 @@ from bs4.element import PreformattedString
 
 NOT_RENDERED: frozenset[str] = frozenset({"script", "style", "template", "noscript"})
 INTERPOLATION = "{{"
+_HINT_ATTRIBUTES = (("placeholder", "placeholder"), ("title", "dica"), ("aria-label", "dica"))
+_DATA_MARKS = ("circle", "rect", "polygon", "polyline", "line", "path")
+_MIN_CHART_MARKS = 3
+_MIN_HINT_CHARS = 3
 
 
 def _element_name(element: Tag) -> str:
@@ -45,3 +53,23 @@ def visible_text_nodes(
 def visible_texts(root: Tag, not_rendered: Collection[str] = NOT_RENDERED) -> list[str]:
     """Each text `root` shows, once, in reading order."""
     return [text for text, _ in visible_text_nodes(root, not_rendered=not_rendered)]
+
+
+def hint_texts(root: Tag, not_rendered: Collection[str] = NOT_RENDERED) -> list[str]:
+    """Each hint below `root`, once, in document order: `[placeholder] …`, `[dica] …`, `[gráfico] …`."""
+    found: dict[str, None] = {}
+    for element in [root, *root.find_all(True)]:
+        if element.name in not_rendered or any(parent.name in not_rendered for parent in element.parents):
+            continue
+        chart = _is_chart(element)
+        for attribute, kind in _HINT_ATTRIBUTES:
+            value = " ".join(str(element.get(attribute) or "").split())
+            if len(value) >= _MIN_HINT_CHARS and INTERPOLATION not in value:
+                found.setdefault(f"[{'gráfico' if chart else kind}] {value}")
+    return list(found)
+
+
+def _is_chart(element: Tag) -> bool:
+    if element.name != "svg" or element.get("aria-hidden") == "true":
+        return False
+    return len(element.find_all(_DATA_MARKS)) >= _MIN_CHART_MARKS
