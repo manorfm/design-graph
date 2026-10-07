@@ -127,6 +127,9 @@ class _EmptyCatalog:
     def list_actions(self):
         return []
 
+    def list_states(self):
+        return []
+
 
 class _StubReader(_EmptyCatalog):
     """

@@ -26,6 +26,7 @@ from design_graph.model.entities import (
     ComponentDefinitionStatus,
     Action,
     ComponentProp,
+    State,
     ComponentType,
     DesignToken,
     ExtractedComponent,
@@ -342,6 +343,7 @@ class GraphWriter:
                 self._rows.add_rel("COMP_HAS_TEXT", comp.name, text.id)
         self._write_component_props(comp.name, comp.props)
         self._write_actions("HAS_ACTION", comp.name, comp.actions)
+        self._write_states("HAS_STATE", comp.name, comp.states)
         self._write_component_children(comp)
 
     def _write_component_styles(self, comp: ExtractedComponent) -> None:
@@ -465,6 +467,7 @@ class GraphWriter:
             self._put_style_once(style)
             self._rows.add_rel("SCREEN_HAS_STYLE", screen.name, style.id)
         self._write_actions("SCREEN_HAS_ACTION", screen.name, screen.actions)
+        self._write_states("SCREEN_HAS_STATE", screen.name, screen.states)
         for resource_id in dict.fromkeys(screen.resource_ids):
             self._rows.add_rel("USES_RESOURCE", screen.name, resource_id)
 
@@ -569,6 +572,13 @@ class GraphWriter:
                 "handler": action.handler, "effect": action.effect,
             })
             self._rows.add_rel(relation, owner, action.id)
+
+    def _write_states(self, relation: str, owner: str, states: list[State]) -> None:
+        for state in states:
+            self._rows.put_node("State", state.id, {
+                "id": state.id, "owner": state.owner, "name": state.name, "initial": state.initial,
+            })
+            self._rows.add_rel(relation, owner, state.id)
 
     def _write_component_props(self, comp_name: str, props: list[ComponentProp]) -> None:
         """

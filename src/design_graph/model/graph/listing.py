@@ -47,8 +47,21 @@ class CatalogQueries:
             for r in self._q(f"MATCH (n:{kind}) RETURN n.name AS name, n.source_code AS source")
         ]
 
+    def states_of(self, kind: str, name: str) -> list[dict]:
+        """A component's or screen's states, in the order its source declares them."""
+        relation = "HAS_STATE" if kind == "Component" else "SCREEN_HAS_STATE"
+        return self._q(
+            f"MATCH (n:{kind} {{name:$n}})-[r:{relation}]->(s:State) "
+            "RETURN s.name AS name, s.initial AS initial ORDER BY offset(ID(r))",
+            {"n": name},
+        )
+
+    def list_states(self) -> list[dict]:
+        """Every state, with the component or screen it belongs to."""
+        return self._q("MATCH (s:State) RETURN s.owner AS owner, s.name AS name, s.initial AS initial")
+
     def _with_actions(self, components: list[dict]) -> list[dict]:
-        """The components, each with its actions — read for all of them at once."""
+        """The components, each with its actions and states — read for all of them at once."""
         rows = self._q(
             "UNWIND $names AS cn MATCH (c:Component {name:cn})-[r:HAS_ACTION]->(a:Action) "
             "RETURN c.name AS name, a.trigger AS trigger, a.element AS element, a.handler AS handler, "
@@ -58,4 +71,11 @@ class CatalogQueries:
         by_name: dict[str, list[dict]] = defaultdict(list)
         for row in rows:
             by_name[row.pop("name")].append(row)
-        return [{**c, "actions": by_name.get(c["name"], [])} for c in components]
+        states: dict[str, list[dict]] = defaultdict(list)
+        for row in self._q(
+            "UNWIND $names AS cn MATCH (c:Component {name:cn})-[r:HAS_STATE]->(s:State) "
+            "RETURN c.name AS owner, s.name AS name, s.initial AS initial ORDER BY c.name, offset(ID(r))",
+            {"names": [c["name"] for c in components]},
+        ):
+            states[row.pop("owner")].append(row)
+        return [{**c, "actions": by_name.get(c["name"], []), "states": states.get(c["name"], [])} for c in components]

@@ -349,6 +349,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
             "screens_using":   self.find_screens_using_comp_transitively(resolved),
             "props":           props,
             "actions":         self.actions_of("Component", resolved),
+            "states":          self.states_of("Component", resolved),
         }
 
     def get_component_props(self, name: str) -> list[dict]:

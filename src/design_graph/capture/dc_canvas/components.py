@@ -17,6 +17,7 @@ from typing import Callable
 
 from bs4 import Tag
 
+from design_graph.capture.dc_canvas.logic import selection_branches
 from design_graph.capture.dc_canvas.sections import block_name
 from design_graph.capture.dc_canvas.template import (
     INTERPOLATION,
@@ -329,7 +330,8 @@ def _component(
         source_lang=SOURCE_LANG,
         occurrence=len(occurrences),
         classes=" ".join(c for c in (example.get("class") or []) if INTERPOLATION not in c),
-        styles=_styles(name, example, details.tag_rules),
+        styles=_styles(name, example, details.tag_rules)
+        + _selection_styles(name, example, lambda key: details.handler_of(screen, key)),
         texts=_texts(name, example),
         actions=element_actions(name, [example, *rendered_descendants(example)], lambda key: details.handler_of(screen, key)),
         child_refs=list(dict.fromkeys(ref for child in element_children(example) for ref in found.outermost_in(child))),
@@ -348,6 +350,27 @@ def _styles(name: str, example: Tag, tag_rules: TagRules) -> list[StyleEntry]:
     for state, rules in tag_rules.get(tag_of(example), {}).items():
         if state in _STATES:
             styles.extend(StyleEntry.create(name, rule.property, rule.value, _STATES[state]) for rule in rules)
+    return styles
+
+
+def _selection_styles(name: str, example: Tag, member_of: Callable[[str], "str | None"]) -> list[StyleEntry]:
+    """
+    A declaration whose value the page's logic picks by selection — `border:
+    1px solid {{o.bc}}` with `bc: sel === o.id ? 'var(--accent)' : 'var(--rule)'`
+    — as the component's default style and its selected one.
+    """
+    styles: list[StyleEntry] = []
+    for path, element in [("", example), *element_paths(example)]:
+        owner = f"{name} > {path}" if path else name
+        for declaration in (element.get("style") or "").split(";"):
+            prop, _, value = (part.strip() for part in declaration.partition(":"))
+            key = _RE_MEMBER.search(value)
+            expression = member_of(key.group(1)) if key else None
+            branches = selection_branches(expression) if expression else None
+            if branches:
+                chosen, other = (value.replace(key.group(0), branch) for branch in branches)
+                styles += [StyleEntry.create(owner, prop.lower(), other),
+                           StyleEntry.create(owner, prop.lower(), chosen, StyleState.SELECTED)]
     return styles
 
 

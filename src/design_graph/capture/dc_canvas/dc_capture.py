@@ -16,13 +16,13 @@ from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.dc_canvas.components import element_actions, fragment_component, infer_components
 from design_graph.capture.dc_canvas.instances import Definition, definition_of, replace_with_instances
-from design_graph.capture.dc_canvas.logic import literal_lists, member_expression
+from design_graph.capture.dc_canvas.logic import literal_lists, member_expression, state_defaults
 from design_graph.capture.dc_canvas.sections import page_blocks, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
 from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup, rendered_descendants
 from design_graph.capture.html_prototype.parsing.css_class_resolver import extract_tag_pseudo_rules
 from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
-from design_graph.model.entities import ComponentProp, ExtractedComponent, ExtractedScreen
+from design_graph.model.entities import ComponentProp, ExtractedComponent, ExtractedScreen, State
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,8 @@ class DcCanvasCapture:
         for screen in screens:
             screen.sections_count = len(sections[screen.name])
             screen.styles = page_styles(blocks[screen.name])
+            screen.states = [State.create(screen.name, name, default)
+                             for name, default in state_defaults(logic_by_screen[screen.name])]
             screen.actions = element_actions(
                 screen.name, _outside_components(blocks[screen.name], found.name_of),
                 lambda key, logic=logic_by_screen[screen.name]: member_expression(logic, key),

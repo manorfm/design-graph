@@ -39,6 +39,7 @@ class ScreenAssemblyQueries:
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
             "actions": self.actions_of("Screen", resolved),
+            "states": self.states_of("Screen", resolved),
         }
 
     def _assembly_components(self, skeleton: str) -> list[dict]:
@@ -86,6 +87,7 @@ class ScreenAssemblyQueries:
                 "props": props.get(row["name"], []),
                 "referenced_data": json.loads(row["data"] or "{}"),
                 "actions": self.actions_of("Component", row["name"]),
+                "states": self.states_of("Component", row["name"]),
             }
             for row in rows
         }

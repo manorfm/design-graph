@@ -57,3 +57,12 @@ def test_a_component_inside_a_tree_lists_its_actions_too():
             "interactions": [], "texts": [], "source_code": "", "source_lang": "",
             "actions": [{"trigger": "change", "element": "input", "handler": "e => setQ(e)", "effect": "muda estado q"}]}
     assert "- change em `input` → muda estado q — `e => setQ(e)`" in "\n".join(component_lines(comp, heading="### Sidebar"))
+
+
+def test_the_spec_lists_what_the_component_remembers():
+    class _WithState(_Reader):
+        def get_component_spec(self, name):
+            return {**super().get_component_spec(name), "states": [{"name": "open", "initial": "false"}]}
+
+    out = get_component_spec(_WithState(), "Sidebar")
+    assert "## Estado" in out and "- `open` = `false`" in out

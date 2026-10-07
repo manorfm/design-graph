@@ -34,6 +34,7 @@ def _assembly(component_source="function List() { return <ul/>; }"):
         "resources": [{"kind": "library", "name": "react", "version": "18.3.1", "origin": "https://cdn/react",
                        "certainty": "declarada", "detail": "", "size": 1, "import_line": ""}],
         "actions": [{"trigger": "click", "element": "nav", "handler": "() => setView('apps')", "effect": "muda estado view"}],
+        "states": [{"name": "view", "initial": "'apps'"}],
     }
 
 
@@ -120,3 +121,8 @@ def test_behaviour_lists_what_each_action_does_where():
     out = assemble_page(_Reader(), "Home")
     assert "- **Home** · click em `nav` → muda estado view — `() => setView('apps')`" in out
     assert "- **List** · change em `input` → muda estado query — `e => setQuery(e.target.value)`" in out
+
+
+def test_behaviour_lists_what_each_screen_and_component_remembers():
+    out = assemble_page(_Reader(), "Home")
+    assert "- **Home** guarda `view` = `'apps'`" in out

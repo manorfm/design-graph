@@ -24,6 +24,9 @@ class MockReader:
     def list_actions(self):
         return []
 
+    def list_states(self):
+        return []
+
     def model_info(self):
         return {"version": 10, "capture": "html_prototype"}
 
@@ -294,6 +297,9 @@ class _WeakMatchOnlyReader:
     def list_actions(self):
         return []
 
+    def list_states(self):
+        return []
+
     def list_screens(self): return []
     def list_components(self, comp_type=None): return []
     def get_tokens(self, category=None): return []
@@ -335,6 +341,9 @@ class _ComponentHierarchyReader:
         return []
 
     def list_actions(self):
+        return []
+
+    def list_states(self):
         return []
 
     def list_screens(self):

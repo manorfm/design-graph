@@ -31,6 +31,11 @@ def mode_tag(mode: str | None) -> str:
     return f" [{mode}]" if mode else ""
 
 
+def state_lines(states: list[dict]) -> list[str]:
+    """One line per state: its name and initial value as written."""
+    return [f"- `{s['name']}` = `{s['initial']}`" for s in states]
+
+
 def action_lines(actions: list[dict]) -> list[str]:
     """One line per action: the event, where, what it does and the handler as written."""
     return [f"- {a['trigger']} em `{a['element']}` → {a['effect']} — `{a['handler']}`" for a in actions]
@@ -167,6 +172,9 @@ def component_lines(comp: dict, heading: str) -> list[str]:
     if comp["props"]:
         lines.append("\n#### Props")
         lines.extend(props_table_lines(comp["props"]))
+    if comp.get("states"):
+        lines.append("\n#### Estado")
+        lines.extend(state_lines(comp["states"]))
     if comp.get("actions"):
         lines.append("\n#### Ações")
         lines.extend(action_lines(comp["actions"]))

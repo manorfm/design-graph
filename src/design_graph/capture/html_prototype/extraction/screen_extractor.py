@@ -20,6 +20,7 @@ from design_graph.model.entities import ExtractedScreen, StrEnum
 from design_graph.capture.html_prototype.sources import FunctionBoundary
 from design_graph.capture.html_prototype.patterns import RE_COMP_REF, RE_JSX_CALL, RE_JSX_TAG
 from design_graph.capture.html_prototype.extraction.action_extractor import extract_actions
+from design_graph.capture.html_prototype.extraction.state_extractor import extract_states
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.capture.html_prototype.extraction.visual_function import VisualFunctionCandidate
@@ -136,6 +137,7 @@ def extract_screens(
             source_code=source_code,
             icons=icons,
             actions=extract_actions(body, boundary.name),
+            states=extract_states(body, boundary.name),
         ))
 
         logger.debug(

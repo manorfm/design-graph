@@ -107,6 +107,7 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
         props=list(props.values()),
         icons=list(icons.values()),
         actions=list({action.id: action for variant in variants for action in variant.actions}.values()),
+        states=list({state.id: state for variant in variants for state in variant.states}.values()),
         referenced_data=referenced_data,
         source_lang=live_variant.source_lang,
         declares_inline_styles=any(variant.declares_inline_styles for variant in variants),

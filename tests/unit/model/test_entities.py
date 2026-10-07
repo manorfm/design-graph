@@ -90,7 +90,7 @@ class TestEntityIdBehavesAsString:
 
 class TestStyleState:
     def test_members(self):
-        assert {m.value for m in StyleState} == {"default", "hover", "focus"}
+        assert {m.value for m in StyleState} == {"default", "hover", "focus", "selected"}
 
     def test_dead_member_removed(self):
         assert not hasattr(StyleState, "TRANSITION")

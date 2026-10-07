@@ -112,13 +112,14 @@ def _data_lines(components: list[dict]) -> list[str]:
 
 
 def _behaviour_lines(assembly: dict, components: list[dict]) -> list[str]:
-    """What each element does when used — the screen's own, then each component's sent here."""
-    owners = [(assembly["name"], assembly.get("actions", []))] + [(c["name"], c.get("actions", [])) for c in components]
-    lines = [
-        f"- **{owner}** · {action['trigger']} em `{action['element']}` → {action['effect']} — `{action['handler']}`"
-        for owner, actions in owners for action in actions
+    """What the screen and its components remember, then what each element does when used."""
+    owners = [assembly] + components
+    lines = [f"- **{owner['name']}** guarda `{s['name']}` = `{s['initial']}`" for owner in owners for s in owner.get("states", [])]
+    lines += [
+        f"- **{owner['name']}** · {a['trigger']} em `{a['element']}` → {a['effect']} — `{a['handler']}`"
+        for owner in owners for a in owner.get("actions", [])
     ]
-    return lines or ["Nenhuma ação nos elementos desta tela."]
+    return lines or ["Nenhum estado nem ação nos elementos desta tela."]
 
 
 def _token_lines(rows: list[dict]) -> list[str]:

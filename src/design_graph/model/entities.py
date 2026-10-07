@@ -78,6 +78,7 @@ class StyleState(StrEnum):
     DEFAULT = "default"
     HOVER = "hover"
     FOCUS = "focus"
+    SELECTED = "selected"   # the item a selection picked out (the chosen option, the active tab)
 
 
 class InteractionTrigger(StrEnum):
@@ -211,6 +212,20 @@ class Action:
     def create(cls, owner: str, trigger: str, element: str, handler: str, effect: str) -> "Action":
         return cls(id=EntityId.derive("act", f"{owner}:{trigger}:{element}:{handler}"), owner=owner,
                    trigger=trigger, element=element, handler=handler, effect=effect)
+
+
+@dataclass(frozen=True)
+class State:
+    """Something a component or screen remembers between interactions: its name and initial value, as written."""
+
+    id: EntityId
+    owner: str
+    name: str
+    initial: str
+
+    @classmethod
+    def create(cls, owner: str, name: str, initial: str) -> "State":
+        return cls(id=EntityId.derive("state", f"{owner}:{name}"), owner=owner, name=name, initial=initial)
 
 
 class ResourceKind(StrEnum):
@@ -447,6 +462,7 @@ class ExtractedComponent:
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     actions: list[Action] = field(default_factory=list)  # what its elements do when used
+    states: list[State] = field(default_factory=list)    # what it remembers between interactions
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
@@ -484,6 +500,7 @@ class ExtractedScreen:
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     actions: list[Action] = field(default_factory=list)  # what its elements do when used
+    states: list[State] = field(default_factory=list)    # what it remembers between interactions
     source_lang: str = ""
     styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
     resource_ids: list[str] = field(default_factory=list)  # ids of the Resources this screen loads

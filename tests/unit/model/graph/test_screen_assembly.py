@@ -112,3 +112,20 @@ def test_actions_are_read_with_their_component_and_screen(tmp_path):
     assert assembly["actions"] == [{"trigger": "click", "element": "nav", "handler": "() => setView('apps')",
                                     "effect": "muda estado view"}]
     assert assembly["components"][0]["actions"] == [expected_click]
+
+
+def test_states_are_read_with_their_component_and_screen(tmp_path):
+    from design_graph.model.entities import State
+
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "states.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Btn", "function Btn() { return <button/>; }", states=[State.create("Btn", "open", "false")]))
+    w.write_screen(ExtractedScreen(name="Page", component_refs=["Btn"], sections_count=0, source_code="<main><Btn/></main>",
+                                   states=[State.create("Page", "view", "'apps'")]), [])
+    w.commit()
+    reader = GraphReader(conn)
+    assert reader.get_component_spec("Btn")["states"] == [{"name": "open", "initial": "false"}]
+    assembly = reader.get_screen_assembly("Page")
+    assert assembly["states"] == [{"name": "view", "initial": "'apps'"}]
+    assert assembly["components"][0]["states"] == [{"name": "open", "initial": "false"}]

@@ -73,9 +73,38 @@ def _expression_at(text: str, start: int) -> str:
             index = _string_end(text, index)
         elif char in "[{(":
             depth += 1
-        elif char in "]})" or (char == "," and depth == 0):
+        elif char in "]})" or (char in ",;" and depth == 0):
             if depth == 0:
                 break
             depth -= 1
         index += 1
     return text[start:index].strip()
+
+
+_RE_STATE_VARIABLE = re.compile(r"\b(?:const|let|var)\s+([\w$]+)\s*=\s*this\.state\b")
+_RE_SELECTION = re.compile(
+    r"^(?P<condition>.+?)\s*\?\s*(?P<chosen>'[^']*'|\"[^\"]*\")\s*:\s*(?P<other>'[^']*'|\"[^\"]*\")$", re.S
+)
+_RE_PICKS_ITEM = re.compile(r"===\s*[\w$]+\.id\b|\b[\w$]+\.id\s*===")
+
+
+def state_defaults(logic: str) -> list[tuple[str, str]]:
+    """
+    (name, default) of each state the logic reads with a fallback —
+    `s.papel ?? "eng"`, where `s` holds `this.state` — in order, once.
+    """
+    holders = {"this.state", *(f"{name}" for name in _RE_STATE_VARIABLE.findall(logic))}
+    found: dict[str, str] = {}
+    for holder in holders:
+        pattern = re.compile(rf"(?<![\w$.]){re.escape(holder)}\.([\w$]+)\s*\?\?\s*")
+        for match in pattern.finditer(logic):
+            found.setdefault(match.group(1), _expression_at(logic, match.end()))
+    return sorted(found.items(), key=lambda item: logic.find(f".{item[0]}"))
+
+
+def selection_branches(expression: str) -> tuple[str, str] | None:
+    """(value when the item is the selected one, value otherwise) of `x === o.id ? 'a' : 'b'`, or None."""
+    match = _RE_SELECTION.match(expression.strip())
+    if not match or not _RE_PICKS_ITEM.search(match.group("condition")):
+        return None
+    return match.group("chosen")[1:-1], match.group("other")[1:-1]
