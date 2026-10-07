@@ -50,3 +50,32 @@ def _string_end(text: str, start: int) -> int:
     while index < len(text) and text[index] != text[start]:
         index += 2 if text[index] == "\\" else 1
     return index
+
+
+def member_expression(logic: str, key: str) -> str | None:
+    """
+    The expression the logic gives a member named `key` — `pick: () =>
+    this.setState({ papel: o.id })` → `() => this.setState({ papel: o.id })` —
+    read up to the comma or brace that ends it, strings and nesting respected.
+    """
+    for match in re.finditer(rf"\b{re.escape(key)}\s*:\s*", logic):
+        expression = _expression_at(logic, match.end())
+        if expression:
+            return expression
+    return None
+
+
+def _expression_at(text: str, start: int) -> str:
+    depth, index = 0, start
+    while index < len(text):
+        char = text[index]
+        if char in "\"'`":
+            index = _string_end(text, index)
+        elif char in "[{(":
+            depth += 1
+        elif char in "]})" or (char == "," and depth == 0):
+            if depth == 0:
+                break
+            depth -= 1
+        index += 1
+    return text[start:index].strip()

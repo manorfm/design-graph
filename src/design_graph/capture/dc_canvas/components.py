@@ -30,7 +30,9 @@ from design_graph.capture.dc_canvas.template import (
     visible_text_nodes,
 )
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule
+from design_graph.capture.actions import effect_of, trigger_of
 from design_graph.model.entities import (
+    Action,
     ComponentType,
     ExtractedComponent,
     StyleEntry,
@@ -59,6 +61,7 @@ _TEXT_TYPE_BY_TAG = {
 _STATES = {"hover": StyleState.HOVER, "focus": StyleState.FOCUS, "focus-visible": StyleState.FOCUS}
 _RE_INTERPOLATION = re.compile(r"\{\{[^}]*\}\}")
 _RE_LOOP_LIST = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
+_RE_MEMBER = re.compile(r"\{\{\s*(?:[\w$]+\.)*([\w$]+)\s*\}\}")
 _MAX_NAME_WORDS = 3
 _MAX_CONTEXT_WORDS = 2
 # Articles, prepositions and conjunctions carry no meaning in a name ("Convites e participação" → ConvitesParticipação).
@@ -91,12 +94,14 @@ class CanvasComponents:
 
 TagRules = dict[str, dict[str, list[CssRule]]]  # tag → state → rules, e.g. a → hover → [color: …]
 LoopData = Callable[[str, str], object]          # (screen, list name) → the list's literal value, or None
+HandlerOf = Callable[[str, str], "str | None"]    # (screen, member name) → the handler its logic gives it, or None
 
 
 def infer_components(
     blocks_by_screen: dict[str, list[Tag]],
     tag_rules: TagRules | None = None,
     loop_data: LoopData | None = None,
+    handler_of: HandlerOf | None = None,
 ) -> CanvasComponents:
     """
     tag_rules: pseudo-class rules the pages' styles declare for a bare tag
@@ -112,7 +117,7 @@ def infer_components(
         elements = [element for _, element in occurrences[signature]]
         name = _unique(_name(elements, loop_lists.get(signature), result.name_of, block_of), used)
         result.name_of.update({id(element): name for element in elements})
-    details = _Details(tag_rules or {}, loop_data or _no_loop_data)
+    details = _Details(tag_rules or {}, loop_data or _no_loop_data, handler_of or _no_handler)
     result.components = [
         _component(occurrences[signature], result, details, loop_lists.get(signature)) for signature in promoted
     ]
@@ -123,16 +128,39 @@ def infer_components(
 class _Details:
     tag_rules: TagRules
     loop_data: LoopData
+    handler_of: HandlerOf
 
 
 def fragment_component(root: Tag) -> ExtractedComponent:
     """A standalone fragment read as one component, outside any canvas."""
     found = CanvasComponents(components=[], name_of={id(root): "Fragment"})
-    return _component([("", root)], found, _Details({}, _no_loop_data), None)
+    return _component([("", root)], found, _Details({}, _no_loop_data, _no_handler), None)
 
 
 def _no_loop_data(screen: str, name: str) -> None:
     return None
+
+
+def _no_handler(screen: str, key: str) -> None:
+    return None
+
+
+def element_actions(owner: str, elements: list[Tag], handler_of: Callable[[str], "str | None"]) -> list[Action]:
+    """
+    Each event attribute (`sc-camel-on-click="{{o.pick}}"`) on `elements`, once:
+    the handler is what the page's logic gives the member it names, or the
+    attribute's value when the logic says nothing.
+    """
+    actions: dict[str, Action] = {}
+    for element in elements:
+        for attribute, value in element.attrs.items():
+            if not (attribute.startswith("sc-") and "on-" in attribute):
+                continue
+            key = _RE_MEMBER.search(value)
+            handler = (handler_of(key.group(1)) if key else None) or value
+            action = Action.create(owner, trigger_of(attribute), tag_of(element), handler, effect_of(handler))
+            actions.setdefault(action.id, action)
+    return list(actions.values())
 
 
 def _is_repeated(signature: str, occurrences: dict, loop_lists: dict[str, str]) -> bool:
@@ -303,6 +331,7 @@ def _component(
         classes=" ".join(c for c in (example.get("class") or []) if INTERPOLATION not in c),
         styles=_styles(name, example, details.tag_rules),
         texts=_texts(name, example),
+        actions=element_actions(name, [example, *rendered_descendants(example)], lambda key: details.handler_of(screen, key)),
         child_refs=list(dict.fromkeys(ref for child in element_children(example) for ref in found.outermost_in(child))),
         declares_inline_styles=bool(example.get("style")),
         referenced_data={loop_list: data} if data is not None else {},

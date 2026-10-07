@@ -14,9 +14,9 @@ from design_graph.capture.base import CaptureResult, ComponentProgress, Prototyp
 from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
-from design_graph.capture.dc_canvas.components import fragment_component, infer_components
+from design_graph.capture.dc_canvas.components import element_actions, fragment_component, infer_components
 from design_graph.capture.dc_canvas.instances import Definition, definition_of, replace_with_instances
-from design_graph.capture.dc_canvas.logic import literal_lists
+from design_graph.capture.dc_canvas.logic import literal_lists, member_expression
 from design_graph.capture.dc_canvas.sections import page_blocks, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
 from design_graph.capture.dc_canvas.template import SOURCE_LANG, element_children, parse_markup, rendered_descendants
@@ -50,10 +50,12 @@ class DcCanvasCapture:
         board_variants = variants(boards, pages)
         blocks = {board.name: page_blocks(pages[board.page_id].markup) for board in boards}
         lists_by_screen = {board.name: literal_lists(pages[board.page_id].logic) for board in boards}
+        logic_by_screen = {board.name: pages[board.page_id].logic for board in boards}
         found = infer_components(
             blocks,
             tag_rules=extract_tag_pseudo_rules("\n".join(dict.fromkeys(p.styles for p in pages.values()))),
             loop_data=lambda screen, name: lists_by_screen[screen].get(name),
+            handler_of=lambda screen, key: member_expression(logic_by_screen[screen], key),
         )
         screens = [_screen(board, pages[board.page_id], boards, board_variants) for board in boards]
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
@@ -63,6 +65,10 @@ class DcCanvasCapture:
         for screen in screens:
             screen.sections_count = len(sections[screen.name])
             screen.styles = page_styles(blocks[screen.name])
+            screen.actions = element_actions(
+                screen.name, _outside_components(blocks[screen.name], found.name_of),
+                lambda key, logic=logic_by_screen[screen.name]: member_expression(logic, key),
+            )
             screen.component_refs = list(dict.fromkeys(
                 ref for block in blocks[screen.name] for ref in found.outermost_in(block)
             ))
@@ -103,6 +109,22 @@ def _read_board_page(bundle: Bundle, board: Board) -> DcPage | None:
     if page is None:
         logger.warning("dc_canvas: board %r skipped — its page is not a DC page", board.title)
     return page
+
+
+def _outside_components(screen_blocks: list[Tag], name_of: dict[int, str]) -> list[Tag]:
+    """The page's elements that belong to no component — whose events are the screen's own."""
+    found: list[Tag] = []
+
+    def walk(element: Tag) -> None:
+        if id(element) in name_of:
+            return
+        found.append(element)
+        for child in element_children(element):
+            walk(child)
+
+    for block in screen_blocks:
+        walk(block)
+    return found
 
 
 def _definitions(blocks: dict[str, list[Tag]], name_of: dict[int, str]) -> dict[str, Definition]:
