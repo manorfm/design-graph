@@ -17,6 +17,11 @@ For one prototype it builds a fresh graph and measures:
             screens is reported last
   round_trip  screens and components whose stored source holds, verbatim,
             everything the prototype wrote for them
+  actions   event attributes of the prototype held as actions: a React
+            handler exactly as written; a DC page's events by count, against
+            that screen's actions (each event read from the page's logic)
+  states    states the prototype declares (useState, a DC state read with
+            a default) held as states
   searches  real search queries (from the metrics log) checked against the
             prototype: does a term that exists come back, and does a term
             that does not exist come back empty?
@@ -68,6 +73,11 @@ _RE_RECOVERY_CALL = re.compile(r"get_full\(([^()]*)\)")
 _RE_KEYWORD_ARG = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 _RE_LIST_CUT = re.compile(r"\+\d+ mais")
 _RE_SOURCE_CUT = re.compile(r"\+\d+ caracteres")
+_RE_REACT_EVENT = re.compile(r"\bon([A-Z][\w$]*)=\{")
+_RE_DC_EVENT = re.compile(r"\bsc-[\w-]*?on-[\w-]+=")
+_RE_USE_STATE = re.compile(r"\bconst\s*\[\s*([\w$]+)\s*,\s*[\w$]+\s*\]\s*=\s*(?:React\.)?useState\(")
+_RE_STATE_HOLDER = re.compile(r"\bconst\s+([\w$]+)\s*=\s*this\.state\b")
+_QUOTES = "\"'`"
 
 
 class SearchVerdict(str, Enum):
@@ -179,6 +189,82 @@ def _skeleton_round_trip(document: PrototypeDocument, capture: str, reader: Grap
 
 
 # ── Reading responses ─────────────────────────────────────────────────────────
+
+def event_handlers(source: str) -> set[tuple[str, str]]:
+    """Each React event attribute as (event, handler as written), its braces balanced and strings skipped."""
+    source, found = _without_comments(source), set()
+    for match in _RE_REACT_EVENT.finditer(source):
+        handler = _braced(source, match.end())
+        if handler is not None:
+            found.add((match.group(1).lower(), handler))
+    return found
+
+
+def _braced(source: str, start: int) -> str | None:
+    """The text from `start` to the brace that closes the one just before it."""
+    depth, quote, index = 1, "", start
+    while index < len(source):
+        char = source[index]
+        if quote:
+            index += char == "\\"
+            quote = "" if char == quote else quote
+        elif char in _QUOTES:
+            quote = char
+        elif char in "{}":
+            depth += 1 if char == "{" else -1
+            if depth == 0:
+                return source[start:index].strip()
+        index += 1
+    return None
+
+
+def _without_comments(source: str) -> str:
+    """The code without its `//` and `/* */` comments — commented-out code declares nothing."""
+    kept, quote, index = [], "", 0
+    while index < len(source):
+        char, pair = source[index], source[index:index + 2]
+        if quote:
+            kept.append(source[index:index + 2] if char == "\\" else char)
+            index += 2 if char == "\\" else 1
+            quote = "" if char == quote else quote
+            continue
+        if pair in ("//", "/*"):
+            end = source.find("\n" if pair == "//" else "*/", index + 2)
+            index = len(source) if end < 0 else end + (0 if pair == "//" else 2)
+            continue
+        quote = char if char in _QUOTES else ""
+        kept.append(char)
+        index += 1
+    return "".join(kept)
+
+
+def state_names(source: str) -> set[str]:
+    """States a source declares: `const [x, setX] = useState(…)`, or a DC state read with a default (`s.x ?? …`)."""
+    source = _without_comments(source)
+    names = set(_RE_USE_STATE.findall(source))
+    for holder in _RE_STATE_HOLDER.findall(source):
+        names |= set(re.findall(rf"\b{re.escape(holder)}\.([\w$]+)\s*\?\?", source))
+    return names
+
+
+def behavior(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
+    """How many of the prototype's event attributes and states the graph holds as actions and states."""
+    if capture == "dc_canvas":
+        pages = _dc_pages(document)
+        events = {name: len(_RE_DC_EVENT.findall(page.markup)) for name, page in pages.items()}
+        held = {name: min(count, len(reader.actions_of("Screen", name))) for name, count in events.items()}
+        truth_states = {(name, state) for name, page in pages.items() for state in state_names(page.logic or "")}
+        states = {(s["owner"], s["name"]) for s in reader.list_states()}
+        actions = {"truth": sum(events.values()), "recovered": sum(held.values())}
+        actions["coverage"] = actions["recovered"] / actions["truth"] if actions["truth"] else None
+        return {"actions": actions, "states": _coverage_entry(truth_states, states, True)}
+    js = decompose(document).js
+    handlers = {(a["trigger"], a["handler"]) for a in reader.list_actions()}
+    return {
+        "actions": _coverage_entry(event_handlers(js), handlers, True),
+        "states": _coverage_entry(state_names(js), {s["name"] for s in reader.list_states()}, True),
+    }
+
 
 def coverage(truth: set[str], recovered: set[str]) -> float | None:
     return len(truth & recovered) / len(truth) if truth else None
@@ -344,6 +430,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
         "texts": _coverage_entry(truth_texts, indexed_texts, markups is not None),
         "styles": _coverage_entry(truth_styles, shown_styles, markups is not None),
         "round_trip": round_trip(document, capture, reader),
+        **behavior(document, capture, reader),
         "assembly": _assembly_summary(screens, "assembly_chars"),
         "assemble": _assembly_summary(screens, "assemble_chars"),
         "assemble_known": _assembly_summary(screens, "assemble_known_chars"),
@@ -374,6 +461,8 @@ def render_markdown(report: dict) -> str:
         f"| Textos indexados | {_coverage_cell(report['texts'])} |",
         f"| Estilos legíveis ao montar as telas | {_coverage_cell(report['styles'])} |",
         f"| Fontes devolvidos como escritos | {_round_trip_cell(report.get('round_trip'))} |",
+        f"| Eventos que viram ações | {_coverage_cell(report['actions'])} |",
+        f"| Estados capturados | {_coverage_cell(report['states'])} |",
         f"| Montar uma tela com assemble_page (mediana · pior) | {_one_screen_cell(report.get('assemble'))} |",
         f"| … telas em sequência, com known (mediana · pior) | {_one_screen_cell(report.get('assemble_known'))} |",
         f"| Spec completa de uma tela (mediana · pior) | {_one_screen_cell(report.get('assembly'))} |",
@@ -417,6 +506,8 @@ def _round_trip_cell(entry: dict | None) -> str:
 
 
 def _coverage_cell(entry: dict) -> str:
+    if entry["truth"] == 0:
+        return "nenhum no protótipo"
     if entry["coverage"] is None:
         return "n/d (sem gabarito estático para este formato)"
     return f"{entry['coverage']:.0%} ({entry['recovered']}/{entry['truth']})"

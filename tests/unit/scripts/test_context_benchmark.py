@@ -20,7 +20,9 @@ from context_benchmark import (  # noqa: E402
     classify_search,
     coverage,
     cut_notices,
+    event_handlers,
     recovery_calls,
+    state_names,
     style_declarations,
     visible_texts,
 )
@@ -169,6 +171,8 @@ class TestRenderMarkdown:
             "build": {"seconds": 1.5, "phases": {}, "write_errors": 0},
             "texts": {"truth": None, "recovered": None, "coverage": None},
             "styles": {"truth": 10, "recovered": 5, "coverage": 0.5},
+            "actions": {"truth": 4, "recovered": 4, "coverage": 1.0},
+            "states": {"truth": 2, "recovered": 1, "coverage": 0.5},
             "assembly": {"median_ratio": 2.0, "worst_screen": "A", "worst_ratio": 3.0,
                          "median_chars": 250, "worst_chars_screen": "A", "worst_chars": 300},
             "assemble": {"median_ratio": 0.5, "worst_screen": "A", "worst_ratio": 0.8,
@@ -189,7 +193,14 @@ class TestRenderMarkdown:
         assert "| Montar todas as telas (soma) | 300 (300% do original) |" in markdown
         assert "| Ler os fontes inteiros indicados (soma) | 900 |" in markdown
         assert "listas 2 · fontes 1" in markdown
+        assert "| Eventos que viram ações | 100% (4/4) |" in markdown
+        assert "| Estados capturados | 50% (1/2) |" in markdown
         assert "`logout` — existe: não, resposta: partial" in markdown
+
+    def test_a_metric_the_prototype_has_nothing_of_says_so(self):
+        from context_benchmark import _coverage_cell
+
+        assert _coverage_cell({"truth": 0, "recovered": 0, "coverage": None}) == "nenhum no protótipo"
 
 
 class TestMain:
@@ -242,3 +253,47 @@ class TestSearchGroundTruth:
         fixtures = Path(__file__).parents[2] / "fixtures"
         document = PrototypeDocument.read(fixtures / "large_bundle.html")
         assert "function " in prototype_text(document, "html_prototype")
+
+
+class TestBehaviorGroundTruth:
+    def test_each_event_attribute_with_its_whole_handler(self):
+        source = '<b onClick={() => go({ a: "}" })} onMouseEnter={hover}/>'
+        assert event_handlers(source) == {("click", '() => go({ a: "}" })'), ("mouseenter", "hover")}
+
+    def test_commented_out_code_declares_nothing(self):
+        source = "// <b onClick={go}/> const [a, setA] = useState(0);\n/* <i onBlur={x}/> */ const u = 'http://x'; <p onClick={ok}/>"
+        assert event_handlers(source) == {("click", "ok")}
+        assert state_names(source) == set()
+
+    def test_states_declared_by_use_state_or_read_from_a_dc_state_with_a_default(self):
+        assert state_names("const [open, setOpen] = React.useState(false); const [n, setN] = useState(0);") == {"open", "n"}
+        assert state_names('const s = this.state || {}; const sel = s.papel ?? "eng"; x ?? 1') == {"papel"}
+
+
+class TestBehaviorCoverage:
+    LOGIC = """class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const sel = s.papel ?? "eng";
+    const papel = [{"id": "dir"}, {"id": "eng"}].map((o) => ({ ...o, pick: () => this.setState({ papel: o.id }) }));
+    return { papel, next: () => this.setState({ step: 2 }) };
+  }
+}"""
+    BODY = (
+        '<main><div role="group"><sc-for list="{{papel}}" as="o">'
+        '<button type="button" sc-camel-on-click="{{o.pick}}"><span>{{o.id}}</span></button>'
+        '</sc-for></div><button sc-camel-on-click="{{next}}">Continuar</button></main>'
+    )
+
+    def test_a_dc_page_events_and_states_are_held_as_actions_and_states(self, tmp_path):
+        html = tmp_path / "c.html"
+        html.write_text(canvas_html([Page("1 · Papel", self.BODY, logic=self.LOGIC)]))
+        result = benchmark(html, workdir=tmp_path, queries=[])
+        assert result["actions"] == {"truth": 2, "recovered": 2, "coverage": 1.0}
+        assert result["states"] == {"truth": 1, "recovered": 1, "coverage": 1.0}
+
+    def test_react_event_handlers_are_held_as_written(self, tmp_path):
+        fixtures = Path(__file__).parents[2] / "fixtures"
+        result = benchmark(fixtures / "simple.html", workdir=tmp_path, queries=[])
+        assert result["actions"] == {"truth": 2, "recovered": 2, "coverage": 1.0}
+        assert result["states"] == {"truth": 0, "recovered": 0, "coverage": None}
