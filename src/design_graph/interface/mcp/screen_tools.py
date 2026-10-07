@@ -221,12 +221,17 @@ def get_section(reader: GraphReader, screen: str, section: str) -> str:
 _DETAILS = ("outline", "full", "layout")
 
 
-def get_screen(reader: GraphReader, name: str, section: str = "", detail: str = "outline") -> str:
+def get_screen(
+    reader: GraphReader, name: str, section: str = "", detail: str = "outline", compare: str = "",
+) -> str:
     """
     One screen, at the detail asked for: its outline (sections and the
     components it uses, by name), everything (each section and component
     whole), its layout profiles, or — with a section — that section alone.
+    With `compare`, what only it or the other screen has.
     """
+    if compare:
+        return compare_screens(reader, name, compare)
     if section:
         return get_section(reader, name, section)
     if detail == "full":
@@ -236,3 +241,31 @@ def get_screen(reader: GraphReader, name: str, section: str = "", detail: str = 
     if detail in ("", "outline"):
         return get_screen_outline(reader, name)
     return f"detail inválido: {detail!r}. Use um de: {', '.join(_DETAILS)}."
+
+
+_COMPARED = (("components", "Componentes", "`{}`"), ("texts", "Textos", '"{}"'), ("styles", "Estilos", "`{}`"))
+
+
+def compare_screens(reader: GraphReader, name: str, other: str) -> str:
+    """Components, texts and style declarations only one of two screens has — a variant's difference."""
+    contents = []
+    for screen in (name, other):
+        found = reader.screen_contents(screen)
+        if found is None:
+            return f"Tela '{screen}' não encontrada."
+        contents.append(found)
+    first, second = contents
+    lines = [f"# {first['name']} × {second['name']}\n", "Só o que uma tem e a outra não.\n"]
+    if all(first[key] == second[key] for key, _, _ in _COMPARED):
+        lines.append("Mesmos componentes, textos e estilos: o que muda são os valores dos tokens — get_tokens(mode=…).\n")
+    for key, title, shown in _COMPARED:
+        mine, theirs = set(first[key]), set(second[key])
+        lines.append(f"## {title}")
+        if mine == theirs:
+            lines += [f"- iguais nas duas ({len(mine)})", ""]
+            continue
+        for screen, only in ((first, mine - theirs), (second, theirs - mine)):
+            if only:
+                lines.append(f"- só em **{screen['name']}**: " + ", ".join(shown.format(v) for v in sorted(only)))
+        lines += [f"- em comum: {len(mine & theirs)}", ""]
+    return "\n".join(lines).rstrip() + "\n"

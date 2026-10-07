@@ -105,7 +105,9 @@ class ToolDispatcher:
             "assemble_page":             lambda: assemble_tool.assemble_page(
                 reader, name, args.get("known"), args.get("part", 1),
             ),
-            "get_screen":                lambda: screen_tools.get_screen(reader, name or screen, section, args.get("detail", "outline")),
+            "get_screen":                lambda: screen_tools.get_screen(
+                reader, name or screen, section, args.get("detail", "outline"), str(args.get("compare") or ""),
+            ),
             "get_component":             lambda: component_tools.get_component(reader, name, args.get("depth", 0)),
             "get_tokens":                lambda: discovery_tools.get_tokens(
                 reader, args.get("category"), args.get("screen"), args.get("mode"),

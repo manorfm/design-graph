@@ -120,7 +120,8 @@ TOOL_DEFINITIONS: list[dict] = [
             "and the components it uses, by name, plus navigation and variants. detail=full: every section with "
             "its styles and texts and every component it renders, whole. detail=layout: the display/flex/grid and "
             "size profile of each component and section. section=<name>: that section alone — styles by selector, "
-            "texts, components and source."
+            "texts, components and source. compare=<other screen>: the components, texts and style declarations "
+            "only one of the two has — what a variant (desktop × mobile, light × dark) changes."
         ),
         "inputSchema": {
             "type": "object",
@@ -128,6 +129,7 @@ TOOL_DEFINITIONS: list[dict] = [
                 "name": {"type": "string", "description": "Screen name (fuzzy match)"},
                 "section": {"type": "string", "description": "Only this section of the screen"},
                 "detail": {"type": "string", "enum": ["outline", "full", "layout"], "description": "How much (default outline)"},
+                "compare": {"type": "string", "description": "Another screen to tell this one apart from (fuzzy match)"},
                 "doc": _doc_param(),
             },
             "required": ["name"],

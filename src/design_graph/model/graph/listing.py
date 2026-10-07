@@ -1,7 +1,7 @@
 """
 Listings of everything a prototype's graph holds — sections, props, sources,
-actions — for search, and each component's or screen's actions. Mixed into
-GraphReader, whose queries it uses.
+actions — for search, each component's or screen's actions, and what one
+screen holds, to compare variants. Mixed into GraphReader, whose queries it uses.
 """
 
 from __future__ import annotations
@@ -10,7 +10,39 @@ from collections import defaultdict
 
 
 class CatalogQueries:
-    """GraphReader's catalog and action queries (relies on its _q)."""
+    """GraphReader's catalog and action queries (relies on its _q and _fuzzy_find_screen)."""
+
+    def screen_contents(self, name: str) -> dict | None:
+        """
+        What a screen holds, each sorted and once: the components it renders
+        (nested ones included), its sections' texts and its style declarations
+        (`prop: value`, from its own elements and its sections') — the sets
+        two variants of a screen are told apart by.
+        """
+        resolved = self._fuzzy_find_screen(name)
+        if not resolved:
+            return None
+        components = self._q(
+            "MATCH (:Screen {name:$n})-[:USES_COMPONENT]->(:Component)-[:CONTAINS*0..3]->(c:Component) "
+            "RETURN DISTINCT c.name AS value",
+            {"n": resolved},
+        )
+        texts = self._q(
+            "MATCH (:Screen {name:$n})-[:HAS_SECTION]->(:Section)-[:SECTION_HAS_TEXT]->(t:UIText) "
+            "RETURN DISTINCT t.content AS value",
+            {"n": resolved},
+        )
+        styles = self._q(
+            "MATCH (s:Screen {name:$n})-[:SCREEN_HAS_STYLE]->(st:Style) "
+            "RETURN st.property + ': ' + st.value AS value "
+            "UNION MATCH (:Screen {name:$n})-[:HAS_SECTION]->(:Section)-[:SECTION_HAS_STYLE]->(st:Style) "
+            "RETURN st.property + ': ' + st.value AS value",
+            {"n": resolved},
+        )
+        return {"name": resolved, **{
+            key: sorted({row["value"] for row in rows})
+            for key, rows in (("components", components), ("texts", texts), ("styles", styles))
+        }}
 
     def actions_of(self, kind: str, name: str) -> list[dict]:
         """A component's or screen's actions, in the order its source declares them."""

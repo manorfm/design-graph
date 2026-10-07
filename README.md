@@ -401,7 +401,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | Tool | Purpose | Parameters |
 |---|---|---|
 | `list_screens` | List screens across all loaded prototypes | — |
-| `get_screen` | Inspect one screen: `detail=outline` (sections and components by name, navigation, variants), `detail=full` (every section and component whole) or `detail=layout` (display/flex/grid and size profiles); `section=` returns that section alone | `name`, `section?`, `detail?`, `doc?` |
+| `get_screen` | Inspect one screen: `detail=outline` (sections and components by name, navigation, variants), `detail=full` (every section and component whole) or `detail=layout` (display/flex/grid and size profiles); `section=` returns that section alone; `compare=` lists the components, texts and style declarations only one of two screens has (what a variant changes) | `name`, `section?`, `detail?`, `compare?`, `doc?` |
 | `assemble_page` | Build one screen in one call: header, the screen's skeleton, each component it renders once, the data they repeat, tokens by mode and dependencies — `known` leaves out components the agent already has; long answers come in parts | `name`, `known?`, `part?`, `doc?` |
 | `list_components` | List components, optionally filtered by semantic type (capped at 100 by default) | `comp_type?`, `limit?`, `doc?` |
 | `get_component` | Return one component, whole — hierarchy, styles by state (incl. responsive), tokens by mode, texts, interactions, props with defaults, referenced data and source; `depth=1..3` adds the components it nests. Falls back to a CSS-class spec when the name is a shared class, and to the screen when it is a screen's name | `name`, `depth?`, `doc?` |
