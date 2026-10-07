@@ -71,6 +71,21 @@ class TestWriteRows:
         ]
         assert _all(conn, "MATCH ()-[r:CONTAINS]->() RETURN r.weight, r.order_index") == [[1, 0]]
 
+    def test_relationships_are_stored_in_the_order_they_were_collected(self, conn):
+        # Readers order a node's relationships by storage offset; the join that
+        # finds both ends must never reorder them (e.g. by the target's scan order).
+        rows = GraphRows()
+        for n in range(4):
+            rows.put_node("Component", f"C{n}", _component(f"C{n}"))
+        for n in range(200):
+            rows.put_node("Style", f"s{n}", _style(f"s{n}"))
+        collected = [(f"C{n % 4}", f"s{199 - n}") for n in range(200)]
+        for source, target in collected:
+            rows.add_rel("HAS_STYLE", source, target)
+        assert write_rows(conn, rows) == []
+        stored = _all(conn, "MATCH (c:Component)-[r:HAS_STYLE]->(s:Style) RETURN c.name, s.id ORDER BY offset(ID(r))")
+        assert [tuple(row) for row in stored] == collected
+
     def test_one_statement_per_table(self, conn):
         rows = GraphRows()
         for n in range(30):

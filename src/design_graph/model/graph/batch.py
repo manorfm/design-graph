@@ -7,6 +7,10 @@ cost seconds each in parse/plan overhead; a handful of batches cost
 milliseconds (docs/changes/C44, T121). Nodes are written before
 relationships, so every relationship finds its endpoints; one whose
 endpoint does not exist matches nothing and is dropped, as before.
+Relationships are created in the order they were collected — readers order
+a node's relationships by storage offset — so each row carries its position
+and the statement sorts by it: the join that finds both endpoints may emit
+rows in either endpoint's scan order (it does on Linux).
 
 Kuzu rolls a failing statement back whole, so a failing batch is rewritten
 row by row: the bad row is reported and every other row still lands.
@@ -26,7 +30,7 @@ from design_graph.model.graph.schema import node_tables, rel_tables
 logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 500
-_SOURCE, _TARGET = "source_key", "target_key"
+_SOURCE, _TARGET, _POSITION = "source_key", "target_key", "position"
 
 
 class _Connection(Protocol):
@@ -70,7 +74,8 @@ def write_rows(conn: _Connection, rows: GraphRows, batch_size: int = DEFAULT_BAT
     for table, by_key in rows.nodes.items():
         errors += _write_table(conn, table, _node_statement(table), list(by_key.values()), batch_size)
     for table, rel_rows in rows.rels.items():
-        errors += _write_table(conn, table, _rel_statement(table), rel_rows, batch_size)
+        positioned = [{**row, _POSITION: position} for position, row in enumerate(rel_rows)]
+        errors += _write_table(conn, table, _rel_statement(table), positioned, batch_size)
     return errors
 
 
@@ -91,6 +96,7 @@ def _rel_statement(table: str) -> str:
     return (
         f"UNWIND $rows AS r "
         f"MATCH (a:{rel.source} {{{source_key}: r.{_SOURCE}}}), (b:{rel.target} {{{target_key}: r.{_TARGET}}}) "
+        f"WITH a, b, r ORDER BY r.{_POSITION} SKIP 0 "  # Kuzu requires SKIP or LIMIT after a WITH sort
         f"CREATE (a)-[:{table}{f' {{{properties}}}' if properties else ''}]->(b)"
     )
 
