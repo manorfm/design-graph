@@ -65,6 +65,18 @@ def member_expression(logic: str, key: str) -> str | None:
     return None
 
 
+def list_member(logic: str, list_name: str, key: str) -> str | None:
+    """
+    The member `key` the items of the list `list_name` get — read in that
+    list's declaration (`const sen = [...].map((o) => ({ ..., pick: … }))`),
+    so two lists giving their items a same-named member each keep their own;
+    anywhere in the logic when the list is not declared there.
+    """
+    declared = re.search(rf"\b(?:const|let|var)\s+{re.escape(list_name)}\s*=\s*", logic) if list_name else None
+    scoped = member_expression(_expression_at(logic, declared.end()), key) if declared else None
+    return scoped or member_expression(logic, key)
+
+
 def _expression_at(text: str, start: int) -> str:
     depth, index = 0, start
     while index < len(text):

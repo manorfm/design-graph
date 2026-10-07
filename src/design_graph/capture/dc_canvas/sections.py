@@ -55,13 +55,17 @@ def page_styles(blocks: list[Tag]) -> list[StyleEntry]:
     """The styles of a page's own elements: the wrappers around its blocks, by path from the page root."""
     if not blocks:
         return []
-    root = next(parent for parent in blocks[0].parents if parent.parent is None)
     around = {id(ancestor) for block in blocks for ancestor in block.parents}
     return [
         StyleEntry.create(path, prop, value)
-        for path, element in element_paths(root) if id(element) in around
+        for path, element in element_paths(page_root(blocks)) if id(element) in around
         for prop, value in inline_styles(element).items()
     ]
+
+
+def page_root(blocks: list[Tag]) -> Tag:
+    """The parsed page the blocks belong to — where element paths of the page start."""
+    return next(parent for parent in blocks[0].parents if parent.parent is None)
 
 
 def page_blocks(markup: str) -> list[Tag]:

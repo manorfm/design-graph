@@ -63,6 +63,7 @@ _STATES = {"hover": StyleState.HOVER, "focus": StyleState.FOCUS, "focus-visible"
 _RE_INTERPOLATION = re.compile(r"\{\{[^}]*\}\}")
 _RE_LOOP_LIST = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 _RE_MEMBER = re.compile(r"\{\{\s*(?:[\w$]+\.)*([\w$]+)\s*\}\}")
+_RE_ITEM = re.compile(r"\{\{\s*([\w$]+)\.")
 _MAX_NAME_WORDS = 3
 _MAX_CONTEXT_WORDS = 2
 # Articles, prepositions and conjunctions carry no meaning in a name ("Convites e participação" → ConvitesParticipação).
@@ -146,22 +147,35 @@ def _no_handler(screen: str, key: str) -> None:
     return None
 
 
-def element_actions(owner: str, elements: list[Tag], handler_of: Callable[[str], "str | None"]) -> list[Action]:
+def element_actions(
+    owner: str, elements: list[tuple[str, Tag]], handler_of: Callable[[str, str], "str | None"] | None = None,
+) -> list[Action]:
     """
-    Each event attribute (`sc-camel-on-click="{{o.pick}}"`) on `elements`, once:
-    the handler is what the page's logic gives the member it names, or the
-    attribute's value when the logic says nothing.
+    Each event attribute (`sc-camel-on-click="{{o.pick}}"`) on `elements`
+    (path, element), once per element. With `handler_of` (list repeating the
+    element, member name) the handler is what the page's logic gives that
+    member; without it, or when the logic says nothing, the binding as the
+    template writes it.
     """
     actions: dict[str, Action] = {}
-    for element in elements:
+    for path, element in elements:
         for attribute, value in element.attrs.items():
             if not (attribute.startswith("sc-") and "on-" in attribute):
                 continue
             key = _RE_MEMBER.search(value)
-            handler = (handler_of(key.group(1)) if key else None) or value
-            action = Action.create(owner, trigger_of(attribute), tag_of(element), handler, effect_of(handler))
+            handler = (handler_of(_repeating_list(element, value), key.group(1)) if handler_of and key else None) or value
+            action = Action.create(owner, trigger_of(attribute), path, handler, effect_of(handler))
             actions.setdefault(action.id, action)
     return list(actions.values())
+
+
+def _repeating_list(element: Tag, binding: str) -> str:
+    """The list whose loop names the binding's item (`{{o.pick}}` inside `<sc-for list="{{sen}}" as="o">` → sen)."""
+    item = _RE_ITEM.search(binding)
+    loop = next((parent for parent in element.parents
+                 if item and parent.name == "sc-for" and parent.get("as") == item.group(1)), None)
+    found = _RE_LOOP_LIST.search(loop.get("list") or "") if loop else None
+    return found.group(1) if found else ""
 
 
 def _is_repeated(signature: str, occurrences: dict, loop_lists: dict[str, str]) -> bool:
@@ -333,7 +347,9 @@ def _component(
         styles=_styles(name, example, details.tag_rules)
         + _selection_styles(name, example, lambda key: details.handler_of(screen, key)),
         texts=_texts(name, example),
-        actions=element_actions(name, [example, *rendered_descendants(example)], lambda key: details.handler_of(screen, key)),
+        actions=element_actions(name, [
+            (tag_of(example), example), *((f"{tag_of(example)} > {path}", e) for path, e in element_paths(example)),
+        ]),
         child_refs=list(dict.fromkeys(ref for child in element_children(example) for ref in found.outermost_in(child))),
         declares_inline_styles=bool(example.get("style")),
         referenced_data={loop_list: data} if data is not None else {},
