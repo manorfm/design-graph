@@ -106,6 +106,7 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
         child_refs=child_refs,
         props=list(props.values()),
         icons=list(icons.values()),
+        actions=list({action.id: action for variant in variants for action in variant.actions}.values()),
         referenced_data=referenced_data,
         source_lang=live_variant.source_lang,
         declares_inline_styles=any(variant.declares_inline_styles for variant in variants),

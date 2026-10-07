@@ -31,6 +31,11 @@ def mode_tag(mode: str | None) -> str:
     return f" [{mode}]" if mode else ""
 
 
+def action_lines(actions: list[dict]) -> list[str]:
+    """One line per action: the event, where, what it does and the handler as written."""
+    return [f"- {a['trigger']} em `{a['element']}` → {a['effect']} — `{a['handler']}`" for a in actions]
+
+
 def props_table_lines(props: list[dict]) -> list[str]:
     """
     A one-line honesty note plus a Prop/Default Markdown table.
@@ -162,6 +167,9 @@ def component_lines(comp: dict, heading: str) -> list[str]:
     if comp["props"]:
         lines.append("\n#### Props")
         lines.extend(props_table_lines(comp["props"]))
+    if comp.get("actions"):
+        lines.append("\n#### Ações")
+        lines.extend(action_lines(comp["actions"]))
     lines.extend(_component_style_lines(comp))
     if comp["tokens"]:
         lines.append("\n#### Tokens")

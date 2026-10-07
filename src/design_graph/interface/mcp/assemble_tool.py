@@ -4,8 +4,8 @@ assemble_page — "build this screen" in one call.
 Sections in a fixed order (the response contract): 1 header, 2 skeleton (the
 screen's own source), 3 each component it renders, once — minus the ones the
 agent says it already has (`known`), 4 the data they repeat, 6 the tokens it
-uses by mode, 7 what to install, 8 what was left out and where it is. Section
-5 (behaviour) is not captured yet. A long answer comes in parts, cut between
+uses by mode, 5 what each element does when used, 7 what to install, 8 what
+was left out and where it is. A long answer comes in parts, cut between
 blocks, never inside one without saying so.
 """
 
@@ -62,6 +62,7 @@ def _blocks(assembly: dict, known: set[str]) -> list[_Block]:
         _Block("3. Componentes", "## 3. Componentes\n" + ("" if components else "Nenhum além dos que você já tem.\n")),
         *(block for component in components for block in _component_blocks(component)),
         _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(components), ""])),
+        _Block("5. Comportamento", "\n".join(["## 5. Comportamento", *_behaviour_lines(assembly, components), ""])),
         _Block("6. Tokens", "\n".join(["## 6. Tokens usados, por modo", *_token_lines(assembly["tokens"]), ""])),
         _Block("7. Dependências", "\n".join(["## 7. Dependências", *(resource_lines(assembly["resources"], heading="###")
                                                                     or ["Nenhuma registrada."]), ""])),
@@ -110,6 +111,16 @@ def _data_lines(components: list[dict]) -> list[str]:
     return lines or ["Nenhum dado repetido."]
 
 
+def _behaviour_lines(assembly: dict, components: list[dict]) -> list[str]:
+    """What each element does when used — the screen's own, then each component's sent here."""
+    owners = [(assembly["name"], assembly.get("actions", []))] + [(c["name"], c.get("actions", [])) for c in components]
+    lines = [
+        f"- **{owner}** · {action['trigger']} em `{action['element']}` → {action['effect']} — `{action['handler']}`"
+        for owner, actions in owners for action in actions
+    ]
+    return lines or ["Nenhuma ação nos elementos desta tela."]
+
+
 def _token_lines(rows: list[dict]) -> list[str]:
     by_label: dict[str, list[tuple[str, str]]] = {}
     for row in rows:
@@ -129,7 +140,6 @@ def _completeness_lines(screen: str, omitted: list[str]) -> list[str]:
         lines.append(f"Omitidos (você já tem): {', '.join(omitted)}")
     lines += [
         f"Fonte original da tela, como escrito: {full_call('source', screen)}",
-        "Comportamento (o que cada ação faz) ainda não é capturado.",
     ]
     return lines
 

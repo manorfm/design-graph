@@ -20,7 +20,9 @@ def _assembly(component_source="function List() { return <ul/>; }"):
              "source_lang": "jsx", "defined": True, "props": [], "referenced_data": {}},
             {"name": "List", "comp_type": "component", "source_code": component_source, "source_lang": "jsx",
              "defined": True, "props": [{"prop_name": "items", "default_value": "[]"}],
-             "referenced_data": {"ITEMS": ["a", "b"]}},
+             "referenced_data": {"ITEMS": ["a", "b"]},
+             "actions": [{"trigger": "change", "element": "input", "handler": "e => setQuery(e.target.value)",
+                          "effect": "muda estado query"}]},
             {"name": "Icon", "comp_type": "component", "source_code": "", "source_lang": "", "defined": False,
              "props": [], "referenced_data": {}},
         ],
@@ -31,6 +33,7 @@ def _assembly(component_source="function List() { return <ul/>; }"):
         ],
         "resources": [{"kind": "library", "name": "react", "version": "18.3.1", "origin": "https://cdn/react",
                        "certainty": "declarada", "detail": "", "size": 1, "import_line": ""}],
+        "actions": [{"trigger": "click", "element": "nav", "handler": "() => setView('apps')", "effect": "muda estado view"}],
     }
 
 
@@ -45,8 +48,8 @@ class _Reader:
 def test_sections_come_in_the_contract_order():
     out = assemble_page(_Reader(), "Home")
     titles = re.findall(r"^## (.+)$", out, re.M)
-    assert titles == ["1. Cabeçalho", "2. Esqueleto", "3. Componentes", "4. Dados", "6. Tokens usados, por modo",
-                      "7. Dependências", "8. Completude"]
+    assert titles == ["1. Cabeçalho", "2. Esqueleto", "3. Componentes", "4. Dados", "5. Comportamento",
+                      "6. Tokens usados, por modo", "7. Dependências", "8. Completude"]
 
 
 def test_header_skeleton_and_components():
@@ -111,3 +114,9 @@ def test_same_named_tokens_without_modes_show_each_value_once():
         {"t.category": "radius", "t.label": "radius_xs", "t.value": "2px", "t.usage": 1, "t.mode": ""},
     ]
     assert "- **radius_xs**: `4px` · `2px`" in assemble_page(_Reader(assembly), "Home")
+
+
+def test_behaviour_lists_what_each_action_does_where():
+    out = assemble_page(_Reader(), "Home")
+    assert "- **Home** · click em `nav` → muda estado view — `() => setView('apps')`" in out
+    assert "- **List** · change em `input` → muda estado query — `e => setQuery(e.target.value)`" in out

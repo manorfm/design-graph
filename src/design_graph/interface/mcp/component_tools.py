@@ -7,6 +7,7 @@ import logging
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.full_tools import get_full_source
 from design_graph.interface.mcp.markdown import (
+    action_lines,
     mode_tag,
     component_lines,
     dedupe_styles_by_property,
@@ -142,6 +143,9 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
     if spec.get("props"):
         lines.append("\n## Props")
         lines.extend(props_table_lines(spec["props"]))
+    if spec.get("actions"):
+        lines.append("\n## Ações")
+        lines.extend(action_lines(spec["actions"]))
     if spec.get("referenced_data"):
         lines.append("\n## Dados referenciados")
         lines.append(

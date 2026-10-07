@@ -124,6 +124,9 @@ class _EmptyCatalog:
     def list_sources(self):
         return []
 
+    def list_actions(self):
+        return []
+
 
 class _StubReader(_EmptyCatalog):
     """
@@ -574,3 +577,17 @@ class TestSearchSaysWhatDoesNotExist:
     def test_nothing_close_says_so_without_a_list(self):
         out = _tool("zzqx")
         assert out.startswith("Nenhum resultado para 'zzqx'") and "Mais próximos" not in out
+
+
+
+class TestSearchFindsActions:
+    class _Reader(_CatalogReader):
+        def list_actions(self):
+            return [{"owner": "PrimaryAction", "trigger": "click", "element": "button",
+                     "handler": "() => setModal({ type: 'confirm' })", "effect": "muda estado modal"}]
+
+    def test_an_action_is_found_by_its_handler_with_what_it_does(self):
+        from design_graph.interface.mcp.discovery_tools import tool_search
+
+        out = tool_search([("doc", self._Reader())], "setModal")
+        assert "## Ação" in out and "click em button" in out and "PrimaryAction: muda estado modal" in out

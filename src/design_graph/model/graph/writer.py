@@ -24,6 +24,7 @@ import kuzu
 
 from design_graph.model.entities import (
     ComponentDefinitionStatus,
+    Action,
     ComponentProp,
     ComponentType,
     DesignToken,
@@ -340,6 +341,7 @@ class GraphWriter:
             if self._put_text_once(text):
                 self._rows.add_rel("COMP_HAS_TEXT", comp.name, text.id)
         self._write_component_props(comp.name, comp.props)
+        self._write_actions("HAS_ACTION", comp.name, comp.actions)
         self._write_component_children(comp)
 
     def _write_component_styles(self, comp: ExtractedComponent) -> None:
@@ -462,6 +464,7 @@ class GraphWriter:
         for style in screen.styles:
             self._put_style_once(style)
             self._rows.add_rel("SCREEN_HAS_STYLE", screen.name, style.id)
+        self._write_actions("SCREEN_HAS_ACTION", screen.name, screen.actions)
         for resource_id in dict.fromkeys(screen.resource_ids):
             self._rows.add_rel("USES_RESOURCE", screen.name, resource_id)
 
@@ -558,6 +561,14 @@ class GraphWriter:
         for style in entries:
             self._put_style_once(style)
             self._rows.add_rel("SECTION_HAS_STYLE", section_id, style.id)
+
+    def _write_actions(self, relation: str, owner: str, actions: list[Action]) -> None:
+        for action in actions:
+            self._rows.put_node("Action", action.id, {
+                "id": action.id, "owner": action.owner, "trigger": action.trigger, "element": action.element,
+                "handler": action.handler, "effect": action.effect,
+            })
+            self._rows.add_rel(relation, owner, action.id)
 
     def _write_component_props(self, comp_name: str, props: list[ComponentProp]) -> None:
         """

@@ -38,3 +38,22 @@ def test_component_inside_a_tree_shows_each_token_mode():
     out = "\n".join(component_lines(comp, heading="### Sidebar"))
     assert "- **--sunk** [escuro] = `#1C1B19` (css_var)" in out
     assert "- **space_16** = `16px` (spacing)" in out
+
+
+def test_the_spec_lists_what_each_element_does():
+    class _WithActions(_Reader):
+        def get_component_spec(self, name):
+            return {**super().get_component_spec(name), "actions": [
+                {"trigger": "click", "element": "button", "handler": "() => setOpen(true)", "effect": "muda estado open"},
+            ]}
+
+    out = get_component_spec(_WithActions(), "Sidebar")
+    assert "## Ações" in out and "- click em `button` → muda estado open — `() => setOpen(true)`" in out
+
+
+def test_a_component_inside_a_tree_lists_its_actions_too():
+    comp = {"name": "Sidebar", "comp_type": "component", "occurrence": 1, "children": [], "props": [],
+            "styles_by_state": {}, "declares_inline_styles": False, "referenced_data": {}, "tokens": [],
+            "interactions": [], "texts": [], "source_code": "", "source_lang": "",
+            "actions": [{"trigger": "change", "element": "input", "handler": "e => setQ(e)", "effect": "muda estado q"}]}
+    assert "- change em `input` → muda estado q — `e => setQ(e)`" in "\n".join(component_lines(comp, heading="### Sidebar"))

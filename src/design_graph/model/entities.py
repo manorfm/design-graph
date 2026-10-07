@@ -191,6 +191,28 @@ class IconAsset:
         return f"{{[icon:{self.id}]}}"
 
 
+@dataclass(frozen=True)
+class Action:
+    """
+    What happens when someone interacts with an element: the event it
+    listens to, where (the element's tag or component), the handler as the
+    prototype wrote it, and a plain reading of its effect ("muda estado
+    role · repassa ao pai onClose").
+    """
+
+    id: EntityId
+    owner: str      # the component or screen it belongs to
+    trigger: str    # click, change, keydown, close…
+    element: str
+    handler: str
+    effect: str
+
+    @classmethod
+    def create(cls, owner: str, trigger: str, element: str, handler: str, effect: str) -> "Action":
+        return cls(id=EntityId.derive("act", f"{owner}:{trigger}:{element}:{handler}"), owner=owner,
+                   trigger=trigger, element=element, handler=handler, effect=effect)
+
+
 class ResourceKind(StrEnum):
     LIBRARY = "library"   # third-party code the prototype runs on — declare it, never copy it
     RUNTIME = "runtime"   # the design tool's own machinery — never reproduce it
@@ -424,6 +446,7 @@ class ExtractedComponent:
     child_refs: list[str] = field(default_factory=list)   # names of the components it renders
     props: list[ComponentProp] = field(default_factory=list)  # declared props from function signature
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
+    actions: list[Action] = field(default_factory=list)  # what its elements do when used
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
@@ -460,6 +483,7 @@ class ExtractedScreen:
     sections_count: int = 0
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
+    actions: list[Action] = field(default_factory=list)  # what its elements do when used
     source_lang: str = ""
     styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
     resource_ids: list[str] = field(default_factory=list)  # ids of the Resources this screen loads

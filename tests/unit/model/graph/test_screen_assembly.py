@@ -91,3 +91,24 @@ def test_components_are_the_ones_the_skeleton_uses_as_tags_not_words_in_its_text
                                    skeleton='<main><p>Projeto novo</p><Cell background="red"></Cell></main>'), [])
     w.commit()
     assert [c["name"] for c in GraphReader(conn).get_screen_assembly("Page")["components"]] == ["Cell"]
+
+
+def test_actions_are_read_with_their_component_and_screen(tmp_path):
+    from design_graph.model.entities import Action
+
+    click = Action.create("Btn", "click", "button", "() => setOpen(true)", "muda estado open")
+    nav = Action.create("Page", "click", "nav", "() => setView('apps')", "muda estado view")
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "actions.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Btn", "function Btn() { return <button/>; }", actions=[click]))
+    w.write_screen(ExtractedScreen(name="Page", component_refs=["Btn"], sections_count=0,
+                                   source_code="<main><Btn/></main>", actions=[nav]), [])
+    w.commit()
+    reader = GraphReader(conn)
+    expected_click = {"trigger": "click", "element": "button", "handler": "() => setOpen(true)", "effect": "muda estado open"}
+    assert reader.get_component_spec("Btn")["actions"] == [expected_click]
+    assembly = reader.get_screen_assembly("Page")
+    assert assembly["actions"] == [{"trigger": "click", "element": "nav", "handler": "() => setView('apps')",
+                                    "effect": "muda estado view"}]
+    assert assembly["components"][0]["actions"] == [expected_click]

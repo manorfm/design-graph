@@ -159,7 +159,9 @@ def search(
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 # Names first, then what lives inside screens, then copy, then code.
-_TYPE_RANK = {"Screen": 0, "Component": 0, "Section": 1, "Prop": 1, "Token": 1, "UIText": 2, "CssClass": 2, "Código": 3}
+_TYPE_RANK = {
+    "Screen": 0, "Component": 0, "Section": 1, "Prop": 1, "Token": 1, "Ação": 1, "UIText": 2, "CssClass": 2, "Código": 3,
+}
 
 
 def _phrases(query: str, aliases: dict[str, list[str]]) -> list[str]:
@@ -215,6 +217,11 @@ def _build_index(reader: GraphReader) -> list[_IndexEntry]:
         for p in reader.list_props()
     ]
     entries += _code_entries(reader.list_sources())
+    entries += [
+        _IndexEntry("Ação", f"{a['trigger']} em {a['element']}", f"{a['owner']}: {a['effect']}",
+                    f"{a['owner']}:{a['trigger']}:{a['element']}:{a['handler']}", (a["handler"], a["effect"]))
+        for a in reader.list_actions()
+    ]
     for token in reader.get_tokens():
         label, value = token.get("t.label", ""), token.get("t.value", "")
         entries.append(_IndexEntry("Token", label, value, token.get("t.id", label), (label, value)))

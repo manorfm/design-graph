@@ -22,7 +22,8 @@ Schema changes:
   v11 — lossless capture: sources stored as the prototype wrote them (source_simplified
        removed); no per-component caps, so truncated_fields is removed too;
        SCREEN_HAS_STYLE for a screen's own elements; Resource nodes and USES_RESOURCE;
-       Screen.skeleton (the source with component occurrences as instance tags); Asset files
+       Screen.skeleton (the source with component occurrences as instance tags); Asset files;
+       Action nodes (HAS_ACTION, SCREEN_HAS_ACTION)
 """
 
 from __future__ import annotations
@@ -159,6 +160,17 @@ _NODE_TABLES: list[str] = [
         ")"
     ),
     (
+        "CREATE NODE TABLE Action("
+        "  id STRING,"
+        "  owner STRING,"
+        "  trigger STRING,"
+        "  element STRING,"
+        "  handler STRING,"
+        "  effect STRING,"
+        "  PRIMARY KEY(id)"
+        ")"
+    ),
+    (
         "CREATE NODE TABLE Asset("
         "  id STRING,"          # sha256 of the content
         "  mime STRING,"
@@ -195,6 +207,9 @@ _REL_TABLES: list[str] = [
     "CREATE REL TABLE USES_RESOURCE(FROM Screen TO Resource)",
     # v11: the files a font or image resource is made of, each stored once by content
     "CREATE REL TABLE HAS_FILE(FROM Resource TO Asset)",
+    # v11: what a component's or screen's elements do when used
+    "CREATE REL TABLE HAS_ACTION(FROM Component TO Action)",
+    "CREATE REL TABLE SCREEN_HAS_ACTION(FROM Screen TO Action)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",

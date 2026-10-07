@@ -54,6 +54,7 @@ from design_graph.capture.html_prototype.patterns import (
     re_state_ternary_style,
 )
 from design_graph.capture.html_prototype.extraction.definition_merge import merge_definitions
+from design_graph.capture.html_prototype.extraction.action_extractor import extract_actions
 from design_graph.capture.html_prototype.extraction.icon_extractor import extract_icons
 from design_graph.capture.html_prototype.extraction.jsx_sanitizer import sanitize_jsx
 from design_graph.capture.html_prototype.extraction.module_data_extractor import extract_referenced_module_data
@@ -447,6 +448,7 @@ def extract_component(
     )
 
     return ExtractedComponent(
+        actions=extract_actions(window, boundary.name),
         name=boundary.name,
         comp_type=infer_component_type(boundary.name),
         source_code=source_code,

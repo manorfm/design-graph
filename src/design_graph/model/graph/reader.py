@@ -347,7 +347,18 @@ class GraphReader(ScreenAssemblyQueries):
             "parents":         self.get_component_parents(resolved),
             "screens_using":   self.find_screens_using_comp_transitively(resolved),
             "props":           props,
+            "actions":         self.actions_of("Component", resolved),
         }
+
+    def actions_of(self, kind: str, name: str) -> list[dict]:
+        """A component's or screen's actions, in the order its source declares them."""
+        relation = "HAS_ACTION" if kind == "Component" else "SCREEN_HAS_ACTION"
+        return self._q(
+            f"MATCH (n:{kind} {{name:$n}})-[r:{relation}]->(a:Action) "
+            "RETURN a.trigger AS trigger, a.element AS element, a.handler AS handler, a.effect AS effect "
+            "ORDER BY offset(ID(r))",
+            {"n": name},
+        )
 
     def get_component_props(self, name: str) -> list[dict]:
         """
@@ -525,7 +536,7 @@ class GraphReader(ScreenAssemblyQueries):
                 "children":          children_by_comp.get(cname, []),
             })
 
-        return {"root": resolved, "components": components}
+        return {"root": resolved, "components": self._with_actions(components)}
 
     def get_build_diff(self) -> dict | None:
         """
@@ -820,6 +831,13 @@ class GraphReader(ScreenAssemblyQueries):
         """Every declared prop, with its component."""
         return self._q(
             "MATCH (c:Component)-[:HAS_PROP]->(p:ComponentProp) RETURN c.name AS component, p.prop_name AS prop"
+        )
+
+    def list_actions(self) -> list[dict]:
+        """Every action, with the component or screen it belongs to."""
+        return self._q(
+            "MATCH (a:Action) RETURN a.owner AS owner, a.trigger AS trigger, a.element AS element, "
+            "a.handler AS handler, a.effect AS effect"
         )
 
     def list_sources(self) -> list[dict]:
@@ -1182,7 +1200,7 @@ class GraphReader(ScreenAssemblyQueries):
             "reader: get_screen_full(%s) — %d sections, %d components",
             resolved, len(section_rows), len(comp_rows),
         )
-        return {**_assemble_screen_full(
+        full = _assemble_screen_full(
             screen_meta=s,
             section_rows=section_rows,
             sec_style_rows=sec_style_rows,
@@ -1194,7 +1212,22 @@ class GraphReader(ScreenAssemblyQueries):
             comp_interact_rows=comp_interact_rows,
             comp_prop_rows=comp_prop_rows,
             comp_children_rows=comp_children_rows,
-        ), "relations": self.get_screen_relations(s["s.name"]), "styles": self._screen_styles(s["s.name"])}
+        )
+        full["components"] = self._with_actions(full["components"])
+        return {**full, "relations": self.get_screen_relations(s["s.name"]), "styles": self._screen_styles(s["s.name"])}
+
+    def _with_actions(self, components: list[dict]) -> list[dict]:
+        """The components, each with its actions — read for all of them at once."""
+        rows = self._q(
+            "UNWIND $names AS cn MATCH (c:Component {name:cn})-[r:HAS_ACTION]->(a:Action) "
+            "RETURN c.name AS name, a.trigger AS trigger, a.element AS element, a.handler AS handler, "
+            "a.effect AS effect ORDER BY c.name, offset(ID(r))",
+            {"names": [c["name"] for c in components]},
+        )
+        by_name: dict[str, list[dict]] = defaultdict(list)
+        for row in rows:
+            by_name[row.pop("name")].append(row)
+        return [{**c, "actions": by_name.get(c["name"], [])} for c in components]
 
     def _screen_styles(self, name: str) -> list[dict]:
         """The screen's own elements' styles, in the order the page declares them."""
