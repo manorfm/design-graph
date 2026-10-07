@@ -35,6 +35,7 @@ from design_graph.capture.html_prototype.extraction.component_extractor import (
 )
 from design_graph.capture.html_prototype.extraction.module_text_extractor import extract_module_level_texts
 from design_graph.capture.html_prototype.extraction.plain_html_component_extractor import dom_patterns_to_extracted_components
+from design_graph.capture.html_prototype.extraction.hook_extractor import extract_hooks, hooks_called
 from design_graph.capture.html_prototype.extraction.screen_extractor import extract_screens, is_screen
 from design_graph.capture.html_prototype.extraction.section_extractor import extract_sections, extract_sections_for_plain_html
 from design_graph.capture.html_prototype.parsing.css_class_resolver import (
@@ -44,7 +45,9 @@ from design_graph.capture.html_prototype.parsing.css_class_resolver import (
 )
 from design_graph.capture.html_prototype.parsing.format_detector import PLAIN_HTML
 from design_graph.capture.html_prototype.parsing.html_parser import extract_dom_patterns
-from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries, find_module_level_constants
+from design_graph.capture.html_prototype.parsing.js_parser import (
+    find_all_boundaries, find_hook_boundaries, find_module_level_constants,
+)
 from design_graph.capture.html_prototype.parsing.palette_extractor import discover_prototype_palette
 from design_graph.capture.html_prototype.parsing.source_loader import decompose
 from design_graph.capture.html_prototype.parsing.token_extractor import extract_tokens
@@ -178,6 +181,8 @@ async def extract_react(
             aliases, extracted_comps, screens, sections_map,
         )
 
+    extracted_comps, screens = _with_hooks(sources.js, extracted_comps, screens)
+
     # A single-page app loads everything for every screen it renders.
     resource_ids = [resource.id for resource in sources.resources]
     screens = [replace(screen, resource_ids=resource_ids) for screen in screens]
@@ -192,6 +197,19 @@ async def extract_react(
         resources=list(sources.resources),
         skipped_entries=sources.skipped_entries,
     ), _JSX)
+
+
+def _with_hooks(
+    js: str, components: list[ExtractedComponent], screens: list[ExtractedScreen],
+) -> tuple[list[ExtractedComponent], list[ExtractedScreen]]:
+    """The prototype's own hooks join the components, and every component and screen names the hooks it calls."""
+    hooks = extract_hooks(js, find_hook_boundaries(js))
+    if not hooks:
+        return components, screens
+    names = [hook.name for hook in hooks]
+    components = [replace(c, hook_refs=hooks_called(c.source_code, names)) for c in components]
+    screens = [replace(s, hook_refs=hooks_called(s.source_code, names)) for s in screens]
+    return components + hooks, screens
 
 
 def _split_screens_from_components(

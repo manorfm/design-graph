@@ -344,6 +344,7 @@ class GraphWriter:
         self._write_component_props(comp.name, comp.props)
         self._write_actions("HAS_ACTION", comp.name, comp.actions)
         self._write_states("HAS_STATE", comp.name, comp.states)
+        self._write_hooks("USES_HOOK", comp.name, comp.hook_refs)
         self._write_component_children(comp)
 
     def _write_component_styles(self, comp: ExtractedComponent) -> None:
@@ -468,6 +469,7 @@ class GraphWriter:
             self._rows.add_rel("SCREEN_HAS_STYLE", screen.name, style.id)
         self._write_actions("SCREEN_HAS_ACTION", screen.name, screen.actions)
         self._write_states("SCREEN_HAS_STATE", screen.name, screen.states)
+        self._write_hooks("SCREEN_USES_HOOK", screen.name, screen.hook_refs)
         for resource_id in dict.fromkeys(screen.resource_ids):
             self._rows.add_rel("USES_RESOURCE", screen.name, resource_id)
 
@@ -609,6 +611,12 @@ class GraphWriter:
             entry = TextEntry.for_section(section_id=section_id, text=text)
             if self._put_text_once(entry):
                 self._rows.add_rel("SECTION_HAS_TEXT", section_id, entry.id)
+
+    def _write_hooks(self, relation: str, caller: str, hooks: list[str]) -> None:
+        """Link a component or screen to each of the prototype's own hooks it calls."""
+        for hook in dict.fromkeys(hooks):
+            self._ensure_component_exists(hook)
+            self._rows.add_rel(relation, caller, hook)
 
     def _ensure_component_exists(self, name: str) -> None:
         """Collect a minimal 'shell' component unless one by that name already was."""

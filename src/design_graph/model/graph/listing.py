@@ -54,6 +54,15 @@ class CatalogQueries:
             {"n": name},
         )
 
+    def hooks_of(self, kind: str, name: str) -> list[str]:
+        """The prototype's own hooks a component or screen calls, in the order it calls them."""
+        relation = "USES_HOOK" if kind == "Component" else "SCREEN_USES_HOOK"
+        rows = self._q(
+            f"MATCH (n:{kind} {{name:$n}})-[r:{relation}]->(h:Component) RETURN h.name AS name ORDER BY offset(ID(r))",
+            {"n": name},
+        )
+        return [row["name"] for row in rows]
+
     def list_sections(self) -> list[dict]:
         """Every section, with the screen it belongs to — so a section id can be shown as "Tela › Seção"."""
         return self._q("MATCH (sec:Section) RETURN sec.id AS id, sec.screen AS screen, sec.name AS name")

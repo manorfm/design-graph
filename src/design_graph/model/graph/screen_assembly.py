@@ -20,8 +20,8 @@ class ScreenAssemblyQueries:
         """
         Everything needed to build one screen, each piece once: the screen's
         own source (its skeleton), every component it renders — directly or
-        nested — in the order it renders them, and the tokens and resources
-        the screen uses.
+        nested — in the order it renders them, then the prototype's own hooks
+        they call, and the tokens and resources the screen uses.
         """
         resolved = self._fuzzy_find_screen(name)
         if not resolved:
@@ -30,12 +30,13 @@ class ScreenAssemblyQueries:
             "MATCH (s:Screen {name:$n}) RETURN s.source_code AS source, s.skeleton AS skeleton, s.source_lang AS lang",
             {"n": resolved},
         )[0]
+        skeleton = screen["skeleton"] or screen["source"] or ""
         return {
             "name": resolved,
-            "skeleton": self._resolve_icons(screen["skeleton"] or screen["source"] or ""),
+            "skeleton": self._resolve_icons(skeleton),
             "source_lang": screen["lang"] or "",
             "relations": self.get_screen_relations(resolved),
-            "components": self._assembly_components(screen["skeleton"] or screen["source"] or ""),
+            "components": self._with_hooks(resolved, self._assembly_components(skeleton)),
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
             "actions": self.actions_of("Screen", resolved),
@@ -59,6 +60,20 @@ class ScreenAssemblyQueries:
             order += fresh
             pending = [tag for name in fresh for tag in _tags_in(components[name]["source_code"])]
         return [components[name] for name in order]
+
+    def _with_hooks(self, screen: str, components: list[dict]) -> list[dict]:
+        """The components, then every hook the screen, they or those hooks call — each once, first call first."""
+        known = {c["name"] for c in components}
+        pending = self.hooks_of("Screen", screen)
+        pending += [hook for c in components for hook in self.hooks_of("Component", c["name"])]
+        hooks: list[dict] = []
+        while pending:
+            fresh = [name for name in dict.fromkeys(pending) if name not in known]
+            known.update(fresh)
+            found = self._components_named(fresh)
+            hooks += [found[name] for name in fresh if name in found]
+            pending = [h for name in fresh for h in self.hooks_of("Component", name)]
+        return components + hooks
 
     def _components_named(self, names: list[str]) -> dict[str, dict]:
         """Each existing component among `names`, by exact name, with its props."""

@@ -13,8 +13,8 @@ from design_graph.model.graph.writer import GraphWriter
 REACT = Resource.create(ResourceKind.LIBRARY, "react", "18.3.1", origin="embutido no protótipo", certainty=Certainty.STATED)
 
 
-def _comp(name, source, child_refs=(), styles=(), **extra):
-    return ExtractedComponent(name=name, comp_type="component", source_code=source, occurrence=1, classes="",
+def _comp(name, source, child_refs=(), styles=(), comp_type="component", **extra):
+    return ExtractedComponent(name=name, comp_type=comp_type, source_code=source, occurrence=1, classes="",
                               child_refs=list(child_refs), styles=list(styles), source_lang="jsx", **extra)
 
 
@@ -129,3 +129,22 @@ def test_states_are_read_with_their_component_and_screen(tmp_path):
     assembly = reader.get_screen_assembly("Page")
     assert assembly["states"] == [{"name": "view", "initial": "'apps'"}]
     assert assembly["components"][0]["states"] == [{"name": "open", "initial": "false"}]
+
+
+def test_the_hooks_the_screen_and_its_components_call_come_after_the_components_each_once(tmp_path):
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "hooks.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Panel", "function Panel() { useGuard(); return <div/>; }", hook_refs=["useGuard"]))
+    w.write_component(_comp("useEsc", "function useEsc() {}", comp_type="hook"))
+    w.write_component(_comp("useGuard", "const useGuard = () => { useEsc(); }", comp_type="hook", hook_refs=["useEsc"]))
+    w.write_screen(ExtractedScreen(name="Home", component_refs=["Panel"], hook_refs=["useGuard"],
+                                   source_code="function Home() { useGuard(); return <main><Panel/></main>; }"), [])
+    w.commit()
+    reader = GraphReader(conn)
+    assembly = reader.get_screen_assembly("Home")
+    assert [(c["name"], c["comp_type"]) for c in assembly["components"]] == [
+        ("Panel", "component"), ("useGuard", "hook"), ("useEsc", "hook"),
+    ]
+    assert reader.get_component_spec("Panel")["hooks"] == ["useGuard"]
+    assert reader.get_component_spec("useGuard")["hooks"] == ["useEsc"]

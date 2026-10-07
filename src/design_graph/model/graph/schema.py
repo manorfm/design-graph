@@ -23,7 +23,8 @@ Schema changes:
        removed); no per-component caps, so truncated_fields is removed too;
        SCREEN_HAS_STYLE for a screen's own elements; Resource nodes and USES_RESOURCE;
        Screen.skeleton (the source with component occurrences as instance tags); Asset files;
-       Action nodes (HAS_ACTION, SCREEN_HAS_ACTION); State nodes (HAS_STATE, SCREEN_HAS_STATE)
+       Action nodes (HAS_ACTION, SCREEN_HAS_ACTION); State nodes (HAS_STATE, SCREEN_HAS_STATE);
+       the prototype's own hooks as Components of type hook (USES_HOOK, SCREEN_USES_HOOK)
 """
 
 from __future__ import annotations
@@ -222,6 +223,8 @@ _REL_TABLES: list[str] = [
     # v11: what a component or screen remembers between interactions
     "CREATE REL TABLE HAS_STATE(FROM Component TO State)",
     "CREATE REL TABLE SCREEN_HAS_STATE(FROM Screen TO State)",
+    "CREATE REL TABLE USES_HOOK(FROM Component TO Component)",
+    "CREATE REL TABLE SCREEN_USES_HOOK(FROM Screen TO Component)",
     "CREATE REL TABLE USES_TOKEN(FROM Component TO Token)",
     "CREATE REL TABLE COMP_HAS_TEXT(FROM Component TO UIText)",
     "CREATE REL TABLE HAS_INTERACTION(FROM Component TO Interaction)",

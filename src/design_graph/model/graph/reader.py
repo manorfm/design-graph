@@ -350,6 +350,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
             "props":           props,
             "actions":         self.actions_of("Component", resolved),
             "states":          self.states_of("Component", resolved),
+            "hooks":           self.hooks_of("Component", resolved),
         }
 
     def get_component_props(self, name: str) -> list[dict]:

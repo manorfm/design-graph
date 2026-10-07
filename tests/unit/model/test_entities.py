@@ -144,7 +144,7 @@ class TestComponentType:
     def test_members(self):
         assert {m.value for m in ComponentType} == {
             "modal", "screen", "button", "card", "tab", "form", "list-item",
-            "badge", "chart", "navigation", "toggle", "table", "component",
+            "badge", "chart", "navigation", "toggle", "table", "hook", "component",
         }
 
 

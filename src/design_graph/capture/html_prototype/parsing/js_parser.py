@@ -18,7 +18,9 @@ from dataclasses import dataclass
 
 from design_graph.capture.html_prototype.constants import JS_FUNCTION_FALLBACK_WINDOW, JS_FUNCTION_SCAN_LIMIT
 from design_graph.capture.html_prototype.sources import FunctionBoundary
-from design_graph.capture.html_prototype.patterns import RE_COMP_ARROW_FN, RE_COMP_FN, RE_VISUAL_RETURN
+from design_graph.capture.html_prototype.patterns import (
+    RE_COMP_ARROW_FN, RE_COMP_FN, RE_HOOK_ARROW_FN, RE_HOOK_FN, RE_VISUAL_RETURN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -496,6 +498,11 @@ def find_all_boundaries(js: str) -> list[FunctionBoundary]:
     """
     raw = _raw_boundaries(js, RE_COMP_FN) + _raw_boundaries(js, RE_COMP_ARROW_FN)
     return _clip_sibling_overlaps(raw)
+
+
+def find_hook_boundaries(js: str) -> list[FunctionBoundary]:
+    """Boundaries of the prototype's own hooks (`function useX(` / `const useX = (`), in source order."""
+    return _clip_sibling_overlaps(_raw_boundaries(js, RE_HOOK_FN) + _raw_boundaries(js, RE_HOOK_ARROW_FN))
 
 
 # ── Object-literal parsing (style={{...}} and spread-source const objects) ─────

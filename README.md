@@ -524,6 +524,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Tailwind utility and custom CSS class resolution, attributed per selector; shared classes stay discoverable via search and `get_component`
 - Each component's and screen's whole function as its source — hooks, handlers, lists and conditions included; children rendered behind lists, conditions and ternaries still linked
 - Module-level data a component references (e.g. icon tables) attached verbatim
+- The prototype's own hooks (`useDirtyGuard`, `useTweaks`) kept whole as components of type `hook`, with their states and actions, linked to every component and screen that calls them and sent along by `assemble_page`
 - External/library component references kept visible instead of dropped
 
 **DC canvas**

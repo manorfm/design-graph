@@ -150,6 +150,10 @@ def get_component_spec(reader: GraphReader, name: str) -> str:
     if spec.get("actions"):
         lines.append("\n## Ações")
         lines.extend(action_lines(spec["actions"]))
+    if spec.get("hooks"):
+        lines.append("\n## Hooks")
+        hooks = ", ".join(f"`{hook}`" for hook in spec["hooks"])
+        lines.append(f"- {hooks} — get_component(name) traz cada um inteiro")
     if spec.get("referenced_data"):
         lines.append("\n## Dados referenciados")
         lines.append(

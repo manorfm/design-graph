@@ -63,6 +63,10 @@ RE_COMP_FN = re.compile(r'function ([A-Z][a-zA-Z0-9]{2,})\s*\(')
 # js_parser.body_start()/function_end() pick the right delimiter pair per case.
 RE_COMP_ARROW_FN = re.compile(r'const ([A-Z][a-zA-Z0-9]{2,})\s*=\s*\(')
 
+# The prototype's own hooks, in the same two declaration forms: function useX( / const useX = (
+RE_HOOK_FN = re.compile(r'function (use[A-Z][a-zA-Z0-9]*)\s*\(')
+RE_HOOK_ARROW_FN = re.compile(r'const (use[A-Z][a-zA-Z0-9]*)\s*=\s*\(')
+
 # A function is visual only when its return expression creates JSX/HTML.
 # Supports source JSX and common compiled jsx/jsxs factory calls, from either
 # an explicit `return` statement or an arrow function's implicit `=>` return.

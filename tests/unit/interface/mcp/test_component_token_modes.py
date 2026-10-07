@@ -66,3 +66,12 @@ def test_the_spec_lists_what_the_component_remembers():
 
     out = get_component_spec(_WithState(), "Sidebar")
     assert "## Estado" in out and "- `open` = `false`" in out
+
+
+def test_the_spec_names_the_hooks_it_calls():
+    class _WithHooks(_Reader):
+        def get_component_spec(self, name):
+            return {**super().get_component_spec(name), "hooks": ["useDirtyGuard", "useEscClose"]}
+
+    out = get_component_spec(_WithHooks(), "Sidebar")
+    assert "## Hooks\n- `useDirtyGuard`, `useEscClose` — get_component(name) traz cada um inteiro" in out

@@ -127,6 +127,7 @@ class ComponentType(StrEnum):
     NAVIGATION = "navigation"
     TOGGLE = "toggle"
     TABLE = "table"
+    HOOK = "hook"            # the prototype's own hook (useX): logic its callers share, no markup of its own
     COMPONENT = "component"  # fallback/unknown
 
 
@@ -463,6 +464,7 @@ class ExtractedComponent:
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     actions: list[Action] = field(default_factory=list)  # what its elements do when used
     states: list[State] = field(default_factory=list)    # what it remembers between interactions
+    hook_refs: list[str] = field(default_factory=list)   # names of the prototype's own hooks it calls
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
@@ -501,6 +503,7 @@ class ExtractedScreen:
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code
     actions: list[Action] = field(default_factory=list)  # what its elements do when used
     states: list[State] = field(default_factory=list)    # what it remembers between interactions
+    hook_refs: list[str] = field(default_factory=list)   # names of the prototype's own hooks it calls
     source_lang: str = ""
     styles: list[StyleEntry] = field(default_factory=list)  # the page's own elements around its sections, by path
     resource_ids: list[str] = field(default_factory=list)  # ids of the Resources this screen loads
