@@ -168,7 +168,26 @@ class TestNamesNeverLeakFromOneScreen:
         return next(name for name, c in components.items() if c.source_code.startswith('<div style="font-size'))
 
     def test_a_piece_living_in_differently_named_blocks_is_named_by_what_it_is(self, tmp_path):
-        assert self._number(tmp_path, ["Convites e participação", "Visão por público", "Laudo"]) == "Tag"
+        assert self._number(tmp_path, ["Convites e participação", "Visão por público", "Laudo"]) == "LargeTag"
+
+    def test_a_shared_piece_is_told_apart_by_at_most_two_traits_it_shows_everywhere(self, tmp_path):
+        label = '<div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em">{}</div>'
+        pages = [
+            Page(f"{n} · Tela {n}", f'<main><section aria-label="{block}">{label.format(f"Rótulo {n}")}<p>T {n}</p>'
+                                    "</section><p>Fim</p></main>")
+            for n, block in enumerate(["Achados", "Leitura geral", "Incidentes"], start=1)
+        ]
+        assert "CapsBoldTag" in _components(tmp_path, pages)
+
+    def test_a_semantic_element_is_named_by_what_it_is(self, tmp_path):
+        pages = [
+            Page(f"{n} · Tela {n}", f'<main><fieldset style="border: 0; display: flex; gap: 8px">'
+                                    f'<legend style="font-weight: 600; margin: 0; padding: 0">Pergunta {n}</legend>'
+                                    f"<p>Opção {n}</p></fieldset><p>Fim</p></main>")
+            for n in (1, 2, 3)
+        ]
+        names = set(_components(tmp_path, pages))
+        assert {"BoldLegend", "Fieldset"} <= names
 
     def test_a_label_that_varies_between_occurrences_does_not_name_the_component(self, tmp_path):
         names = set(_components(tmp_path, self._pages(["Convites e participação", "Visão por público", "Laudo"])))
@@ -204,3 +223,12 @@ def test_each_component_is_reported_as_it_is_extracted(tmp_path):
     ))
     total = len(result.components)
     assert reported == [(c.name, n, total) for n, c in enumerate(result.components, start=1)]
+
+
+def test_a_shared_container_is_named_by_what_it_holds(tmp_path):
+    pages = [
+        Page(f"{n} · Tela {n}", f'<main><section aria-label="Bloco {n}"><div style="display: flex; flex-direction: column; gap: 8px">'
+                                f"<h2>Título {n}</h2><p>Texto {n}</p></div></section><p>Fim</p></main>")
+        for n in (1, 2, 3)
+    ]
+    assert "HeadingStack" in _components(tmp_path, pages)

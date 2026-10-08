@@ -534,7 +534,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - Custom properties per theme selector, named after the enum option (e.g. `tema`: claro/escuro) that switches them on
 - Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items
 - Every list a loop item repeats over attached as referenced data, read from the page logic without running it: lists written literally (JSON or JavaScript syntax), built by calls to a local factory (`mk('cap', 'Por capacidade')`), or sliced and mapped from such a list; a list computed any other way is left out rather than guessed
-- Components named only by what all their occurrences share — list, label, copy or block — and otherwise by what they are (`Heading`, `Tag`, `Dot`), never after the screen where one of them happens to live
+- Components named only by what all their occurrences share — list, label, copy or block — and otherwise by what they are, told apart by what they look like everywhere (`CapsBoldTag`, `SerifLargeHeading`) or, for a container, by what it holds (`HeadingStack`); never after the screen where one of them happens to live
 - `<sc-for>`, `<sc-if>` and `<sc-raw-*>` read without rewriting the stored template
 - The inline style of every element, attributed by its path (`ul > li:2 > span`) to the section, component or page that contains it
 - Events (`sc-camel-on-click="{{o.pick}}"`) read in the page logic of the list that repeats the element, states from `this.state` defaults, and a style chosen by a selection ternary kept as the component's default and selected styles

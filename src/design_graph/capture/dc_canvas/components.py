@@ -19,6 +19,7 @@ from bs4 import Tag
 
 from design_graph.capture.dc_canvas.instances import representative
 from design_graph.capture.dc_canvas.logic import selection_branches
+from design_graph.capture.dc_canvas.traits import main_content, shared_traits
 from design_graph.capture.dc_canvas.sections import block_name
 from design_graph.capture.dc_canvas.template import (
     INTERPOLATION,
@@ -68,6 +69,9 @@ _RE_MEMBER = re.compile(r"\{\{\s*(?:[\w$]+\.)*([\w$]+)\s*\}\}")
 _RE_ITEM = re.compile(r"\{\{\s*([\w$]+)\.")
 _MAX_NAME_WORDS = 3
 _MAX_CONTEXT_WORDS = 2
+_MAX_TRAITS = 2
+# Roles that only arrange other elements: named by what they hold when nothing else tells them apart.
+_CONTAINER_ROLES = {"Stack", "Row", "Grid", "Group", "Card"}
 # Articles, prepositions and conjunctions carry no meaning in a name ("Convites e participação" → ConvitesParticipação).
 _LITTLE_WORDS = frozenset(
     "a o as os um uma de da do das dos e ou em no na nos nas por para com que se the of and or to in on for".split()
@@ -77,6 +81,7 @@ _SVG_MARKS = ("path", "line", "polyline", "polygon", "rect", "circle", "ellipse"
 _ROLE_BY_TAG = {
     "td": "Cell", "th": "Cell", "tr": "Row", "li": "Item", "ul": "List", "ol": "List", "img": "Image",
     "p": "Text", "label": "Label", "svg": "Chart", **{f"h{n}": "Heading" for n in range(1, 7)},
+    "legend": "Legend", "fieldset": "Fieldset", "figure": "Figure", "figcaption": "Caption",
     **{mark: "ChartMark" for mark in _SVG_MARKS},
 }
 
@@ -117,19 +122,24 @@ def infer_components(
     occurrences, loop_lists = _occurrences(blocks_by_screen)
     promoted = [signature for signature in occurrences if _is_repeated(signature, occurrences, loop_lists)]
     result = CanvasComponents(components=[])
-    block_of = _blocks_by_element(blocks_by_screen)
+    _name_promoted(promoted, occurrences, result.name_of, _blocks_by_element(blocks_by_screen))
+    details = _Details(tag_rules or {}, loop_data or _no_loop_data, handler_of or _no_handler)
+    report = on_component or _no_progress
+    for index, signature in enumerate(promoted, start=1):
+        result.components.append(_component(occurrences[signature], result, details, loop_lists.get(signature)))
+        report(result.components[-1].name, index, len(promoted))
+    return result
+
+
+def _name_promoted(
+    promoted: list[str], occurrences: dict[str, list[tuple[str, Tag]]], name_of: dict[int, str], block_of: dict[int, str],
+) -> None:
+    """Give each promoted structure a unique name, recorded for every element showing it."""
     used: set[str] = set()
     for signature in promoted:
         elements = [element for _, element in occurrences[signature]]
-        name = _unique(_name(elements, result.name_of, block_of), used)
-        result.name_of.update({id(element): name for element in elements})
-    details = _Details(tag_rules or {}, loop_data or _no_loop_data, handler_of or _no_handler)
-    for index, signature in enumerate(promoted, start=1):
-        component = _component(occurrences[signature], result, details, loop_lists.get(signature))
-        result.components.append(component)
-        if on_component:
-            on_component(component.name, index, len(promoted))
-    return result
+        name = _unique(_name(elements, name_of, block_of), used)
+        name_of.update({id(element): name for element in elements})
 
 
 @dataclass(frozen=True)
@@ -143,6 +153,10 @@ def fragment_component(root: Tag) -> ExtractedComponent:
     """A standalone fragment read as one component, outside any canvas."""
     found = CanvasComponents(components=[], name_of={id(root): "Fragment"})
     return _component([("", root)], found, _Details({}, _no_loop_data, _no_handler), None)
+
+
+def _no_progress(name: str, index: int, total: int) -> None:
+    return None
 
 
 def _no_loop_data(screen: str, name: str) -> None:
@@ -242,7 +256,9 @@ def _name(elements: list[Tag], name_of: dict[int, str], block_of: dict[int, str]
     block it lives in and what it is (`PerspectivasCapacidadesCell`).
     Every one of these must be shared by all the occurrences: a list, label,
     container or block only one of them has would name the component after
-    one screen, so the name falls back to what it is.
+    one screen, so the name falls back to what it is, told apart by what it
+    looks like everywhere (`CapsBoldTag`, `SerifLargeHeading`) or, for a
+    container, by what it holds (`HeadingStack`).
     """
     explicit = _explicit_name(elements)
     if explicit:
@@ -256,9 +272,22 @@ def _name(elements: list[Tag], name_of: dict[int, str], block_of: dict[int, str]
     copy = _short_shared_copy(elements)
     if copy:
         return _pascal(copy)
+    return _qualifier(elements, block_of) + _role(example)
+
+
+def _qualifier(elements: list[Tag], block_of: dict[int, str]) -> str:
+    """
+    What goes before the role: the block every occurrence lives in, else up
+    to two traits they all show, else — for a container — what it holds.
+    """
     block = _shared(block_of.get(id(element), "") for element in elements) or ""
     context = " ".join(word for word in block.split() if word.lower() not in _LITTLE_WORDS)
-    return (_pascal(context, _MAX_CONTEXT_WORDS) if context else "") + _role(example)
+    if context:
+        return _pascal(context, _MAX_CONTEXT_WORDS)
+    looks = "".join(shared_traits(elements)[:_MAX_TRAITS])
+    if looks or _role(elements[0]) not in _CONTAINER_ROLES:
+        return looks
+    return main_content(elements[0])
 
 
 def _short_shared_copy(elements: list[Tag]) -> str | None:
