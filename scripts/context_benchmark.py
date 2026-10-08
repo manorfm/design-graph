@@ -48,13 +48,9 @@ from enum import Enum
 from pathlib import Path
 
 import kuzu
-from bs4 import BeautifulSoup, Comment
 
 from design_graph.capture.base import PrototypeDocument
-from design_graph.capture.bundler import read_bundle
-from design_graph.capture.dc_canvas.canvas import read_boards
 from design_graph.capture.dc_canvas.instances import expand_skeleton
-from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.html_prototype.parsing.js_parser import find_all_boundaries
 from design_graph.capture.html_prototype.parsing.source_loader import decompose
 from design_graph.capture.registry import capture_for
@@ -63,10 +59,8 @@ from design_graph.interface.mcp.tools import ToolDispatcher
 from design_graph.model.graph.reader import GraphReader
 from design_graph.pipeline.build_progress import SilentBuildReporter
 from design_graph.pipeline.coordinator import run_pipeline
+from prototype_truth import dc_pages, normalized_declaration, rendering_difference, style_declarations, visible_texts
 
-_NOT_RENDERED = {"script", "style", "helmet", "template"}
-_INTERPOLATION = "{{"
-_RE_STYLE_ATTRIBUTE = re.compile(r'style="([^"]*)"')
 _RE_STYLE_ROW = re.compile(r"^\|\s*([a-z-]+)\s*\|\s*([^|]+?)\s*\|\s*$", re.MULTILINE)
 _RE_STYLE_ITEM = re.compile(r"`([a-z-]+)`: `([^`]+)`")
 _RE_RECOVERY_CALL = re.compile(r"get_full\(([^()]*)\)")
@@ -88,57 +82,17 @@ class SearchVerdict(str, Enum):
 
 # ── Ground truth ──────────────────────────────────────────────────────────────
 
-def visible_texts(markup: str) -> set[str]:
-    """Every literal text node a reader of the page sees, whitespace-collapsed."""
-    texts = set()
-    for node in BeautifulSoup(markup, "html.parser").find_all(string=True):
-        if isinstance(node, Comment) or any(p.name in _NOT_RENDERED for p in node.parents if p.name):
-            continue
-        text = " ".join(node.split())
-        if text and _INTERPOLATION not in text:
-            texts.add(text)
-    return texts
-
-
-def style_declarations(markup: str) -> set[str]:
-    """Every literal inline style declaration, normalized as `property: value`."""
-    return {
-        declaration
-        for attribute in _RE_STYLE_ATTRIBUTE.findall(markup)
-        for declaration in map(_normalized_declaration, attribute.split(";"))
-        if declaration
-    }
-
-
-def _normalized_declaration(raw: str) -> str | None:
-    prop, sep, value = raw.partition(":")
-    prop, value = prop.strip().lower(), " ".join(value.split())
-    if not sep or not prop or not value or _INTERPOLATION in value:
-        return None
-    return f"{prop}: {value}"
-
-
 def page_markups(document: PrototypeDocument, capture: str) -> dict[str, str] | None:
     """Screen name → the markup that screen renders, when the format has it statically."""
     if capture != "dc_canvas":
         return None
-    return {name: page.markup for name, page in _dc_pages(document).items()}
-
-
-def _dc_pages(document: PrototypeDocument) -> dict[str, DcPage]:
-    bundle = read_bundle(document.text)
-    pages = {}
-    for board in read_boards(bundle.template):
-        page = read_page(bundle.entry(board.page_id).decode("utf-8", errors="replace"))
-        if page is not None:
-            pages[board.name] = page
-    return pages
+    return {name: page.markup for name, page in dc_pages(document).items()}
 
 
 def prototype_text(document: PrototypeDocument, capture: str) -> str:
     """Everything the prototype says, readable: a DC canvas's pages, or a bundled prototype's unpacked code and page."""
     if capture == "dc_canvas":
-        return "\n".join(page.source for page in _dc_pages(document).values())
+        return "\n".join(page.source for page in dc_pages(document).values())
     sources = decompose(document)
     return f"{sources.js}\n{sources.css}\n{sources.inner_html}"
 
@@ -153,7 +107,7 @@ def round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -
     if capture == "dc_canvas":
         written = {
             name: [part for part in (page.markup, page.styles, page.logic) if part]
-            for name, page in _dc_pages(document).items()
+            for name, page in dc_pages(document).items()
         }
     else:
         js = decompose(document).js
@@ -173,18 +127,17 @@ def round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -
 
 
 def _skeleton_round_trip(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
-    """DC screens whose skeleton, expanded with the component definitions, has the same DOM as the page."""
+    """DC screens whose skeleton, expanded with the component definitions, renders exactly as the page does."""
     if capture != "dc_canvas":
         return {"skeletons_checked": 0, "skeletons_exact": 0}
     templates = {c["c.name"]: (reader.get_full_source(c["c.name"]) or {}).get("source_code", "")
                  for c in reader.list_components()}
-    dom = lambda markup: str(BeautifulSoup(markup, "html.parser"))  # noqa: E731
     checked = exact = 0
-    for name, page in _dc_pages(document).items():
+    for name, page in dc_pages(document).items():
         assembly = reader.get_screen_assembly(name)
         if assembly:
             checked += 1
-            exact += dom(expand_skeleton(assembly["skeleton"], templates)) == dom(page.source)
+            exact += rendering_difference(expand_skeleton(assembly["skeleton"], templates), page.markup) is None
     return {"skeletons_checked": checked, "skeletons_exact": exact}
 
 
@@ -250,7 +203,7 @@ def state_names(source: str) -> set[str]:
 def behavior(document: PrototypeDocument, capture: str, reader: GraphReader) -> dict:
     """How many of the prototype's event attributes and states the graph holds as actions and states."""
     if capture == "dc_canvas":
-        pages = _dc_pages(document)
+        pages = dc_pages(document)
         events = {name: len(_RE_DC_EVENT.findall(page.markup)) for name, page in pages.items()}
         held = {name: min(count, len(reader.actions_of("Screen", name))) for name, count in events.items()}
         truth_states = {(name, state) for name, page in pages.items() for state in state_names(page.logic or "")}
@@ -299,7 +252,7 @@ def _declarations_shown(response: str) -> set[str]:
     """Style declarations a response shows — in source blocks, style tables and style lists."""
     shown = style_declarations(response)
     rows = _RE_STYLE_ROW.findall(response) + _RE_STYLE_ITEM.findall(response)
-    shown.update(filter(None, (_normalized_declaration(f"{p}: {v}") for p, v in rows)))
+    shown.update(filter(None, (normalized_declaration(f"{p}: {v}") for p, v in rows)))
     return shown
 
 
@@ -403,7 +356,7 @@ def benchmark(html: Path, workdir: Path, queries: list[str]) -> dict:
     capture = capture_for(document).name
     markups = page_markups(document, capture)
     # What renders each screen — markup, CSS and logic — is what an answer is weighed against.
-    page_sources = {name: page.source for name, page in _dc_pages(document).items()} if markups is not None else {}
+    page_sources = {name: page.source for name, page in dc_pages(document).items()} if markups is not None else {}
     db_path, build = _build(html, workdir)
     reader = GraphReader(kuzu.Connection(kuzu.Database(str(db_path), read_only=True)))
     tools = ToolDispatcher([("bench", reader)])

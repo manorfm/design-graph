@@ -23,29 +23,8 @@ from context_benchmark import (  # noqa: E402
     event_handlers,
     recovery_calls,
     state_names,
-    style_declarations,
-    visible_texts,
 )
 from tests.support.dc_canvas import Page, canvas_html  # noqa: E402
-
-
-class TestVisibleTexts:
-    def test_every_text_node_counts_whatever_its_length_or_case(self):
-        markup = "<div><p>" + "a" * 200 + "</p><span>gera</span><b> 2 </b></div>"
-        assert visible_texts(markup) == {"a" * 200, "gera", "2"}
-
-    def test_interpolations_scripts_and_styles_are_not_copy(self):
-        markup = "<div>{{o.label}}<script>var x = 1</script><style>p{}</style><p>Olá  mundo</p></div>"
-        assert visible_texts(markup) == {"Olá mundo"}
-
-
-class TestStyleDeclarations:
-    def test_literal_declarations_are_normalized(self):
-        markup = '<div style="color:var(--ink) ; Padding: 8px  16px"><p style="gap: 4px"></p></div>'
-        assert style_declarations(markup) == {"color: var(--ink)", "padding: 8px 16px", "gap: 4px"}
-
-    def test_interpolated_and_malformed_declarations_are_left_out(self):
-        assert style_declarations('<p style="color: {{o.c}}; broken; : 1px; margin: 0"></p>') == {"margin: 0"}
 
 
 class TestCoverage:
