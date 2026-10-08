@@ -44,6 +44,7 @@ class Definition:
     markup: str
     slots: list[tuple[str, str]]                      # (slot, first occurrence's value), in document order
     values: dict[int, dict[str, str]] = field(default_factory=dict)  # id(occurrence) → slot → value
+    example: Tag | None = None  # the occurrence the template is made of, as it sits in its page
 
 
 # ── Shapes and positions ──────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ def definition_of(occurrences: list[Tag]) -> Definition:
             style_slots.setdefault(id(position.node), (position.node, {}))[1][position.declaration] = slot
     for node, by_declaration in style_slots.values():
         node.attrs["style"] = _with_slots(node.attrs["style"], by_declaration)
-    return Definition(markup=str(template), slots=slots, values=values)
+    return Definition(markup=str(template), slots=slots, values=values, example=same[0])
 
 
 def _unique(name: str, used: set[str]) -> str:
@@ -181,25 +182,34 @@ def _unique(name: str, used: set[str]) -> str:
 
 # ── Skeletons ─────────────────────────────────────────────────────────────────
 
-def replace_with_instances(root: Tag, name_of: dict[int, str], definitions: dict[str, Definition]) -> list[str]:
+def fitting_occurrences(
+    root: Tag, name_of: dict[int, str], definitions: dict[str, Definition],
+) -> list[tuple[Tag, str]]:
     """
-    Swap every outermost occurrence that fits its definition for an instance
-    tag carrying its slot values; the names instantiated, in order. An
-    occurrence of another shape stays as markup, and what it holds is
-    instantiated in its place — so those names belong to the page too.
+    (element, component) of each outermost occurrence below `root` that fits
+    its definition, in order. An occurrence of another shape is not its
+    component's template, so what it holds is looked into instead — those
+    occurrences belong to whatever renders that markup.
     """
-    instantiated: list[str] = []
-    for child in list(root.children):
+    found: list[tuple[Tag, str]] = []
+    for child in root.children:
         if not isinstance(child, Tag):
             continue
         name = name_of.get(id(child))
         definition = definitions.get(name) if name else None
         if definition is not None and id(child) in definition.values:
-            child.replace_with(Tag(name=name, attrs=dict(definition.values[id(child)])))
-            instantiated.append(name)
+            found.append((child, name))
         else:
-            instantiated += replace_with_instances(child, name_of, definitions)
-    return instantiated
+            found += fitting_occurrences(child, name_of, definitions)
+    return found
+
+
+def replace_with_instances(root: Tag, name_of: dict[int, str], definitions: dict[str, Definition]) -> list[str]:
+    """Swap every outermost occurrence that fits its definition for an instance tag carrying its slot values; the names instantiated, in order."""
+    found = fitting_occurrences(root, name_of, definitions)
+    for element, name in found:
+        element.replace_with(Tag(name=name, attrs=dict(definitions[name].values[id(element)])))
+    return [name for _, name in found]
 
 
 def expand_skeleton(skeleton: str, templates: dict[str, str]) -> str:

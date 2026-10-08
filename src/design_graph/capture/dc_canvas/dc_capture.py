@@ -15,7 +15,7 @@ from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
 from design_graph.capture.dc_canvas.canvas import Board, read_boards
 from design_graph.capture.dc_canvas.page import DcPage, read_page
 from design_graph.capture.dc_canvas.components import element_actions, fragment_component, infer_components
-from design_graph.capture.dc_canvas.instances import Definition, definition_of, replace_with_instances
+from design_graph.capture.dc_canvas.instances import Definition, definition_of, fitting_occurrences, replace_with_instances
 from design_graph.capture.dc_canvas.logic import list_member, literal_lists, member_expression, state_defaults
 from design_graph.capture.dc_canvas.sections import page_blocks, page_root, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
@@ -63,7 +63,8 @@ class DcCanvasCapture:
         screens = [_screen(board, pages[board.page_id], boards, board_variants) for board in boards]
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
         definitions = _definitions(blocks, found.name_of)
-        components = [_defined(component, definitions.get(component.name)) for component in found.components]
+        components = [_defined(component, definitions.get(component.name), found.name_of, definitions)
+                      for component in found.components]
         board_page = {board.name: pages[board.page_id] for board in boards}
         for screen in screens:
             screen.sections_count = len(sections[screen.name])
@@ -127,13 +128,23 @@ def _definitions(blocks: dict[str, list[Tag]], name_of: dict[int, str]) -> dict[
     return {name: definition_of(elements) for name, elements in occurrences.items()}
 
 
-def _defined(component: ExtractedComponent, definition: Definition | None) -> ExtractedComponent:
-    """The component with its template as source and its slots as props."""
+def _defined(
+    component: ExtractedComponent, definition: Definition | None,
+    name_of: dict[int, str], definitions: dict[str, Definition],
+) -> ExtractedComponent:
+    """
+    The component with its template as source, its slots as props and, as
+    children, also what its template renders inside markup of another
+    component's other shape — reached by no definition but this one.
+    """
     if definition is None:
         return component
+    inside = [name for _, name in fitting_occurrences(definition.example, name_of, definitions)] \
+        if definition.example is not None else []
     return replace(
         component, source_code=definition.markup,
         props=[ComponentProp.create(component.name, slot, value) for slot, value in definition.slots],
+        child_refs=list(dict.fromkeys(component.child_refs + inside)),
     )
 
 

@@ -245,3 +245,20 @@ def test_a_component_a_screen_renders_inside_raw_markup_is_used_by_that_screen(t
     item = next(c.name for c in result.components if c.name.endswith("Item"))
     assert f"<{item} " in screens["Tela 3"].skeleton or f"<{item}>" in screens["Tela 3"].skeleton
     assert item in screens["Tela 3"].component_refs
+
+
+def test_a_component_nested_in_another_shape_of_its_parent_is_that_definition_child(tmp_path):
+    """A wrapper whose inner box differs on one screen: what that box holds there belongs to the wrapper's definition."""
+    box = '<div{extra} style="border: 1px solid red; padding: 8px; display: flex"><h2>Título</h2><div>{inner}</div></div>'
+    plain = box.format(extra="", inner="<p>texto</p>")
+    odd = box.format(extra=' title="leitura"', inner='<sc-for list="{{faixas}}" as="o"><button type="button">{{o.label}}</button></sc-for>')
+    wrapper = '<section style="display: grid; gap: 12px; padding: 4px">{}<p>Rodapé</p></section>'
+    # The box alone keeps its common shape on four screens; the wrapper, on three, holds the box's other shape.
+    pages = [Page(f"{n} · Tela {n}", f"<main>{plain}<p>Fim {n}</p></main>") for n in (1, 2, 3, 4)]
+    pages += [Page(f"{n} · Tela {n}", f"<main>{wrapper.format(odd)}<p>Fim {n}</p></main>") for n in (5, 6, 7)]
+    result = _capture(tmp_path, pages)
+    components = {c.name: c for c in result.components}
+    item = next(name for name in components if name.endswith("Item"))
+    holders = [c.name for c in result.components if item in c.child_refs]
+    screens = [s.name for s in result.screens if item in s.component_refs]
+    assert holders or screens, f"{item} is reached by no component and no screen"
