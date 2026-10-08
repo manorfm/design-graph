@@ -32,6 +32,22 @@ def _belongs_to(key: str, screen: str, data: dict, named: set[str]) -> bool:
     return f"{base}{_SCREEN_SEPARATOR}{screen}" not in data
 
 
+# A template loop over a list the page names — `list="{{rows}}"` — never an item's member (`{{u.items}}`) or a slot.
+_RE_LOOP_LIST = re.compile(r"""\blist\s*=\s*["']\{\{\s*([A-Za-z_$][\w$]*)\s*\}\}["']""")
+
+
+def _unread_lists(skeleton: str, components: list[dict], data: list[dict]) -> list[str]:
+    """
+    The lists the screen repeats — in its skeleton, its instances or its
+    components' templates — that no data entry holds: built by the page's
+    logic at run time, so only that logic tells what they contain.
+    """
+    held = {entry["key"].partition(_SCREEN_SEPARATOR)[0] for entry in data}
+    repeated = _RE_LOOP_LIST.findall(skeleton)
+    repeated += [name for c in components for name in _RE_LOOP_LIST.findall(c["source_code"])]
+    return [name for name in dict.fromkeys(repeated) if name not in held]
+
+
 class ScreenAssemblyQueries:
     """GraphReader's screen-assembly queries (relies on its _q, _resolve_icons and lookups)."""
 
@@ -51,13 +67,15 @@ class ScreenAssemblyQueries:
         )[0]
         skeleton = screen["skeleton"] or screen["source"] or ""
         components = self._with_hooks(resolved, self._assembly_components(skeleton))
+        data = self._screen_data(resolved, skeleton, components)
         return {
             "name": resolved,
             "skeleton": self._resolve_icons(skeleton),
             "source_lang": screen["lang"] or "",
             "relations": self.get_screen_relations(resolved),
             "components": components,
-            "data": self._screen_data(resolved, skeleton, components),
+            "data": data,
+            "unread_lists": _unread_lists(skeleton, components, data),
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
             "actions": self.actions_of("Screen", resolved),

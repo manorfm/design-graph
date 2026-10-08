@@ -61,7 +61,7 @@ def _blocks(assembly: dict, known: set[str]) -> list[_Block]:
         *_code_blocks("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], lang),
         _Block("3. Componentes", "## 3. Componentes\n" + ("" if components else "Nenhum além dos que você já tem.\n")),
         *(block for component in components for block in _component_blocks(component)),
-        _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(assembly["data"]), ""])),
+        _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(assembly["data"], assembly["unread_lists"]), ""])),
         _Block("5. Comportamento", "\n".join(["## 5. Comportamento", *_behaviour_lines(assembly, components), ""])),
         _Block("6. Tokens", "\n".join(["## 6. Tokens usados, por modo", *_token_lines(assembly["tokens"]), ""])),
         _Block("7. Dependências", "\n".join(["## 7. Dependências", *(resource_lines(assembly["resources"], heading="###")
@@ -103,12 +103,22 @@ def _code_blocks(title: str, intro: str, code: str, lang: str) -> list[_Block]:
     return blocks
 
 
-def _data_lines(data: list[dict]) -> list[str]:
-    """The screen's own data — whether or not its components were already received for another screen."""
+def _data_lines(data: list[dict], unread_lists: list[str]) -> list[str]:
+    """
+    The screen's own data — whether or not its components were already
+    received for another screen — then the lists it repeats that only its
+    logic fills, so they are read there instead of taken as empty.
+    """
     lines = [
         f"- **{entry['component']}** · `{entry['key']}`: `{json.dumps(entry['value'], ensure_ascii=False)}`"
         for entry in data
     ]
+    if unread_lists:
+        names = ", ".join(f"`{name}`" for name in unread_lists)
+        lines.append(
+            f"- {names}: montadas pela lógica da tela ao rodar, não escritas como dado — "
+            "leia o `<script>` do esqueleto para saber o que contêm."
+        )
     return lines or ["Nenhum dado repetido."]
 
 

@@ -26,6 +26,7 @@ def _assembly(component_source="function List() { return <ul/>; }"):
              "props": []},
         ],
         "data": [{"component": "List", "key": "ITEMS", "value": ["a", "b"]}],
+        "unread_lists": [],
         "tokens": [
             {"t.category": "css_var", "t.label": "--ink", "t.value": "#111", "t.usage": 1, "t.mode": "claro"},
             {"t.category": "css_var", "t.label": "--ink", "t.value": "#eee", "t.usage": 1, "t.mode": "escuro"},
@@ -128,3 +129,10 @@ def test_behaviour_lists_what_each_action_does_where():
 def test_behaviour_lists_what_each_screen_and_component_remembers():
     out = assemble_page(_Reader(), "Home")
     assert "- **Home** guarda `view` = `'apps'`" in out
+
+
+def test_lists_built_at_run_time_are_named_so_the_agent_reads_the_logic():
+    assembly = _assembly()
+    assembly["unread_lists"] = ["up", "down"]
+    data = assemble_page(_Reader(assembly), "Home").split("## 4. Dados", 1)[1].split("## 5.", 1)[0]
+    assert "`up`, `down`" in data and "lógica da tela" in data

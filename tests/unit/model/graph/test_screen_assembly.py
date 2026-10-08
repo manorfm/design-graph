@@ -182,3 +182,21 @@ def test_the_hooks_the_screen_and_its_components_call_come_after_the_components_
     ]
     assert reader.get_component_spec("Panel")["hooks"] == ["useGuard"]
     assert reader.get_component_spec("useGuard")["hooks"] == ["useEsc"]
+
+
+def test_lists_the_screen_repeats_but_no_data_holds_are_named_as_unread(tmp_path):
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "unread.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Row", "<li>{{r.label}}</li>", referenced_data={"rows": [{"label": "Fluxo"}]}))
+    w.write_component(_comp("Chip", "<sc-for list='{{slot.list}}' as='c'><b>{{c.n}}</b></sc-for>"))
+    skeleton = (
+        "<main><ul><sc-for list=\"{{rows}}\" as=\"r\"><Row></Row></sc-for></ul>"
+        "<sc-for list=\"{{ up }}\" as=\"u\"><p>{{u.name}}<sc-for list=\"{{u.items}}\" as=\"i\">{{i}}</sc-for></p></sc-for>"
+        "<Chip list=\"{{down}}\"></Chip></main>"
+        "<script>const rows = [{label: 'Fluxo'}]; const up = SN.filter(go);</script>"
+    )
+    w.write_screen(ExtractedScreen(name="Histórico", component_refs=["Row", "Chip"], sections_count=0,
+                                   source_code="", skeleton=skeleton), [])
+    w.commit()
+    assert GraphReader(conn).get_screen_assembly("Histórico")["unread_lists"] == ["up", "down"]
