@@ -125,11 +125,21 @@ def _attribute(tag: Tag, name: str) -> str:
 
 # ── Definitions ───────────────────────────────────────────────────────────────
 
-def definition_of(occurrences: list[Tag]) -> Definition:
-    """The template of the occurrences sharing the most common shape; the others are left out of it."""
+def representative(occurrences: list[Tag]) -> Tag:
+    """The occurrence a component is described by: the first of those sharing the most common shape."""
+    return _most_common_shape(occurrences)[0]
+
+
+def _most_common_shape(occurrences: list[Tag]) -> list[Tag]:
+    """The occurrences sharing the most common shape, in order; ties go to the shape seen first."""
     shapes = [_shape(element) for element in occurrences]
     common = Counter(shapes).most_common(1)[0][0]
-    same = [element for element, shape in zip(occurrences, shapes) if shape == common]
+    return [element for element, shape in zip(occurrences, shapes) if shape == common]
+
+
+def definition_of(occurrences: list[Tag]) -> Definition:
+    """The template of the occurrences sharing the most common shape; the others are left out of it."""
+    same = _most_common_shape(occurrences)
     template = copy.copy(same[0])
     columns = list(zip(*(_positions(element) for element in same)))
     slots: list[tuple[str, str]] = []

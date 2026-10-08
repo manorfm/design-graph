@@ -76,6 +76,29 @@ def _second_question(title: str, list_name: str, label: str) -> Page:
     )
 
 
+class TestRepresentativeOccurrence:
+    """A component's texts, styles and slot defaults all describe one same occurrence."""
+
+    NUMBER = '<div style="font-size: {size}; font-weight: 500; line-height: 1.1"{extra}>{text}</div>'
+    PAGES = [
+        Page("1 · Laudo", f'<main>{NUMBER.format(size="40px", extra=' title="índice"', text="92")}<p>Laudo</p></main>'),
+        Page("2 · Boas-vindas", f'<main>{NUMBER.format(size="20px", extra="", text="Anamnese")}<p>Um</p></main>'),
+        Page("3 · Termo", f'<main>{NUMBER.format(size="20px", extra="", text="Termo de uso")}<p>Dois</p></main>'),
+    ]
+
+    def _number(self, tmp_path):
+        return next(c for c in _components(tmp_path, self.PAGES).values() if "font-weight: 500" in c.source_code)
+
+    def test_texts_come_from_the_occurrence_the_template_is_made_of(self, tmp_path):
+        number = self._number(tmp_path)
+        defaults = {p.prop_name: p.default_value for p in number.props}
+        assert [t.content for t in number.texts] == [defaults["texto"]] == ["Anamnese"]
+
+    def test_styles_come_from_that_occurrence_too(self, tmp_path):
+        sizes = {s.value for s in self._number(tmp_path).styles if s.property == "font-size"}
+        assert sizes == {"20px"}
+
+
 class TestPseudoClassStates:
     def test_tag_hover_rule_of_the_page_styles_the_component(self, tmp_path):
         link = _components(tmp_path, LINK_PAGES)["SaibaMaisLink"]

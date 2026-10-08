@@ -17,6 +17,7 @@ from typing import Callable
 
 from bs4 import Tag
 
+from design_graph.capture.dc_canvas.instances import representative
 from design_graph.capture.dc_canvas.logic import selection_branches
 from design_graph.capture.dc_canvas.sections import block_name
 from design_graph.capture.dc_canvas.template import (
@@ -334,7 +335,8 @@ def _unique(name: str, used: set[str]) -> str:
 def _component(
     occurrences: list[tuple[str, Tag]], found: CanvasComponents, details: _Details, loop_list: str | None,
 ) -> ExtractedComponent:
-    screen, example = occurrences[0]
+    example = representative([element for _, element in occurrences])
+    screen = next(screen for screen, element in occurrences if element is example)
     name = found.name_of[id(example)]
     return ExtractedComponent(
         name=name,
