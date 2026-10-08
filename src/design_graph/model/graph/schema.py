@@ -45,6 +45,12 @@ logger = logging.getLogger(__name__)
 # is rebuilt by the pipeline and refused by readers instead of half-working.
 MODEL_VERSION = 12
 
+# How deep a component may sit under the one a screen renders and still be
+# reached from that screen (who uses it, the screen's tokens). Kùzu needs a
+# bound on a path's length; this one is well past any real nesting.
+NESTING_REACH = 16
+CONTAINS_AT_ANY_DEPTH = f"-[:CONTAINS*0..{NESTING_REACH}]->"
+
 # ── Node table definitions ─────────────────────────────────────────────────────
 
 _NODE_TABLES: list[str] = [

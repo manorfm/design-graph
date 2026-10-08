@@ -10,6 +10,8 @@ import json
 import logging
 from collections import defaultdict
 
+from design_graph.model.graph.schema import CONTAINS_AT_ANY_DEPTH
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class CatalogQueries:
         if not resolved:
             return None
         components = self._q(
-            "MATCH (:Screen {name:$n})-[:USES_COMPONENT]->(:Component)-[:CONTAINS*0..3]->(c:Component) "
+            "MATCH (:Screen {name:$n})-[:USES_COMPONENT]->(:Component)" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "RETURN DISTINCT c.name AS value",
             {"n": resolved},
         )

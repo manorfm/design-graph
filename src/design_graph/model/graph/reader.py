@@ -22,7 +22,7 @@ import kuzu
 
 
 from design_graph.model.entities import RE_ICON_MARKER, resolve_icon_markers
-from design_graph.model.graph.schema import MODEL_VERSION
+from design_graph.model.graph.schema import CONTAINS_AT_ANY_DEPTH, MODEL_VERSION
 from design_graph.model.graph.listing import CatalogQueries
 from design_graph.model.graph.screen_assembly import ScreenAssemblyQueries
 
@@ -565,14 +565,14 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
     def find_screens_using_comp_transitively(self, comp_name: str) -> list[str]:
         """
         Return screen names that use comp_name directly or via CONTAINS composition
-        (up to 3 levels deep).
+        (as deep as NESTING_REACH).
 
-        Traversal: Screen -[USES_COMPONENT]-> AnyComponent -[CONTAINS*0..3]-> Target.
+        Traversal: Screen -[USES_COMPONENT]-> AnyComponent -[CONTAINS*0..NESTING_REACH]-> Target.
         CONTAINS*0 covers direct usage (component used by screen itself).
         """
         rows = self._q(
             "MATCH (s:Screen)-[:USES_COMPONENT]->(p:Component)"
-            "-[:CONTAINS*0..3]->(c:Component {name:$n}) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component {name:$n}) "
             "RETURN DISTINCT s.name ORDER BY s.name",
             {"n": comp_name},
         )
@@ -806,7 +806,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
             params["screen"] = screen
             match = (
                 "MATCH (s:Screen {name:$screen})-[:USES_COMPONENT]->(top:Component)"
-                "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token) "
+                "" + CONTAINS_AT_ANY_DEPTH + "(c:Component)-[:USES_TOKEN]->(t:Token) "
             )
         else:
             match = "MATCH (t:Token) "
@@ -862,7 +862,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # renders it (same *0..3 depth used throughout get_screen_full).
         screen_rows = self._q(
             "MATCH (s:Screen)-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT s, c "
             "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "WHERE toLower(t.value) CONTAINS toLower($val) "
@@ -957,7 +957,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
             )
             screens = self._q(
                 "MATCH (s:Screen)-[:USES_COMPONENT]->(top:Component)"
-                "-[:CONTAINS*0..3]->(c:Component)-[:USES_TOKEN]->(t:Token {id:$tid}) "
+                "" + CONTAINS_AT_ANY_DEPTH + "(c:Component)-[:USES_TOKEN]->(t:Token {id:$tid}) "
                 "RETURN DISTINCT s.name",
                 {"tid": tok["t.id"]},
             )
@@ -1073,7 +1073,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # by get_component_spec/find_screens_using_comp_transitively.
         comp_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "RETURN DISTINCT " + _COMPONENT_FIELDS + " ORDER BY c.name",
             {"n": resolved},
         )
@@ -1093,7 +1093,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
             # replace the true default width/padding/etc. depending on scan
             # order, not on which one is actually unconditional.
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:HAS_STYLE]->(st:Style) "
             "WHERE st.media = '' "
@@ -1106,7 +1106,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # Q7: Component tokens
         comp_token_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:USES_TOKEN]->(t:Token) "
             "RETURN c.name AS comp_name, t.label AS label, "
@@ -1118,7 +1118,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # Q8: Component texts
         comp_text_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:COMP_HAS_TEXT]->(t:UIText) "
             "RETURN c.name AS comp_name, t.content AS content, "
@@ -1130,7 +1130,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # Q9: Component interactions
         comp_interact_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:HAS_INTERACTION]->(i:Interaction) "
             "RETURN c.name AS comp_name, i.trigger AS trigger, i.css_prop AS css_prop, "
@@ -1141,7 +1141,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # Q10: Component props
         comp_prop_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:HAS_PROP]->(p:ComponentProp) "
             "RETURN c.name AS comp_name, p.prop_name AS prop_name, "
@@ -1157,7 +1157,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         # children_by_comp below preserves this as the list order.
         comp_children_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(parent:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(parent:Component) "
             "WITH DISTINCT parent "
             "MATCH (parent)-[r:CONTAINS]->(child:Component) "
             "RETURN parent.name AS parent_name, child.name AS child_name "
@@ -1209,7 +1209,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         )
         component_rows = self._q(
             "MATCH (s:Screen {name:$n})-[:USES_COMPONENT]->(top:Component)"
-            "-[:CONTAINS*0..3]->(c:Component) "
+            "" + CONTAINS_AT_ANY_DEPTH + "(c:Component) "
             "WITH DISTINCT c "
             "MATCH (c)-[:COMP_HAS_TEXT]->(t:UIText) "
             "RETURN c.name AS source, t.content AS content, t.text_type AS text_type "
