@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 design-graph = "design_graph.interface.cli.build:main"
+dgr          = "design_graph.interface.cli.build:main"  # short name for design-graph
 design-mcp   = "design_graph.interface.mcp.server:main"
 design-query = "design_graph.interface.cli.query:main"
 

@@ -62,9 +62,9 @@ python3 -m pip install git+https://github.com/manorfm/design-graph.git
 pipx install git+https://github.com/manorfm/design-graph.git
 ```
 
-This installs three commands:
+This installs these commands:
 
-- `design-graph` — build, validate, inspect and export graphs
+- `design-graph` (also `dgr`, its short name) — build, validate, inspect and export graphs
 - `design-query` — query graphs from the terminal
 - `design-mcp` — expose graphs to MCP clients over stdio
 
