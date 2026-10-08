@@ -192,3 +192,15 @@ class TestNamesNeverLeakFromOneScreen:
         ]
         names = set(_components(tmp_path, pages))
         assert not any(name.startswith(("Relatório", "Cadastro")) and name.endswith("Link") for name in names)
+
+
+def test_each_component_is_reported_as_it_is_extracted(tmp_path):
+    path = tmp_path / "canvas.html"
+    path.write_text(canvas_html(THREE_PAGES))
+    document = PrototypeDocument.read(path)
+    reported: list[tuple[str, int, int]] = []
+    result = asyncio.run(capture_for(document).capture(
+        document, concurrency=1, on_component_extracted=lambda name, index, total: reported.append((name, index, total)),
+    ))
+    total = len(result.components)
+    assert reported == [(c.name, n, total) for n, c in enumerate(result.components, start=1)]

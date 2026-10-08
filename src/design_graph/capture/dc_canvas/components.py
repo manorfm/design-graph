@@ -33,6 +33,7 @@ from design_graph.capture.dc_canvas.template import (
 )
 from design_graph.capture.html_prototype.parsing.css_class_resolver import CssRule
 from design_graph.capture.actions import effect_of, trigger_of
+from design_graph.capture.base import ComponentProgress
 from design_graph.model.entities import (
     Action,
     ComponentType,
@@ -105,11 +106,13 @@ def infer_components(
     tag_rules: TagRules | None = None,
     loop_data: LoopData | None = None,
     handler_of: HandlerOf | None = None,
+    on_component: ComponentProgress | None = None,
 ) -> CanvasComponents:
     """
     tag_rules: pseudo-class rules the pages' styles declare for a bare tag
         (`a:hover`), applied to every component rendered as that tag.
     loop_data: where a loop item's list is looked up, to attach its values.
+    on_component: told (name, index, total) as each component is extracted.
     """
     occurrences, loop_lists = _occurrences(blocks_by_screen)
     promoted = [signature for signature in occurrences if _is_repeated(signature, occurrences, loop_lists)]
@@ -121,9 +124,11 @@ def infer_components(
         name = _unique(_name(elements, result.name_of, block_of), used)
         result.name_of.update({id(element): name for element in elements})
     details = _Details(tag_rules or {}, loop_data or _no_loop_data, handler_of or _no_handler)
-    result.components = [
-        _component(occurrences[signature], result, details, loop_lists.get(signature)) for signature in promoted
-    ]
+    for index, signature in enumerate(promoted, start=1):
+        component = _component(occurrences[signature], result, details, loop_lists.get(signature))
+        result.components.append(component)
+        if on_component:
+            on_component(component.name, index, len(promoted))
     return result
 
 

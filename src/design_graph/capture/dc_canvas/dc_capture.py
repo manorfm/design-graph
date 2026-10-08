@@ -58,6 +58,7 @@ class DcCanvasCapture:
             tag_rules=extract_tag_pseudo_rules("\n".join(dict.fromkeys(p.styles for p in pages.values()))),
             loop_data=lambda screen, name: lists_by_screen[screen].get(name),
             handler_of=lambda screen, key: member_expression(logic_by_screen[screen], key),
+            on_component=on_component_extracted,
         )
         screens = [_screen(board, pages[board.page_id], boards, board_variants) for board in boards]
         sections = {name: page_sections(name, screen_blocks, found.outermost_in) for name, screen_blocks in blocks.items()}
