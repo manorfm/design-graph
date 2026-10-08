@@ -396,6 +396,8 @@ Environment variables can be passed by the MCP client:
 
 The server detects a rebuilt `*.db` file on its own (it compares file mtimes before each tool call) and reloads without a restart. Restarting or reconnecting the MCP client is only needed after changing `GRAPH_DIR`, `DESIGN_GRAPH_DOC`, or upgrading the package itself — those are read once, at startup.
 
+Each MCP client starts its own `design-mcp` process, which lives as long as that client's session and ends when the client closes the pipe. A server whose client dies without closing it — the pipe still held by another process — notices within five seconds that it has a new parent and ends itself, so no orphan keeps the graphs open. The check only asks the process's own parent id, so it needs no extra permission; on Windows, where orphans keep their parent id, closing the pipe remains the only way out. To see which servers are running and who started them: `ps -o pid,ppid,lstart,command -p $(pgrep -d, -f design-mcp)`.
+
 ## MCP tools
 
 | Tool | Purpose | Parameters |

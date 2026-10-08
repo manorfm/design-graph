@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from design_graph.interface.mcp.parent_watch import ParentWatch
+
 if TYPE_CHECKING:
     from design_graph.model.graph.reader import GraphReader
 
@@ -360,4 +362,5 @@ def main() -> None:
     readers = _load_readers(graph_dir)
     _warn_if_no_graphs(readers, graph_dir)
 
+    ParentWatch().start()  # ends this server if its client dies without closing the pipe
     asyncio.run(run_stdio(MCPServer(readers, graph_dir)))
