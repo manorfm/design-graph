@@ -281,3 +281,66 @@ class TestCoordinatorItemWrittenIntegration:
         assert any(t > 0 for t in completed_totals), (
             f"Expected parsing phase_completed with total>0, got: {completed_totals}"
         )
+
+
+# ── What a terminal shows ─────────────────────────────────────────────────────
+
+ERASE_LINE = "\x1b[2K"
+
+
+class _Tty(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+def _screen(output: str, width: int) -> list[str]:
+    """The lines a terminal `width` columns wide ends up showing for `output` — \\r, \\n, erase-line and wrapping."""
+    lines: list[list[str]] = [[]]
+    row = col = index = 0
+    while index < len(output):
+        if output.startswith(ERASE_LINE, index):
+            lines[row], index = [], index + len(ERASE_LINE)
+            continue
+        char, index = output[index], index + 1
+        if char == "\r":
+            col = 0
+            continue
+        if char == "\n" or col == width:
+            row, col = row + 1, 0
+            if row == len(lines):
+                lines.append([])
+            if char == "\n":
+                continue
+        line = lines[row]
+        line.extend(" " * (col + 1 - len(line)))
+        line[col] = char
+        col += 1
+    return ["".join(line).rstrip() for line in lines]
+
+
+class TestItemProgressOnATerminal:
+    def _reporter(self, width: int = 80) -> tuple[TerminalBuildReporter, _Tty]:
+        tty = _Tty()
+        return TerminalBuildReporter(output=tty, width=lambda: width), tty
+
+    def test_a_shorter_item_leaves_nothing_of_the_longer_one_before_it(self):
+        reporter, tty = self._reporter()
+        reporter.phase_started("Writing graph", total=2)
+        reporter.item_written("Aprofundamento de pressão (web)", index=1, total=2)
+        reporter.item_written("Laudo", index=2, total=2)
+        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (2 items)", "    [2/2] Laudo"]
+
+    def test_an_item_wider_than_the_terminal_is_cut_so_it_never_wraps(self):
+        reporter, tty = self._reporter(width=30)
+        reporter.phase_started("Writing graph", total=2)
+        reporter.item_written("Ficha do nó: Integração contínua", index=1, total=2)
+        reporter.item_written("Prontidão para práticas avançadas", index=2, total=2)
+        screen = _screen(tty.getvalue(), 30)
+        assert len(screen) == 2 and screen[1].startswith("    [2/2] Prontidão") and len(screen[1]) < 30
+
+    def test_the_timing_follows_the_last_item_on_its_own_line(self):
+        reporter, tty = self._reporter()
+        reporter.phase_started("Writing graph", total=1)
+        reporter.item_written("Laudo", index=1, total=1)
+        reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
+        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (1 items)", "    [1/1] Laudo", "  0.7s", ""]

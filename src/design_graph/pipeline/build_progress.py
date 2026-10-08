@@ -15,7 +15,8 @@ Phases WITHOUT item progress (total=0 in phase_started):
 
 Phases WITH item progress (total>0 in phase_started):
   → Writing graph (64 items)          ← header line (with newline)
-    [12/64] SectionCard               ← per-item update (overwritten via \\r on TTY)
+    [12/64] SectionCard               ← per-item update (line erased and rewritten on TTY,
+                                        cut to the terminal width so it never wraps)
     [64/64] RestaurantsPage
     0.9s                              ← timing on its own line
   ✓ Done in 1.8s
@@ -26,9 +27,10 @@ Parsing count reported at phase_completed (known only after extraction):
 
 from __future__ import annotations
 
+import shutil
 import sys
 import time
-from typing import IO, Protocol
+from typing import IO, Callable, Protocol
 
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
@@ -116,10 +118,13 @@ class TerminalBuildReporter:
     _ARROW = "→"
     _CHECK = "✓"
     _SKIP  = "○"
-    _ITEM_WIDTH = 40  # characters reserved for item name column (padding for \\r overwrite)
+    # Back to the line start and erase it whole, so a shorter item never shows the end of a longer one.
+    _REWRITE_LINE = "\r\x1b[2K"
 
-    def __init__(self, output: IO[str] | None = None) -> None:
+    def __init__(self, output: IO[str] | None = None, width: Callable[[], int] | None = None) -> None:
+        """width: the terminal's columns, read on every item so a resized window is followed."""
         self._out: IO[str] = output if output is not None else sys.stderr
+        self._width = width or (lambda: shutil.get_terminal_size().columns)
         self._phase_has_items: bool = False  # True when phase_started(total>0)
         self._item_line_active: bool = False  # True after first item_written in a phase
 
@@ -182,9 +187,10 @@ class TerminalBuildReporter:
             is_tty = False
 
         if is_tty:
-            line = f"    [{index}/{total}] {label}"
-            padded = line.ljust(self._ITEM_WIDTH)
-            self._out.write(f"\r{padded}")
+            # One column short of the width: a line that fills it wraps on some terminals, and \r then
+            # returns only to the wrapped part, leaving the rest of the line behind.
+            line = f"    [{index}/{total}] {label}"[:max(self._width() - 1, 1)]
+            self._out.write(f"{self._REWRITE_LINE}{line}")
             self._out.flush()
             self._item_line_active = True
 
