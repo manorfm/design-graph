@@ -48,6 +48,7 @@ help:
 	@echo "    make version                     Show the version the next release would get"
 	@echo "    make release                     Tag main and publish a GitHub release (triggers PyPI)"
 	@echo "    make bench   PROTO=file.html     Measure how much of a prototype the tools recover (.bench/)"
+	@echo "    make golden  [PROTOTYPES=dir:dir] Check real prototypes rebuild exactly from what the tools return"
 	@echo ""
 	@echo "  Maintenance"
 	@echo "    make list-graphs                 List available graphs"
@@ -171,6 +172,12 @@ version:
 release:
 	$(PYTHON) scripts/release.py --publish
 
+# Folders of real prototypes the golden checks run against (separated by ":").
+PROTOTYPES ?= ../prototipos:.
+
+golden:
+	DG_PROTOTYPES="$(PROTOTYPES)" $(CONTEXT)/.venv/bin/python -m pytest tests/prototypes -q
+
 bench:
 	@test -n "$(PROTO)" || (echo "Usage: make bench PROTO=file.html" && exit 1)
 	$(PYTHON) scripts/context_benchmark.py "$(PROTO)" --out .bench
@@ -179,7 +186,7 @@ clean-all:
 	@printf "Remove all graphs in $(DB_DIR)? [y/N] " && read c && \
 	[ "$$c" = "y" ] && rm -rf $(DB_DIR)/*.db && echo "Done." || echo "Cancelled."
 
-.PHONY: help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
+.PHONY: golden help build diff rebuild databases use-db remove-db prune-dbs start stop restart status logs \
         screens tokens search inspect impact screen \
         version release bench \
         list-graphs clean-graph clean-all

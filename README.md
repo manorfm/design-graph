@@ -143,6 +143,8 @@ pytest
 
 To measure how much of a prototype the MCP tools let an agent recover — indexed text and readable style coverage, the characters needed to assemble every screen, announced cuts, search answers and build time — run `make bench PROTO=prototype.html`. Reports are written to `.bench/` (git-ignored, since they contain prototype content).
 
+To check that real prototypes come back whole — every DC screen rebuilt exactly from the skeleton and component definitions the tools return, every component reached from a screen, the copy a reader sees indexed and found by search, every screen assembled without cuts and with the lists its logic writes, and a React prototype's functions returned verbatim — run `make golden`. It builds each `*.html` in the folders `PROTOTYPES` names (default `../prototipos:.`); the tests in `tests/prototypes/` are skipped anywhere `DG_PROTOTYPES` is unset, since real prototypes hold client content and stay out of the repository and of CI.
+
 ## Build a graph
 
 ```bash
