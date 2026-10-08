@@ -336,7 +336,6 @@ def _component(
 ) -> ExtractedComponent:
     screen, example = occurrences[0]
     name = found.name_of[id(example)]
-    data = details.loop_data(screen, loop_list) if loop_list else None
     return ExtractedComponent(
         name=name,
         comp_type=_TYPE_BY_ROLE.get(example.get("role") or "", _TYPE_BY_TAG.get(tag_of(example), ComponentType.COMPONENT)),
@@ -352,8 +351,25 @@ def _component(
         ]),
         child_refs=list(dict.fromkeys(ref for child in element_children(example) for ref in found.outermost_in(child))),
         declares_inline_styles=bool(example.get("style")),
-        referenced_data={loop_list: data} if data is not None else {},
+        referenced_data=_referenced_data(occurrences, details.loop_data) if loop_list else {},
     )
+
+
+def _referenced_data(occurrences: list[tuple[str, Tag]], loop_data: LoopData) -> dict[str, object]:
+    """
+    The literal value of every list the item is repeated by, read on the
+    screen of each occurrence, once each. A list named alike on another screen
+    with other values is kept apart under `name · screen`, never dropped.
+    """
+    found: dict[str, object] = {}
+    for screen, element in occurrences:
+        list_name = _loop_list(element)
+        value = loop_data(screen, list_name) if list_name else None
+        if value is None:
+            continue
+        key = list_name if found.get(list_name, value) == value else f"{list_name} · {screen}"
+        found.setdefault(key, value)
+    return found
 
 
 def _styles(name: str, example: Tag, tag_rules: TagRules) -> list[StyleEntry]:

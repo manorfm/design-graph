@@ -48,6 +48,33 @@ class TestLoopData:
                     " const papel = load(); return { papel }; } }")
         assert _components(tmp_path, [page])["PapelItem"].referenced_data == {}
 
+    def test_an_item_repeated_by_several_lists_carries_each_of_them(self, tmp_path):
+        item = _components(tmp_path, [LOOP_PAGE, _second_question("3 · Tempo", "tem", "Semanas")])["PapelItem"]
+        assert item.referenced_data == {
+            "papel": [{"id": "dir", "label": "Direção executiva"}, {"id": "eng", "label": "Engenharia"}],
+            "tem": [{"id": "a", "label": "Semanas"}],
+        }
+
+    def test_a_list_named_alike_on_another_screen_with_other_values_is_kept_apart(self, tmp_path):
+        pages = [LOOP_PAGE, _second_question("3 · Outra pergunta", "papel", "Produto")]
+        item = _components(tmp_path, pages)["PapelItem"]
+        assert item.referenced_data["papel"][0]["label"] == "Direção executiva"
+        assert item.referenced_data["papel · Outra pergunta"] == [{"id": "a", "label": "Produto"}]
+
+    def test_the_same_list_on_two_screens_is_carried_once(self, tmp_path):
+        pages = [LOOP_PAGE, Page("3 · Sua perspectiva (web)", LOOP_PAGE.body, logic=LOOP_PAGE.logic)]
+        assert list(_components(tmp_path, pages)["PapelItem"].referenced_data) == ["papel"]
+
+
+def _second_question(title: str, list_name: str, label: str) -> Page:
+    return Page(
+        title,
+        f'<div><div role="group"><sc-for list="{{{{{list_name}}}}}" as="o"><button><span>{{{{o.label}}}}</span>'
+        "<span>·</span></button></sc-for></div><p>Escolha outra</p></div>",
+        logic=f'class Component extends DCLogic {{ renderVals() {{ const {list_name} = [{{"id": "a", "label": "{label}"}}];'
+              f" return {{ {list_name} }}; }} }}",
+    )
+
 
 class TestPseudoClassStates:
     def test_tag_hover_rule_of_the_page_styles_the_component(self, tmp_path):
