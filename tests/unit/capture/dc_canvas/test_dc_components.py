@@ -149,3 +149,46 @@ class TestReadableNames:
                         for n, c in enumerate(["#e8f1ef", "#0d5c63", "#5fb0b0"]))
         page = Page("1 · Convites", f'<main><div aria-label="Convites e participação" style="display: grid">{cells}</div><p>x</p></main>')
         assert "ConvitesParticipaçãoCell" in _components(tmp_path, [page])
+
+
+class TestNamesNeverLeakFromOneScreen:
+    """A name comes from what every occurrence shares, never from wherever the first one happens to live."""
+
+    NUMBER = '<div style="font-size: 40px; font-weight: 500; line-height: 1.1">{}</div>'
+
+    def _pages(self, blocks: list[str]) -> list[Page]:
+        return [
+            Page(f"{n} · Tela {n}", f'<main><section aria-label="{block}">{self.NUMBER.format(n * 10)}<p>Texto {n}</p>'
+                                    f"</section><p>Fim</p></main>")
+            for n, block in enumerate(blocks, start=1)
+        ]
+
+    def _number(self, tmp_path, blocks):
+        components = _components(tmp_path, self._pages(blocks))
+        return next(name for name, c in components.items() if c.source_code.startswith('<div style="font-size'))
+
+    def test_a_piece_living_in_differently_named_blocks_is_named_by_what_it_is(self, tmp_path):
+        assert self._number(tmp_path, ["Convites e participação", "Visão por público", "Laudo"]) == "Tag"
+
+    def test_a_label_that_varies_between_occurrences_does_not_name_the_component(self, tmp_path):
+        names = set(_components(tmp_path, self._pages(["Convites e participação", "Visão por público", "Laudo"])))
+        assert not any(name.startswith(("Convites", "Visão", "Laudo")) for name in names)
+
+    def test_a_piece_living_in_blocks_named_alike_keeps_that_name(self, tmp_path):
+        assert self._number(tmp_path, ["Achados", "Achados", "Achados"]) == "AchadosTag"
+
+    def test_a_loop_item_repeated_by_several_lists_is_not_named_after_one_of_them(self, tmp_path):
+        def question(n: int, list_name: str) -> Page:
+            return Page(f"{n} · Pergunta {n}", OPTIONS.replace("papel", list_name) + "<p>Escolha</p>")
+
+        names = set(_components(tmp_path, [question(1, "papel"), question(2, "tem")]))
+        assert not names & {"PapelItem", "TemItem"}
+
+    def test_an_interactive_element_in_differently_named_containers_is_not_named_after_one(self, tmp_path):
+        pages = [
+            Page(f"{n} · Tela {n}", f'<div><nav aria-label="{label}"><a style="color: red">Item {n}</a>'
+                                    f'<a style="color: blue">Fixo {n}</a></nav><p>Corpo</p></div>')
+            for n, label in enumerate(["Relatório", "Cadastro", "Relatório"], start=1)
+        ]
+        names = set(_components(tmp_path, pages))
+        assert not any(name.startswith(("Relatório", "Cadastro")) and name.endswith("Link") for name in names)

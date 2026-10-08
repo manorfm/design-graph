@@ -49,7 +49,8 @@ class TestLoopData:
         assert _components(tmp_path, [page])["PapelItem"].referenced_data == {}
 
     def test_an_item_repeated_by_several_lists_carries_each_of_them(self, tmp_path):
-        item = _components(tmp_path, [LOOP_PAGE, _second_question("3 · Tempo", "tem", "Semanas")])["PapelItem"]
+        components = _components(tmp_path, [LOOP_PAGE, _second_question("3 · Tempo", "tem", "Semanas")])
+        item = next(c for c in components.values() if c.referenced_data)
         assert item.referenced_data == {
             "papel": [{"id": "dir", "label": "Direção executiva"}, {"id": "eng", "label": "Engenharia"}],
             "tem": [{"id": "a", "label": "Semanas"}],

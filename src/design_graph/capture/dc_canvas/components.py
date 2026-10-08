@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Iterable
 
 from bs4 import Tag
 
@@ -118,7 +118,7 @@ def infer_components(
     used: set[str] = set()
     for signature in promoted:
         elements = [element for _, element in occurrences[signature]]
-        name = _unique(_name(elements, loop_lists.get(signature), result.name_of, block_of), used)
+        name = _unique(_name(elements, result.name_of, block_of), used)
         result.name_of.update({id(element): name for element in elements})
     details = _Details(tag_rules or {}, loop_data or _no_loop_data, handler_of or _no_handler)
     result.components = [
@@ -228,29 +228,44 @@ def _signature(element: Tag) -> str:
     return f"{tag_of(element)}|{element.get('role') or ''}|{style}|{children}"
 
 
-def _name(elements: list[Tag], loop_list: str | None, name_of: dict[int, str], block_of: dict[int, str]) -> str:
+def _name(elements: list[Tag], name_of: dict[int, str], block_of: dict[int, str]) -> str:
     """
     A loop item is named after its list, then an explicit label or role.
-    An interactive element is named by its text when every occurrence shows
-    the same one, else after the component holding it; a semantic element by
-    its tag. Anything else by the short copy every occurrence shows — never
-    copy that varies, which is sample content — or else by the block it lives
-    in and what it is (`PerspectivasCapacidadesCell`, `RadarChartMark`).
+    An interactive element is named by its text, else after the component
+    holding it; a semantic element by its tag. Anything else by its short
+    copy — never copy that varies, which is sample content — or else by the
+    block it lives in and what it is (`PerspectivasCapacidadesCell`).
+    Every one of these must be shared by all the occurrences: a list, label,
+    container or block only one of them has would name the component after
+    one screen, so the name falls back to what it is.
     """
-    example = elements[0]
-    explicit = _explicit_name(example, loop_list)
+    explicit = _explicit_name(elements)
     if explicit:
         return explicit
+    example = elements[0]
     tag = tag_of(example)
     if tag in _INTERACTIVE:
         return _interactive_name(elements, name_of) + _NAME_BY_TAG[tag]
     if tag in _NAME_BY_TAG:
         return _NAME_BY_TAG[tag]
-    texts = {_first_wordy_text(element) for element in elements}
-    if len(texts) == 1 and None not in texts and len(texts_words := texts.pop().split()) <= _MAX_NAME_WORDS:
-        return _pascal(" ".join(texts_words))
-    context = " ".join(word for word in block_of.get(id(example), "").split() if word.lower() not in _LITTLE_WORDS)
-    return _pascal(context, _MAX_CONTEXT_WORDS) + _role(example)
+    copy = _short_shared_copy(elements)
+    if copy:
+        return _pascal(copy)
+    block = _shared(block_of.get(id(element), "") for element in elements) or ""
+    context = " ".join(word for word in block.split() if word.lower() not in _LITTLE_WORDS)
+    return (_pascal(context, _MAX_CONTEXT_WORDS) if context else "") + _role(example)
+
+
+def _short_shared_copy(elements: list[Tag]) -> str | None:
+    """The copy every occurrence shows, when it is short enough to be a name."""
+    copy = _shared(_first_wordy_text(element) for element in elements)
+    return copy if copy and len(copy.split()) <= _MAX_NAME_WORDS else None
+
+
+def _shared(values: Iterable[str | None]) -> str | None:
+    """The one value every occurrence gives, or None when they differ or give none."""
+    found = set(values)
+    return found.pop() if len(found) == 1 else None
 
 
 def _role(element: Tag) -> str:
@@ -294,20 +309,28 @@ def _blocks_by_element(blocks_by_screen: dict[str, list[Tag]]) -> dict[int, str]
     return found
 
 
-def _explicit_name(example: Tag, loop_list: str | None) -> str | None:
+def _explicit_name(elements: list[Tag]) -> str | None:
+    loop_list = _shared(_loop_list(element) for element in elements)
     if loop_list:
         return _pascal(loop_list) + "Item"
-    label = next(
-        (v for v in (example.get("aria-label"), example.get("role")) if v and INTERPOLATION not in v), None,
-    )
-    return _pascal(label) if label else None
+    for attribute in ("aria-label", "role"):
+        label = _shared(_literal_attribute(element, attribute) for element in elements)
+        if label:
+            return _pascal(label)
+    return None
+
+
+def _literal_attribute(element: Tag, attribute: str) -> str | None:
+    """The attribute's value when the template writes it out, not when it interpolates one."""
+    value = element.get(attribute)
+    return value if value and INTERPOLATION not in value else None
 
 
 def _interactive_name(elements: list[Tag], name_of: dict[int, str]) -> str:
-    texts = {_first_wordy_text(element) for element in elements}
-    if len(texts) == 1 and None not in texts:
-        return _pascal(texts.pop())
-    return _container_name(elements[0], name_of)
+    text = _shared(_first_wordy_text(element) for element in elements)
+    if text:
+        return _pascal(text)
+    return _shared(_container_name(element, name_of) for element in elements) or ""
 
 
 def _first_wordy_text(element: Tag) -> str | None:
@@ -335,8 +358,7 @@ def _unique(name: str, used: set[str]) -> str:
 def _component(
     occurrences: list[tuple[str, Tag]], found: CanvasComponents, details: _Details, loop_list: str | None,
 ) -> ExtractedComponent:
-    example = representative([element for _, element in occurrences])
-    screen = next(screen for screen, element in occurrences if element is example)
+    screen, example = _representative_occurrence(occurrences)
     name = found.name_of[id(example)]
     return ExtractedComponent(
         name=name,
@@ -355,6 +377,12 @@ def _component(
         declares_inline_styles=bool(example.get("style")),
         referenced_data=_referenced_data(occurrences, details.loop_data) if loop_list else {},
     )
+
+
+def _representative_occurrence(occurrences: list[tuple[str, Tag]]) -> tuple[str, Tag]:
+    """(screen, element) of the occurrence the component is described by."""
+    example = representative([element for _, element in occurrences])
+    return next((screen, element) for screen, element in occurrences if element is example)
 
 
 def _referenced_data(occurrences: list[tuple[str, Tag]], loop_data: LoopData) -> dict[str, object]:
