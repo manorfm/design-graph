@@ -14,12 +14,16 @@ from __future__ import annotations
 import logging
 
 
-def configure_cli_logging(*, verbose: bool = False, quiet: bool = False) -> None:
+def configure_cli_logging(
+    *, verbose: bool = False, quiet: bool = False, handler: logging.Handler | None = None,
+) -> None:
     """
     Set up root logger for CLI use.
 
     Precedence: quiet > verbose > default (INFO).
     Format keeps messages readable without timestamps (those belong in structured logs).
+    handler: where records go instead of plain stderr — the build's progress
+    reporter gives one that never writes into the line it is drawing.
     """
     if quiet:
         level = logging.WARNING
@@ -32,5 +36,6 @@ def configure_cli_logging(*, verbose: bool = False, quiet: bool = False) -> None
         level=level,
         format="%(levelname)s %(name)s: %(message)s" if verbose else "%(message)s",
         force=True,  # override any previous basicConfig call
+        handlers=[handler] if handler is not None else None,
     )
     logging.getLogger("design_graph").setLevel(level)

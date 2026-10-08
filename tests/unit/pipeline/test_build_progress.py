@@ -344,3 +344,75 @@ class TestItemProgressOnATerminal:
         reporter.item_written("Laudo", index=1, total=1)
         reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
         assert _screen(tty.getvalue(), 80) == ["  → Writing graph (1 items)", "    [1/1] Laudo", "  0.7s", ""]
+
+
+class TestLogsAndProgressShareTheTerminal:
+    """A log record written while a progress line is open gets a line of its own, and the progress picks up after it."""
+
+    def _setup(self):
+        import logging
+
+        tty = _Tty()
+        reporter = TerminalBuildReporter(output=tty, width=lambda: 80)
+        logger = logging.getLogger("design_graph.test_progress")
+        logger.propagate = False
+        logger.handlers = [reporter.log_handler()]
+        logger.setLevel(logging.INFO)
+        return reporter, logger, tty
+
+    def test_a_log_during_a_phase_line_does_not_glue_to_it(self):
+        reporter, logger, tty = self._setup()
+        reporter.phase_started("Parsing boundaries and tokens", total=0)
+        logger.info("source_loader: loaded proto.html")
+        reporter.phase_completed("Parsing boundaries and tokens", elapsed_seconds=0.9, total=3)
+        assert _screen(tty.getvalue(), 80) == [
+            "  → Parsing boundaries and tokens",
+            "source_loader: loaded proto.html",
+            "  → Parsing boundaries and tokens (3 items)  0.9s",
+            "",
+        ]
+
+    def test_a_log_between_items_takes_the_item_line_and_the_next_item_redraws_it(self):
+        reporter, logger, tty = self._setup()
+        reporter.phase_started("Writing graph", total=2)
+        reporter.item_written("Laudo", index=1, total=2)
+        logger.warning("schema: initialised")
+        reporter.item_written("Mapa", index=2, total=2)
+        reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
+        assert _screen(tty.getvalue(), 80) == [
+            "  → Writing graph (2 items)", "schema: initialised", "    [2/2] Mapa", "  0.7s", "",
+        ]
+
+    def test_items_of_a_phase_whose_count_comes_at_the_end_go_below_its_line(self):
+        reporter, logger, tty = self._setup()
+        reporter.phase_started("Parsing boundaries and tokens", total=0)
+        reporter.component_extracted("Laudo", index=1, total=2)
+        reporter.component_extracted("Mapa", index=2, total=2)
+        logger.info("extract_all_components: extracted 2 unique components")
+        reporter.phase_completed("Parsing boundaries and tokens", elapsed_seconds=0.9, total=2)
+        assert _screen(tty.getvalue(), 80) == [
+            "  → Parsing boundaries and tokens",
+            "extract_all_components: extracted 2 unique components",
+            "  → Parsing boundaries and tokens (2 items)  0.9s",
+            "",
+        ]
+
+    def test_a_phase_left_alone_keeps_its_timing_on_the_same_line(self):
+        reporter, _, tty = self._setup()
+        reporter.phase_started("Loading proto.html", total=0)
+        reporter.phase_completed("Loading proto.html", elapsed_seconds=0.1)
+        assert _screen(tty.getvalue(), 80) == ["  → Loading proto.html  0.1s", ""]
+
+    def test_on_a_stream_that_is_not_a_terminal_logs_are_plain_lines(self):
+        import logging
+
+        out = io.StringIO()
+        reporter = TerminalBuildReporter(output=out)
+        logger = logging.getLogger("design_graph.test_progress_plain")
+        logger.propagate = False
+        logger.handlers = [reporter.log_handler()]
+        reporter.phase_started("Writing graph", total=1)
+        reporter.item_written("Laudo", index=1, total=1)
+        logger.warning("pipeline: 1 write error")
+        reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
+        assert out.getvalue() == "  → Writing graph (1 items)\npipeline: 1 write error\n  0.7s\n"

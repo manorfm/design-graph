@@ -27,6 +27,7 @@ Parsing count reported at phase_completed (known only after extraction):
 
 from __future__ import annotations
 
+import logging
 import shutil
 import sys
 import time
@@ -110,9 +111,15 @@ class TerminalBuildReporter:
     Writes phase progress to a text stream (default: sys.stderr).
 
     - Phases without items: single inline line (name + timing).
-    - Phases with items: header line, then per-item updates (\\r on TTY),
-      then elapsed timing on its own line.
+    - Phases with items: header line, then per-item updates rewritten in
+      place on a TTY, then elapsed timing on its own line.
     - Parsing count: appended inline at phase_completed when total > 0.
+
+    At most one line is open at a time — a phase's name waiting for its
+    timing, or the current item. Anything else written to the stream — a
+    log record through log_handler(), the items of a phase whose count
+    comes at its end — first gives that line an end, and a phase whose name
+    was interrupted states it again with its timing.
     """
 
     _ARROW = "→"
@@ -125,21 +132,21 @@ class TerminalBuildReporter:
         """width: the terminal's columns, read on every item so a resized window is followed."""
         self._out: IO[str] = output if output is not None else sys.stderr
         self._width = width or (lambda: shutil.get_terminal_size().columns)
-        self._phase_has_items: bool = False  # True when phase_started(total>0)
-        self._item_line_active: bool = False  # True after first item_written in a phase
+        self._phase_has_items = False  # the phase announced its items (phase_started total > 0)
+        self._open_line: str | None = None  # "phase" | "item": what the cursor's line holds, unfinished
+
+    def log_handler(self) -> logging.Handler:
+        """A handler writing log records to this stream without breaking the line progress is on."""
+        return _LineAwareHandler(self)
 
     def phase_started(self, name: str, *, total: int) -> None:
-        suffix = f" ({total} items)" if total > 0 else ""
-        line   = f"  {self._ARROW} {name}{suffix}"
-        if total > 0:
-            # Write header on its own line; items will appear below
+        self._end_open_line()
+        self._phase_has_items = total > 0
+        line = f"  {self._ARROW} {name}" + (f" ({total} items)" if total > 0 else "")
+        if self._phase_has_items:
             print(line, file=self._out)
-            self._phase_has_items = True
         else:
-            # Inline mode: timing appended by phase_completed
-            print(line, end="", flush=True, file=self._out)
-            self._phase_has_items = False
-        self._item_line_active = False
+            self._write(line, opens="phase")
 
     def phase_completed(
         self,
@@ -149,25 +156,23 @@ class TerminalBuildReporter:
         total: int = 0,
     ) -> None:
         timing = f"  {elapsed_seconds:.1f}s"
-
-        if self._phase_has_items:
-            # End any active item line, then print timing alone
-            if self._item_line_active:
-                print(file=self._out)  # newline after last \r item
-            print(timing, file=self._out)
+        count = f" ({total} items)" if total > 0 else ""
+        if self._open_line == "phase":
+            print(f"{count}{timing}", file=self._out)
         else:
-            # Inline mode: append count (if known at completion) + timing
-            count_suffix = f" ({total} items)" if total > 0 else ""
-            print(f"{count_suffix}{timing}", file=self._out)
-
+            self._end_open_line(keep_item=True)
+            if self._phase_has_items:
+                print(timing, file=self._out)
+            else:
+                print(f"  {self._ARROW} {name}{count}{timing}", file=self._out)
+        self._open_line = None
         self._phase_has_items = False
-        self._item_line_active = False
 
     def item_written(self, item_name: str, *, index: int, total: int) -> None:
         """
         Show per-item write progress.
 
-        On a TTY: overwrites the current line in-place via \\r.
+        On a TTY: rewrites the current line in place.
         On non-TTY (CI, piped): skips individual item lines to keep logs clean.
         """
         self._write_inline_progress(item_name, index, total)
@@ -176,29 +181,63 @@ class TerminalBuildReporter:
         """
         Show per-component extraction progress.
 
-        Mirrors item_written behaviour: overwrites on TTY, suppressed on non-TTY.
+        Mirrors item_written behaviour: rewritten on TTY, suppressed on non-TTY.
         """
         self._write_inline_progress(name, index, total)
 
-    def _write_inline_progress(self, label: str, index: int, total: int) -> None:
-        try:
-            is_tty = self._out.isatty()
-        except AttributeError:
-            is_tty = False
-
-        if is_tty:
-            # One column short of the width: a line that fills it wraps on some terminals, and \r then
-            # returns only to the wrapped part, leaving the rest of the line behind.
-            line = f"    [{index}/{total}] {label}"[:max(self._width() - 1, 1)]
-            self._out.write(f"{self._REWRITE_LINE}{line}")
-            self._out.flush()
-            self._item_line_active = True
-
     def build_skipped(self, reason: str) -> None:
+        self._end_open_line()
         print(f"  {self._SKIP} Skipped — {reason}", file=self._out)
 
     def build_completed(self, *, total_seconds: float) -> None:
+        self._end_open_line()
         print(f"  {self._CHECK} Done in {total_seconds:.1f}s", file=self._out)
+
+    def _write_inline_progress(self, label: str, index: int, total: int) -> None:
+        if not self._is_tty():
+            return
+        if self._open_line == "phase":
+            self._end_open_line()  # items go below the phase's name, never over it
+        # One column short of the width: a line that fills it wraps on some terminals, and \r then
+        # returns only to the wrapped part, leaving the rest of the line behind.
+        line = f"    [{index}/{total}] {label}"[:max(self._width() - 1, 1)]
+        self._write(f"{self._REWRITE_LINE}{line}", opens="item")
+
+    def _end_open_line(self, *, keep_item: bool = False) -> None:
+        """
+        Give the open line an end: a phase's name is closed; an item is
+        erased — the next one draws it again — unless it is the last word
+        of its phase and kept.
+        """
+        if self._open_line == "item" and not keep_item:
+            self._out.write(self._REWRITE_LINE)
+        elif self._open_line is not None:
+            self._out.write("\n")
+        self._open_line = None
+        self._out.flush()
+
+    def _write(self, text: str, *, opens: str) -> None:
+        self._out.write(text)
+        self._out.flush()
+        self._open_line = opens
+
+    def _is_tty(self) -> bool:
+        try:
+            return self._out.isatty()
+        except (AttributeError, ValueError):  # no isatty, or a closed stream
+            return False
+
+
+class _LineAwareHandler(logging.StreamHandler):
+    """Writes each record on a line of its own, after the reporter has ended the line progress left open."""
+
+    def __init__(self, reporter: TerminalBuildReporter) -> None:
+        super().__init__(reporter._out)
+        self._reporter = reporter
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._reporter._end_open_line()
+        super().emit(record)
 
 
 class SilentBuildReporter:

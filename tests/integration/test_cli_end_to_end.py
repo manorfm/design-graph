@@ -73,6 +73,15 @@ class TestBuildCommand:
         assert (tmp_path / "My App.db").exists()
         assert "skipped" not in capsys.readouterr().out.lower()
 
+    def test_build_logs_never_glue_to_a_progress_line(self, tmp_path, capsys):
+        with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(tmp_path / "out.db")]):
+            from design_graph.interface.cli.build import main
+            main()
+        lines = capsys.readouterr().err.splitlines()
+        assert any(line.startswith("pipeline: loaded") for line in lines)
+        assert not [line for line in lines if "→" in line and "pipeline:" in line]
+        assert any(line.startswith("  → Parsing boundaries and tokens") and line.endswith("s") for line in lines)
+
     def test_build_prints_summary_to_stdout(self, tmp_path, capsys):
         db_path = tmp_path / "out.db"
         with patch("sys.argv", ["design-graph", str(SIMPLE_HTML), "--db", str(db_path)]):

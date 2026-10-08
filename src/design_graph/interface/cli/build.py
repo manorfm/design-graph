@@ -252,7 +252,16 @@ def _run_build(argv: list[str]) -> None:
 
     from design_graph.pipeline.coordinator import UnsupportedPrototypeError, run_pipeline
 
-    configure_cli_logging(verbose=parsed.verbose, quiet=parsed.quiet)
+    from design_graph.pipeline.build_progress import SilentBuildReporter, TerminalBuildReporter
+    reporter = (
+        SilentBuildReporter()
+        if parsed.quiet or parsed.json_output
+        else TerminalBuildReporter()
+    )
+    configure_cli_logging(
+        verbose=parsed.verbose, quiet=parsed.quiet,
+        handler=reporter.log_handler() if isinstance(reporter, TerminalBuildReporter) else None,
+    )
 
     if not parsed.html_path.exists():
         print(f"error: file not found: {parsed.html_path}", file=sys.stderr)
@@ -284,13 +293,6 @@ def _run_build(argv: list[str]) -> None:
     effective_force = parsed.force or source_changed
     if effective_force:
         state_repository.clear()
-
-    from design_graph.pipeline.build_progress import SilentBuildReporter, TerminalBuildReporter
-    reporter = (
-        SilentBuildReporter()
-        if parsed.quiet or parsed.json_output
-        else TerminalBuildReporter()
-    )
 
     try:
         stats = asyncio.run(run_pipeline(
