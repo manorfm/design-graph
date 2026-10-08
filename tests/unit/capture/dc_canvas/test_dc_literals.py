@@ -64,3 +64,12 @@ def test_what_is_not_a_literal_is_refused(text):
 def test_nesting_beyond_the_limit_is_refused_instead_of_exhausting_the_stack():
     with pytest.raises(NotALiteral):
         read_literal("[" * 5000 + "]" * 5000, 0)
+
+
+def test_a_call_is_read_only_through_a_function_the_caller_defines():
+    calls = {"pair": lambda args: {"id": args[0], "label": args[1]}}
+    assert read_literal("[pair('a', 'Um'), pair('b', 'Dois')]", 0, calls=calls).value == [
+        {"id": "a", "label": "Um"}, {"id": "b", "label": "Dois"},
+    ]
+    with pytest.raises(NotALiteral):
+        read_literal("[other('a')]", 0, calls=calls)

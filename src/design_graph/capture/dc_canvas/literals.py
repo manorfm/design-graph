@@ -3,7 +3,8 @@ Values a DC page's logic writes literally — `[{ id: 'cap', label: 'Por
 capacidade' }]` — read from its text, never run: strings, numbers, booleans,
 null, lists and objects, in JSON or JavaScript syntax.
 
-A name is read only when the caller binds it (a factory's parameter). An
+A name is read only when the caller binds it (a factory's parameter), and a
+call only to a function the caller defines (a factory itself). An
 object member whose value is behaviour — a call, a condition, a handler — is
 left out of the object, since it is not data; anything else that is not a
 literal refuses the whole value.
@@ -13,7 +14,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Callable, Mapping
+
+Calls = Mapping[str, Callable[[list], object]]  # function name → what a call with these arguments gives
 
 # Deeper than any data a page declares; stops a crafted page from exhausting the stack.
 MAX_DEPTH = 64
@@ -36,9 +39,14 @@ class Literal:
     end: int  # index just past the value
 
 
-def read_literal(text: str, start: int, names: Mapping[str, object] | None = None) -> Literal:
-    """The value written at `start`; `names` binds the names it may use. Raises NotALiteral."""
-    reader = _Reader(text, names or {})
+def read_literal(
+    text: str, start: int, names: Mapping[str, object] | None = None, calls: Calls | None = None,
+) -> Literal:
+    """
+    The value written at `start`; `names` binds the names it may use and
+    `calls` the functions it may call. Raises NotALiteral.
+    """
+    reader = _Reader(text, names or {}, calls or {})
     reader.index = start
     value = reader.value(0)
     return Literal(value, reader.index)
@@ -70,8 +78,8 @@ def expression_at(text: str, start: int) -> str:
 
 
 class _Reader:
-    def __init__(self, text: str, names: Mapping[str, object]):
-        self.text, self.names, self.index = text, names, 0
+    def __init__(self, text: str, names: Mapping[str, object], calls: Calls):
+        self.text, self.names, self.calls, self.index = text, names, calls, 0
 
     def value(self, depth: int) -> object:
         if depth > MAX_DEPTH:
@@ -89,14 +97,14 @@ class _Reader:
         if number:
             self.index = number.end()
             return float(number.group()) if any(c in number.group() for c in ".eE") else int(number.group())
-        return self._name()
+        return self._name(depth)
 
-    def _list(self, depth: int) -> list:
+    def _list(self, depth: int, closing: str = "]") -> list:
         self.index += 1
         items: list = []
-        while self._peek() != "]":
+        while self._peek() != closing:
             items.append(self.value(depth + 1))
-            if not self._separator("]"):
+            if not self._separator(closing):
                 raise NotALiteral(f"list item ends unexpectedly at {self.index}")
         self.index += 1
         return items
@@ -154,18 +162,22 @@ class _Reader:
         self.index = end + 1
         return _unescape(raw)
 
-    def _name(self) -> object:
+    def _name(self, depth: int) -> object:
         found = _RE_NAME.match(self.text, self.index)
         if not found:
             raise NotALiteral(f"no value at {self.index}")
         name = found.group()
+        self.index = found.end()
+        if self._peek() == "(":
+            if name not in self.calls:
+                raise NotALiteral(f"call to {name!r}")
+            return self.calls[name](self._list(depth, closing=")"))
         if name in _KEYWORDS:
             value = _KEYWORDS[name]
         elif name in self.names:
             value = self.names[name]
         else:
             raise NotALiteral(f"unbound name {name!r}")
-        self.index = found.end()
         return value
 
     def _peek(self) -> str:
