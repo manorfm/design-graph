@@ -105,8 +105,8 @@ class GraphWriteSession:
     def _acquire_lock(self) -> None:
         """
         Take an exclusive, non-blocking lock on a sentinel file next to the
-        database so a second concurrent build (e.g. a manual build racing
-        watch_prototype.sh) fails fast and clearly instead of corrupting the
+        database so a second concurrent build (e.g. two terminals building the
+        same prototype) fails fast and clearly instead of corrupting the
         shared .building temp directory or the final database.
         """
         lock_file = open(self._lock_path, "w")
