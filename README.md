@@ -409,7 +409,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
 | `get_asset` | Write the files of one embedded font family or image into `design-graph-assets/<name>/` in the workspace and return their paths — content checked against its hash, names never taken from the prototype | `name`, `doc?` |
 | `get_resources` | List what the prototype loads besides its markup — libraries with version and origin, fonts with weights and subsets, images, the design tool's runtime and the prototype's own modules — described, never embedded | `kind?`, `screen?`, `doc?` |
-| `search` | Find what the prototype has that is named or says the query — screens, components (by name and type), sections, props, texts (with their screen › section), tokens, shared CSS classes and the names its code uses; a phrase found only in pieces is answered as "does not exist", with the closest matches | `query` |
+| `search` | Find what the prototype has that is named or says the query — screens, components (by name and type), sections, props, texts (with their screen › section), the copy components' lists hold (option and tab labels), tokens, shared CSS classes and the names its code uses; a phrase found only in pieces is answered as "does not exist", with the closest matches | `query` |
 | `impact` | Who uses X and what a change would reach — a component or screen (screens affected), a token by name (components using it) or a literal value such as `#FFB81C` (the tokens holding it and who uses them) | `name`, `doc?` |
 | `get_build_diff` | Return screens/components added or removed since the previous build, plus a warning when any bundle entry failed to decode and was dropped from that build | `doc?` |
 | `validate_component_implementation` | Compare a component source you wrote against its stored spec (children, default-state styles, texts), read by the capture the prototype was built with | `name`, `source`, `doc?` |
@@ -532,7 +532,9 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 - One screen per board, named by its title, with the board's viewport; boards titled `Base (…)` become variants of `Base`
 - Page links (`A02-….dc.html`, `Main.dc.html`) resolved to the boards they number
 - Custom properties per theme selector, named after the enum option (e.g. `tema`: claro/escuro) that switches them on
-- Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items, with the literal list a loop repeats attached as referenced data
+- Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items
+- Every list a loop item repeats over attached as referenced data, read from the page logic without running it: lists written literally (JSON or JavaScript syntax), built by calls to a local factory (`mk('cap', 'Por capacidade')`), or sliced and mapped from such a list; a list computed any other way is left out rather than guessed
+- Components named only by what all their occurrences share — list, label, copy or block — and otherwise by what they are (`Heading`, `Tag`, `Dot`), never after the screen where one of them happens to live
 - `<sc-for>`, `<sc-if>` and `<sc-raw-*>` read without rewriting the stored template
 - The inline style of every element, attributed by its path (`ul > li:2 > span`) to the section, component or page that contains it
 - Events (`sc-camel-on-click="{{o.pick}}"`) read in the page logic of the list that repeats the element, states from `this.state` defaults, and a style chosen by a selection ternary kept as the component's default and selected styles
