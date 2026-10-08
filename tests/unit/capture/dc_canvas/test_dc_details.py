@@ -82,7 +82,7 @@ class TestRepresentativeOccurrence:
 
     NUMBER = '<div style="font-size: {size}; font-weight: 500; line-height: 1.1"{extra}>{text}</div>'
     PAGES = [
-        Page("1 · Laudo", f'<main>{NUMBER.format(size="40px", extra=' title="índice"', text="92")}<p>Laudo</p></main>'),
+        Page("1 · Laudo", "<main>" + NUMBER.format(size="40px", extra=' title="índice"', text="92") + "<p>Laudo</p></main>"),
         Page("2 · Boas-vindas", f'<main>{NUMBER.format(size="20px", extra="", text="Anamnese")}<p>Um</p></main>'),
         Page("3 · Termo", f'<main>{NUMBER.format(size="20px", extra="", text="Termo de uso")}<p>Dois</p></main>'),
     ]
