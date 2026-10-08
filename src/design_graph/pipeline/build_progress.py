@@ -15,9 +15,9 @@ Phases WITHOUT item progress (total=0 in phase_started):
 
 Phases WITH item progress (total>0 in phase_started):
   → Writing graph (64 items)          ← header line (with newline)
-    [12/64] SectionCard               ← per-item update (line erased and rewritten on TTY,
-                                        cut to the terminal width so it never wraps)
-    [64/64] RestaurantsPage
+    ████░░░░░░░░░░░░░░░░  19%  12/64  SectionCard   ← per-item bar (rewritten in place on TTY,
+                                                      cut to the terminal width so it never wraps)
+    ████████████████████ 100%  64/64  RestaurantsPage
     0.9s                              ← timing on its own line
   ✓ Done in 1.8s
 
@@ -200,7 +200,8 @@ class TerminalBuildReporter:
             self._end_open_line()  # items go below the phase's name, never over it
         # One column short of the width: a line that fills it wraps on some terminals, and \r then
         # returns only to the wrapped part, leaving the rest of the line behind.
-        line = f"    [{index}/{total}] {label}"[:max(self._width() - 1, 1)]
+        width = self._width()
+        line = f"    {_bar(index, total, width)}  {index}/{total}  {label}"[:max(width - 1, 1)]
         self._write(f"{self._REWRITE_LINE}{line}", opens="item")
 
     def _end_open_line(self, *, keep_item: bool = False) -> None:
@@ -226,6 +227,18 @@ class TerminalBuildReporter:
             return self._out.isatty()
         except (AttributeError, ValueError):  # no isatty, or a closed stream
             return False
+
+
+_BAR_DONE, _BAR_LEFT = "█", "░"
+_BAR_CELLS = (10, 20)  # fewest and most cells: a quarter of the terminal's width between the two
+
+
+def _bar(index: int, total: int, width: int) -> str:
+    """`█████░░░░░  50%` — how far the phase went, the bar sized to the terminal."""
+    done = min(max(index / total, 0.0), 1.0) if total > 0 else 0.0
+    cells = min(max(width // 4, _BAR_CELLS[0]), _BAR_CELLS[1])
+    filled = round(done * cells)
+    return f"{_BAR_DONE * filled}{_BAR_LEFT * (cells - filled)} {round(done * 100):>3}%"
 
 
 class _LineAwareHandler(logging.StreamHandler):

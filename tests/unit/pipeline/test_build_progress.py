@@ -328,7 +328,7 @@ class TestItemProgressOnATerminal:
         reporter.phase_started("Writing graph", total=2)
         reporter.item_written("Aprofundamento de pressão (web)", index=1, total=2)
         reporter.item_written("Laudo", index=2, total=2)
-        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (2 items)", "    [2/2] Laudo"]
+        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (2 items)", "    " + "█" * 20 + " 100%  2/2  Laudo"]
 
     def test_an_item_wider_than_the_terminal_is_cut_so_it_never_wraps(self):
         reporter, tty = self._reporter(width=30)
@@ -336,14 +336,14 @@ class TestItemProgressOnATerminal:
         reporter.item_written("Ficha do nó: Integração contínua", index=1, total=2)
         reporter.item_written("Prontidão para práticas avançadas", index=2, total=2)
         screen = _screen(tty.getvalue(), 30)
-        assert len(screen) == 2 and screen[1].startswith("    [2/2] Prontidão") and len(screen[1]) < 30
+        assert len(screen) == 2 and "100%  2/2  Pr" in screen[1] and len(screen[1]) < 30
 
     def test_the_timing_follows_the_last_item_on_its_own_line(self):
         reporter, tty = self._reporter()
         reporter.phase_started("Writing graph", total=1)
         reporter.item_written("Laudo", index=1, total=1)
         reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
-        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (1 items)", "    [1/1] Laudo", "  0.7s", ""]
+        assert _screen(tty.getvalue(), 80) == ["  → Writing graph (1 items)", "    " + "█" * 20 + " 100%  1/1  Laudo", "  0.7s", ""]
 
 
 class TestLogsAndProgressShareTheTerminal:
@@ -380,7 +380,7 @@ class TestLogsAndProgressShareTheTerminal:
         reporter.item_written("Mapa", index=2, total=2)
         reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
         assert _screen(tty.getvalue(), 80) == [
-            "  → Writing graph (2 items)", "schema: initialised", "    [2/2] Mapa", "  0.7s", "",
+            "  → Writing graph (2 items)", "schema: initialised", "    " + "█" * 20 + " 100%  2/2  Mapa", "  0.7s", "",
         ]
 
     def test_items_of_a_phase_whose_count_comes_at_the_end_go_below_its_line(self):
@@ -416,3 +416,23 @@ class TestLogsAndProgressShareTheTerminal:
         logger.warning("pipeline: 1 write error")
         reporter.phase_completed("Writing graph", elapsed_seconds=0.7)
         assert out.getvalue() == "  → Writing graph (1 items)\npipeline: 1 write error\n  0.7s\n"
+
+
+class TestProgressBar:
+    def _line(self, index: int, total: int, width: int = 80) -> str:
+        tty = _Tty()
+        reporter = TerminalBuildReporter(output=tty, width=lambda: width)
+        reporter.phase_started("Writing graph", total=total)
+        reporter.item_written("Laudo", index=index, total=total)
+        return _screen(tty.getvalue(), width)[1]
+
+    def test_the_bar_fills_in_proportion_to_the_items_done(self):
+        assert self._line(1, 4) == "    " + "█" * 5 + "░" * 15 + "  25%  1/4  Laudo"
+
+    def test_the_bar_never_overflows_or_goes_negative(self):
+        assert self._line(9, 4).startswith("    " + "█" * 20 + " 100%")
+        assert self._line(0, 4).startswith("    " + "░" * 20 + "   0%")
+
+    def test_a_narrow_terminal_gets_a_shorter_bar_and_keeps_the_count(self):
+        line = self._line(1, 2, width=40)
+        assert line.startswith("    " + "█" * 5 + "░" * 5 + "  50%  1/2") and len(line) < 40
