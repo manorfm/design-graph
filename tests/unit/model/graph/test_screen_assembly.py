@@ -29,7 +29,7 @@ def reader(tmp_path):
     ])
     w.write_resources([REACT])
     w.write_component(_comp("Row", "function Row() { return <li/>; }"))
-    w.write_component(_comp("List", "function List() { return <ul><Row/><Row/></ul>; }", child_refs=["Row"],
+    w.write_component(_comp("List", "function List() { return <ul>{ITEMS.map(() => <Row/>)}</ul>; }", child_refs=["Row"],
                             styles=[StyleEntry.create("List", "color", "var(--ink)")],
                             referenced_data={"ITEMS": [1, 2]},
                             props=[ComponentProp.create("List", "items", "[]")]))
@@ -51,8 +51,42 @@ def test_the_screen_own_source_is_the_skeleton(reader):
 def test_each_component_comes_once_in_the_order_the_screen_renders_it(reader):
     components = reader.get_screen_assembly("Home")["components"]
     assert [c["name"] for c in components] == ["Header", "List", "Row"]
-    listing = components[1]
-    assert listing["source_code"].startswith("function List()") and listing["referenced_data"] == {"ITEMS": [1, 2]}
+    assert components[1]["source_code"].startswith("function List()")
+
+
+def test_the_data_the_components_draw_from_is_the_screen_own(reader):
+    assert reader.get_screen_assembly("Home")["data"] == [{"component": "List", "key": "ITEMS", "value": [1, 2]}]
+
+
+def _screen_with_nested_options(tmp_path, screen: str, logic: str) -> dict:
+    conn = kuzu.Connection(kuzu.Database(str(tmp_path / "options.db")))
+    initialize_schema(conn)
+    w = GraphWriter(conn)
+    w.write_component(_comp("Option", "<button>{{o.label}}</button>", referenced_data={
+        "papel": ["Direção"], "tem": ["Semanas"], "papel · Outra": ["Produto"],
+    }))
+    w.write_component(_comp("Question", "<fieldset><sc-for list='{{slot.list}}'><button/></sc-for></fieldset>",
+                            child_refs=["Option"]))
+    w.write_screen(ExtractedScreen(name=screen, component_refs=["Question"], sections_count=0, source_code="",
+                                   skeleton=f"<main><Question></Question></main><script>{logic}</script>"), [])
+    w.commit()
+    return GraphReader(conn).get_screen_assembly(screen)
+
+
+def test_a_nested_component_lists_are_given_when_the_screen_code_names_them(tmp_path):
+    assembly = _screen_with_nested_options(tmp_path, "Tempo", "const tem = [];")
+    assert [c["name"] for c in assembly["components"]] == ["Question"]
+    assert assembly["data"] == [{"component": "Option", "key": "tem", "value": ["Semanas"]}]
+
+
+def test_a_list_kept_apart_for_a_screen_replaces_the_plain_one_there(tmp_path):
+    assembly = _screen_with_nested_options(tmp_path, "Outra", "const papel = [];")
+    assert assembly["data"] == [{"component": "Option", "key": "papel · Outra", "value": ["Produto"]}]
+
+
+def test_a_list_kept_apart_for_another_screen_is_not_given(tmp_path):
+    assembly = _screen_with_nested_options(tmp_path, "Perspectiva", "const papel = [];")
+    assert assembly["data"] == [{"component": "Option", "key": "papel", "value": ["Direção"]}]
 
 
 def test_tokens_and_resources_are_the_screen_own(reader):

@@ -17,15 +17,15 @@ def _assembly(component_source="function List() { return <ul/>; }"):
                       "navigated_from": [], "variant_of": None, "variants": []},
         "components": [
             {"name": "Header", "comp_type": "component", "source_code": "function Header() { return <h1/>; }",
-             "source_lang": "jsx", "defined": True, "props": [], "referenced_data": {}},
+             "source_lang": "jsx", "defined": True, "props": []},
             {"name": "List", "comp_type": "component", "source_code": component_source, "source_lang": "jsx",
              "defined": True, "props": [{"prop_name": "items", "default_value": "[]"}],
-             "referenced_data": {"ITEMS": ["a", "b"]},
              "actions": [{"trigger": "change", "element": "input", "handler": "e => setQuery(e.target.value)",
                           "effect": "muda estado query"}]},
             {"name": "Icon", "comp_type": "component", "source_code": "", "source_lang": "", "defined": False,
-             "props": [], "referenced_data": {}},
+             "props": []},
         ],
+        "data": [{"component": "List", "key": "ITEMS", "value": ["a", "b"]}],
         "tokens": [
             {"t.category": "css_var", "t.label": "--ink", "t.value": "#111", "t.usage": 1, "t.mode": "claro"},
             {"t.category": "css_var", "t.label": "--ink", "t.value": "#eee", "t.usage": 1, "t.mode": "escuro"},
@@ -74,6 +74,8 @@ def test_known_components_are_left_out_and_said_so():
     out = assemble_page(_Reader(), "Home", known=["List"])
     assert "function List()" not in out
     assert "Omitidos (você já tem): List" in out
+    # what List draws from on this screen is the screen's, so it is still given
+    assert '**List** · `ITEMS`: `["a", "b"]`' in out
 
 
 def test_a_long_assembly_comes_in_parts_that_together_hold_everything():

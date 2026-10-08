@@ -13,6 +13,25 @@ from collections import defaultdict
 from design_graph.model.entities import ComponentDefinitionStatus
 
 
+_RE_CODE_NAME = re.compile(r"[A-Za-z_$][\w$]*")
+# A list named alike on several screens with other values is kept as `name · screen` (see the DC capture).
+_SCREEN_SEPARATOR = " · "
+
+
+def _belongs_to(key: str, screen: str, data: dict, named: set[str]) -> bool:
+    """
+    Whether one entry of a component's data is the screen's: its name is one
+    the code uses, and — when it was kept apart per screen — it is this
+    screen's copy, the plain one only when this screen has none of its own.
+    """
+    base, _, owner = key.partition(_SCREEN_SEPARATOR)
+    if base not in named:
+        return False
+    if owner:
+        return owner == screen
+    return f"{base}{_SCREEN_SEPARATOR}{screen}" not in data
+
+
 class ScreenAssemblyQueries:
     """GraphReader's screen-assembly queries (relies on its _q, _resolve_icons and lookups)."""
 
@@ -31,12 +50,14 @@ class ScreenAssemblyQueries:
             {"n": resolved},
         )[0]
         skeleton = screen["skeleton"] or screen["source"] or ""
+        components = self._with_hooks(resolved, self._assembly_components(skeleton))
         return {
             "name": resolved,
             "skeleton": self._resolve_icons(skeleton),
             "source_lang": screen["lang"] or "",
             "relations": self.get_screen_relations(resolved),
-            "components": self._with_hooks(resolved, self._assembly_components(skeleton)),
+            "components": components,
+            "data": self._screen_data(resolved, skeleton, components),
             "tokens": self.get_tokens(screen=resolved),
             "resources": self.get_resources(screen=resolved),
             "actions": self.actions_of("Screen", resolved),
@@ -61,6 +82,43 @@ class ScreenAssemblyQueries:
             pending = [tag for name in fresh for tag in _tags_in(components[name]["source_code"])]
         return [components[name] for name in order]
 
+    def _screen_data(self, screen: str, skeleton: str, components: list[dict]) -> list[dict]:
+        """
+        The lists and tables the screen's components draw values from — the
+        ones written out inside another definition too — each once, kept
+        only when the screen's code or theirs names it: a repeated item
+        carries every list it is repeated by, on every screen, and this
+        screen needs its own.
+        """
+        named = set(_RE_CODE_NAME.findall(skeleton))
+        named.update(word for c in components for word in _RE_CODE_NAME.findall(c["source_code"]))
+        found: list[dict] = []
+        for name, data in self._data_of_nested([c["name"] for c in components]):
+            found += [
+                {"component": name, "key": key, "value": value}
+                for key, value in data.items() if _belongs_to(key, screen, data, named)
+            ]
+        return found
+
+    def _data_of_nested(self, names: list[str]) -> list[tuple[str, dict]]:
+        """(component, referenced data) of the components and everything they contain, each once, in that order."""
+        order = list(dict.fromkeys(names))
+        pending = order
+        while pending:
+            rows = self._q(
+                "UNWIND $names AS pn MATCH (:Component {name:pn})-[:CONTAINS]->(c:Component) RETURN DISTINCT c.name AS name",
+                {"names": pending},
+            )
+            pending = [r["name"] for r in rows if r["name"] not in order]
+            order += pending
+        rows = self._q(
+            "UNWIND $names AS cn MATCH (c:Component {name:cn}) WHERE c.referenced_data_json <> '' "
+            "RETURN c.name AS name, c.referenced_data_json AS data",
+            {"names": order},
+        )
+        data = {r["name"]: json.loads(r["data"]) for r in rows}
+        return [(name, data[name]) for name in order if isinstance(data.get(name), dict)]
+
     def _with_hooks(self, screen: str, components: list[dict]) -> list[dict]:
         """The components, then every hook the screen, they or those hooks call — each once, first call first."""
         known = {c["name"] for c in components}
@@ -82,7 +140,7 @@ class ScreenAssemblyQueries:
         rows = self._q(
             "UNWIND $names AS cn MATCH (c:Component {name:cn}) "
             "RETURN c.name AS name, c.comp_type AS comp_type, c.source_code AS source_code, "
-            "c.source_lang AS source_lang, c.occurrence AS occurrence, c.referenced_data_json AS data",
+            "c.source_lang AS source_lang, c.occurrence AS occurrence",
             {"names": names},
         )
         props: dict[str, list[dict]] = defaultdict(list)
@@ -100,7 +158,6 @@ class ScreenAssemblyQueries:
                 "source_lang": row["source_lang"] or "",
                 "defined": row["occurrence"] != ComponentDefinitionStatus.UNRESOLVED.value,
                 "props": props.get(row["name"], []),
-                "referenced_data": json.loads(row["data"] or "{}"),
                 "actions": self.actions_of("Component", row["name"]),
                 "states": self.states_of("Component", row["name"]),
             }

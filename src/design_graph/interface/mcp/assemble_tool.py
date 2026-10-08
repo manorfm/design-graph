@@ -61,7 +61,7 @@ def _blocks(assembly: dict, known: set[str]) -> list[_Block]:
         *_code_blocks("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], lang),
         _Block("3. Componentes", "## 3. Componentes\n" + ("" if components else "Nenhum além dos que você já tem.\n")),
         *(block for component in components for block in _component_blocks(component)),
-        _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(components), ""])),
+        _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(assembly["data"]), ""])),
         _Block("5. Comportamento", "\n".join(["## 5. Comportamento", *_behaviour_lines(assembly, components), ""])),
         _Block("6. Tokens", "\n".join(["## 6. Tokens usados, por modo", *_token_lines(assembly["tokens"]), ""])),
         _Block("7. Dependências", "\n".join(["## 7. Dependências", *(resource_lines(assembly["resources"], heading="###")
@@ -103,10 +103,11 @@ def _code_blocks(title: str, intro: str, code: str, lang: str) -> list[_Block]:
     return blocks
 
 
-def _data_lines(components: list[dict]) -> list[str]:
+def _data_lines(data: list[dict]) -> list[str]:
+    """The screen's own data — whether or not its components were already received for another screen."""
     lines = [
-        f"- **{c['name']}** · `{key}`: `{json.dumps(value, ensure_ascii=False)}`"
-        for c in components for key, value in c["referenced_data"].items()
+        f"- **{entry['component']}** · `{entry['key']}`: `{json.dumps(entry['value'], ensure_ascii=False)}`"
+        for entry in data
     ]
     return lines or ["Nenhum dado repetido."]
 

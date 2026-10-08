@@ -109,3 +109,54 @@ def test_the_page_assembly_carries_the_list_the_logic_builds(tabs_tools):
     out = _call(tabs_tools, "assemble_page", name="Mapa")
     data = out.split("## 4. Dados", 1)[1].split("## 5.", 1)[0]
     assert "Por capacidade" in data and "Por estrutura" in data
+
+
+def _question(n: int, list_name: str, labels: list[str]) -> Page:
+    items = ", ".join(f'{{"id": "{i}", "label": "{label}"}}' for i, label in enumerate(labels))
+    logic = (
+        "class Component extends DCLogic {\n  renderVals() {\n"
+        f"    const {list_name} = [{items}].map((o) => ({{ ...o, pick: () => this.setState({{ v: o.id }}) }}));\n"
+        f"    return {{ {list_name} }};\n  }}\n}}"
+    )
+    body = (
+        f'<main><fieldset style="border: 0; display: flex"><legend style="font-weight: 600">Pergunta {n}</legend>'
+        f'<div style="display: flex; gap: 8px"><sc-for list="{{{{{list_name}}}}}" as="o">'
+        '<button type="button" sc-camel-on-click="{{o.pick}}"><span>{{o.label}}</span></button>'
+        f"</sc-for></div></fieldset><p>Rodapé {n}</p></main>"
+    )
+    return Page(f"{n} · Pergunta {n}", body, logic=logic, width=1280, height=800)
+
+
+@pytest.fixture(scope="module")
+def question_tools(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("dc_questions")
+    html_path = tmp / "canvas.html"
+    pages = [_question(1, "sen", ["Menos de 2 anos", "Mais de 10 anos"]), _question(2, "tem", ["Semanas", "Meses"]),
+             _question(3, "ev", ["Registramos o que aconteceu"])]
+    html_path.write_text(canvas_html(pages))
+    stats = asyncio.run(run_pipeline(html_path, tmp / "canvas.db", tmp / "canvas.db.state.json"))
+    assert stats is not None and stats.write_errors == 0
+    reader = GraphReader(kuzu.Connection(kuzu.Database(str(tmp / "canvas.db"), read_only=True)))
+    return ToolDispatcher([("canvas", reader)]), reader
+
+
+def _data_section(tools, screen: str, **args) -> str:
+    out = _call(tools, "assemble_page", name=screen, **args)
+    return out.split("## 4. Dados", 1)[1].split("## 5.", 1)[0]
+
+
+def test_the_assembly_carries_the_lists_of_components_nested_inside_another(question_tools):
+    data = _data_section(question_tools, "Pergunta 2")
+    assert "Semanas" in data and "Meses" in data
+
+
+def test_the_assembly_carries_only_the_lists_that_screen_uses(question_tools):
+    data = _data_section(question_tools, "Pergunta 2")
+    assert "Menos de 2 anos" not in data and "Registramos" not in data
+
+
+def test_a_screen_list_is_carried_even_when_its_components_are_already_known(question_tools):
+    first = _call(question_tools, "assemble_page", name="Pergunta 1")
+    known = [line.split("**Componentes**: ", 1)[1] for line in first.splitlines() if line.startswith("**Componentes**")][0]
+    data = _data_section(question_tools, "Pergunta 3", known=known.split(", "))
+    assert "Registramos o que aconteceu" in data
