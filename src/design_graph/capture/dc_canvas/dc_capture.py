@@ -20,7 +20,7 @@ from design_graph.capture.dc_canvas.logic import list_member, literal_lists, mem
 from design_graph.capture.dc_canvas.sections import page_blocks, page_root, page_sections, page_styles
 from design_graph.capture.dc_canvas.screens import Variant, links, variants
 from design_graph.capture.dc_canvas.template import (
-    SOURCE_LANG, element_children, element_paths, parse_markup, rendered_descendants,
+    SOURCE_LANG, drop_authoring_hints, element_children, element_paths, parse_markup, rendered_descendants,
 )
 from design_graph.capture.html_prototype.parsing.css_class_resolver import extract_tag_pseudo_rules
 from design_graph.capture.dc_canvas.tokens import extract_canvas_tokens
@@ -142,6 +142,7 @@ def _skeleton(page: DcPage, screen_blocks: list[Tag], name_of: dict[int, str], d
         return ""
     root = next(parent for parent in screen_blocks[0].parents if parent.parent is None)
     replace_with_instances(root, name_of, definitions)
+    drop_authoring_hints(root)
     return page.source_with(str(root))
 
 

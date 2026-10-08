@@ -13,6 +13,8 @@ from design_graph.capture import markup
 from design_graph.capture.markup import INTERPOLATION
 
 _TRANSPARENT = {"sc-for", "sc-if"}
+# What the canvas editor shows in place of data while designing (`hint-placeholder-count="5"`) — not the design.
+_AUTHORING_HINT_PREFIX = "hint-"
 _RAW_PREFIX = "sc-raw-"
 _NOT_RENDERED = markup.NOT_RENDERED | {"helmet"}
 # Every stored DC source — page, block or component — is template markup.
@@ -37,6 +39,18 @@ def element_children(element: Tag) -> list[Tag]:
             continue
         children.extend(element_children(child) if child.name in _TRANSPARENT else [child])
     return children
+
+
+def is_authoring_hint(element: Tag, attribute: str) -> bool:
+    """Whether the attribute only tells the canvas editor how to preview a loop or condition."""
+    return element.name in _TRANSPARENT and attribute.startswith(_AUTHORING_HINT_PREFIX)
+
+
+def drop_authoring_hints(root: Tag) -> None:
+    """Remove every authoring hint at or below `root` — from a copy that becomes a definition or skeleton."""
+    for element in [root, *root.find_all(_TRANSPARENT)]:
+        for attribute in [a for a in element.attrs if is_authoring_hint(element, a)]:
+            del element.attrs[attribute]
 
 
 def visible_texts(element: Tag) -> list[str]:

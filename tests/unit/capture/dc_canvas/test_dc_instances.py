@@ -106,3 +106,28 @@ def test_styles_written_differently_never_share_a_template():
     ).find_all("i")
     definition = definition_of(cells)
     assert set(definition.values) == {id(cells[1]), id(cells[2])}  # the trailing-";" one stays literal
+
+
+def test_authoring_hints_of_the_canvas_editor_are_not_part_of_a_component_or_screen(tmp_path):
+    import asyncio
+
+    from design_graph.capture.base import PrototypeDocument
+    from design_graph.capture.registry import capture_for
+    from tests.support.dc_canvas import Page, canvas_html
+
+    def page(n: int, count: int) -> Page:
+        return Page(f"{n} · Pergunta {n}", (
+            f'<main><div style="display: flex; gap: 8px"><sc-for list="{{{{xs}}}}" as="o" hint-placeholder-count="{count}">'
+            '<button type="button"><span>{{o.label}}</span></button></sc-for></div>'
+            f'<sc-if value="{{{{open}}}}" hint-placeholder-val="{{{{true}}}}"><p>Aberto {n}</p></sc-if></main>'
+        ))
+
+    path = tmp_path / "canvas.html"
+    path.write_text(canvas_html([page(1, 5), page(2, 3), page(3, 2)]))
+    document = PrototypeDocument.read(path)
+    result = asyncio.run(capture_for(document).capture(document, concurrency=1))
+    assert result.components
+    for component in result.components:
+        assert "hint-placeholder" not in component.source_code
+        assert not [p for p in component.props if p.prop_name.startswith("hint-")]
+    assert all("hint-placeholder" not in screen.skeleton for screen in result.screens)

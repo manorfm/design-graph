@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from bs4 import Tag
 from bs4.element import PreformattedString
 
+from design_graph.capture.dc_canvas.template import drop_authoring_hints, is_authoring_hint
+
 _RE_INSTANCE = re.compile(r'<([A-Z][\w-]*)((?:\s+[\w:.-]+="[^"]*")*)\s*></\1>')
 _RE_ATTRIBUTE = re.compile(r'([\w:.-]+)="([^"]*)"')
 _RE_ATTRIBUTE_SLOT = re.compile(r'="\{\{slot\.([\w-]+)\}\}"')
@@ -65,7 +67,8 @@ def _shape(node) -> tuple:
     """
     if isinstance(node, Tag):
         style = _with_slots(node.get("style") or "", {}, blank=True)
-        return (node.name, tuple(sorted(node.attrs)), style, tuple(_shape(child) for child in node.children))
+        attributes = tuple(sorted(a for a in node.attrs if not is_authoring_hint(node, a)))
+        return (node.name, attributes, style, tuple(_shape(child) for child in node.children))
     if isinstance(node, PreformattedString):  # comments and the like: kept verbatim, part of the shape
         return ("#literal", str(node))
     return ("#text",)
@@ -76,6 +79,8 @@ def _positions(node) -> list[_Position]:
     found: list[_Position] = []
     if isinstance(node, Tag):
         for name in node.attrs:
+            if is_authoring_hint(node, name):
+                continue
             if name == "style":
                 found += [_Position(node, name, index, value, prop)
                           for index, (prop, value) in enumerate(_declarations(node.attrs[name]))]
@@ -141,6 +146,7 @@ def definition_of(occurrences: list[Tag]) -> Definition:
     """The template of the occurrences sharing the most common shape; the others are left out of it."""
     same = _most_common_shape(occurrences)
     template = copy.copy(same[0])
+    drop_authoring_hints(template)
     columns = list(zip(*(_positions(element) for element in same)))
     slots: list[tuple[str, str]] = []
     values: dict[int, dict[str, str]] = {id(element): {} for element in same}
