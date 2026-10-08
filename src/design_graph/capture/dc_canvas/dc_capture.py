@@ -78,7 +78,8 @@ class DcCanvasCapture:
                 ref for block in blocks[screen.name] for ref in found.outermost_in(block)
             ))
         for screen in screens:  # last: swapping occurrences for instances rewrites the parsed pages
-            screen.skeleton = _skeleton(board_page[screen.name], blocks[screen.name], found.name_of, definitions)
+            screen.skeleton, instantiated = _skeleton(board_page[screen.name], blocks[screen.name], found.name_of, definitions)
+            screen.component_refs = list(dict.fromkeys(screen.component_refs + instantiated))
         return CaptureResult(
             capture=CAPTURE_NAME, components=components, screens=screens, sections=sections,
             tokens=extract_canvas_tokens(list(pages.values())), skipped_entries=skipped,
@@ -136,14 +137,16 @@ def _defined(component: ExtractedComponent, definition: Definition | None) -> Ex
     )
 
 
-def _skeleton(page: DcPage, screen_blocks: list[Tag], name_of: dict[int, str], definitions: dict[str, Definition]) -> str:
-    """The page's source with every component occurrence that fits its definition as an instance tag."""
+def _skeleton(
+    page: DcPage, screen_blocks: list[Tag], name_of: dict[int, str], definitions: dict[str, Definition],
+) -> tuple[str, list[str]]:
+    """The page's source with every component occurrence that fits its definition as an instance tag, and those components."""
     if not screen_blocks:
-        return ""
+        return "", []
     root = next(parent for parent in screen_blocks[0].parents if parent.parent is None)
-    replace_with_instances(root, name_of, definitions)
+    instantiated = replace_with_instances(root, name_of, definitions)
     drop_authoring_hints(root)
-    return page.source_with(str(root))
+    return page.source_with(str(root)), instantiated
 
 
 def _screen(board: Board, page: DcPage, boards: list[Board], board_variants: dict[str, Variant]) -> ExtractedScreen:

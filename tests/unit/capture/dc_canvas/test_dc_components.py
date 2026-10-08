@@ -232,3 +232,16 @@ def test_a_shared_container_is_named_by_what_it_holds(tmp_path):
         for n in (1, 2, 3)
     ]
     assert "HeadingStack" in _components(tmp_path, pages)
+
+
+def test_a_component_a_screen_renders_inside_raw_markup_is_used_by_that_screen(tmp_path):
+    """A card of another shape on one screen stays as markup; what it holds is still that screen's."""
+    card = '<div{extra} style="border: 1px solid red; padding: 8px; display: flex"><h2>Título</h2><div>{inner}</div></div>'
+    plain = card.format(extra="", inner="<p>texto</p>")
+    odd = card.format(extra=' title="convites"', inner='<sc-for list="{{lotes}}" as="o"><button type="button">{{o.label}}</button></sc-for>')
+    pages = [Page(f"{n} · Tela {n}", f"<main>{body}<p>Fim {n}</p></main>") for n, body in ((1, plain), (2, plain), (3, odd))]
+    result = _capture(tmp_path, pages)
+    screens = {s.name: s for s in result.screens}
+    item = next(c.name for c in result.components if c.name.endswith("Item"))
+    assert f"<{item} " in screens["Tela 3"].skeleton or f"<{item}>" in screens["Tela 3"].skeleton
+    assert item in screens["Tela 3"].component_refs

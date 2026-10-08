@@ -181,18 +181,25 @@ def _unique(name: str, used: set[str]) -> str:
 
 # ── Skeletons ─────────────────────────────────────────────────────────────────
 
-def replace_with_instances(root: Tag, name_of: dict[int, str], definitions: dict[str, Definition]) -> None:
-    """Swap every outermost occurrence that fits its definition for an instance tag carrying its slot values."""
+def replace_with_instances(root: Tag, name_of: dict[int, str], definitions: dict[str, Definition]) -> list[str]:
+    """
+    Swap every outermost occurrence that fits its definition for an instance
+    tag carrying its slot values; the names instantiated, in order. An
+    occurrence of another shape stays as markup, and what it holds is
+    instantiated in its place — so those names belong to the page too.
+    """
+    instantiated: list[str] = []
     for child in list(root.children):
         if not isinstance(child, Tag):
             continue
         name = name_of.get(id(child))
         definition = definitions.get(name) if name else None
         if definition is not None and id(child) in definition.values:
-            instance = Tag(name=name, attrs=dict(definition.values[id(child)]))
-            child.replace_with(instance)
+            child.replace_with(Tag(name=name, attrs=dict(definition.values[id(child)])))
+            instantiated.append(name)
         else:
-            replace_with_instances(child, name_of, definitions)
+            instantiated += replace_with_instances(child, name_of, definitions)
+    return instantiated
 
 
 def expand_skeleton(skeleton: str, templates: dict[str, str]) -> str:
