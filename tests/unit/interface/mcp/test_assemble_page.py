@@ -136,3 +136,19 @@ def test_lists_built_at_run_time_are_named_so_the_agent_reads_the_logic():
     assembly["unread_lists"] = ["up", "down"]
     data = assemble_page(_Reader(assembly), "Home").split("## 4. Dados", 1)[1].split("## 5.", 1)[0]
     assert "`up`, `down`" in data and "lógica da tela" in data
+
+
+def test_the_header_names_the_lists_the_screen_draws_from_and_where_they_are():
+    long_source = "function List() {\n" + "\n".join(f"  const linha{n} = {n};" for n in range(3000)) + "\n}"
+    assembly = _assembly(long_source)
+    assembly["unread_lists"] = ["up"]
+    first = assemble_page(_Reader(assembly), "Home")
+    header = first.split("## 1. Cabeçalho", 1)[1].split("## 2.", 1)[0]
+    data_part = next(n for n in range(1, 10) if "## 4. Dados" in assemble_page(_Reader(assembly), "Home", part=n))
+    assert f"**Listas**: `ITEMS`, `up` — em 4. Dados, parte {data_part}" in header
+
+
+def test_a_screen_without_lists_says_nothing_about_them():
+    assembly = _assembly()
+    assembly["data"] = []
+    assert "**Listas**" not in assemble_page(_Reader(assembly), "Home")

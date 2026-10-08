@@ -34,7 +34,7 @@ def assemble_page(reader: GraphReader, name: str, known: object = None, part: ob
     if not assembly:
         return f"Tela '{name}' não encontrada. Use list_screens() para ver as telas do protótipo."
     known_names = _names(known)
-    parts = _pack(_blocks(assembly, known_names))
+    parts = _packed(assembly, known_names)
     number = _part_number(part, len(parts))
     if number is None:
         return f"Parte inválida: {part!r}. A montagem de '{assembly['name']}' tem as partes 1 a {len(parts)}."
@@ -52,16 +52,32 @@ def assemble_page(reader: GraphReader, name: str, known: object = None, part: ob
 
 # ── Blocks ────────────────────────────────────────────────────────────────────
 
-def _blocks(assembly: dict, known: set[str]) -> list[_Block]:
+_DATA = "4. Dados"
+_MAX_REPACKS = 3  # naming the data's part can move it; packing again settles within a pass or two
+
+
+def _packed(assembly: dict, known: set[str]) -> list[list[_Block]]:
+    """The assembly in parts, its header naming the part its lists are in."""
+    data_part = None
+    for _ in range(_MAX_REPACKS):
+        parts = _pack(_blocks(assembly, known, data_part))
+        found = next(n for n, blocks in enumerate(parts, 1) if any(b.title == _DATA for b in blocks))
+        if found == data_part:
+            break
+        data_part = found
+    return parts
+
+
+def _blocks(assembly: dict, known: set[str], data_part: int | None = None) -> list[_Block]:
     components = [c for c in assembly["components"] if c["name"] not in known]
     omitted = [c["name"] for c in assembly["components"] if c["name"] in known]
     lang = assembly["source_lang"]
     return [
-        _Block("1. Cabeçalho", "\n".join(["## 1. Cabeçalho", *_header_lines(assembly), ""])),
+        _Block("1. Cabeçalho", "\n".join(["## 1. Cabeçalho", *_header_lines(assembly, data_part), ""])),
         *_code_blocks("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], lang),
         _Block("3. Componentes", "## 3. Componentes\n" + ("" if components else "Nenhum além dos que você já tem.\n")),
         *(block for component in components for block in _component_blocks(component)),
-        _Block("4. Dados", "\n".join(["## 4. Dados", *_data_lines(assembly["data"], assembly["unread_lists"]), ""])),
+        _Block(_DATA, "\n".join(["## 4. Dados", *_data_lines(assembly["data"], assembly["unread_lists"]), ""])),
         _Block("5. Comportamento", "\n".join(["## 5. Comportamento", *_behaviour_lines(assembly, components), ""])),
         _Block("6. Tokens", "\n".join(["## 6. Tokens usados, por modo", *_token_lines(assembly["tokens"]), ""])),
         _Block("7. Dependências", "\n".join(["## 7. Dependências", *(resource_lines(assembly["resources"], heading="###")
@@ -70,14 +86,24 @@ def _blocks(assembly: dict, known: set[str]) -> list[_Block]:
     ]
 
 
-def _header_lines(assembly: dict) -> list[str]:
+def _header_lines(assembly: dict, data_part: int | None) -> list[str]:
     modes = sorted({t["t.mode"] for t in assembly["tokens"] if t.get("t.mode")})
     lines = [*screen_relation_lines(assembly["relations"]), f"**Linguagem**: {assembly['source_lang'] or 'n/d'}"]
     if modes:
         lines.append(f"**Modos**: {', '.join(modes)}")
     names = [c["name"] for c in assembly["components"]]
     lines.append(f"**Componentes**: {', '.join(names) if names else 'nenhum'}")
+    lines += _lists_line(assembly, data_part)
     return lines
+
+
+def _lists_line(assembly: dict, data_part: int | None) -> list[str]:
+    """The lists the screen draws from, named up front with where they are — a long assembly gives them late."""
+    names = list(dict.fromkeys([entry["key"] for entry in assembly["data"]] + assembly["unread_lists"]))
+    if not names:
+        return []
+    where = f"em {_DATA}" + (f", parte {data_part}" if data_part and data_part > 1 else "")
+    return [f"**Listas**: {', '.join(f'`{name}`' for name in names)} — {where}"]
 
 
 def _component_blocks(component: dict) -> list[_Block]:
