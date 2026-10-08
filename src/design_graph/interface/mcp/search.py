@@ -13,6 +13,7 @@ from weakref import WeakKeyDictionary
 
 from design_graph.model.graph.reader import GraphReader
 from design_graph.interface.mcp.aliases import get_aliases
+from design_graph.interface.mcp.data_copy import copy_in
 from design_graph.interface.mcp.identifiers import identifiers_in
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ MAX_TOKENS_IN_SEARCH_QUERY_EXPANSION = 6
 
 @dataclass
 class SearchResult:
-    type: str    # "Screen" | "Component" | "Token" | "UIText"
+    type: str    # "Screen" | "Component" | "Token" | "UIText" | "Dado" | …
     name: str
     detail: str
     id: str      # unique identifier within its type
@@ -160,7 +161,7 @@ def search(
 
 # Names first, then what lives inside screens, then copy, then code.
 _TYPE_RANK = {
-    "Screen": 0, "Component": 0, "Section": 1, "Prop": 1, "Token": 1, "Ação": 1, "Estado": 1, "UIText": 2, "CssClass": 2, "Código": 3,
+    "Screen": 0, "Component": 0, "Section": 1, "Prop": 1, "Token": 1, "Ação": 1, "Estado": 1, "UIText": 2, "Dado": 2, "CssClass": 2, "Código": 3,
 }
 
 
@@ -217,6 +218,7 @@ def _build_index(reader: GraphReader) -> list[_IndexEntry]:
         for p in reader.list_props()
     ]
     entries += _code_entries(reader.list_sources())
+    entries += _data_entries(reader.list_referenced_data())
     entries += [
         _IndexEntry("Ação", f"{a['trigger']} em {a['element']}", f"{a['owner']}: {a['effect']}",
                     f"{a['owner']}:{a['trigger']}:{a['element']}:{a['handler']}", (a["handler"], a["effect"]))
@@ -254,6 +256,15 @@ def _code_entries(sources: list[dict]) -> list[_IndexEntry]:
             entries.append(_IndexEntry("Código", identifier, f"no código de {source['name']}",
                                        f"{source['name']}:{identifier}", (identifier,)))
     return entries
+
+
+def _data_entries(rows: list[dict]) -> list[_IndexEntry]:
+    """Each piece of copy a component's lists and tables hold, with the list it is in."""
+    return [
+        _IndexEntry("Dado", copy, f"lista `{list_name}` de {row['name']}", f"{row['name']}:{list_name}:{copy}", (copy,))
+        for row in rows
+        for list_name, copy in copy_in(row["data"])
+    ]
 
 
 def _search_reader(reader: GraphReader, doc_name: str, term: str) -> list[SearchResult]:

@@ -130,6 +130,9 @@ class _EmptyCatalog:
     def list_states(self):
         return []
 
+    def list_referenced_data(self):
+        return []
+
 
 class _StubReader(_EmptyCatalog):
     """
@@ -571,7 +574,34 @@ class TestSearchAnswersWhatExists:
         assert "PrimaryAction" in _tool("botão")
 
 
+class TestSearchFindsData:
+    class _Reader(_CatalogReader):
+        def list_referenced_data(self):
+            return [{"name": "TabsItem", "data": {
+                "tabs": [{"id": "cap", "label": "Por capacidade"}, {"id": "est", "label": "Por estrutura"}],
+                "ICONS": {"home": "M12 2L2 7l10 5 10-5-10-5z"},
+                "cores": ["#0D5C63"],
+            }}]
+
+    def _tool(self, query):
+        from design_graph.interface.mcp.discovery_tools import tool_search
+
+        return tool_search([("doc", self._Reader())], query)
+
+    def test_copy_held_in_a_list_is_found_with_the_list_and_component(self):
+        out = self._tool("Por capacidade")
+        assert "## Dado" in out and "**Por capacidade**" in out and "lista `tabs` de TabsItem" in out
+
+    def test_values_that_are_not_copy_are_left_out(self):
+        assert self._tool("M12 2L2").startswith("Nenhum resultado")
+        assert self._tool("#0D5C63").startswith("Nenhum resultado")
+
+
 class TestSearchSaysWhatDoesNotExist:
+    def test_the_answer_names_what_was_searched(self):
+        out = _tool("zzqx")
+        assert "nem em nomes, seções, props, textos, dados, tokens ou nomes usados no código" in out
+
     def test_a_phrase_made_of_words_found_apart_does_not_exist(self):
         out = _tool("remove member")
         assert out.startswith("Nenhum resultado para 'remove member'")

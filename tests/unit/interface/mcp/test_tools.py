@@ -21,6 +21,9 @@ class MockReader:
     def list_sources(self):
         return []
 
+    def list_referenced_data(self):
+        return []
+
     def list_actions(self):
         return []
 
@@ -294,6 +297,9 @@ class _WeakMatchOnlyReader:
     def list_sources(self):
         return []
 
+    def list_referenced_data(self):
+        return []
+
     def list_actions(self):
         return []
 
@@ -338,6 +344,9 @@ class _ComponentHierarchyReader:
         return []
 
     def list_sources(self):
+        return []
+
+    def list_referenced_data(self):
         return []
 
     def list_actions(self):

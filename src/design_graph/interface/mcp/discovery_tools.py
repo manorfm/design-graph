@@ -115,7 +115,7 @@ def tool_search(readers: list[tuple[str, GraphReader]], query: str) -> str:
     if not shown:
         message = (
             f"Nenhum resultado para '{query}' — não existe no protótipo "
-            "(nem em nomes, seções, props, textos, tokens ou código)."
+            "(nem em nomes, seções, props, textos, dados, tokens ou nomes usados no código)."
         )
         if results:
             closest = ", ".join(f"{r.name} ({r.type})" for r in results[:_CLOSEST])

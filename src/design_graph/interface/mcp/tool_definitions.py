@@ -63,7 +63,8 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "search",
         "description": (
-            "Where is X? Searches screens, components (by name and type), sections, props, texts, tokens, "
+            "Where is X? Searches screens, components (by name and type), sections, props, texts, the copy "
+            "components' lists hold (option and tab labels), tokens, "
             "shared CSS classes and the names the code uses (handlers, state) in all prototypes; texts say "
             "their screen › section. Matches the query as a whole: when only some of its words appear apart, "
             "it answers that it does not exist in the prototype and lists the closest things it does have — "

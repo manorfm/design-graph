@@ -6,7 +6,11 @@ screen holds, to compare variants. Mixed into GraphReader, whose queries it uses
 
 from __future__ import annotations
 
+import json
+import logging
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 class CatalogQueries:
@@ -87,6 +91,22 @@ class CatalogQueries:
             for kind in ("Component", "Screen")
             for r in self._q(f"MATCH (n:{kind}) RETURN n.name AS name, n.source_code AS source")
         ]
+
+    def list_referenced_data(self) -> list[dict]:
+        """Every component's referenced data — the lists and tables it draws values from — for searching their copy."""
+        found = []
+        for row in self._q(
+            "MATCH (c:Component) WHERE c.referenced_data_json <> '' "
+            "RETURN c.name AS name, c.referenced_data_json AS data"
+        ):
+            try:
+                data = json.loads(row["data"])
+            except json.JSONDecodeError:
+                logger.warning("listing: unreadable referenced data of %s", row["name"])
+                continue
+            if isinstance(data, dict):
+                found.append({"name": row["name"], "data": data})
+        return found
 
     def states_of(self, kind: str, name: str) -> list[dict]:
         """A component's or screen's states, in the order its source declares them."""

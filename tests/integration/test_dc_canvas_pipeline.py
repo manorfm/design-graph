@@ -70,3 +70,42 @@ def test_tokens_answer_per_mode(tools):
 def test_style_references_link_to_every_mode_of_the_token(tools):
     out = _call(tools, "impact", name="--rule")
     assert "Footer" in out
+
+
+TABS_LOGIC = """class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const tab = s.tab ?? 'cap';
+    const mk = (id, label) => ({ id, label, sel: String(tab === id), pick: () => this.setState({ tab: id }) });
+    const tabs = [mk('cap', 'Por capacidade'), mk('est', 'Por estrutura')];
+    return { tabs };
+  }
+}"""
+TABS_BODY = (
+    '<main><div role="tablist" aria-label="Corte"><sc-for list="{{tabs}}" as="tb">'
+    '<button role="tab" aria-selected="{{tb.sel}}" sc-camel-on-click="{{tb.pick}}">{{tb.label}}</button>'
+    "</sc-for></div><p>Mapa</p></main>"
+)
+
+
+@pytest.fixture(scope="module")
+def tabs_tools(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("dc_tabs")
+    html_path = tmp / "canvas.html"
+    html_path.write_text(canvas_html([Page("1 · Mapa", TABS_BODY, logic=TABS_LOGIC, width=1440, height=900)]))
+    stats = asyncio.run(run_pipeline(html_path, tmp / "canvas.db", tmp / "canvas.db.state.json"))
+    assert stats is not None and stats.write_errors == 0
+    reader = GraphReader(kuzu.Connection(kuzu.Database(str(tmp / "canvas.db"), read_only=True)))
+    return ToolDispatcher([("canvas", reader)]), reader
+
+
+def test_copy_a_list_built_by_the_logic_holds_is_found_by_search(tabs_tools):
+    out = _call(tabs_tools, "search", query="Por capacidade")
+    assert "Nenhum resultado" not in out
+    assert "**Por capacidade**" in out and "tabs" in out
+
+
+def test_the_page_assembly_carries_the_list_the_logic_builds(tabs_tools):
+    out = _call(tabs_tools, "assemble_page", name="Mapa")
+    data = out.split("## 4. Dados", 1)[1].split("## 5.", 1)[0]
+    assert "Por capacidade" in data and "Por estrutura" in data
