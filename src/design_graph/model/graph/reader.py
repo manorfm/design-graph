@@ -138,7 +138,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         query for all screen-component relationships. Grouping is done in Python.
         """
         screen_rows = self._q(
-            "MATCH (s:Screen) RETURN s.name, s.component_count, s.sections_count "
+            "MATCH (s:Screen) RETURN s.name, s.title, s.component_count, s.sections_count "
             "ORDER BY s.component_count DESC"
         )
         if not screen_rows:
@@ -167,6 +167,7 @@ class GraphReader(ScreenAssemblyQueries, CatalogQueries):
         return [
             {
                 "name":            r["s.name"],
+                "title":           r["s.title"] or "",
                 "component_count": r["s.component_count"],
                 "sections_count":  r["s.sections_count"],
                 "top_components":  top_by_screen[r["s.name"]],

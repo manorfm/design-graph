@@ -37,6 +37,7 @@ class Page:
                                                           "default": "claro"}})
     font_family: str = "IBM Plex Sans"
     is_dc: bool = True              # False writes an ordinary page instead of a DC one
+    document_title: str = ""        # the page's own <title>, when it is not the board's title
 
 
 def _entry(content: bytes, mime: str) -> dict:
@@ -72,7 +73,7 @@ def page_html(page: Page) -> str:
     props = {**page.props, "$preview": {"width": page.width, "height": page.height}}
     root = "x-dc" if page.is_dc else "div"
     template = (
-        f"<!DOCTYPE html>\n<html lang=\"pt-BR\"><head>\n<meta charset=\"utf-8\">\n<title>{html.escape(page.title)}</title>\n"
+        f"<!DOCTYPE html>\n<html lang=\"pt-BR\"><head>\n<meta charset=\"utf-8\">\n<title>{html.escape(page.document_title or page.title)}</title>\n"
         f"<script src=\"{react_id}\"></script>\n<script src=\"{runtime_id}\"></script>\n</head>\n<body>\n<{root}>\n<helmet>\n"
         f"<style>{font_face}</style>\n<style>{page.helmet_css}</style>\n</helmet>\n{page.body}\n</{root}>\n"
         f"<script type=\"text/x-dc\" data-dc-script=\"\" data-props=\"{html.escape(json.dumps(props))}\">\n"

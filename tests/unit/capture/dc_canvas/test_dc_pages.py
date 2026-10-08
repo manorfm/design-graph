@@ -101,3 +101,10 @@ def test_a_font_face_leaves_neither_its_subset_comment_nor_blank_lines_in_the_st
     )
     assert page.styles == "/* tema */\nbody{margin:0}\n\n.tc{--ink:#111}"
     assert page.font_faces.count("@font-face") == 3 and "/* latin */" in page.font_faces
+
+
+def test_a_page_titled_otherwise_than_its_board_keeps_that_title(tmp_path):
+    history = Page("20 · Histórico e reavaliação", "<main>h</main>", document_title="Histórico: comparar duas leituras")
+    screens = _screens(tmp_path, [history, REPORT])[0]
+    assert screens["Histórico e reavaliação"].title == "Histórico: comparar duas leituras"
+    assert screens["Laudo"].title == ""

@@ -204,7 +204,11 @@ def _index_of(reader: GraphReader) -> list[_IndexEntry]:
 
 
 def _build_index(reader: GraphReader) -> list[_IndexEntry]:
-    entries = [_IndexEntry("Screen", s["name"], "", s["name"], (s["name"],)) for s in reader.list_screens()]
+    entries = [
+        _IndexEntry("Screen", s["name"], f"página «{s['title']}»" if s.get("title") else "", s["name"],
+                    (s["name"], s.get("title") or ""))
+        for s in reader.list_screens()
+    ]
     entries += [
         _IndexEntry("Component", c["c.name"], c.get("c.comp_type", ""), c["c.name"], (c["c.name"], c.get("c.comp_type", "")))
         for c in reader.list_components() if c.get("c.name")

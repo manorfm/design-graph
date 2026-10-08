@@ -498,6 +498,7 @@ class ExtractedScreen:
 
     name: str
     component_refs: list[str] = field(default_factory=list)  # direct children
+    title: str = ""  # the title the page gives itself, when it says something its name does not
     sections_count: int = 0
     source_code: str = ""
     icons: list[IconAsset] = field(default_factory=list)  # deduplicated inline SVGs referenced by source_code

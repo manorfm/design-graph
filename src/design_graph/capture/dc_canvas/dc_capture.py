@@ -150,6 +150,7 @@ def _screen(board: Board, page: DcPage, boards: list[Board], board_variants: dic
     variant = board_variants.get(board.name)
     return ExtractedScreen(
         name=board.name,
+        title=page.title if page.title not in (board.title, board.name) else "",
         source_code=page.source,
         source_lang=SOURCE_LANG,
         viewport_width=board.width,

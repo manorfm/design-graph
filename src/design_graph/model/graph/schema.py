@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # The version of the model a graph is written in. A graph from another version
 # is rebuilt by the pipeline and refused by readers instead of half-working.
-MODEL_VERSION = 11
+MODEL_VERSION = 12
 
 # ── Node table definitions ─────────────────────────────────────────────────────
 
@@ -58,6 +58,7 @@ _NODE_TABLES: list[str] = [
     (
         "CREATE NODE TABLE Screen("
         "  name STRING,"
+        "  title STRING,"
         "  component_count INT64,"
         "  sections_count INT64,"
         "  source_code STRING,"

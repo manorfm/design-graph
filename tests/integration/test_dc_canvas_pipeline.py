@@ -160,3 +160,14 @@ def test_a_screen_list_is_carried_even_when_its_components_are_already_known(que
     known = [line.split("**Componentes**: ", 1)[1] for line in first.splitlines() if line.startswith("**Componentes**")][0]
     data = _data_section(question_tools, "Pergunta 3", known=known.split(", "))
     assert "Registramos o que aconteceu" in data
+
+
+def test_a_screen_is_found_by_the_title_its_page_gives_itself(tmp_path):
+    html_path = tmp_path / "canvas.html"
+    html_path.write_text(canvas_html([
+        Page("1 · Histórico e reavaliação", "<main><p>Comparar</p></main>", document_title="Histórico: comparar duas leituras"),
+    ]))
+    asyncio.run(run_pipeline(html_path, tmp_path / "canvas.db", tmp_path / "canvas.db.state.json"))
+    reader = GraphReader(kuzu.Connection(kuzu.Database(str(tmp_path / "canvas.db"), read_only=True)))
+    out = ToolDispatcher([("canvas", reader)]).dispatch("search", {"query": "comparar duas leituras"}, "canvas")
+    assert "## Screen" in out and "**Histórico e reavaliação**" in out and "Histórico: comparar duas leituras" in out

@@ -26,6 +26,7 @@ class DcPage:
     styles: str        # the helmet's CSS, @font-face rules (and their subset comments) removed
     font_faces: str    # the helmet's @font-face rules, each with its subset comment
     logic: str         # body of the logic script (class Component extends DCLogic …)
+    title: str = ""    # the page's own <title>
     props: dict = field(default_factory=dict)  # editable props, "$"-prefixed meta keys removed
     resources: tuple[Resource, ...] = ()       # what the page loads: the DC runtime, libraries, fonts, images
 
@@ -61,6 +62,7 @@ def read_page(page_text: str) -> DcPage | None:
     ) if helmet else ""
     script = BeautifulSoup(document[x_dc.end():], "html.parser").find("script", attrs={"data-dc-script": True})
     return DcPage(
+        title=_title(document),
         markup=(inside[:helmet.start()] + inside[helmet.end():]).strip() if helmet else inside.strip(),
         styles=_RE_BLANK_LINES.sub("\n\n", FONT_FACE_RULE.sub("", helmet_css)).strip(),
         font_faces="\n".join(rule.group(0) for rule in FONT_FACE_RULE.finditer(helmet_css)),
@@ -86,6 +88,11 @@ def _resources(bundle: Bundle, helmet_css: str, document: str) -> tuple[Resource
         helmet_css, {key: content for key, (mime, content) in files.items() if mime.startswith("font/")}, hints=document,
     )
     return (*scripts, *fonts, *image_resources(files, document))
+
+
+def _title(document: str) -> str:
+    title = BeautifulSoup(document[:document.find("<x-dc")], "html.parser").find("title")
+    return title.get_text(" ", strip=True) if title else ""
 
 
 def _props(raw: str | None) -> dict:

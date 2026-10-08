@@ -409,7 +409,7 @@ The server detects a rebuilt `*.db` file on its own (it compares file mtimes bef
 | `get_tokens` | Return color, spacing, typography, shadow, radius or CSS-variable tokens, or all categories when omitted; tokens defined per mode (e.g. light/dark theme) show their mode | `category?`, `screen?`, `mode?`, `doc?` |
 | `get_asset` | Write the files of one embedded font family or image into `design-graph-assets/<name>/` in the workspace and return their paths — content checked against its hash, names never taken from the prototype | `name`, `doc?` |
 | `get_resources` | List what the prototype loads besides its markup — libraries with version and origin, fonts with weights and subsets, images, the design tool's runtime and the prototype's own modules — described, never embedded | `kind?`, `screen?`, `doc?` |
-| `search` | Find what the prototype has that is named or says the query — screens, components (by name and type), sections, props, texts (with their screen › section), the copy components' lists hold (option and tab labels), tokens, shared CSS classes and the names its code uses; a phrase found only in pieces is answered as "does not exist", with the closest matches | `query` |
+| `search` | Find what the prototype has that is named or says the query — screens (by name and by their page's own title), components (by name and type), sections, props, texts (with their screen › section), the copy components' lists hold (option and tab labels), tokens, shared CSS classes and the names its code uses; a phrase found only in pieces is answered as "does not exist", with the closest matches | `query` |
 | `impact` | Who uses X and what a change would reach — a component or screen (screens affected), a token by name (components using it) or a literal value such as `#FFB81C` (the tokens holding it and who uses them) | `name`, `doc?` |
 | `get_build_diff` | Return screens/components added or removed since the previous build, plus a warning when any bundle entry failed to decode and was dropped from that build | `doc?` |
 | `validate_component_implementation` | Compare a component source you wrote against its stored spec (children, default-state styles, texts), read by the capture the prototype was built with | `name`, `source`, `doc?` |
@@ -529,7 +529,7 @@ Set `DESIGN_GRAPH_METRICS_DISABLED=1` to turn logging off entirely.
 
 **DC canvas**
 
-- One screen per board, named by its title, with the board's viewport; boards titled `Base (…)` become variants of `Base`
+- One screen per board, named by its title, with the board's viewport; boards titled `Base (…)` become variants of `Base`; a page whose own `<title>` says something else keeps it, so search finds the screen by either
 - Page links (`A02-….dc.html`, `Main.dc.html`) resolved to the boards they number
 - Custom properties per theme selector, named after the enum option (e.g. `tema`: claro/escuro) that switches them on
 - Page blocks as sections, components inferred from structures repeated across pages and from `<sc-for>` loop items
@@ -553,6 +553,7 @@ erDiagram
     }
     n_Screen["Screen"] {
         STRING name PK
+        STRING title
         INT64 component_count
         INT64 sections_count
         STRING source_code

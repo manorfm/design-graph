@@ -295,7 +295,8 @@ class GraphWriter:
     @staticmethod
     def _screen_row(screen: ExtractedScreen, component_count: int, sections_count: int) -> dict:
         return {
-            "name": screen.name, "component_count": component_count, "sections_count": sections_count,
+            "name": screen.name, "title": screen.title,
+            "component_count": component_count, "sections_count": sections_count,
             "source_code": screen.source_code,
             "source_lang": screen.source_lang,
             "viewport_width": screen.viewport_width, "viewport_height": screen.viewport_height,
