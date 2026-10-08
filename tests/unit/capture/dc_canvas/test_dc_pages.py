@@ -88,3 +88,16 @@ class TestVariants:
     def test_parenthetical_title_without_a_base_board_is_not_a_variant(self, tmp_path):
         alone = Page("5 · Pressão (rascunho)", "<main/>")
         assert _screens(tmp_path, [alone])[0]["Pressão (rascunho)"].variant_of == ""
+
+
+def test_a_font_face_leaves_neither_its_subset_comment_nor_blank_lines_in_the_styles():
+    from design_graph.capture.dc_canvas.page import read_page
+
+    face = "@font-face {{\n  font-family: 'IBM Plex Sans';\n  src: url(\"{0}\") format('woff2');\n}}"
+    helmet_css = "\n".join(f"/* {subset} */\n{face.format(subset)}" for subset in ("cyrillic-ext", "latin-ext", "latin"))
+    page = read_page(
+        f"<x-dc><helmet><style>{helmet_css}\n</style><style>/* tema */\nbody{{margin:0}}\n\n\n.tc{{--ink:#111}}</style>"
+        "</helmet><main></main></x-dc>"
+    )
+    assert page.styles == "/* tema */\nbody{margin:0}\n\n.tc{--ink:#111}"
+    assert page.font_faces.count("@font-face") == 3 and "/* latin */" in page.font_faces

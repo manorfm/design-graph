@@ -12,19 +12,19 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup
 
 from design_graph.capture.bundler import Bundle, BundleEntryError, read_bundle
-from design_graph.capture.resources import font_resources, image_resources, is_script, script_resource
+from design_graph.capture.resources import FONT_FACE_RULE, font_resources, image_resources, is_script, script_resource
 from design_graph.model.entities import Resource
 
 _RE_X_DC = re.compile(r"<x-dc(?:\s[^>]*)?>(.*)</x-dc>", re.DOTALL)
 _RE_HELMET = re.compile(r"<helmet>(.*?)</helmet>", re.DOTALL)
-_RE_FONT_FACE = re.compile(r"@font-face\s*\{[^}]*\}")
+_RE_BLANK_LINES = re.compile(r"\n[ \t]*(?:\n[ \t]*)+\n")
 
 
 @dataclass(frozen=True)
 class DcPage:
     markup: str        # the page's markup, helmet removed — DC directives and {{…}} kept
-    styles: str        # the helmet's CSS, @font-face rules removed
-    font_faces: str    # the helmet's @font-face rules
+    styles: str        # the helmet's CSS, @font-face rules (and their subset comments) removed
+    font_faces: str    # the helmet's @font-face rules, each with its subset comment
     logic: str         # body of the logic script (class Component extends DCLogic …)
     props: dict = field(default_factory=dict)  # editable props, "$"-prefixed meta keys removed
     resources: tuple[Resource, ...] = ()       # what the page loads: the DC runtime, libraries, fonts, images
@@ -62,8 +62,8 @@ def read_page(page_text: str) -> DcPage | None:
     script = BeautifulSoup(document[x_dc.end():], "html.parser").find("script", attrs={"data-dc-script": True})
     return DcPage(
         markup=(inside[:helmet.start()] + inside[helmet.end():]).strip() if helmet else inside.strip(),
-        styles=_RE_FONT_FACE.sub("", helmet_css).strip(),
-        font_faces="\n".join(_RE_FONT_FACE.findall(helmet_css)),
+        styles=_RE_BLANK_LINES.sub("\n\n", FONT_FACE_RULE.sub("", helmet_css)).strip(),
+        font_faces="\n".join(rule.group(0) for rule in FONT_FACE_RULE.finditer(helmet_css)),
         logic=script.get_text().strip() if script else "",
         props=_props(script.get("data-props") if script else None),
         resources=_resources(bundle, helmet_css, document) if bundle else (),

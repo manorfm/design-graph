@@ -112,7 +112,8 @@ def _opening_comment(head: str) -> list[str]:
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
 
-_RE_FONT_FACE = re.compile(r"(?:/\*\s*([\w-]+)\s*\*/\s*)?@font-face\s*\{([^}]*)\}")
+# An @font-face rule with the `/* latin-ext */` subset comment Google Fonts writes before it, when there is one.
+FONT_FACE_RULE = re.compile(r"(?:/\*\s*([\w-]+)\s*\*/\s*)?@font-face\s*\{([^}]*)\}")
 _RE_DESCRIPTOR = re.compile(r"([\w-]+)\s*:\s*([^;]+);?")
 # url("id") format('woff2') — the file and, when stated, its format
 _RE_SOURCE = re.compile(r"""url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([\w-]+)["']?\s*\))?""")
@@ -127,7 +128,7 @@ def font_resources(css: str, files: dict[str, bytes], hints: str = "") -> list[R
     the prototype embeds for it, and where it most likely comes from.
     """
     families: dict[str, dict[str, set | int]] = {}
-    for subset, body in _RE_FONT_FACE.findall(css):
+    for subset, body in FONT_FACE_RULE.findall(css):
         descriptors = {k.lower(): v.strip() for k, v in _RE_DESCRIPTOR.findall(body)}
         family = descriptors.get("font-family", "").strip("'\" ")
         if not family:
