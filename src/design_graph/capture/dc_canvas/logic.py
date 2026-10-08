@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import re
 
+from design_graph.capture.dc_canvas.literals import expression_at, string_end
+
 _RE_LIST_DECLARATION = re.compile(r"\b(?:const|let|var)\s+(\w+)\s*=\s*\[")
 
 
@@ -33,7 +35,7 @@ def _closing_bracket(text: str, start: int) -> int | None:
     while index < len(text):
         char = text[index]
         if char in "\"'`":
-            index = _string_end(text, index)
+            index = string_end(text, index)
         elif char in "[{(":
             depth += 1
         elif char in "]})":
@@ -44,14 +46,6 @@ def _closing_bracket(text: str, start: int) -> int | None:
     return None
 
 
-def _string_end(text: str, start: int) -> int:
-    """Index of the quote closing the string opened at `start` (or the text's end)."""
-    index = start + 1
-    while index < len(text) and text[index] != text[start]:
-        index += 2 if text[index] == "\\" else 1
-    return index
-
-
 def member_expression(logic: str, key: str) -> str | None:
     """
     The expression the logic gives a member named `key` — `pick: () =>
@@ -59,7 +53,7 @@ def member_expression(logic: str, key: str) -> str | None:
     read up to the comma or brace that ends it, strings and nesting respected.
     """
     for match in re.finditer(rf"\b{re.escape(key)}\s*:\s*", logic):
-        expression = _expression_at(logic, match.end())
+        expression = expression_at(logic, match.end()).strip()
         if expression:
             return expression
     return None
@@ -73,24 +67,8 @@ def list_member(logic: str, list_name: str, key: str) -> str | None:
     anywhere in the logic when the list is not declared there.
     """
     declared = re.search(rf"\b(?:const|let|var)\s+{re.escape(list_name)}\s*=\s*", logic) if list_name else None
-    scoped = member_expression(_expression_at(logic, declared.end()), key) if declared else None
+    scoped = member_expression(expression_at(logic, declared.end()), key) if declared else None
     return scoped or member_expression(logic, key)
-
-
-def _expression_at(text: str, start: int) -> str:
-    depth, index = 0, start
-    while index < len(text):
-        char = text[index]
-        if char in "\"'`":
-            index = _string_end(text, index)
-        elif char in "[{(":
-            depth += 1
-        elif char in "]})" or (char in ",;" and depth == 0):
-            if depth == 0:
-                break
-            depth -= 1
-        index += 1
-    return text[start:index].strip()
 
 
 _RE_STATE_VARIABLE = re.compile(r"\b(?:const|let|var)\s+([\w$]+)\s*=\s*this\.state\b")
@@ -110,7 +88,7 @@ def state_defaults(logic: str) -> list[tuple[str, str]]:
     for holder in holders:
         pattern = re.compile(rf"(?<![\w$.]){re.escape(holder)}\.([\w$]+)\s*\?\?\s*")
         for match in pattern.finditer(logic):
-            found.setdefault(match.group(1), _expression_at(logic, match.end()))
+            found.setdefault(match.group(1), expression_at(logic, match.end()).strip())
     return sorted(found.items(), key=lambda item: logic.find(f".{item[0]}"))
 
 
