@@ -363,4 +363,21 @@ def main() -> None:
     _warn_if_no_graphs(readers, graph_dir)
 
     ParentWatch().start()  # ends this server if its client dies without closing the pipe
-    asyncio.run(run_stdio(MCPServer(readers, graph_dir)))
+    asyncio.run(_serve_until_interrupted(MCPServer(readers, graph_dir)))
+
+
+async def _serve_until_interrupted(mcp_server: MCPServer) -> None:
+    """Run the stdio server; Ctrl+C / SIGTERM end it with a message, not a traceback."""
+    import signal
+
+    def shut_down() -> None:
+        sys.stderr.write("[design-graph] interrupted, shutting down\n")
+        sys.stderr.flush()
+        # The stdin reader thread is blocked in read(), so cancelling the task or
+        # joining that thread at interpreter exit would hang until a second Ctrl+C.
+        os._exit(0)
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shut_down)
+    await run_stdio(mcp_server)
