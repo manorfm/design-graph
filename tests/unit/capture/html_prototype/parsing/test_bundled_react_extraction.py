@@ -167,6 +167,22 @@ class TestExtractBundledReact:
         js, _, _, _ = _p.js, _p.css, _p.inner_html, _p.skipped
         assert "Foo" in js
 
+    def test_code_inside_the_unpacked_template_is_read_and_the_unpacker_is_not(self):
+        template = json.dumps(
+            "<!DOCTYPE html><html><body><div id=\"root\"></div>"
+            "<script type=\"text/babel\">function KdsCard() { return null; }</script></body></html>"
+        ).replace("/", "\\u002F")
+        unpacker = "document.querySelector('script[type=\"__bundler/manifest\"]');" + " //" * 400
+        html = (
+            "<html><body>"
+            f"<script>{unpacker}</script>"
+            f"<script type=\"__bundler/template\">{template}</script>"
+            "</body></html>"
+        )
+        js = _extract_bundled_react(_soup(html)).js
+        assert "KdsCard" in js
+        assert "__bundler" not in js
+
     def test_empty_scripts_ignored(self):
         html = "<html><body><script>  </script></body></html>"
         _p = _extract_bundled_react(_soup(html))

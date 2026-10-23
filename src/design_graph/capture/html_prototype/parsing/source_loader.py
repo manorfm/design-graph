@@ -99,7 +99,7 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
     parts = _BundleParts(
         js="", css="", inner_html=scripts.inner_html, skipped=scripts.skipped, resources=[],
     )
-    js_parts, css_parts, files = list(scripts.js), [], {}
+    js_parts, css_parts, files = [t for t in scripts.js if not _is_bundler_runtime(t)], [], {}
     for key, (mime, content) in scripts.entries.items():
         text = content.decode("utf-8", errors="replace")
         if "<!DOCTYPE" in text[:200]:
@@ -114,6 +114,9 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
             if not is_infrastructure(resource):
                 js_parts.append(text)
 
+    # The prototype's own code can sit in the template the bundle unpacks into
+    # (an inline <script type="text/babel">), not in a bundle entry.
+    js_parts += _inline_scripts(parts.inner_html)
     parts.inner_html = parts.inner_html or str(soup)
     # The page's own static <style> tag — the shell React hydrates into —
     # lives inside inner_html, not in a bundle entry with a "css" mime.
@@ -126,6 +129,23 @@ def _extract_bundled_react(soup: BeautifulSoup) -> _BundleParts:
     parts.resources += font_resources(parts.css, files, hints=parts.inner_html)
     parts.resources += image_resources(scripts.entries, parts.inner_html)
     return parts
+
+
+def _is_bundler_runtime(text: str) -> bool:
+    """The loader script that unpacks the bundle in the browser — it holds no prototype code."""
+    return "__bundler" in text
+
+
+def _inline_scripts(html: str) -> list[str]:
+    """Inline code blocks of an HTML string, minus the ones that only load other files."""
+    if not html:
+        return []
+    texts = [
+        tag.get_text().strip()
+        for tag in BeautifulSoup(html, "html.parser").find_all("script")
+        if not tag.get("src")
+    ]
+    return [t for t in texts if t and not t.startswith(("[", "{", '"')) and not _is_bundler_runtime(t)]
 
 
 @dataclass
