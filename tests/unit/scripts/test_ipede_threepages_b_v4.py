@@ -225,3 +225,110 @@ def test_real_neutral_graph_ready_and_missing_screen_fail_closed(tmp_path):
         b_v4.graph_ready(graph,[dict(component='EntirelyAbsentPage')])
     with pytest.raises(ValueError,match='missing or empty'):
         b_v4.graph_ready(tmp_path/'missing',[])
+
+
+@pytest.mark.parametrize('failure', [None,'missing_screen','missing_html','refused','missing_usage'])
+def test_v5_generation_only_single_session_and_separate_results(tmp_path, monkeypatch, failure):
+    from scripts.ipede_threepages.b_v5 import GENERATION_BASE, run_b_v5
+    root=fresh(tmp_path/'v5'); old=baseline(fresh(tmp_path/'v3'))
+    prep=old/'preparation'
+    (prep/'prompt.txt').write_text('Keep the source contract. Serve output on a local listener and self-evaluate with a browser.\n')
+    files=hashes(prep); files.pop('freeze.json')
+    write_json(prep/'freeze.json',dict(files=files,input_hashes=hashes(prep/'agent-input')))
+    before=hashes(old); order=[]; prompts=[]
+    monkeypatch.setattr(preflight,'validate_gate',lambda *a,**kw: order.append(('gate',kw)))
+    monkeypatch.setattr(preflight,'identity',lambda *a,**kw: {'version':kw['version']})
+    monkeypatch.setattr('scripts.ipede_threepages.runner.inherited_servers',lambda cwd: [])
+    monkeypatch.setattr(b_v4,'graph_ready',lambda *a: {'ready':True})
+    class Index:
+        def __init__(self,argv,**kw):
+            order.append(('index',None))
+            assert argv[1]==str(prep/'original.html')
+        def wait(self,**kw): return 0
+    monkeypatch.setattr(b_v4.subprocess,'Popen',Index)
+    monkeypatch.setattr(b_v4,'cleanup',lambda p: None)
+    def session(argv,work,proof,prompt,env,**kw):
+        order.append(('session',None)); prompts.append(prompt)
+        assert kw==dict(seconds=900,limit=90,selections=SELECTION)
+        assert prompt==GENERATION_BASE+b_v4.CONDITION
+        assert hashes(work/'input')==hashes(prep/'agent-input/input')
+        assert json.loads((work/'selection.json').read_text())==SELECTION
+        assert argv==command(work,root/'runs/B/state',b_v4.proxy(Path(sys.executable),Path.cwd(),root/'graph-B',proof))
+        assert '--sandbox' in argv and 'workspace-write' in argv
+        assert not any('bypass' in arg or arg.startswith('--ignore-') for arg in argv)
+        native_proof(proof,2 if failure=='missing_screen' else 3)
+        # Complete the synthetic native/RPC evidence; no installed MCP or agent runs.
+        transcript=proof/'transcript.jsonl'
+        messages=[('client',dict(id=100,method='initialize')),
+                  ('server',dict(id=100,result=dict(serverInfo=dict(name='test')))),
+                  ('client',dict(method='notifications/initialized')),
+                  ('client',dict(id=99,method='tools/list'))]
+        transcript.write_text(''.join(json.dumps(dict(direction=d,bytes=base64.b64encode((json.dumps(m)+'\n').encode()).decode()))+'\n'
+                              for d,m in messages)+transcript.read_text())
+        turn: dict = dict(type='turn.completed')
+        if failure!='missing_usage': turn['usage']=dict(input_tokens=123,output_tokens=4)
+        events=proof/'events.jsonl'; events.write_text(events.read_text()+json.dumps(turn)+'\n')
+        (proof/'stderr.log').write_text('')
+        (proof/'server-stderr.log').write_text('')
+        result=dict(seconds=7,exit_code=0,stop_reason='guard_refusal' if failure=='refused' else None,
+                    queried_screen_indexes=[1,2] if failure=='missing_screen' else [1,2,3])
+        write_json(proof/'metrics.json',result)
+        for i in range(1,3 if failure=='missing_html' else 4):
+            (work/'output'/f'page-{i}.html').write_text('output')
+        return result
+    monkeypatch.setattr(b_v4,'execute',session)
+    if failure:
+        with pytest.raises(ValueError): run_b_v5(root,old,Path(sys.executable),Path.cwd())
+    else:
+        assert run_b_v5(root,old,Path(sys.executable),Path.cwd())['valid'] is True
+    result=json.loads((root/'run-results-v5.private.json').read_text())
+    assert result['protocol']=='iPede-3pages-v5-B-only'
+    assert result['B']['valid']==(failure is None)
+    assert result['B']['generation_only'] is True and result['B']['accepted'] is None
+    assert result['B']['seconds']==7 and result['B']['setup_index_seconds']>=0
+    assert order==[('gate',{'version':'v5'}),('index',None),('session',None)]
+    assert not (root/'runs/A').exists() and hashes(old)==before
+    assert not (root/'run-results-v4.private.json').exists()
+    proof=root/'runs/B/evidence'
+    assert (proof/'effective-prompt.txt').read_text()==prompts[0]
+    change=json.loads((proof/'protocol-change.json').read_text())
+    assert change['effective_prompt_sha256']==digest(proof/'effective-prompt.txt')
+    assert change['inherited_base_prompt_sha256']==digest(prep/'prompt.txt')
+    assert result['B']['effective_prompt_sha256']==change['effective_prompt_sha256']
+    assert json.loads((proof/'command.json').read_text())['effective_prompt_sha256']==change['effective_prompt_sha256']
+    assert '-Keep the source contract. Serve output' in (proof/'prompt.diff').read_text()
+    assert 'Serve output on a local listener' not in prompts[0]
+    assert 'Do not start or open any server or listener' in prompts[0]
+    assert 'Do not launch or use a browser' in prompts[0]
+    assert 'output/page-3.html and required assets, then finish' in prompts[0]
+    assert 'BEFORE writing any page output' in prompts[0]
+
+
+def test_v5_requires_own_gate_before_any_launch(tmp_path, monkeypatch):
+    from scripts.ipede_threepages.b_v5 import run_b_v5
+    root=fresh(tmp_path/'v5'); old=baseline(fresh(tmp_path/'v3')); before=hashes(old)
+    monkeypatch.setattr('subprocess.Popen',lambda *a,**kw: pytest.fail('no launch without v5 gate'))
+    with pytest.raises(ValueError,match='successful v5 preflight required'):
+        run_b_v5(root,old,Path(sys.executable),Path.cwd())
+    assert not (root/'runs').exists() and hashes(old)==before
+
+
+@pytest.mark.parametrize('phase', ['run-b-v4','run-b-v5'])
+def test_cli_b_only_overlap_rejected_before_side_effects(tmp_path, monkeypatch, phase):
+    from scripts.ipede_threepages import __main__ as cli
+    monkeypatch.setattr(sys,'argv',['ipede',phase,'--scratch',str(tmp_path),'--baseline',str(tmp_path),'--python',sys.executable])
+    monkeypatch.setattr(cli,'environment',lambda *a: pytest.fail('must not write baseline'))
+    with pytest.raises(SystemExit): cli.main()
+
+
+def test_cli_v5_dispatches_only_b_and_preserves_python_symlink(tmp_path, monkeypatch):
+    from scripts.ipede_threepages import __main__ as cli, b_v5
+    python=fresh(tmp_path/'venv/bin')/'python';python.symlink_to(sys.executable)
+    captured=[]; root=fresh(tmp_path/'v5'); old=tmp_path/'v3'
+    monkeypatch.setattr(sys,'argv',['ipede','run-b-v5','--scratch',str(root),'--baseline',str(old),'--python',str(python)])
+    monkeypatch.setattr(cli,'environment',lambda root: {})
+    monkeypatch.setattr(cli.os,'umask',lambda mode: None)
+    monkeypatch.setattr(b_v5,'run_b_v5',lambda *a: captured.append(a))
+    monkeypatch.setattr('scripts.ipede_threepages.runner.run',lambda *a: pytest.fail('must never repeat A'))
+    cli.main()
+    assert len(captured)==1 and captured[0][:3]==(root,old,python)

@@ -1,5 +1,6 @@
 """Single B treatment inheriting an immutable v3 baseline; never launches A."""
 import json
+import difflib
 import os
 from pathlib import Path
 import shutil
@@ -62,11 +63,16 @@ def graph_ready(graph, selected):
         database.close()
 
 
-def run_b_v4(root, baseline, python, worktree):
+def run_b_v4(root, baseline, python, worktree, *, version='v4', base_prompt=None):
+    if version not in {'v4', 'v5'}:
+        raise ValueError('unsupported B-only protocol version')
     if root == baseline or baseline in root.parents or root in baseline.parents:
-        raise ValueError('v4 scratch must be separate from baseline')
+        raise ValueError(f'{version} scratch must be separate from baseline')
     from .preflight import validate_gate, identity, evidence as native_evidence
-    validate_gate(root, python, worktree)  # before indexing, runs/, or any launch
+    if version == 'v4':
+        validate_gate(root, python, worktree)  # before indexing, runs/, or any launch
+    else:
+        validate_gate(root, python, worktree, version=version)
     provenance = verify_baseline(baseline)
     if not provenance['inherited_A_evidence']:
         raise ValueError('missing inherited A evidence')
@@ -80,9 +86,20 @@ def run_b_v4(root, baseline, python, worktree):
     if hashes(lane/'work') != hashes(prep/'agent-input') or digest(lane/'prompt.txt') != digest(prep/'prompt.txt'):
         raise ValueError('baseline copy mismatch')
     write_json(proof/'provenance.json', provenance)
-    write_json(proof/'identity.json', identity(python, worktree, root))
+    binding = identity(python, worktree, root) if version == 'v4' else identity(python, worktree, root, version=version)
+    write_json(proof/'identity.json', binding)
     (proof/'condition.txt').write_text(CONDITION)
-    prompt = (lane/'prompt.txt').read_bytes().decode() + CONDITION
+    frozen_prompt = (lane/'prompt.txt').read_bytes().decode()
+    prompt = (frozen_prompt if base_prompt is None else base_prompt) + CONDITION
+    (proof/'effective-prompt.txt').write_text(prompt)
+    if version == 'v5':
+        (proof/'prompt.diff').write_text(''.join(difflib.unified_diff(
+            (frozen_prompt+CONDITION).splitlines(keepends=True), prompt.splitlines(keepends=True),
+            fromfile='inherited-effective-prompt', tofile='v5-generation-only-prompt')))
+        write_json(proof/'protocol-change.json', dict(protocol='iPede-3pages-v5-B-only',
+            generation_only=True, inherited_base_prompt_sha256=digest(lane/'prompt.txt'),
+            effective_prompt_sha256=digest(proof/'effective-prompt.txt'),
+            change='generation-only base replaces inherited task; no agent browser/server or self-evaluation'))
     env = environment(root); env['PYTHONPATH'] = str(worktree/'src'); env['GRAPH_DIR'] = str(root/'graph-B')
     env['CODEX_HOME'] = os.environ.get('CODEX_HOME', str(Path.home()/'.codex'))
     for key in ['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_ORG_ID','OPENAI_PROJECT_ID']: env.pop(key, None)
@@ -105,12 +122,19 @@ def run_b_v4(root, baseline, python, worktree):
     mcp = proxy(python, worktree, graph, proof)
     argv = command(work, state, mcp)
     write_json(proof/'command.json', dict(argv=argv, mcp=mcp, input_hashes=hashes(prep/'agent-input'),
-               base_prompt_sha256=digest(lane/'prompt.txt'), seconds=TIME_LIMIT, limit=TOOL_LIMIT))
+               base_prompt_sha256=digest(lane/'prompt.txt'),
+               effective_prompt_sha256=digest(proof/'effective-prompt.txt'), seconds=TIME_LIMIT, limit=TOOL_LIMIT))
     result = execute(argv, work, proof, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIMIT, selections=selected)
     post = time.monotonic()
     result.update(setup_index_seconds=setup_seconds, readiness_seconds=readiness_seconds, valid=False, inherited_A=True)
+    if version == 'v5':
+        result.update(generation_only=True, accepted=None,
+                      effective_prompt_sha256=digest(proof/'effective-prompt.txt'))
     try:
-        native_evidence(proof)  # successful turn + handshake/catalogue + native RPC match
+        if version == 'v5':
+            native_evidence(proof, require_usage=True)
+        else:
+            native_evidence(proof)  # successful turn + handshake/catalogue + native RPC match
         from .native_audit import covered_screens
         covered = covered_screens(proof, selected)
         if covered != {1,2,3} or result['queried_screen_indexes'] != [1,2,3]:
@@ -126,7 +150,7 @@ def run_b_v4(root, baseline, python, worktree):
     finally:
         result['postprocessing_seconds'] = time.monotonic()-post
         result['timing_scope'] = 'main seconds: executor session only; setup/index, supervision cleanup and postprocessing separate'
-        write_json(root/'run-results-v4.private.json', dict(protocol='iPede-3pages-v4-B-only', B=result,
+        write_json(root/f'run-results-{version}.private.json', dict(protocol=f'iPede-3pages-{version}-B-only', B=result,
                    A=dict(inherited=True, provenance_sha256=digest(proof/'provenance.json'))))
     if not result['valid']: raise RuntimeError('B invalid; retained; no fallback or retry')
     return result

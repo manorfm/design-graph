@@ -175,3 +175,65 @@ def test_cli_preserves_virtualenv_python_symlink(tmp_path, monkeypatch):
     cli.main()
     assert captured==[python]
     assert captured[0].parent==bindir
+
+
+@pytest.mark.parametrize('usage', [None, {}, {'input_tokens':1},
+    {'input_tokens':True,'output_tokens':2}, {'input_tokens':'1','output_tokens':2},
+    {'input_tokens':-1,'output_tokens':2}, {'input_tokens':float('nan'),'output_tokens':2},
+    {'input_tokens':1,'output_tokens':float('inf')}, {'input_tokens':1,'output_tokens':None}, []])
+def test_v5_rejects_missing_or_invalid_native_usage(tmp_path, usage):
+    folder=tmp_path/'proof'; proof(folder)
+    events=[json.loads(line) for line in (folder/'events.jsonl').read_text().splitlines()]
+    events[-1]['usage']=usage
+    # Even plausible aggregate observer metrics cannot replace native turn usage.
+    write_json(folder/'metrics.json',dict(stop_reason=None,exit_code=0,
+               raw_usage=[dict(input_tokens=123,output_tokens=4)]))
+    (folder/'events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+    assert gate.evidence(folder)  # historical v4 contract remains unchanged
+    with pytest.raises(ValueError,match='numeric input/output usage'):
+        gate.evidence(folder,require_usage=True)
+
+
+@pytest.mark.parametrize('usage', [dict(input_tokens=123,output_tokens=4),dict(input_tokens=0,output_tokens=0)])
+def test_v5_accepts_native_usage_only_on_completed_turn(tmp_path, usage):
+    folder=tmp_path/'proof'; proof(folder)
+    events=[json.loads(line) for line in (folder/'events.jsonl').read_text().splitlines()]
+    events[-1]['usage']=usage
+    (folder/'events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+    assert gate.evidence(folder,required_text='Neutral Observatory',require_usage=True)
+    events[-1]['type']='usage.reported'
+    (folder/'events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+    with pytest.raises(ValueError,match='missing completed native turn'):
+        gate.evidence(folder,require_usage=True)
+
+
+def test_v5_gate_revalidates_usage_and_cannot_reuse_v4_gate(tmp_path, monkeypatch):
+    folder=fresh(tmp_path/'preflight-v5'); catalogue=proof(folder/'evidence')
+    write_json(folder/'evidence/catalogue.json',catalogue)
+    monkeypatch.setattr(gate,'identity',lambda *a,**kw: {'version':kw.get('version','v4')})
+    def receipt(protocol):
+        write_json(folder/'gate.json',dict(protocol=protocol,success=True,identity={'version':'v5'},
+                   evidence_hashes=hashes(folder/'evidence')))
+    receipt(gate.PROTOCOL)
+    with pytest.raises(ValueError,match='unsuccessful v5 gate'):
+        gate.validate_gate(tmp_path,Path(sys.executable),tmp_path,version='v5')
+    receipt(gate.protocol('v5'))
+    with pytest.raises(ValueError,match='numeric input/output usage'):
+        gate.validate_gate(tmp_path,Path(sys.executable),tmp_path,version='v5')
+    events=folder/'evidence/events.jsonl'
+    events.write_text(events.read_text().replace('"type": "turn.completed"',
+                      '"type": "turn.completed", "usage": {"input_tokens": 12, "output_tokens": 2}'))
+    receipt(gate.protocol('v5'))
+    gate.validate_gate(tmp_path,Path(sys.executable),tmp_path,version='v5')
+
+
+def test_cli_v5_preflight_dispatch_is_mocked_and_keeps_python_symlink(tmp_path, monkeypatch):
+    from scripts.ipede_threepages import __main__ as cli
+    python=fresh(tmp_path/'venv/bin')/'python';python.symlink_to(sys.executable)
+    captured=[]
+    monkeypatch.setattr(sys,'argv',['ipede','preflight-v5','--scratch',str(tmp_path),'--python',str(python)])
+    monkeypatch.setattr(cli,'environment',lambda root: {})
+    monkeypatch.setattr(cli.os,'umask',lambda mode: None)
+    monkeypatch.setattr(gate,'preflight',lambda *a,**kw: captured.append((a,kw)))
+    cli.main()
+    assert captured[0][0][1]==python and captured[0][1]=={'version':'v5'}
