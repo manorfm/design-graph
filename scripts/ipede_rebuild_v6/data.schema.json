@@ -21,7 +21,8 @@
     "limitations",
     "lane_totals",
     "overall_deltas",
-    "setup_comparison"
+    "setup_comparison",
+    "original_negatives"
   ],
   "properties": {
     "protocol": {
@@ -132,7 +133,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -247,6 +250,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 26
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 26
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -258,7 +318,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -371,6 +433,63 @@
                           ],
                           "minimum": 0,
                           "maximum": 1
+                        }
+                      }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 26
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 26
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
                         }
                       }
                     }
@@ -413,7 +532,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -528,6 +649,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 26
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 26
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -539,7 +717,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -654,6 +834,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 26
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 26
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -694,7 +931,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -809,6 +1048,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 96
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 96
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -820,7 +1116,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -933,6 +1231,63 @@
                           ],
                           "minimum": 0,
                           "maximum": 1
+                        }
+                      }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 96
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 96
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
                         }
                       }
                     }
@@ -975,7 +1330,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1090,6 +1447,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 96
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 96
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -1101,7 +1515,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1214,6 +1630,63 @@
                           ],
                           "minimum": 0,
                           "maximum": 1
+                        }
+                      }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 96
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 96
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
                         }
                       }
                     }
@@ -1256,7 +1729,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1371,6 +1846,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 34
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 34
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -1382,7 +1914,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1495,6 +2029,63 @@
                           ],
                           "minimum": 0,
                           "maximum": 1
+                        }
+                      }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 34
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 34
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
                         }
                       }
                     }
@@ -1537,7 +2128,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1652,6 +2245,63 @@
                           "maximum": 1
                         }
                       }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 34
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 34
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -1663,7 +2313,9 @@
                     "critical_failures",
                     "visual",
                     "functional",
-                    "usability"
+                    "usability",
+                    "reference_usability",
+                    "usability_negatives"
                   ],
                   "properties": {
                     "viewport": {
@@ -1776,6 +2428,63 @@
                           ],
                           "minimum": 0,
                           "maximum": 1
+                        }
+                      }
+                    },
+                    "reference_usability": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "denominator",
+                        "passed",
+                        "score"
+                      ],
+                      "properties": {
+                        "denominator": {
+                          "const": 34
+                        },
+                        "passed": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 34
+                        },
+                        "score": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      }
+                    },
+                    "usability_negatives": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "check_sha256",
+                          "inherited",
+                          "no_regression"
+                        ],
+                        "properties": {
+                          "check_sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "inherited": {
+                            "type": "boolean"
+                          },
+                          "no_regression": {
+                            "type": "boolean"
+                          }
                         }
                       }
                     }
@@ -2058,7 +2767,8 @@
                 "economizou mantendo qualidade",
                 "melhorou qualidade com custo adicional",
                 "não trouxe ganho",
-                "inconclusivo"
+                "inconclusivo",
+                "melhorou qualidade sem custo adicional"
               ]
             }
           }
@@ -2272,7 +2982,8 @@
                 "economizou mantendo qualidade",
                 "melhorou qualidade com custo adicional",
                 "não trouxe ganho",
-                "inconclusivo"
+                "inconclusivo",
+                "melhorou qualidade sem custo adicional"
               ]
             }
           }
@@ -2486,7 +3197,8 @@
                 "economizou mantendo qualidade",
                 "melhorou qualidade com custo adicional",
                 "não trouxe ganho",
-                "inconclusivo"
+                "inconclusivo",
+                "melhorou qualidade sem custo adicional"
               ]
             }
           }
@@ -2964,6 +3676,43 @@
           }
         }
       }
+    },
+    "original_negatives": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "page",
+          "viewport",
+          "check_sha256",
+          "negative_sha256"
+        ],
+        "properties": {
+          "page": {
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "viewport": {
+            "enum": [
+              "1280x900",
+              "390x844"
+            ]
+          },
+          "check_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "negative_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3001,7 +3750,8 @@
                     "errors",
                     "mcp",
                     "fallback",
-                    "provenance"
+                    "provenance",
+                    "absolute_usable"
                   ],
                   "properties": {
                     "generation_seconds": {
@@ -3054,6 +3804,9 @@
                     },
                     "provenance": {
                       "type": "null"
+                    },
+                    "absolute_usable": {
+                      "type": "null"
                     }
                   }
                 },
@@ -3092,6 +3845,19 @@
                             "type": "null"
                           }
                         }
+                      },
+                      "reference_usability": {
+                        "properties": {
+                          "passed": {
+                            "type": "null"
+                          },
+                          "score": {
+                            "type": "null"
+                          }
+                        }
+                      },
+                      "usability_negatives": {
+                        "const": null
                       }
                     }
                   }
@@ -3320,7 +4086,8 @@
         "errors",
         "mcp",
         "fallback",
-        "provenance"
+        "provenance",
+        "absolute_usable"
       ],
       "properties": {
         "generation_seconds": {
@@ -3489,6 +4256,12 @@
                 }
               }
             }
+          ]
+        },
+        "absolute_usable": {
+          "type": [
+            "boolean",
+            "null"
           ]
         }
       }

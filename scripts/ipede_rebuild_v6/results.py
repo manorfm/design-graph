@@ -3,17 +3,19 @@
 No generation, reconstruction, evaluation, tariffs or missing-value imputation.
 """
 import json
+import hashlib
 from pathlib import Path
 import jsonschema
 from .common import digest, fresh, write_json
 from .gates import public_document
 from .protocol import ORDER
-from .rubric import VIEWPORTS, public, validate
+from .rubric import VIEWPORTS, public, validate, negative_hash
 
 RESOURCE = ['input_tokens','cached_input_tokens','output_tokens','generation_seconds','operations']
 COMPARE = RESOURCE + ['evaluation_seconds','supervision_seconds','money']
 KINDS = ['visual','functional','usability']
 DECISIONS = ['economizou mantendo qualidade','melhorou qualidade com custo adicional','não trouxe ganho','inconclusivo']
+DECISIONS.append('melhorou qualidade sem custo adicional')
 
 
 def delta(a,b):
@@ -25,12 +27,28 @@ def load(path):
     return json.loads(path.read_text()) if path.is_file() else None
 
 
+def original_negatives(rubric):
+    return [{'page':r['page'],'viewport':r['viewport'],
+             'check_sha256':hashlib.sha256(c['id'].encode()).hexdigest(),
+             'negative_sha256':negative_hash(c)} for r in rubric['rows'] for c in r['checks']['usability'] if negative_hash(c) is not None]
+
+
 def quality_schema(rubric, page):
+    validate(rubric)
     rows=[]
     for vp in VIEWPORTS:
         ids=[c['id'] for r in rubric['rows'] if r['page']==page and r['viewport']==vp for cs in r['checks'].values() for c in cs]
-        rows.append({'type':'object','additionalProperties':False,'required':['viewport','checks','critical_failures'],
+        usability=[c for r in rubric['rows'] if r['page']==page and r['viewport']==vp for c in r['checks']['usability']]
+        reviews={c['id']:{'type':'object','additionalProperties':False,
+            'required':['negative_sha256','exact_inherited','no_regression','evidence','explanation'],
+            'properties':{'negative_sha256':{'const':negative_hash(c)},
+                'exact_inherited':{'type':'boolean'} if negative_hash(c) else {'const':False},
+                'no_regression':{'type':'boolean'},'explanation':{'type':'string','minLength':1},
+                'evidence':{'type':'object','additionalProperties':False,'required':['path','sha256'],
+                    'properties':{'path':{'type':'string','minLength':1},'sha256':{'type':'string','pattern':'^[0-9a-f]{64}$'}}}}} for c in usability}
+        rows.append({'type':'object','additionalProperties':False,'required':['viewport','checks','critical_failures','usability_review'],
                      'properties':{'viewport':{'const':vp},'checks':{'type':'object','additionalProperties':False,'required':ids,'properties':{i:{'type':['boolean','null']} for i in ids}},
+                                   'usability_review':{'type':'object','additionalProperties':False,'required':list(reviews),'properties':reviews},
                                    'critical_failures':{'type':'array','uniqueItems':True,'items':{'enum':rubric['critical_failures']}}}})
     return {'type':'object','additionalProperties':False,
             'required':['freeze_sha256','rubric_sha256','output_sha256','events_sha256','metrics_sha256','reviewer','reviewed_at','trace_review','access_review','independence_review','evaluation_seconds','rows'],
@@ -52,6 +70,21 @@ def evaluate(rubric,page,evaluation):
             complete=all(v is not None for v in values)
             passed=sum(v is True for v in values) if complete else None
             row[kind]={'denominator':len(ids),'passed':passed,'score':None if passed is None else passed/len(ids)}
+        checks=[c for r in rubric['rows'] if r['page']==page and r['viewport']==vp for c in r['checks']['usability']]
+        compatible=[]; negatives=[]
+        for c in checks:
+            if evaluation is None:
+                compatible.append(None);continue
+            er=evaluation['rows'][index];value=er['checks'][c['id']];review=er['usability_review'][c['id']]
+            exact=review['exact_inherited'] and negative_hash(c) is not None
+            compatible.append(None if value is None else review['no_regression'] and
+                              ((value is True and not review['exact_inherited']) or (value is False and exact)))
+            if value is False:
+                negatives.append({'check_sha256':hashlib.sha256(c['id'].encode()).hexdigest(),
+                                  'inherited':bool(exact),'no_regression':review['no_regression']})
+        passed=None if any(v is None for v in compatible) else sum(v is True for v in compatible)
+        row['reference_usability']={'denominator':len(checks),'passed':passed,'score':None if passed is None else passed/len(checks)}
+        row['usability_negatives']=None if evaluation is None else negatives
         scores.append(row)
     return scores
 
@@ -60,8 +93,15 @@ def accepted(quality, evaluation, rubric):
     if evaluation is None: return None
     if not all(evaluation[k] for k in ['trace_review','access_review','independence_review']): return False
     if any(r['critical_failures'] for r in quality): return False
+    for row in evaluation['rows']:
+        for key,review in row['usability_review'].items():
+            value=row['checks'][key]
+            if not review['no_regression'] or (value is False and not review['exact_inherited']) or (value is True and review['exact_inherited']):
+                return False
+    if any(r[k]['score'] is not None and r[k]['score']<rubric['thresholds'][k] for r in quality for k in ['visual','functional']):return False
     if any(r[k]['score'] is None for r in quality for k in KINDS): return None
-    return all(r[k]['score']>=rubric['thresholds'][k] for r in quality for k in KINDS)
+    return all(r[k]['score']>=rubric['thresholds'][k] for r in quality for k in ['visual','functional']) and all(
+        r['reference_usability']['score'] is not None and r['reference_usability']['score']>=rubric['thresholds']['usability'] for r in quality)
 
 
 def conclusion(a,b):
@@ -78,7 +118,7 @@ def conclusion(a,b):
     c_le=all(y<=x for x,y in zip(av,bv));c_ge=all(y>=x for x,y in zip(av,bv))
     if q_ge and c_le and av!=bv: return DECISIONS[0]
     if q_ge and aq!=bq and c_ge and av!=bv: return DECISIONS[1]
-    if q_ge and aq!=bq and av==bv: return 'inconclusivo'  # quality gain without additional cost: explicit trade category limitation
+    if q_ge and aq!=bq and av==bv: return 'melhorou qualidade sem custo adicional'
     if q_le and c_ge: return DECISIONS[2]
     return DECISIONS[3]
 
@@ -88,6 +128,7 @@ def materialize(root, destination):
     rubric_path=root/'preparation/rubric.private.json';rubric=load(rubric_path);validate(rubric)
     data=load(Path(__file__).with_name('data.json'))
     data['rubric']=public(rubric)
+    data['original_negatives']=original_negatives(rubric)
     data['freeze_sha256']=digest(root/'freeze.json') if (root/'freeze.json').is_file() else None
     any_metrics=False
     for session,(page,lane) in zip(data['sessions'],ORDER):
@@ -95,8 +136,16 @@ def materialize(root, destination):
         raw=load(proof/'metrics.json');evaluation=load(proof/'evaluation.private.json')
         if evaluation is not None:
             jsonschema.validate(evaluation,quality_schema(rubric,page))
+            frozen=load(root/'freeze.json')
+            if frozen.get('files',{}).get('rubric.private.json')!=digest(rubric_path):
+                raise ValueError('evaluation rubric differs from frozen reference')
             bindings={'freeze_sha256':root/'freeze.json','rubric_sha256':rubric_path,'output_sha256':base/'work/output/page.html','events_sha256':proof/'events.jsonl','metrics_sha256':proof/'metrics.json'}
             if any(evaluation[k]!=digest(path) for k,path in bindings.items()): raise ValueError('evaluation evidence binding changed')
+            for row in evaluation['rows']:
+                for review in row['usability_review'].values():
+                    path=(proof/review['evidence']['path']).resolve()
+                    if not path.is_relative_to(proof.resolve()) or path.suffix not in {'.png','.json'} or not path.is_file() or digest(path)!=review['evidence']['sha256']:
+                        raise ValueError('usability review evidence binding changed')
         m=session['metrics']
         if raw is not None:
             any_metrics=True
@@ -130,6 +179,7 @@ def materialize(root, destination):
             else:m['valid']=None if m['valid'] else m['valid']
         session['quality']=evaluate(rubric,page,evaluation)
         m['accepted']=accepted(session['quality'],evaluation,rubric)
+        m['absolute_usable']=None if any(q['usability']['score'] is None for q in session['quality']) else all(q['usability']['score']>=rubric['thresholds']['usability'] for q in session['quality'])
         if m['valid'] is not True and m['accepted'] is True:m['accepted']=False
         m['evaluation_seconds']=None if evaluation is None else evaluation['evaluation_seconds']
     data['status']='collected' if any_metrics else 'not_collected'
@@ -158,16 +208,19 @@ def materialize(root, destination):
     lines=['# Estudo de caso — n=1 por alvo','',
            'Cache é subconjunto da entrada. Delta=B−A; percentual=100×(B−A)/A; A=0/null => percentual null.',
            'Setup separado, sem rateio. Dinheiro indisponível=null. MCP é aderência, sem crédito de qualidade.', '']
+    lines.append('Aceitação de fidelidade/validade usa conformidade por check à referência; usabilidade absoluta e seus negativos permanecem separados. Melhor usabilidade não implica maior fidelidade. Recursos de decisão: input, output, segundos de geração e operações; sem alegação monetária.')
+    lines.extend(['','Negativos congelados do original (inspeção preparatória; demais checks originais não avaliados): '+fmt(data['original_negatives']), ''])
     for row in data['comparisons']:
         pair={s['lane']:s for s in data['sessions'] if s['page']==row['page']}
         lines.extend([f"Alvo {row['page']}: {row['conclusion']}.",'',
                       '| Métrica | A | B | B−A | 100×(B−A)/A |','|---|---:|---:|---:|---:|'])
         lines.extend(f"| {k} | {fmt(pair['A']['metrics'][k])} | {fmt(pair['B']['metrics'][k])} | {fmt(v['absolute'])} | {fmt(v['percent'])} |" for k,v in row['deltas'].items())
-        lines.extend(['','| Lane / viewport | Visual pass/denom | Funcional pass/denom | Usabilidade pass/denom | Falhas críticas |','|---|---:|---:|---:|---|'])
+        lines.extend(['','| Lane / viewport | Visual pass/denom | Funcional pass/denom | Usabilidade absoluta pass/denom | Falhas críticas | Conformidade à referência | Negativos absolutos | accepted | absolute_usable |','|---|---:|---:|---:|---|---|---|---|---|'])
         for lane,session in pair.items():
             for q in session['quality']:
                 cells=[f"{fmt(q[k]['passed'])}/{q[k]['denominator']}" for k in KINDS]
-                lines.append(f"| {lane} / {q['viewport']} | "+' | '.join(cells)+f" | {fmt(q['critical_failures'])} |")
+                cells += [fmt(q['critical_failures']),fmt(q['reference_usability']),fmt(q['usability_negatives']),fmt(session['metrics']['accepted']),fmt(session['metrics']['absolute_usable'])]
+                lines.append(f"| {lane} / {q['viewport']} | "+' | '.join(cells)+' |')
         lines.append('')
     lines.extend(['Totais das seis sessões (qualquer parcela ausente => null):', '',
                   '| Métrica | Total |','|---|---:|'])
@@ -187,10 +240,14 @@ def validate_data(data):
     jsonschema.validate(data,load(Path(__file__).with_name('data.schema.json')))
     for s in data['sessions']:
         m=s['metrics']
+        usable=None if any(r['usability']['score'] is None for r in s['quality']) else all(r['usability']['score']>=1 for r in s['quality'])
+        if m['absolute_usable']!=usable:raise ValueError('absolute usability mismatch')
+        if m['accepted'] is True and (m['valid'] is not True or any(r['critical_failures'] or any(r[k]['score'] is None or r[k]['score']<data['rubric']['thresholds'][k] for k in ['visual','functional']) or r['reference_usability']['score']!=1 for r in s['quality'])):
+            raise ValueError('acceptance mismatch')
         if m['cached_input_tokens'] is not None and m['input_tokens'] is not None and m['cached_input_tokens']>m['input_tokens']:
             raise ValueError('cache exceeds input')
         for row in s['quality']:
-            for k in KINDS:
+            for k in KINDS+['reference_usability']:
                 v=row[k]
                 if v['score'] != (None if v['passed'] is None else v['passed']/v['denominator']):
                     raise ValueError('score arithmetic mismatch')

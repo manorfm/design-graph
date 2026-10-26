@@ -301,6 +301,16 @@ def synthetic_rubric():
     return {'version':1,'thresholds':THRESHOLDS,'critical_failures':CRITICAL,'rows':rows,'original_negatives':['Neutral fixture only'],'scoring':'Fixed assertions'}
 
 
+def usability_reviews(evaluation, rubric, page, evidence=None):
+    from scripts.ipede_rebuild_v6.rubric import negative_hash
+    for row in evaluation['rows']:
+        row['usability_review']={c['id']:{'negative_sha256':negative_hash(c),
+            'exact_inherited':False,'no_regression':True,'explanation':'Neutral human review of exact state, controls and clipping',
+            'evidence':evidence or {'path':'neutral.png','sha256':'a'*64}}
+            for r in rubric['rows'] if r['page']==page and r['viewport']==row['viewport'] for c in r['checks']['usability']}
+    return evaluation
+
+
 def test_results_missing_delta_quality_and_schema(tmp_path):
     from scripts.ipede_rebuild_v6 import results
     from scripts.ipede_rebuild_v6.rubric import validate
@@ -325,6 +335,7 @@ def test_evaluation_schema_unknown_denominators_and_critical_failures():
     e={'freeze_sha256':'0'*64,'rubric_sha256':'1'*64,'output_sha256':'2'*64,'events_sha256':'3'*64,'metrics_sha256':'4'*64,'reviewer':'neutral human','reviewed_at':'neutral test',
        'trace_review':True,'access_review':True,'independence_review':True,'evaluation_seconds':1,
        'rows':[{'viewport':vp,'checks':{c['id']:True for r in rubric['rows'] if r['page']==1 and r['viewport']==vp for checks in r['checks'].values() for c in checks},'critical_failures':[]} for vp in ['1280x900','390x844']]}
+    usability_reviews(e,rubric,1)
     q=results.evaluate(rubric,1,e)
     assert results.accepted(q,e,rubric) is True
     e['rows'][0]['critical_failures']=['unusable_primary_action']
@@ -362,7 +373,7 @@ def test_six_real_format_sessions_materialize_neutral_metrics(tmp_path,monkeypat
     from scripts.ipede_rebuild_v6.common import digest
     rubric=synthetic_rubric();prep=tmp_path/'preparation';prep.mkdir()
     write_json(prep/'rubric.private.json',rubric);write_json(prep/'setup.private.json',{'index_seconds':4})
-    write_json(tmp_path/'freeze.json',{'identity':{'sha256':'a'*64}})
+    write_json(tmp_path/'freeze.json',{'identity':{'sha256':'a'*64},'files':{'rubric.private.json':digest(prep/'rubric.private.json')}})
     monkeypatch.setattr(pf,'evidence',lambda *a,**k:[])
     for page,lane in protocol.ORDER:
         base=tmp_path/f'sessions/{page}-{lane}';proof=base/'evidence';proof.mkdir(parents=True)
@@ -376,6 +387,8 @@ def test_six_real_format_sessions_materialize_neutral_metrics(tmp_path,monkeypat
         e={k:digest(path) for k,path in {'freeze_sha256':tmp_path/'freeze.json','rubric_sha256':prep/'rubric.private.json','output_sha256':work/'output/page.html','events_sha256':proof/'events.jsonl','metrics_sha256':proof/'metrics.json'}.items()}
         e.update({'reviewer':'neutral test human','reviewed_at':'neutral synthetic','trace_review':True,'access_review':True,'independence_review':True,'evaluation_seconds':3,
                   'rows':[{'viewport':vp,'checks':{c['id']:True for r in rubric['rows'] if r['page']==page and r['viewport']==vp for cs in r['checks'].values() for c in cs},'critical_failures':[]} for vp in ['1280x900','390x844']]})
+        (proof/'neutral.png').write_bytes(b'neutral evidence')
+        usability_reviews(e,rubric,page,{'path':'neutral.png','sha256':digest(proof/'neutral.png')})
         write_json(proof/'evaluation.private.json',e)
     data=results.materialize(tmp_path,tmp_path/'result')
     assert data['status']=='collected'
@@ -389,6 +402,11 @@ def test_six_real_format_sessions_materialize_neutral_metrics(tmp_path,monkeypat
     assert all(r['conclusion']=='inconclusivo' for r in data['comparisons'])  # missing real cache => no effectiveness claim
     assert all(s['metrics']['accepted'] is True for s in data['sessions'])
     assert all(s['metrics']['money'] is None for s in data['sessions'])
+    proof=tmp_path/'sessions/1-A/evidence'
+    (proof/'neutral.png').write_bytes(b'tampered evidence')
+    with pytest.raises(ValueError,match='usability review evidence'):results.materialize(tmp_path,tmp_path/'bad-evidence')
+    assert not (tmp_path/'bad-evidence').exists()
+    (proof/'neutral.png').write_bytes(b'neutral evidence')
     (tmp_path/'sessions/1-A/work/output/page.html').write_text('changed neutral output')
     with pytest.raises(ValueError,match='binding changed'):results.materialize(tmp_path,tmp_path/'should-not-exist')
     assert not (tmp_path/'should-not-exist').exists()
@@ -401,3 +419,87 @@ def test_private_rubric_rejects_missing_assert_and_changed_threshold():
     with pytest.raises(jsonschema.ValidationError):validate(r)
     r=synthetic_rubric();r['thresholds']={**r['thresholds'],'functional':.5}
     with pytest.raises(jsonschema.ValidationError):validate(r)
+
+
+def test_exact_inherited_clipping_separate_from_absolute_and_new_regressions():
+    from copy import deepcopy
+    import jsonschema
+    from scripts.ipede_rebuild_v6 import results
+    from scripts.ipede_rebuild_v6.rubric import validate
+    r=synthetic_rubric()
+    check=next(row for row in r['rows'] if row['page']==3 and row['viewport']=='390x844')['checks']['usability'][0]
+    check['inherited_negative']={'reference':deepcopy(check['reference']),
+        'description':'Neutral original: exact label clipped at right edge in initial state only',
+        'reviewer':'neutral preparatory reviewer','reviewed_at':'2026-10-26'}
+    validate(r)
+    e={**{k:'a'*64 for k in ['freeze_sha256','rubric_sha256','output_sha256','events_sha256','metrics_sha256']},
+       'reviewer':'neutral downstream human','reviewed_at':'2026-10-26','trace_review':True,'access_review':True,
+       'independence_review':True,'evaluation_seconds':1,
+       'rows':[{'viewport':vp,'critical_failures':[],'checks':{c['id']:True for row in r['rows'] if row['page']==3 and row['viewport']==vp for cs in row['checks'].values() for c in cs}} for vp in ['1280x900','390x844']]}
+    usability_reviews(e,r,3)
+    mobile=e['rows'][1];key=check['id'];mobile['checks'][key]=False
+    # Without exact human attestation even the known original defect fails.
+    assert results.accepted(results.evaluate(r,3,e),e,r) is False
+    mobile['usability_review'][key]['exact_inherited']=True
+    q=results.evaluate(r,3,e)
+    assert results.accepted(q,e,r) is True
+    assert q[1]['usability']['score']<1 and q[1]['reference_usability']['score']==1
+    assert q[1]['usability_negatives'][0]['inherited'] is True
+    a={'metrics':{**dict.fromkeys(results.RESOURCE,100),'accepted':True,'valid':True},'quality':q}
+    b=deepcopy(a);b['metrics']['operations']=90
+    assert results.conclusion(a,b)=='economizou mantendo qualidade'  # faithful clipping remains comparable
+    b['metrics']['operations']=100
+    assert results.conclusion(a,b)=='não trouxe ganho'
+    b['quality'][1]['usability']['score']=1
+    assert results.conclusion(a,b)=='melhorou qualidade sem custo adicional'
+    assert b['quality'][1]['visual']==a['quality'][1]['visual']  # no fidelity credit for usability gain
+    b['quality'][1]['visual']['score']=.9
+    assert results.conclusion(a,b)=='inconclusivo'
+    assert len(results.original_negatives(r))==1
+    # New inaccessible control, even inside the same check/state, rejects.
+    mobile['usability_review'][key]['no_regression']=False
+    assert results.accepted(results.evaluate(r,3,e),e,r) is False
+    desktop_key=next(iter(e['rows'][0]['checks']));e['rows'][0]['checks'][desktop_key]=None
+    assert results.accepted(results.evaluate(r,3,e),e,r) is False  # known regression wins over missing data
+    e['rows'][0]['checks'][desktop_key]=True
+    mobile['usability_review'][key]['no_regression']=True
+    another=next(k for k in mobile['usability_review'] if k!=key);mobile['checks'][another]=False
+    assert results.accepted(results.evaluate(r,3,e),e,r) is False
+    mobile['usability_review'][another]['exact_inherited']=True
+    with pytest.raises(jsonschema.ValidationError):results.evaluate(r,3,e)
+    mobile['usability_review'][another]['exact_inherited']=False;mobile['checks'][another]=True
+    mobile['checks'][key]=None
+    assert results.accepted(results.evaluate(r,3,e),e,r) is None
+    mobile['checks'][key]=False
+    mobile['usability_review'][key]['negative_sha256']='f'*64
+    with pytest.raises(jsonschema.ValidationError):results.evaluate(r,3,e)
+    usability_reviews(e,r,3);del mobile['usability_review'][key]
+    with pytest.raises(jsonschema.ValidationError):results.evaluate(r,3,e)
+    # Reference substitution cannot broaden a frozen negative.
+    check['inherited_negative']['reference']['image_sha256']='b'*64
+    with pytest.raises(ValueError,match='exact check'):validate(r)
+
+
+@pytest.mark.parametrize('dimension',['visual','functional','usability'])
+def test_quality_gain_equal_physical_resources(dimension):
+    from copy import deepcopy
+    from scripts.ipede_rebuild_v6 import results
+    a={'metrics':{**dict.fromkeys(results.RESOURCE,100),'accepted':True,'valid':True,'money':None},
+       'quality':[{k:{'score':.9} for k in results.KINDS} for _ in range(2)]}
+    b=deepcopy(a);b['quality'][0][dimension]['score']=1
+    assert results.conclusion(a,b)=='melhorou qualidade sem custo adicional'
+    # Cache is a subset; more cache does not change resource equality.
+    b['metrics']['cached_input_tokens']=80
+    assert results.conclusion(a,b)=='melhorou qualidade sem custo adicional'
+    b['metrics']['operations']=99
+    assert results.conclusion(a,b)=='economizou mantendo qualidade'
+    b['metrics']['input_tokens']=101
+    assert results.conclusion(a,b)=='inconclusivo'  # mixed resource directions
+    b['metrics']['operations']=100
+    assert results.conclusion(a,b)=='melhorou qualidade com custo adicional'
+    b['quality'][1]['visual']['score']=.8
+    assert results.conclusion(a,b)=='inconclusivo'  # no quality trade forgiveness
+    b=deepcopy(a)
+    assert results.conclusion(a,b)=='não trouxe ganho'
+    b['quality'][0][dimension]['score']=1;b['metrics']['cached_input_tokens']=None
+    assert results.conclusion(a,b)=='inconclusivo'

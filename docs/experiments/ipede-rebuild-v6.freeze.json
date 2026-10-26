@@ -1,11 +1,12 @@
 {
   "protocol": "ipede-rebuild-v6",
-  "freeze_sha256": "d4416617933b15291e25b24d9cf987277ab9e9775d9fd4bf5002b26716b25c03",
-  "identity_sha256": "569da04dfd6089b5fc5af642bdf11e90658fda62597cff59f8be5b163e2d39f1",
+  "freeze_sha256": "e6fbad0ddf01ab9f89a9948a38dbce8290e782b5d10118d18414416e1761aa0a",
+  "identity_sha256": "77aa7fa6be8a041b75159b15fdeaffc41dc33e05a05ad7fcfe074994a5e1eb03",
   "source_sha256": "34b4469b68501e1f48a224af67194e98a0a7a9b1315429af3ae8a5125da9cb12",
-  "rubric_sha256": "7b872a0f45babbeab816f66c60b6aa8a33e6248fa37676f68e3d380e604179ad",
+  "rubric_sha256": "b3b9c995712e6f181f8718940bea0771c86167781a2c299e2bf5620e98e36be4",
   "rubric_public_sha256": "8751a18984abffe93c0b66b2ad94ae8c094d2ce023aff4efb201dc92d139492e",
-  "schema_sha256": "78263f376d812e0821510890e4a871ea3e47a9e6091aca2cc4bf33b82bc7711d",
+  "schema_sha256": "5dd2130e10cdabe5a5362b6f8692dfb2b8c3be171ff3ece1f254dd792c40c92d",
+  "tests_sha256": "c666cc5eaaf70e98dffac893f6052aa103db182cde7cf167fea6dfad053d487a",
   "oracle_real": true,
   "integral_index_ready": true,
   "native_preflight": true,
@@ -13,24 +14,28 @@
   "approval": "pending",
   "measured_sessions": 0,
   "measured_results": null,
-  "superseded_freeze_sha256": "bb41abaf653a7a3e57ea28c22d97cf99c39a7a9ffe84a5bccbc5bb2a739edda8",
-  "superseded_status": "preparation superseded by scope reinforcement; never baseline or collection",
-  "preflight_executor_seconds": 21.036682262085378,
+  "superseded_freeze_sha256": "d4416617933b15291e25b24d9cf987277ab9e9775d9fd4bf5002b26716b25c03",
+  "superseded_status": "preparation superseded by per-check reference usability and exact equal-resource quality category rework; never baseline or collection",
+  "original_negative_checks": 13,
+  "other_original_checks": "not evaluated; no inferred original scores",
+  "preflight_executor_seconds": 21.325697280932218,
   "preflight_usage": {
-    "input_tokens": 119708,
-    "cached_input_tokens": 94592,
-    "output_tokens": 250
+    "input_tokens": 119557,
+    "cached_input_tokens": 106496,
+    "output_tokens": 245
   },
+  "preflight_attempts": 1,
+  "money": null,
   "limitations": [
     "n=1 por alvo; estudo de caso, sem generalização de eficácia.",
     "Nenhuma reconstrução ou avaliação medida coletada; resultados ausentes=null.",
     "Cache é subconjunto da entrada; setup separado sem rateio; dinheiro=null sem tarifa verificável.",
     "Revisão humana de acesso e independência é gate obrigatório; workspace-write não isola leitura.",
-    "Clipping herdado pode corresponder ao original e ainda reprovar usabilidade; preservar negativos.",
     "Rubrica não cobre todas as combinações de estados do original.",
-    "Melhoria de qualidade sem alteração de recursos permanece inconclusiva nesta taxonomia conservadora.",
-    "Supervisor observes events every 50 ms; 121st invocation invalidates but cannot be prevented before launch by the inherited CLI.",
-    "Trace scanner cannot prove absence of obfuscated browser/listener/transpilation/access; human access and independence review is mandatory.",
-    "Evaluation is downstream human check evidence; no automatic visual scoring or evaluator outputs were generated here."
+    "Negativos herdados são congelados por check/estado com evidência privada; usabilidade absoluta permanece separada da conformidade à referência.",
+    "Qualidade compara fidelidade visual/funcional e usabilidade absoluta separadamente; melhorar usabilidade não implica maior fidelidade.",
+    "Human downstream review of exact defects, output evidence, access and regressions remains mandatory; no reconstruction evaluated.",
+    "Supervisor observes events every 50 ms; the 121st invocation invalidates but cannot be prevented before launch by inherited CLI.",
+    "Publication remains externally blocked: audited result first in Telegram TEXT; no automatic publication."
   ]
 }

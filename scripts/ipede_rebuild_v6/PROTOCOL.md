@@ -111,18 +111,47 @@ colapsar whitespace para um espaço e trim em cada string; controles mantêm ord
 tags, valores, flags e número exatos. Human reviewer verifica também rede/download
 para ações inertes. Os asserts não inventam comportamento backend.
 
-Fidelidade visual >=90%, funcional 100%, usabilidade 100%, separadamente nos dois
-viewports. Um check é booleano, sem crédito parcial; ausente=null, nunca aprovado
+Fidelidade visual >=90%, funcional 100%, usabilidade absoluta 100%, separadamente nos dois
+viewports. Esses thresholds permanecem inalterados; aceitação de fidelidade/validade
+usa visual, funcional e conformidade de usabilidade à referência, enquanto
+`absolute_usable` exige o threshold absoluto de usabilidade. Um check é booleano, sem crédito parcial; ausente=null, nunca aprovado
 nem zero. Denominador nunca diminui. Uma falha crítica reprova equivalência:
 alvo errado, output vazio, estado obrigatório ausente, backend inventado, cópia,
 geração proibida, acesso não revisado, ação primária inacessível ou orçamento
 excedido. Margem de equivalência = 0 por dimensão/viewport: B não pode piorar
-nenhum score de A. A e B precisam atingir thresholds, sem falhas críticas, dentro
-do mesmo orçamento. MCP mede somente aderência ao tratamento.
+nenhum score de A. A e B precisam ser aceitos por fidelidade/validade, sem falhas críticas, dentro
+do mesmo orçamento. O score absoluto de usabilidade nunca é corrigido ou ocultado. MCP mede somente aderência ao tratamento.
 
-Clipping mobile herdado no alvo 3 é negativo do original: reproduzi-lo pode
-aprovar fidelidade e reprovar usabilidade; nunca é mérito do MCP. Original e
-resultados não são confundidos. Branches combinados não são exaustivos.
+Negativos herdados são opcionais em CADA check de usabilidade e estado, nunca
+por alvo/viewport inteiro. `inherited_negative` fixa imagem/DOM e SHA-256 iguais
+à referência desse check, descrição concreta, responsável e data da inspeção
+preparatória. Não se presumem avaliações originais dos demais checks.
+`verify_references` valida os bytes reais antes do freeze. A preparação preserva
+o oracle; somente capturas existentes de Estoque mobile foram inspecionadas.
+
+A avaliação humana downstream exige `usability_review` de cada check, incluindo
+hash exato do negativo congelado (null onde não há negativo), `exact_inherited`,
+`no_regression`, explicação e evidência do output em arquivo privado PNG/JSON
+com hash. Materialização verifica esse arquivo dentro da evidência da sessão,
+além dos vínculos freeze/rubrica/HTML/eventos/métricas. O revisor deve comparar
+a mesma sequência de ações/estado, área e conteúdo recortados, controles afetados,
+limites do recorte e possibilidade de acesso por teclado e ponteiro. Deve atestar
+que o defeito corresponde exatamente ao negativo, sem extensão ou controles novos
+afetados, e que nenhum controle antes acessível tornou-se inacessível. Divergência
+ou regressão exige `no_regression=false`; scanner/hash não substituem inspeção.
+Ausência de revisão ou evidência não autoriza aceitação.
+
+Um check falso absoluto só conforma à referência quando tem negativo congelado,
+hash correspondente, correspondência exata e ausência de regressão atestadas.
+Check verdadeiro exige ausência de regressão e `exact_inherited=false`.
+Desconhecido continua null; denominadores permanecem integrais e imutáveis.
+Qualquer outra falha de usabilidade reprova, mesmo no mesmo alvo/estado. Todas as
+falhas críticas, inclusive ação primária inacessível, continuam reprovando sem
+exceção. Report/data preservam score absoluto, `absolute_usable`, conformidade e
+negativos com identificadores saneados. Reproduzir clipping pode ser fiel e ainda
+falhar usabilidade absoluta. Melhorar clipping não ganha crédito de fidelidade;
+checks visuais/funcionais devem avaliar o afastamento do original separadamente.
+Branches combinados não são exaustivos.
 
 Para cada recurso, delta=B-A; delta_pct=100*(B-A)/A. A=0/null ou B=null =>
 percentual null; qualquer métrica ausente => delta absoluto null. Entrada,
@@ -143,8 +172,12 @@ resultado inválido/incompleto/reprovado => “inconclusivo”. Recursos de deci
 input, output, segundos de geração e operações. Cache é reportado e precisa
 existir, mas maior cache não é tratado como maior custo. Dinheiro/contexto sem
 medição não impedem comparação de recursos físicos, nem autorizam conclusão
-monetária. Qualidade superior com recursos exatamente iguais fica inconclusiva
-por lacuna explícita desta taxonomia. Preservar números e negativos em todos casos.
+monetária. Qualidade estritamente superior, sem piora de nenhuma dimensão/viewport, com
+todos os recursos de decisão exatamente iguais => “melhorou qualidade sem custo adicional”.
+Qualidade usa fidelidade visual/funcional e usabilidade absoluta como dimensões
+separadas: um ganho de usabilidade não prova ganho de fidelidade. Cache conhecido
+não participa da igualdade dos recursos de decisão. Dinheiro permanece null e
+a categoria expressa somente recursos físicos, sem alegação monetária. Preservar números e negativos em todos casos.
 
 `materialize` lê seis `sessions/{page}-{lane}/evidence/metrics.json` reais;
 `evaluation.private.json` é avaliação DOWNSTREAM humana vinculada por hash ao

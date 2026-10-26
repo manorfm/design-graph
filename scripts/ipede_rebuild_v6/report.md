@@ -31,7 +31,8 @@ Efetividade usa qualidade visual, funcional e usabilidade por viewport com
 denominadores fixos em rubric.public.json, sem scores antes de avaliação real.
 Deltas: B−A e 100×(B−A)/A; A zero/null => percentual null. Resultado pior ou
 incompleto não conta como economia equivalente. MCP é apenas aderência.
-Conclusões: economizou mantendo qualidade / melhorou qualidade com custo adicional /
+Conclusões: economizou mantendo qualidade / melhorou qualidade sem custo adicional /
+melhorou qualidade com custo adicional /
 não trouxe ganho / inconclusivo. n=1 por alvo, estudo de caso.
 
 O helper `materialize` gera report/data de seis sessões e avaliação humana futuras,
@@ -39,3 +40,16 @@ com setup sem rateio e total com setup separado. Nenhum output foi reconstruído
 Limitações: scan não detecta toda indireção; leitura não é isolada; interrupção
 é observacional (121ª operação invalida); original mobile com clipping continua
 negativo de usabilidade. Rubrica não cobre todas as combinações de estados.
+
+Aceitação de fidelidade/validade exige visual .9, funcional 1 e conformidade de
+usabilidade à referência 1. Usabilidade absoluta mantém threshold 1 e score
+próprio. Negativo herdado só pode conformar no check/estado congelado com hashes,
+evidência privada e revisão humana de correspondência exata e ausência de
+regressão. Novas falhas e todas as falhas críticas reprovam. Melhor usabilidade
+não implica maior fidelidade. A categoria “melhorou qualidade sem custo adicional”
+exige ganho estrito, nenhuma dimensão pior e input/output/segundos/operações
+iguais. Cache é subconjunto reportado; dinheiro=null, sem alegação monetária.
+
+Treze checks de legibilidade têm negativos originais congelados, com IDs e
+hashes saneados em `data.json.original_negatives`. São inspeções preparatórias
+de estados já capturados; os demais checks originais não receberam avaliação.

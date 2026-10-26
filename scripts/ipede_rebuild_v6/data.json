@@ -38,7 +38,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -58,7 +59,13 @@
             "denominator": 26,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -77,7 +84,13 @@
             "denominator": 26,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     },
@@ -101,7 +114,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -121,7 +135,13 @@
             "denominator": 26,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -140,7 +160,13 @@
             "denominator": 26,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     },
@@ -164,7 +190,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -184,7 +211,13 @@
             "denominator": 96,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -203,7 +236,13 @@
             "denominator": 96,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     },
@@ -227,7 +266,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -247,7 +287,13 @@
             "denominator": 96,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -266,7 +312,13 @@
             "denominator": 96,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     },
@@ -290,7 +342,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -310,7 +363,13 @@
             "denominator": 34,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -329,7 +388,13 @@
             "denominator": 34,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     },
@@ -353,7 +418,8 @@
         "errors": null,
         "mcp": null,
         "fallback": null,
-        "provenance": null
+        "provenance": null,
+        "absolute_usable": null
       },
       "quality": [
         {
@@ -373,7 +439,13 @@
             "denominator": 34,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         },
         {
           "viewport": "390x844",
@@ -392,7 +464,13 @@
             "denominator": 34,
             "passed": null,
             "score": null
-          }
+          },
+          "reference_usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          },
+          "usability_negatives": null
         }
       ]
     }
@@ -582,9 +660,9 @@
     "Nenhuma reconstrução ou avaliação medida coletada; resultados ausentes=null.",
     "Cache é subconjunto da entrada; setup separado sem rateio; dinheiro=null sem tarifa verificável.",
     "Revisão humana de acesso e independência é gate obrigatório; workspace-write não isola leitura.",
-    "Clipping herdado pode corresponder ao original e ainda reprovar usabilidade; preservar negativos.",
     "Rubrica não cobre todas as combinações de estados do original.",
-    "Melhoria de qualidade sem alteração de recursos permanece inconclusiva nesta taxonomia conservadora."
+    "Negativos herdados são congelados por check/estado com evidência privada; usabilidade absoluta permanece separada da conformidade à referência.",
+    "Qualidade compara fidelidade visual/funcional e usabilidade absoluta separadamente; melhorar usabilidade não implica maior fidelidade."
   ],
   "lane_totals": {
     "A": {
@@ -649,5 +727,85 @@
       "absolute": null,
       "percent": null
     }
-  }
+  },
+  "original_negatives": [
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "078bd47f513e13e521a83d07c87a1350bda8ac37eebddce3ecdf7541f211b58f",
+      "negative_sha256": "47f44539688a8b2e24d80ca01a9dd274dba2304b104cced3184d613b81613638"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "4534519160e0684b162bad4178df1c45f0a3065092c3382804f83ae122693b84",
+      "negative_sha256": "79b49effe1747a438257598126d99cfeacc7033dfc09316337413607c335b64a"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "34630daa44d7f97a609a73db786ba9e79e1fd7f18aab5da76144740183a6493f",
+      "negative_sha256": "9e169587318688cb4074b4b5df29c03e75418c35d01429d82817a4d7ecee8957"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "6099078d2cb1c1659c936519155177ee7edc3ad13d3577f5168f23ac519133c7",
+      "negative_sha256": "dbbf9c5e21fd3f3973c34248d8222f46c188d10f3e42d23cf28ef938e2286b7d"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "1bce79b7f422461b4a2cc41e1320fdb5f835f526a9d01bc827ab1247abd59f91",
+      "negative_sha256": "bd00bb518f6f90bfb22f531cafccb3cd0539b151a4384744a16e8a6d96cab338"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "6baff120a980ec9d9467fdc2476537b84b7acc728bbf3803095e5b5343446f6c",
+      "negative_sha256": "550623e53727f24416d1b77542fb56ba887d7af86975110aa9f4251db06bb799"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "6c1f532802f81ba02582cc6f7fce0de763e2f35515adde98fde9eaeffd755d61",
+      "negative_sha256": "85920c1bffb2527ba7ff5c3fdc9fece9f696a30bdae10c48cb2b6fa431c32c40"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "9974c42c9f4eb0da84a054997447402c0dcb0dd0b13dab398617645037350fd9",
+      "negative_sha256": "0a75d976fbbab8c12b42092758922a92544631cb493c5250ca26af9b6c30fdf4"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "ecb891d27613ca40b9b91b181173596005f68201007402f1ce957e7863523c35",
+      "negative_sha256": "d84b01c848dd105268b3ba67a416e56aad6f41ae857eb4c540e0e2789d15dcf0"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "066007413d1cf165d7ff7b6afe225df98896385d004b77e85ff2b615d4ee12f7",
+      "negative_sha256": "af4d67076e45f5d31fd05209278375cbdbb702ac0acda8b4dc92ca14f25f8d09"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "657c68c59704b141d164c65096525905da136fa274f514c7a7d543b589f3b4e8",
+      "negative_sha256": "33e6371687bcb355ff50d3a297efca90935330b91a5f6a66080818142f3584c0"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "e5a932ba6c6c4fe9fd9fb01b65e17473309a5ab243facaaa8bea14e59d17ad6a",
+      "negative_sha256": "c37ca9c702db5b5154bdb9ea18b2e558f270c017e85b94629c6498b04e144932"
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "check_sha256": "cca77117155e2d85f9a55de5d55e14f0d6b5d86f9948122cb34a052d5a48961f",
+      "negative_sha256": "78e824520d9321dc95d3d8a45fc043401ef0cecd5d88d7e4acf15bdf3a7bb9aa"
+    }
+  ]
 }
