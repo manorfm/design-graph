@@ -1,0 +1,28 @@
+{
+  "protocol": "iPede-3pages-v4-B-only",
+  "files": {
+    "scripts/ipede_threepages/HANDOFF_V4.md": "4c74f85a8ed7790d372f91cff2db84290b8d4fe2f1a03fb26aed1c512dedc1a1",
+    "scripts/ipede_threepages/POSTHOC.md": "0427638f85a67639d7a6a9f6e1a81bc2b7bc43fa1fd53f35d19ba107b03a6c63",
+    "scripts/ipede_threepages/PREFLIGHT_V4.md": "8bc1f2dc56f5a71e4ba73e92805c5b0cba87f68045330c1c7613c97d4cbdc47c",
+    "scripts/ipede_threepages/PROTOCOL.md": "461a2064e62b8844af8f47d51054c602d90232872ab3f5518ed3c7db6557e3a7",
+    "scripts/ipede_threepages/__init__.py": "685e890346647e8b9b89acb35fc3d6402329d837e3b6b66bdada869f159adc51",
+    "scripts/ipede_threepages/__main__.py": "b0fe4b104cd6faa1e1816942acb2ae9fa50e4c4f70b115aa6a6916e688df0e43",
+    "scripts/ipede_threepages/audit.py": "f91bad2cdafdd3d63ba4b89c400096b1fa599af2400b634f8fbf26e0fea2f612",
+    "scripts/ipede_threepages/b_v4.py": "b9456a866d983699d3a8db2cedf0cd6e6ac5df55edc1a2e50f5d97b466af0e1b",
+    "scripts/ipede_threepages/browser.py": "c3694cec3ad96145bebb4ed33b4d91ca69d4a2d40d90d77390f75ce9c30944bb",
+    "scripts/ipede_threepages/common.py": "f1cb45eef6d01115a4e5d1ba69afbf2c04abf0fc0821b989876180794ef521dd",
+    "scripts/ipede_threepages/evaluate.py": "8c7e8b2a21bfa7df834e337cce7e20bee9890152645298825b087e58cac79d08",
+    "scripts/ipede_threepages/inventory.py": "2724113f777c8397ce4390b2e16e705a8de91cf6a2b42f26846698cfbc8d3cd6",
+    "scripts/ipede_threepages/native_audit.py": "d7bc8b7f9a7f362987a6fb1f6a2cc1bfb6f5f449eae6536110500f8a61a68564",
+    "scripts/ipede_threepages/posthoc.py": "17586385456f31b9ccf483c6c2e0e54d7d145c5076a9194a89af39e2214257b1",
+    "scripts/ipede_threepages/preflight.py": "2e50258a967016702817e9a1c4e4add10c19a312f27e17aa96acbfc27f85f752",
+    "scripts/ipede_threepages/prepare.py": "03419d997fa06c06b762dfb90014bde4589f523471295ae17d6ff394c2446322",
+    "scripts/ipede_threepages/report.py": "85908029d719362e266a799d114af3b9a7b280ecb2fd960cfd8c726a56608bfc",
+    "scripts/ipede_threepages/runner.py": "487a6b5f06bd8df2246b3120ccff4ba1d175a1424ca92bcb4a6e62e707cba56f",
+    "scripts/ipede_threepages/stdio_recorder.py": "ef94a808260eb7c95df5ddedfe5249fde9f1f60420e24638b11ae8370bea8993",
+    "tests/unit/scripts/test_ipede_threepages.py": "77bf73378987971575d53c52f144b80be102a65ceae9d778fca21a0dd8f8c8b2",
+    "tests/unit/scripts/test_ipede_threepages_b_v4.py": "4dee390fbfae216c32db1d1b3981b63c199b79d1f7a79cb8b12718e1ffc870aa",
+    "tests/unit/scripts/test_ipede_threepages_posthoc.py": "4b3ee81da1b29dbb994933cb14325582df85c4b3c42f2aee6e427774bcac1753",
+    "tests/unit/scripts/test_ipede_threepages_preflight.py": "9db4fc69efb80c89ef1681390d8cf2ad386805801d001562a1aaeaecd4b1fcc5"
+  }
+}

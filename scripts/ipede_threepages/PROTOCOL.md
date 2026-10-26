@@ -1,4 +1,14 @@
-# Three executable pages, two conditions
+# Three executable pages
+
+Current operator steering: v4 repeats **only B with MCP**, inheriting A/v3 and
+preserving invalid B/v3. Do not run preparation or A again. The current generic
+protocol is [PREFLIGHT_V4.md](PREFLIGHT_V4.md), with exact operator commands in
+[HANDOFF_V4.md](HANDOFF_V4.md). Everything below describes historical v3;
+its two-arm commands are not instructions for v4.
+
+Historical v3 protocol. Current runner safety changes and the separate minimal
+v4 preflight gate are specified in [PREFLIGHT_V4.md](PREFLIGHT_V4.md). The
+historical unrestricted command below is not the current executable command.
 
 The instrument contract is `benchmark-ipede-v2`, round `iPede-3pages-v3`.
 Only generic Python, tests and this protocol belong in git. Client sources,

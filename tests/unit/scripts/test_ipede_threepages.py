@@ -86,7 +86,8 @@ def test_real_mcp_config_and_absence_are_different_only_in_config(tmp_path):
     assert 'mcp_servers={}' in a
     assert 'mcp_servers={}' not in b
     assert 'mcp_servers.design-graph.command="/existing/bin/design-mcp"' in b
-    assert '--ignore-user-config' in a and '--ignore-rules' in b
+    assert '--sandbox' in a and 'workspace-write' in b
+    assert not any('bypass' in arg or arg.startswith('--ignore-') for arg in a+b)
     assert a[a.index('-m')+1]=='gpt-6.1-sol'
     assert 'model_reasoning_effort="medium"' in b
     assert not any('query_service' in arg for arg in b)
