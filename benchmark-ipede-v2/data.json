@@ -1,0 +1,620 @@
+{
+  "contract": "benchmark-ipede-v2",
+  "round": "iPede-3pages-v5-B-only",
+  "collected_date": "2026-10-26",
+  "code_revision": "c68e1cbfd2c13ec5be68ae2a9314470a7c15652b",
+  "comparison_label": "A/v3 preservado versus nova B/v5; geração sem navegador/servidor; repetição não contemporânea",
+  "samples_per_condition": 1,
+  "measured_agent_runs_this_task": {
+    "A": 0,
+    "B": 1,
+    "scope": "current authorized v5; historical v4 separate"
+  },
+  "benchmark_completed": true,
+  "artifact_comparison_completed": true,
+  "execution_contract_verdict": "PASS_NORMAL_COMPLETION_USAGE_NATIVE_MCP_OFFLINE_EVALUATION",
+  "intervention_verdict": "PASS_NATIVE_MCP_THREE_PAGES_BEFORE_OUTPUT",
+  "hypothesis_verdict": "NOT_IDENTIFIED_NO_CAUSAL_GAIN_CLAIM",
+  "causal_comparison_valid": false,
+  "manual_review_present": true,
+  "independent_qa_pending": true,
+  "source_reuse": {
+    "A": "copied/extracted supplied source; historical run preserved",
+    "B": "AST-selected/transpiled supplied components plus custom wrapper; not independent reconstruction",
+    "allowed_in_repetition": true,
+    "whole_application_bootstrap_observed_in_reviewed_outputs": false
+  },
+  "prepared_source_locations_present": true,
+  "mcp_exposure_to_model": true,
+  "mcp_handshake": true,
+  "mcp_discovery": true,
+  "mcp_prompt_required_use": true,
+  "guardrail_rejection_followed_by_equivalent_action": false,
+  "runs": {
+    "A": {
+      "attempts": 1,
+      "provider_internal_retries": null,
+      "mcp_configured": false,
+      "seconds": 341.45446998090483,
+      "total_seconds": 341.45446998090483,
+      "cold_index_seconds": null,
+      "exit_code": 0,
+      "money": null,
+      "telemetry": {
+        "thread_starts": 1,
+        "turn_starts": 1,
+        "usage_events": 1,
+        "structured_context_length_exceeded": 0,
+        "invalid_json_lines": 0,
+        "unique_completed_commands": 24,
+        "failed_commands": [
+          {
+            "id": "item_19",
+            "exit_code": 1
+          },
+          {
+            "id": "item_21",
+            "exit_code": 1
+          },
+          {
+            "id": "item_22",
+            "exit_code": 1
+          }
+        ],
+        "mcp_started": 0,
+        "mcp_completed": 0,
+        "unique_mcp_items": 0,
+        "raw_aggregate_usage": [
+          {
+            "input_tokens": 1817773,
+            "cached_input_tokens": 1729280,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 12461,
+            "reasoning_output_tokens": 3953
+          }
+        ],
+        "last_session_aggregate_usage": {
+          "input_tokens": 1817773,
+          "cached_input_tokens": 1729280,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 12461,
+          "reasoning_output_tokens": 3953
+        },
+        "context": {
+          "largest_observed_context_tokens": null,
+          "tokens_per_call": null,
+          "backend_context_limit": null,
+          "compaction_count": null,
+          "reset_count": null,
+          "truncation_count": null
+        }
+      },
+      "guardrail_rejections_in_stderr": 0,
+      "treatment_realized": true
+    },
+    "B": {
+      "attempts": 1,
+      "mcp_configured": true,
+      "mcp_completed": 31,
+      "mcp_useful_target_correct": 20,
+      "queried_pages": [
+        1,
+        2,
+        3
+      ],
+      "treatment_realized": true,
+      "normal_completion": true,
+      "valid": true,
+      "seconds": 407.37631836510263,
+      "seconds_status": "executor generation session only; not accepted-page time",
+      "accepted_seconds": null,
+      "setup_index_seconds": 5.374724992085248,
+      "readiness_seconds": 0.49372610403224826,
+      "supervision_seconds": 0.0005268959794193506,
+      "postprocessing_seconds": 0.1372382261324674,
+      "raw_exit_code": 0,
+      "stop_reason": null,
+      "unique_tool_calls": 61,
+      "time_limit_seconds": 900,
+      "tool_limit": 90,
+      "raw_aggregate_usage": [
+        {
+          "input_tokens": 2742036,
+          "cached_input_tokens": 2631040,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 12840,
+          "reasoning_output_tokens": 4292
+        }
+      ],
+      "last_session_aggregate_usage": {
+        "input_tokens": 2742036,
+        "cached_input_tokens": 2631040,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 12840,
+        "reasoning_output_tokens": 4292
+      },
+      "usage_status": "native turn.completed; session aggregates",
+      "context": {
+        "largest_observed_context_tokens": null,
+        "tokens_per_call": null,
+        "backend_context_limit": null,
+        "compaction_count": null,
+        "reset_count": null,
+        "truncation_count": null
+      },
+      "money": null,
+      "output_artifact_observations": {
+        "page-1.html": {
+          "first_observed_seconds": 133.6945034652017,
+          "last_observed_seconds": 344.23540647909977,
+          "sha256": "76bc7510b5bc4f2995487384b89b202c74464ed3b5669d5b482904e71d30804e",
+          "bytes": 476
+        },
+        "page-2.html": {
+          "first_observed_seconds": 133.89741202816367,
+          "last_observed_seconds": 344.53887334512547,
+          "sha256": "978d9c3a3d472997cdb6145ae41c26447f0f4dad92d86ee5d5f9e957a1e7f5a3",
+          "bytes": 546
+        },
+        "page-3.html": {
+          "first_observed_seconds": 134.25175348715857,
+          "last_observed_seconds": 344.7410323850345,
+          "sha256": "18db82573fcea99183ea3bd51ca38cbbf97a0f51753f00272f62b0df6ab46ac4",
+          "bytes": 462
+        }
+      },
+      "guard_action": null,
+      "isolation": "workspace-write with inherited guards; historical A did not use the same sandbox",
+      "generation_only": true
+    }
+  },
+  "historical_B_v3": {
+    "preserved": true,
+    "treatment_realized": false,
+    "mcp_completed": 0,
+    "status": "INVALID_NO_MCP_NOT_RELABELLED",
+    "seconds": 511.4017661830876
+  },
+  "historical_B_v4": {
+    "preserved": true,
+    "normal_completion": false,
+    "valid": false,
+    "stop_reason": "guard_refusal",
+    "seconds": 218.00920065003447,
+    "usage": null,
+    "status": "FAIL_GUARD_STOP_AFTER_REAL_MCP_NOT_RELABELLED"
+  },
+  "preflight": {
+    "success": true,
+    "protocol": "iPede-3pages-v5-preflight",
+    "catalogue_tools": 15,
+    "normal_completion": true,
+    "raw_aggregate_usage": [
+      {
+        "input_tokens": 130318,
+        "cached_input_tokens": 115456,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 251,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "scope": "neutral setup only; never included in B usage or session seconds"
+  },
+  "protocol_change": {
+    "authorization": "Manoel: Vamos de B então; vigente no card antes da coleta",
+    "effective_prompt_sha256": "c0483c2adb89c7406b318ac388a231fcfaa66ae46555771acd10acac53bda8e6",
+    "base_prompt_identical": false,
+    "input_identical": true,
+    "change": "Explicit generation only: write three offline pages/assets and finish; no browser/server/listener or browser self-evaluation; same MCP mandatory condition",
+    "prior_base_did_not_require_server": true,
+    "no_new_asymmetric_extraction_rule": true,
+    "evaluator": "after session; file:// offline; no listener/proxy/alternative API"
+  },
+  "provenance": {
+    "baseline_verified_again": true,
+    "archive_preservation": {
+      "baseline-v3.private.tar.gz": {
+        "files": 320,
+        "missing": 0,
+        "mismatches": 0
+      },
+      "experiment-v4.private.tar.gz": {
+        "files": 328,
+        "missing": 0,
+        "mismatches": 0
+      }
+    },
+    "input_bytes_identical": true,
+    "base_prompt_identical": false,
+    "historical_original_A_screenshots_reproduced_identically": 12
+  },
+  "model_context_observation": {
+    "B_observed_context": {
+      "largest_observed_context_tokens": null,
+      "tokens_per_call": null,
+      "backend_context_limit": null,
+      "compaction_count": null,
+      "reset_count": null,
+      "truncation_count": null
+    },
+    "aggregate_A_or_B_input_is_not_window_evidence": true,
+    "unavailable_is_not_zero_or_no_overflow": true
+  },
+  "evaluator": {
+    "browser_contexts": 18,
+    "transport": "file:// local reads; no HTTP listener; all lanes identical conditions",
+    "viewports": [
+      "1280x900",
+      "390x844"
+    ],
+    "external_requests": 0,
+    "browser_errors": 0,
+    "functional_passed_contexts": 18,
+    "functional_steps_per_lane": 86,
+    "original_A_historical_png_matches": 12,
+    "no_agent_reruns_for_evaluation": true
+  },
+  "pages": [
+    {
+      "lane": "A",
+      "page": 1,
+      "label": "Grupos de Componentes",
+      "accepted_seconds": null,
+      "visual_verdict": "PASS_REVIEWED_SCOPE",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [],
+      "unsupported_content": "not_observed_in_reviewed_scope",
+      "artifact_verdict": "PASS_REVIEWED_SCOPE",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Original e A idênticos nos screenshots default recapturados."
+    },
+    {
+      "lane": "A",
+      "page": 2,
+      "label": "Restaurantes",
+      "accepted_seconds": null,
+      "visual_verdict": "PASS_REVIEWED_SCOPE",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [],
+      "unsupported_content": "not_observed_in_reviewed_scope",
+      "artifact_verdict": "PASS_REVIEWED_SCOPE",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Original e A idênticos nos screenshots default recapturados."
+    },
+    {
+      "lane": "A",
+      "page": 3,
+      "label": "Estoque",
+      "accepted_seconds": null,
+      "visual_verdict": "PASS_REVIEWED_SCOPE",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [],
+      "unsupported_content": "not_observed_in_reviewed_scope",
+      "artifact_verdict": "PASS_REVIEWED_SCOPE",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Original e A idênticos nos screenshots default recapturados."
+    },
+    {
+      "lane": "B",
+      "page": 1,
+      "label": "Grupos de Componentes",
+      "accepted_seconds": null,
+      "visual_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [
+        "SIDEBAR_ICONS_MISSING",
+        "SMALL_SPACING_DRIFT"
+      ],
+      "unsupported_content": "not_observed_in_frozen_scope",
+      "artifact_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Omissões em vários ícones da sidebar; conteúdo principal e shell mantidos, com pequenos desvios de espaçamento."
+    },
+    {
+      "lane": "B",
+      "page": 2,
+      "label": "Restaurantes",
+      "accepted_seconds": null,
+      "visual_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [
+        "SIDEBAR_ICONS_MISSING",
+        "SMALL_SPACING_DRIFT"
+      ],
+      "unsupported_content": "ADDED_DOWNLOAD_AND_CSV_BEHAVIOR",
+      "artifact_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Omissões em vários ícones da sidebar e posicionamentos ligeiramente diferentes; default Premium mantido. Downloads/CSV adicionados fora do plano congelado."
+    },
+    {
+      "lane": "B",
+      "page": 3,
+      "label": "Estoque",
+      "accepted_seconds": null,
+      "visual_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "state_verdict": "PASS_FROZEN_DEFAULT",
+      "functional_scope_verdict": "PASS_FROZEN_PLAN",
+      "omission_codes": [
+        "SIDEBAR_ICONS_MISSING",
+        "SMALL_SPACING_DRIFT",
+        "KPI_ICONS_MISSING",
+        "KPI_EMPTY_ICON_PLACEHOLDERS"
+      ],
+      "unsupported_content": "ADDED_DOWNLOAD_AND_CSV_BEHAVIOR",
+      "artifact_verdict": "PARTIAL_VISUAL_FIDELITY",
+      "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+      "global_functional_fidelity": "NOT_CERTIFIED",
+      "visual_notes": "Omissões em vários ícones da sidebar, abas e header; ícones coloridos dos KPIs ausentes, restando placeholders cinza vazios. Pequenos desvios de espaçamento. Escopo rede/visão geral mantidos."
+    }
+  ],
+  "evaluation": [
+    {
+      "lane": "original",
+      "page": 1,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 1,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 1,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.002589891975308642,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "original",
+      "page": 1,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 1,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 1,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 11,
+      "steps_expected": 11,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.009569123067868538,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "original",
+      "page": 2,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 2,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 2,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0035614515250544663,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "original",
+      "page": 2,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 2,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 2,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 15,
+      "steps_expected": 15,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.009765554943977024,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "original",
+      "page": 3,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 3,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 3,
+      "viewport": "1280x900",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.010074183006535948,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "original",
+      "page": 3,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "A",
+      "page": 3,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.0,
+      "accepted_seconds": null
+    },
+    {
+      "lane": "B",
+      "page": 3,
+      "viewport": "390x844",
+      "functional_passed": true,
+      "steps_passed": 17,
+      "steps_expected": 17,
+      "browser_errors": 0,
+      "capture_error": null,
+      "external_requests": 0,
+      "diagnostic_rgb_mae_fraction": 0.011224979885420363,
+      "accepted_seconds": null
+    }
+  ],
+  "mobile_usability_verdict": "FAIL_INHERITED_FROM_ORIGINAL",
+  "verification": {
+    "pytest": "2728 passed, 7 skipped, 1 warning",
+    "targeted_pytest": "60 passed",
+    "make_build": "PASS neutral simple.html fixture; 1 screen/2 components/2 tokens/2 sections",
+    "git_diff_check": "PASS",
+    "owned_measured_process_group_gone": true,
+    "main_changed": false,
+    "push_or_publication": false,
+    "product_source_changed": false
+  },
+  "limitations": [
+    "n=1; A/v3 preservado e nova B/v5 não contemporâneos; mudança de prompt e fronteira geração/avaliação.",
+    "A/v3 sem sandbox/políticas equivalentes; B usa workspace-write e regras herdadas; comparação causal inválida.",
+    "Preparação v3 contém localização de fontes; A copia faixas, B seleciona/transpila AST. Não são reconstruções independentes.",
+    "Usage agregado por sessão não é janela/contexto por chamada. Indisponível não significa zero ou ausência de estouro.",
+    "Plano funcional congelado tem 86 passos por lane; não certifica equivalência integral e não cobre downloads/CSV acrescentados em B.",
+    "Mobile reproduz deficiência original: sidebar larga e conteúdo/tabelas cortados; fidelidade não é usabilidade.",
+    "RGB MAE é diagnóstico normalizado de pixels, não percentual de similaridade, escore composto ou aceite visual.",
+    "Tempos de arquivos são observações reativas de 50 ms; geração não equivale a tempo de aceite.",
+    "Cache de SO/modelo não controlado; custo monetário e splits por página indisponíveis.",
+    "Auditoria de eventos/RPC/código não prova isolamento de syscalls. QA downstream ainda pendente."
+  ],
+  "publication_policy": "Somente encaminhamento para QA/landing existentes. Sem publicação externa, promessa de ganho, aceitação global ou novas repetições medidas."
+}

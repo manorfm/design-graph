@@ -14,7 +14,7 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="container header"><a class="brand" href="#top" aria-label="Design Graph home"><img src="assets/mark.svg" width="28" height="28" alt="" aria-hidden="true"><span>design-graph</span></a>
-<nav aria-label="Main navigation"><a href="#overview">Overview</a><a href="#setup">Setup</a><a href="#examples">Examples</a><a href="https://github.com/manorfm/design-graph">GitHub <span aria-hidden="true">↗</span></a>
+<nav aria-label="Main navigation"><a href="#overview">Overview</a><a href="#setup">Setup</a><a href="#examples">Examples</a><a href="#benchmarks">Benchmarks</a><a href="https://github.com/manorfm/design-graph">GitHub <span aria-hidden="true">↗</span></a>
 </nav>
 <div class="header-actions"><button id="theme" hidden aria-label="Switch to light theme">Light theme</button>
 </div>
@@ -303,6 +303,49 @@ claude mcp get design-graph</code></pre>
 </div>
 </div>
 </section>
+<section id="benchmarks" class="section" aria-labelledby="benchmarks-title">
+<div class="container">
+<div class="section-heading"><p class="eyebrow">FIELD NOTES · iPEDE · 2026-10-26</p>
+<h2 id="benchmarks-title">Three pages. Three dimensions of evidence.</h2></div>
+<div class="benchmark-verdict"><p><strong>Causal effect NOT IDENTIFIED.</strong> n=1 per condition: preserved A/v3 versus new B/v5, noncontemporaneous sessions. Technical completion is not evidence of a gain. Final independent QA pending.</p></div>
+<p class="intro">A used conventional source access; B used native Design Graph MCP. This artifact comparison covers Grupos de Componentes, Restaurantes and Estoque. Both used gpt-6.1-sol, medium reasoning, with limits of 900 seconds and 90 tools. The prompt, generation/evaluation boundary and sandbox changed between sessions.</p>
+<h3>01 / Retrieval and context</h3>
+<p>B recorded <span data-source="runs/B/mcp_completed" data-value="31">31</span> matched MCP calls; only <span data-source="runs/B/mcp_useful_target_correct" data-value="20">20</span> were target-correct useful queries. All three pages were queried before the first output. The other calls included one mismatched entity, three discoveries/listings, one configuration and six diagnostics. These counts are not retrieval accuracy.</p>
+<p>Effective context window, tokens per call, backend limit, compaction, resets, truncation, overflow and retrieval score: <strong>unavailable</strong>. Aggregate session input is not an effective context window and provides no proof of avoiding overflow. Unavailable does not mean zero.</p>
+<h3>02 / Generation time and usage</h3>
+<div class="benchmark-table"><table><caption>Session aggregates; generation only, not accepted-page time</caption>
+<thead><tr><th scope="col">Observation</th><th scope="col">A/v3 preserved</th><th scope="col">B/v5 new</th></tr></thead><tbody><tr><th scope="row">Generation session (seconds)</th><td><span data-source="runs/A/seconds" data-value="341.45446998090483" data-format=".6f">341.454470</span></td><td><span data-source="runs/B/seconds" data-value="407.37631836510263" data-format=".6f">407.376318</span></td></tr>
+<tr><th scope="row">Input tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/input_tokens" data-value="1817773">1817773</span></td><td><span data-source="runs/B/last_session_aggregate_usage/input_tokens" data-value="2742036">2742036</span></td></tr>
+<tr><th scope="row">Cached input tokens (subset of input)</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/cached_input_tokens" data-value="1729280">1729280</span></td><td><span data-source="runs/B/last_session_aggregate_usage/cached_input_tokens" data-value="2631040">2631040</span></td></tr>
+<tr><th scope="row">Output tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/output_tokens" data-value="12461">12461</span></td><td><span data-source="runs/B/last_session_aggregate_usage/output_tokens" data-value="12840">12840</span></td></tr>
+<tr><th scope="row">Reasoning output (provider auxiliary field)</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/reasoning_output_tokens" data-value="3953">3953</span></td><td><span data-source="runs/B/last_session_aggregate_usage/reasoning_output_tokens" data-value="4292">4292</span></td></tr>
+<tr><th scope="row">Cache-write input tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/cache_write_input_tokens" data-value="0">0</span></td><td><span data-source="runs/B/last_session_aggregate_usage/cache_write_input_tokens" data-value="0">0</span></td></tr>
+<tr><th scope="row">Accepted-page time</th><td>Unavailable; not measured</td><td><span data-source="runs/B/accepted_seconds" data-value="null">Unavailable</span>; not measured</td></tr></tbody></table></div>
+<p>B setup/indexing: <span data-source="runs/B/setup_index_seconds" data-value="5.374724992085248" data-format=".6f">5.374725</span> seconds; read-only readiness: <span data-source="runs/B/readiness_seconds" data-value="0.49372610403224826" data-format=".6f">0.493726</span> seconds, reported separately from generation. Neutral preflight usage is excluded. Reasoning is kept as a separate provider field, not added again to output tokens. OS and model caches were uncontrolled. No monetary cost or gain percentage is calculated.</p>
+<h3>03 / Fidelity and interaction</h3>
+<p>The frozen offline plan passed <strong>86/86 steps for each of original, A and B</strong>, across <span data-source="evaluator/browser_contexts" data-value="18">18</span> fresh browser contexts at 1280×900 and 390×844. Browser errors: <span data-source="evaluator/browser_errors" data-value="0">0</span>; external requests: <span data-source="evaluator/external_requests" data-value="0">0</span>; no capture errors. This covers the frozen plan only, not global functional fidelity or acceptance.</p>
+<div class="benchmark-table"><table><caption>Default-state textual comparison against the original</caption><thead><tr><th scope="col">Page</th><th scope="col">Original</th><th scope="col">A/v3</th><th scope="col">B/v5</th></tr></thead><tbody>
+<tr><th scope="row">Grupos de Componentes</th><td>Reference shell, content and sidebar icons.</td><td>Default matches original.</td><td>Sidebar icons omitted; small spacing drift. Main content and shell retained.</td></tr>
+<tr><th scope="row">Restaurantes</th><td>Premium default and reference positioning.</td><td>Default matches original.</td><td>Premium retained; sidebar icons omitted and positioning differs slightly.</td></tr>
+<tr><th scope="row">Estoque</th><td>Colored KPI icons, tabs and header icons; network/overview scope.</td><td>Default matches original.</td><td>Empty gray KPI icon placeholders; sidebar, tab and header icons omitted; small spacing drift. Network/overview scope retained.</td></tr>
+</tbody></table></div>
+<div class="benchmark-table"><table class="benchmark-mae"><caption>Normalized RGB MAE against original, default screenshots</caption><thead><tr><th scope="col">Page</th><th scope="col">Viewport</th><th scope="col">A/v3</th><th scope="col">B/v5</th></tr></thead><tbody><tr><th scope="row">Grupos de Componentes</th><td>1280x900</td><td><span data-source="evaluation/1/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/2/diagnostic_rgb_mae_fraction" data-value="0.002589891975308642" data-format=".9f">0.002589892</span></td></tr>
+<tr><th scope="row">Grupos de Componentes</th><td>390x844</td><td><span data-source="evaluation/4/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/5/diagnostic_rgb_mae_fraction" data-value="0.009569123067868538" data-format=".9f">0.009569123</span></td></tr>
+<tr><th scope="row">Restaurantes</th><td>1280x900</td><td><span data-source="evaluation/7/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/8/diagnostic_rgb_mae_fraction" data-value="0.0035614515250544663" data-format=".9f">0.003561452</span></td></tr>
+<tr><th scope="row">Restaurantes</th><td>390x844</td><td><span data-source="evaluation/10/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/11/diagnostic_rgb_mae_fraction" data-value="0.009765554943977024" data-format=".9f">0.009765555</span></td></tr>
+<tr><th scope="row">Estoque</th><td>1280x900</td><td><span data-source="evaluation/13/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/14/diagnostic_rgb_mae_fraction" data-value="0.010074183006535948" data-format=".9f">0.010074183</span></td></tr>
+<tr><th scope="row">Estoque</th><td>390x844</td><td><span data-source="evaluation/16/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/17/diagnostic_rgb_mae_fraction" data-value="0.011224979885420363" data-format=".9f">0.011224980</span></td></tr>
+</tbody></table></div>
+<p>MAE is a pixel diagnostic: mean absolute RGB channel difference normalized by 255. It is not percentage accuracy, SSIM, similarity, a semantic score or acceptance. A has zero default pixel difference; B has partial visual fidelity.</p>
+<p><strong>Mobile usability FAIL, inherited in all three lanes.</strong> At 390×844 the wide sidebar occupies most of the screen and content/tables are clipped. Reproducing the original does not certify mobile usability.</p>
+<p>B adds XLSX/CSV downloads outside the frozen plan; “Imprimir contagem” downloads CSV. Restaurant exports use static seed data, without assurance of edited/filtered state. These are inventions/divergences, not functional gains. Downloads and global fidelity remain uncertified.</p>
+<h3>Limits, provenance and earlier rounds</h3>
+<p>Prepared source locations were supplied. A copied source ranges; B selected and transpiled AST components/dependencies with a custom wrapper. Neither is an independent reconstruction. Shared dependencies and data limit context-efficiency inference. A lacked B's equivalent sandbox; B used workspace-write with inherited rules. Event/RPC/code review does not prove syscall isolation.</p>
+<p>B/v3 is invalid: zero MCP calls. B/v4 stopped at a guard and has no final usage. Their metrics are not mixed into B/v5. The earlier v2 pilot was inconclusive: one screen and three pairs, incomplete query 5 ground truth invalidating affected retrieval indexes, and a Free versus Premium default failure. It measured no accepted-page time. Historical pilot metrics are not used here.</p>
+<p>Product baseline: <code>ebdbeb24323d7143e0186622a7389b963e5ed350</code>. Measurement code: <code>c68e1cbfd2c13ec5be68ae2a9314470a7c15652b</code>. These are distinct revisions. V5 CLI version and browser/library versions: <strong>not specified in public handoff</strong>; earlier v2 versions are not substituted. Model snapshot/seed are not specified in public handoff.</p>
+<p>No captures are publicly available due to privacy. Private source, screenshots, DOM and raw logs are not included. The two sanitized handoff files are available below; the methodology report is in Portuguese.</p>
+<div class="actions"><a href="benchmark-ipede-v2/report.md" download>Download methodology (report.md)</a><a href="benchmark-ipede-v2/data.json" download>Download source data (data.json)</a></div>
+</div></section>
 <section id="faq" class="section" aria-labelledby="faq-title">
 <div class="container split">
 <div class="section-heading">
