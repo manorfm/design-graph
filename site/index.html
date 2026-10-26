@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Graph — HTML prototypes as agent context</title>
+<meta name="description" content="Turn supported HTML prototypes into a typed knowledge graph. Query screens, components and design tokens with a CLI or local MCP server.">
+<link rel="canonical" href="https://manorfm.github.io/design-graph/">
+<script src="assets/theme.js"></script>
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/main.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="container header"><a class="brand" href="#top" aria-label="Design Graph home"><img src="assets/mark.svg" width="28" height="28" alt="" aria-hidden="true"><span>design-graph</span></a>
+<nav aria-label="Main navigation"><a href="#overview">Overview</a><a href="#setup">Setup</a><a href="#examples">Examples</a><a href="https://github.com/manorfm/design-graph">GitHub <span aria-hidden="true">↗</span></a>
+</nav>
+<div class="header-actions"><button id="theme" hidden aria-label="Switch to light theme">Light theme</button>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<noscript>
+<p class="container no-js">JavaScript enables the theme switch and copy buttons. Commands can still be selected manually.
+</p>
+</noscript>
+<section id="top" class="container hero" aria-labelledby="hero-title">
+<div>
+<p class="eyebrow">HTML PROTOTYPES → AGENT CONTEXT
+</p>
+<h1 id="hero-title">Give your agent the design context it needs.
+</h1>
+<p class="lead">Turn standalone HTML prototypes into a typed knowledge graph. Query screens, components and design tokens from your terminal or through a local MCP server.
+</p>
+<div class="actions"><a class="button primary" href="#setup">Start local setup <span aria-hidden="true">↗</span></a><a class="button" href="https://github.com/manorfm/design-graph">Explore on GitHub</a>
+</div>
+<p class="support">Python 3.10+ · CLI + MCP · Local graph storage
+</p>
+</div>
+<figure class="specimen">
+<p class="specimen-title">From prototype to specific context
+</p>
+<div class="graph">
+<div class="graph-input"><span class="node input">simple.html</span><span aria-hidden="true" class="arrow">→</span><span class="graph-label">Typed graph</span>
+</div>
+<div class="graph-tree">
+<div class="node screen">RestaurantsPage
+</div>
+<div class="branches">
+<div class="node component">BtnPrimary
+</div>
+<div class="node component">SectionCard
+</div>
+</div>
+</div>
+</div><code class="specimen-call">get_component(name="BtnPrimary", doc="simple")</code>
+<figcaption>RestaurantsPage uses BtnPrimary and SectionCard.<br>Illustrative graph based on the repository fixture. Not a live connection.
+</figcaption>
+</figure>
+</section>
+<section id="overview" class="section" aria-labelledby="overview-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">WHAT IT IS
+</p>
+<h2 id="overview-title">A queryable layer between prototype and implementation.
+</h2>
+</div>
+<div>
+<p>Design Graph reads the structure and details in supported HTML prototypes and stores them in a Kuzu graph. Your agent can request a screen, inspect a component or look up tokens instead of reading the entire HTML file for every task.
+</p>
+<p>For frontend developers and designers handing HTML prototypes to coding agents.
+</p>
+<h3>Supported inputs
+</h3>
+<ul class="formats">
+<li>Single-file HTML: bundled React, Tailwind or plain HTML.
+</li>
+<li>DC canvas bundles containing DC pages.
+</li>
+</ul>
+<p class="muted">Start from a supported HTML file. This is not a live design-tool connection.
+</p><a href="https://github.com/manorfm/design-graph#supported-prototypes">Read the supported formats</a>
+</div>
+</div>
+</section>
+<section id="setup" class="section" aria-labelledby="setup-title">
+<div class="container">
+<div class="section-heading">
+<p class="eyebrow">LOCAL SETUP
+</p>
+<h2 id="setup-title">Build the graph. Then choose how to query it.
+</h2>
+</div>
+<p class="intro">You need Python 3.10+ and pip or pipx. An MCP client is optional if you only use the CLI.
+</p>
+<ol class="setup-list" role="list">
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">01</span>
+<h3>Install Design Graph
+</h3>
+<p>Install the package and check that the command is available.
+</p><a href="https://github.com/manorfm/design-graph#install">Installation options</a>
+</div>
+<div>
+<div class="code-block">
+<div class="code-toolbar"><span>pip installation</span><button hidden class="copy" data-copy="code-0" aria-label="Copy command: pip installation">Copy command</button>
+</div><pre tabindex="0" aria-label="pip installation code"><code id="code-0">python3 -m pip install design-graph
+design-graph --version</code></pre>
+</div>
+<p class="small muted">Prefer isolated CLI installs? Use pipx instead of pip.
+</p>
+<details class="pipx">
+<summary>Install with pipx
+</summary>
+<div class="code-block">
+<div class="code-toolbar"><span>pipx installation</span><button hidden class="copy" data-copy="code-1" aria-label="Copy command: pipx installation">Copy command</button>
+</div><pre tabindex="0" aria-label="pipx installation code"><code id="code-1">pipx install design-graph</code></pre>
+</div>
+</details>
+</div>
+</li>
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">02</span>
+<h3>Build your prototype graph
+</h3>
+<p>Run this with your HTML file. Replace prototype.html with its path. The default database name is the file name without .html.
+</p>
+</div>
+<div>
+<div class="code-block">
+<div class="code-toolbar"><span>Build and query</span><button hidden class="copy" data-copy="code-2" aria-label="Copy command: Build and query">Copy command</button>
+</div><pre tabindex="0" aria-label="Build and query code"><code id="code-2">design-graph prototype.html
+design-query screens</code></pre>
+</div>
+<p class="small muted">With multiple databases, select one explicitly:
+</p>
+<div class="code-block">
+<div class="code-toolbar"><span>Explicit document selection</span><button hidden class="copy" data-copy="code-3" aria-label="Copy command: Explicit document selection">Copy command</button>
+</div><pre tabindex="0" aria-label="Explicit document selection code"><code id="code-3">design-query --doc &quot;prototype&quot; screens</code></pre>
+</div>
+</div>
+</li>
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">03</span>
+<h3>Connect an MCP client (optional)
+</h3>
+<p>The MCP server runs locally over stdio. There is no hosted server URL to paste.
+</p><a href="https://github.com/manorfm/design-graph#configure-the-mcp-server">MCP configuration details</a>
+</div>
+<div>
+<h4>Cursor
+</h4>
+<p class="small">Add this entry to ~/.cursor/mcp.json or your project's .cursor/mcp.json. Merge it into any existing configuration.
+</p>
+<div class="code-block">
+<div class="code-toolbar"><span>Cursor configuration</span><button hidden class="copy" data-copy="code-4" aria-label="Copy configuration: Cursor configuration">Copy configuration</button>
+</div><pre tabindex="0" aria-label="Cursor configuration code"><code id="code-4">{
+  &quot;mcpServers&quot;: {
+    &quot;design-graph&quot;: {
+      &quot;command&quot;: &quot;design-mcp&quot;
+    }
+  }
+}</code></pre>
+</div>
+<h4>Claude Code
+</h4>
+<div class="code-block">
+<div class="code-toolbar"><span>Claude Code setup</span><button hidden class="copy" data-copy="code-5" aria-label="Copy command: Claude Code setup">Copy command</button>
+</div><pre tabindex="0" aria-label="Claude Code setup code"><code id="code-5">claude mcp add --scope user design-graph -- design-mcp
+claude mcp get design-graph</code></pre>
+</div>
+<p class="small muted">Build your graph before querying it. With multiple prototypes, pass doc in a tool call or select one with set_prototype. The client must be able to find design-mcp on its PATH.
+</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section id="examples" class="section" aria-labelledby="examples-title">
+<div class="container">
+<div class="section-heading">
+<p class="eyebrow">ASK FOR WHAT YOU NEED
+</p>
+<h2 id="examples-title">Start with a screen. Follow the details.
+</h2>
+</div>
+<p class="intro">Example prompts for a connected MCP client. The agent chooses the tools; these are not buttons that run a query. Replace fixture names with names from your own graph.
+</p>
+<div class="examples-list">
+<article class="example">
+<div>
+<h3>Find the starting point
+</h3>
+<p class="label">You ask
+</p><blockquote>List the screens in my prototype.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>list_screens()</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Inspect a component
+</h3>
+<p class="label">You ask
+</p><blockquote>Show BtnPrimary, including its props and hover state.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>get_component(name=&quot;BtnPrimary&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Collect a screen&#x27;s context
+</h3>
+<p class="label">You ask
+</p><blockquote>Give me the context to implement RestaurantsPage.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>assemble_page(name=&quot;RestaurantsPage&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Read the color tokens
+</h3>
+<p class="label">You ask
+</p><blockquote>Which color tokens does this prototype use?</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>get_tokens(category=&quot;color&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+</div>
+<p class="small muted scope-note">BtnPrimary, RestaurantsPage and simple are repository-fixture examples, not names every prototype contains.
+</p>
+</div>
+</section>
+<section id="features" class="section" aria-labelledby="features-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">INSIDE THE GRAPH
+</p>
+<h2 id="features-title">Inspect structure, style and relationships.
+</h2>
+</div>
+<div>
+<ol class="capabilities" role="list">
+<li><span class="number" aria-hidden="true">01</span>
+<div>
+<h3>Screens and components
+</h3>
+<p>Inspect screen outlines, sections and component hierarchy.
+</p><code>get_screen · get_component</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">02</span>
+<div>
+<h3>Tokens by mode
+</h3>
+<p>Query extracted color, spacing, typography and other tokens, including their modes when present.
+</p><code>get_tokens</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">03</span>
+<div>
+<h3>Search and impact
+</h3>
+<p>Find named elements and text, then inspect who uses a component or token.
+</p><code>search · impact</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">04</span>
+<div>
+<h3>Screen assembly
+</h3>
+<p>Request a screen's skeleton, component definitions, referenced data and tokens. Long answers are returned in parts.
+</p><code>assemble_page · get_full</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">05</span>
+<div>
+<h3>Resources and embedded assets
+</h3>
+<p>List prototype resources and extract embedded fonts or images into your workspace.
+</p><code>get_resources · get_asset</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">06</span>
+<div>
+<h3>Build changes and integrity
+</h3>
+<p>Review screens and components added or removed since the previous build, and check graph integrity from the CLI.
+</p><code>get_build_diff · design-graph validate</code>
+</div>
+</li>
+</ol><a href="https://github.com/manorfm/design-graph#mcp-tools">Read the tool reference</a>
+</div>
+</div>
+</section>
+<section id="faq" class="section" aria-labelledby="faq-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">BEFORE YOU START
+</p>
+<h2 id="faq-title">A few practical details.
+</h2>
+</div>
+<div class="faq-list">
+<details open>
+<summary>Do I need an MCP client?
+</summary>
+<p>No. You can build and query graphs with the CLI. Connect an MCP-compatible client only if you want an agent to use the tools.
+</p>
+</details>
+<details>
+<summary>Can I paste a hosted MCP URL?
+</summary>
+<p>No. Design Graph exposes a local stdio server through design-mcp. The setup above shows the documented Cursor and Claude Code configurations.
+</p>
+</details>
+<details>
+<summary>Which prototypes can I use?
+</summary>
+<p>Supported inputs are single-file HTML prototypes with bundled React, Tailwind or plain HTML, and DC canvas bundles containing DC pages. Check the <a href="https://github.com/manorfm/design-graph#supported-prototypes">supported formats</a> before building your graph.
+</p>
+</details>
+<details>
+<summary>What if I have more than one prototype?
+</summary>
+<p>Each HTML file gets its own database by default. Select a database with --doc in the CLI, or pass doc to an MCP tool call. Use --db when same-named HTML files need separate databases.
+</p>
+</details>
+<details>
+<summary>Does validation prove the implementation matches visually?
+</summary>
+<p>No. Graph validation checks integrity. The MCP component-implementation check is best-effort and cannot fully verify stylesheet or utility-class styling. Review the rendered implementation separately.
+</p>
+</details>
+<details>
+<summary>Do I need to rebuild after editing the HTML?
+</summary>
+<p>Yes. Run design-graph on the HTML file again. Unchanged files are skipped unless you use --force. The MCP server detects rebuilt databases; reconnect after changing its graph-directory configuration or upgrading the package.
+</p>
+</details>
+</div>
+</div>
+</section>
+<section id="start" class="section final-cta" aria-labelledby="start-title">
+<div class="container split">
+<div>
+<h2 id="start-title">Bring your prototype into the conversation.
+</h2>
+<p>Install Design Graph, build a local graph and ask for the context your next UI task needs.
+</p>
+</div>
+<div class="actions"><a class="button primary" href="#setup">Start local setup <span aria-hidden="true">↗</span></a><a class="button" href="https://github.com/manorfm/design-graph/blob/main/README.md">Read the documentation</a>
+</div>
+</div>
+</section>
+</main>
+<footer class="container footer"><a class="brand" href="#top" aria-label="Design Graph home"><img src="assets/mark.svg" width="28" height="28" alt="" aria-hidden="true"><span>design-graph</span></a>
+<nav aria-label="Footer navigation"><a href="https://github.com/manorfm/design-graph">GitHub</a><a href="https://github.com/manorfm/design-graph/blob/main/README.md">Documentation</a><a href="https://pypi.org/project/design-graph/">PyPI</a>
+</nav>
+</footer>
+<p id="copy-status" class="copy-status" role="status" aria-live="polite" aria-atomic="true">
+</p></body></html>

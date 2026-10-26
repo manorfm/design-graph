@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Copy only site/ into a new isolated directory in this worktree; never publish."""
+import argparse
+from pathlib import Path
+import shutil
+
+ROOT = Path(__file__).resolve().parents[2]
+SITE = ROOT / 'site'
+
+
+def export(destination):
+    destination = Path(destination).resolve()
+    if not destination.is_relative_to(ROOT) or destination == ROOT or destination.is_relative_to(SITE):
+        raise ValueError('Choose a new destination inside this worktree, outside site/.')
+    if destination.exists():
+        raise FileExistsError(f'Destination already exists: {destination}')
+    if any(p.is_symlink() for p in SITE.rglob('*')):
+        raise ValueError('Site must contain regular files, not symlinks.')
+    shutil.copytree(SITE, destination)
+    return destination
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('destination', type=Path)
+    args = parser.parse_args()
+    print(export(args.destination))
+
+
+if __name__ == '__main__':
+    main()
