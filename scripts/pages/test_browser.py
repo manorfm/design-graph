@@ -52,6 +52,50 @@ CONTRAST = r'''() => {
 }'''
 
 
+def settle_visual_state(page, *, neutral=False, timeout=5000):
+    """Wait for rendered styles/layout, without changing focus or CSS motion.
+
+    Neutral measurements park the pointer outside the viewport, including after
+    resize/scroll. Intentional hover and keyboard callers retain their state.
+    A deadline rejects perpetual animation; contrast errors are never retried.
+    """
+    if neutral:
+        page.mouse.move(-1, -1)
+    return page.evaluate(r'''timeout => new Promise((resolve, reject) => {
+      let previous, unchanged = 0, frame;
+      const start = performance.now();
+      const timer = setTimeout(() => {
+        cancelAnimationFrame(frame);
+        reject(new Error(`Visual state did not stabilize within ${timeout}ms`));
+      }, timeout);
+      function sample() {
+        // Reading computed styles flushes pending hover/media-query changes
+        // before querying animations (including CSS transitions).
+        const signature = JSON.stringify(Array.from(document.querySelectorAll('*'), el => {
+          const s = getComputedStyle(el), r = el.getBoundingClientRect();
+          return [s.display, s.visibility, s.opacity, s.color, s.backgroundColor,
+            s.borderTopColor, s.outlineColor, s.outlineStyle, s.outlineWidth,
+            s.outlineOffset, s.fontSize, s.fontWeight, r.x, r.y, r.width, r.height];
+        }));
+        const active = document.getAnimations().some(a => a.pending || a.playState === 'running');
+        unchanged = !active && signature === previous ? unchanged + 1 : 0;
+        previous = signature;
+        if (unchanged >= 2) {
+          clearTimeout(timer);
+          resolve({elapsedMs: performance.now() - start});
+        } else {
+          frame = requestAnimationFrame(sample);
+        }
+      }
+      frame = requestAnimationFrame(sample);
+    })''', timeout)
+
+
+def measure_contrast(page, *, neutral=True, timeout=5000):
+    settle_visual_state(page, neutral=neutral, timeout=timeout)
+    return page.evaluate(CONTRAST)
+
+
 def run(output):
     from playwright.sync_api import sync_playwright, expect
 
@@ -95,7 +139,6 @@ def run(output):
                 for theme in ('dark', 'light'):
                     if theme == 'light':
                         page.get_by_role('button', name='Switch to light theme').click()
-                        page.wait_for_timeout(180)
                     for width, height in ((1440,900),(768,1024),(390,844),(320,800)):
                         page.set_viewport_size({'width': width, 'height': height})
                         page.evaluate('window.scrollTo(0,0)')
@@ -104,7 +147,7 @@ def run(output):
                         targets = page.locator('a:visible,button:visible,summary:visible').evaluate_all(
                             'items => items.filter(e => { const r=e.getBoundingClientRect(); return r.width < 44 || r.height < 44; }).map(e => e.outerHTML)')
                         assert not targets, targets
-                        contrast = page.evaluate(CONTRAST)
+                        contrast = measure_contrast(page)
                         assert not contrast['failures'], contrast
                         report['contrast'].append({'theme':theme,'width':width,**contrast})
                         name = f'{theme}-{width}x{height}'
@@ -115,8 +158,7 @@ def run(output):
                     page.set_viewport_size({'width':1440,'height':900})
                     for selector in ('button#theme','.button.primary','.button:not(.primary)','nav a'):
                         page.locator(selector).first.hover()
-                        page.wait_for_timeout(180)
-                        assert not page.evaluate(CONTRAST)['failures']
+                        assert not measure_contrast(page, neutral=False)['failures']
                     page.goto(url)
                     page.keyboard.press('Tab')
                     expect(page.locator('.skip')).to_be_focused()
@@ -213,7 +255,7 @@ def run(output):
                 # has a rendered 3px ring with >=3:1 contrast using palette checks.
                 page.goto(url)
                 page.locator('.pipx').evaluate('el => el.open = true')
-                page.wait_for_timeout(100)
+                settle_visual_state(page, neutral=True)
                 page.evaluate('document.activeElement.blur()')
                 page.locator('.skip').focus()
                 expected_stops = set(page.evaluate('''() => Array.from(document.querySelectorAll('a,button,summary,pre'))
@@ -221,6 +263,7 @@ def run(output):
                 seen = {0}
                 for _ in range(100):
                     page.keyboard.press('Tab')
+                    settle_visual_state(page)
                     focus = page.evaluate('''() => {
                       const e=document.activeElement,s=getComputedStyle(e);
                       return {tag:e.tagName,key:Array.from(document.querySelectorAll('a,button,summary,pre')).indexOf(e),outline:s.outlineStyle,width:s.outlineWidth,offset:s.outlineOffset};
@@ -228,7 +271,7 @@ def run(output):
                     if focus['tag'] == 'BODY':
                         break
                     assert focus['outline'] == 'solid' and focus['width'] == '3px' and focus['offset'] == '3px', focus
-                    assert page.evaluate(CONTRAST)['focusContrast'] >= 3
+                    assert measure_contrast(page, neutral=False)['focusContrast'] >= 3
                     seen.add(focus['key'])
                 assert seen == expected_stops, {'seen': sorted(seen), 'expected': sorted(expected_stops)}
                 passed(f'full keyboard path: {len(seen)} distinct controls/code stops with visible ring')
@@ -240,7 +283,7 @@ def run(output):
                     for width,height in ((844,390),(640,450),(320,225)):
                         page.set_viewport_size({'width':width,'height':height})
                         assert page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth')
-                        assert not page.evaluate(CONTRAST)['failures']
+                        assert not measure_contrast(page)['failures']
                 passed('reduced motion, phone landscape, 200%/400% equivalent CSS viewport reflow')
                 page.set_viewport_size({'width':320,'height':800})
                 page.locator('details').evaluate_all('items => items.forEach(el => el.open = true)')
