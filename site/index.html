@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Graph — HTML prototypes as agent context</title>
+<meta name="description" content="Turn supported HTML prototypes into a typed knowledge graph. Query screens, components and design tokens with a CLI or local MCP server.">
+<link rel="canonical" href="https://manorfm.github.io/design-graph/">
+<script src="assets/theme.js"></script>
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/main.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="container header"><a class="brand" href="#top" aria-label="Design Graph home"><img src="assets/mark.svg" width="28" height="28" alt="" aria-hidden="true"><span>design-graph</span></a>
+<nav aria-label="Main navigation"><a href="#overview">Overview</a><a href="#setup">Setup</a><a href="#examples">Examples</a><a href="#benchmarks">Benchmarks</a><a href="https://github.com/manorfm/design-graph">GitHub <span aria-hidden="true">↗</span></a>
+</nav>
+<div class="header-actions"><button id="theme" hidden aria-label="Switch to light theme">Light theme</button>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<noscript>
+<p class="container no-js">JavaScript enables the theme switch and copy buttons. Commands can still be selected manually.
+</p>
+</noscript>
+<section id="top" class="container hero" aria-labelledby="hero-title">
+<div>
+<p class="eyebrow">HTML PROTOTYPES → AGENT CONTEXT
+</p>
+<h1 id="hero-title">Give your agent the design context it needs.
+</h1>
+<p class="lead">Turn standalone HTML prototypes into a typed knowledge graph. Query screens, components and design tokens from your terminal or through a local MCP server.
+</p>
+<div class="actions"><a class="button primary" href="#setup">Start local setup <span aria-hidden="true">↗</span></a><a class="button" href="https://github.com/manorfm/design-graph">Explore on GitHub</a>
+</div>
+<p class="support">Python 3.10+ · CLI + MCP · Local graph storage
+</p>
+</div>
+<figure class="specimen">
+<p class="specimen-title">From prototype to specific context
+</p>
+<div class="graph">
+<div class="graph-input"><span class="node input">simple.html</span><span aria-hidden="true" class="arrow">→</span><span class="graph-label">Typed graph</span>
+</div>
+<div class="graph-tree">
+<div class="node screen">RestaurantsPage
+</div>
+<div class="branches">
+<div class="node component">BtnPrimary
+</div>
+<div class="node component">SectionCard
+</div>
+</div>
+</div>
+</div><code class="specimen-call">get_component(name="BtnPrimary", doc="simple")</code>
+<figcaption>RestaurantsPage uses BtnPrimary and SectionCard.<br>Illustrative graph based on the repository fixture. Not a live connection.
+</figcaption>
+</figure>
+</section>
+<section id="overview" class="section" aria-labelledby="overview-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">WHAT IT IS
+</p>
+<h2 id="overview-title">A queryable layer between prototype and implementation.
+</h2>
+</div>
+<div>
+<p>Design Graph reads the structure and details in supported HTML prototypes and stores them in a Kuzu graph. Your agent can request a screen, inspect a component or look up tokens instead of reading the entire HTML file for every task.
+</p>
+<p>For frontend developers and designers handing HTML prototypes to coding agents.
+</p>
+<h3>Supported inputs
+</h3>
+<ul class="formats">
+<li>Single-file HTML: bundled React, Tailwind or plain HTML.
+</li>
+<li>DC canvas bundles containing DC pages.
+</li>
+</ul>
+<p class="muted">Start from a supported HTML file. This is not a live design-tool connection.
+</p><a href="https://github.com/manorfm/design-graph#supported-prototypes">Read the supported formats</a>
+</div>
+</div>
+</section>
+<section id="setup" class="section" aria-labelledby="setup-title">
+<div class="container">
+<div class="section-heading">
+<p class="eyebrow">LOCAL SETUP
+</p>
+<h2 id="setup-title">Build the graph. Then choose how to query it.
+</h2>
+</div>
+<p class="intro">You need Python 3.10+ and pip or pipx. An MCP client is optional if you only use the CLI.
+</p>
+<ol class="setup-list" role="list">
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">01</span>
+<h3>Install Design Graph
+</h3>
+<p>Install the package and check that the command is available.
+</p><a href="https://github.com/manorfm/design-graph#install">Installation options</a>
+</div>
+<div>
+<div class="code-block">
+<div class="code-toolbar"><span>pip installation</span><button hidden class="copy" data-copy="code-0" aria-label="Copy command: pip installation">Copy command</button>
+</div><pre tabindex="0" aria-label="pip installation code"><code id="code-0">python3 -m pip install design-graph
+design-graph --version</code></pre>
+</div>
+<p class="small muted">Prefer isolated CLI installs? Use pipx instead of pip.
+</p>
+<details class="pipx">
+<summary>Install with pipx
+</summary>
+<div class="code-block">
+<div class="code-toolbar"><span>pipx installation</span><button hidden class="copy" data-copy="code-1" aria-label="Copy command: pipx installation">Copy command</button>
+</div><pre tabindex="0" aria-label="pipx installation code"><code id="code-1">pipx install design-graph</code></pre>
+</div>
+</details>
+</div>
+</li>
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">02</span>
+<h3>Build your prototype graph
+</h3>
+<p>Run this with your HTML file. Replace prototype.html with its path. The default database name is the file name without .html.
+</p>
+</div>
+<div>
+<div class="code-block">
+<div class="code-toolbar"><span>Build and query</span><button hidden class="copy" data-copy="code-2" aria-label="Copy command: Build and query">Copy command</button>
+</div><pre tabindex="0" aria-label="Build and query code"><code id="code-2">design-graph prototype.html
+design-query screens</code></pre>
+</div>
+<p class="small muted">With multiple databases, select one explicitly:
+</p>
+<div class="code-block">
+<div class="code-toolbar"><span>Explicit document selection</span><button hidden class="copy" data-copy="code-3" aria-label="Copy command: Explicit document selection">Copy command</button>
+</div><pre tabindex="0" aria-label="Explicit document selection code"><code id="code-3">design-query --doc &quot;prototype&quot; screens</code></pre>
+</div>
+</div>
+</li>
+<li class="setup-row">
+<div class="step-copy"><span class="number" aria-hidden="true">03</span>
+<h3>Connect an MCP client (optional)
+</h3>
+<p>The MCP server runs locally over stdio. There is no hosted server URL to paste.
+</p><a href="https://github.com/manorfm/design-graph#configure-the-mcp-server">MCP configuration details</a>
+</div>
+<div>
+<h4>Cursor
+</h4>
+<p class="small">Add this entry to ~/.cursor/mcp.json or your project's .cursor/mcp.json. Merge it into any existing configuration.
+</p>
+<div class="code-block">
+<div class="code-toolbar"><span>Cursor configuration</span><button hidden class="copy" data-copy="code-4" aria-label="Copy configuration: Cursor configuration">Copy configuration</button>
+</div><pre tabindex="0" aria-label="Cursor configuration code"><code id="code-4">{
+  &quot;mcpServers&quot;: {
+    &quot;design-graph&quot;: {
+      &quot;command&quot;: &quot;design-mcp&quot;
+    }
+  }
+}</code></pre>
+</div>
+<h4>Claude Code
+</h4>
+<div class="code-block">
+<div class="code-toolbar"><span>Claude Code setup</span><button hidden class="copy" data-copy="code-5" aria-label="Copy command: Claude Code setup">Copy command</button>
+</div><pre tabindex="0" aria-label="Claude Code setup code"><code id="code-5">claude mcp add --scope user design-graph -- design-mcp
+claude mcp get design-graph</code></pre>
+</div>
+<p class="small muted">Build your graph before querying it. With multiple prototypes, pass doc in a tool call or select one with set_prototype. The client must be able to find design-mcp on its PATH.
+</p>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section id="examples" class="section" aria-labelledby="examples-title">
+<div class="container">
+<div class="section-heading">
+<p class="eyebrow">ASK FOR WHAT YOU NEED
+</p>
+<h2 id="examples-title">Start with a screen. Follow the details.
+</h2>
+</div>
+<p class="intro">Example prompts for a connected MCP client. The agent chooses the tools; these are not buttons that run a query. Replace fixture names with names from your own graph.
+</p>
+<div class="examples-list">
+<article class="example">
+<div>
+<h3>Find the starting point
+</h3>
+<p class="label">You ask
+</p><blockquote>List the screens in my prototype.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>list_screens()</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Inspect a component
+</h3>
+<p class="label">You ask
+</p><blockquote>Show BtnPrimary, including its props and hover state.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>get_component(name=&quot;BtnPrimary&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Collect a screen&#x27;s context
+</h3>
+<p class="label">You ask
+</p><blockquote>Give me the context to implement RestaurantsPage.</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>assemble_page(name=&quot;RestaurantsPage&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+<article class="example">
+<div>
+<h3>Read the color tokens
+</h3>
+<p class="label">You ask
+</p><blockquote>Which color tokens does this prototype use?</blockquote>
+</div>
+<div class="tool">
+<p class="label">Relevant tool
+</p><code>get_tokens(category=&quot;color&quot;, doc=&quot;simple&quot;)</code>
+</div>
+</article>
+</div>
+<p class="small muted scope-note">BtnPrimary, RestaurantsPage and simple are repository-fixture examples, not names every prototype contains.
+</p>
+</div>
+</section>
+<section id="features" class="section" aria-labelledby="features-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">INSIDE THE GRAPH
+</p>
+<h2 id="features-title">Inspect structure, style and relationships.
+</h2>
+</div>
+<div>
+<ol class="capabilities" role="list">
+<li><span class="number" aria-hidden="true">01</span>
+<div>
+<h3>Screens and components
+</h3>
+<p>Inspect screen outlines, sections and component hierarchy.
+</p><code>get_screen · get_component</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">02</span>
+<div>
+<h3>Tokens by mode
+</h3>
+<p>Query extracted color, spacing, typography and other tokens, including their modes when present.
+</p><code>get_tokens</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">03</span>
+<div>
+<h3>Search and impact
+</h3>
+<p>Find named elements and text, then inspect who uses a component or token.
+</p><code>search · impact</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">04</span>
+<div>
+<h3>Screen assembly
+</h3>
+<p>Request a screen's skeleton, component definitions, referenced data and tokens. Long answers are returned in parts.
+</p><code>assemble_page · get_full</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">05</span>
+<div>
+<h3>Resources and embedded assets
+</h3>
+<p>List prototype resources and extract embedded fonts or images into your workspace.
+</p><code>get_resources · get_asset</code>
+</div>
+</li>
+<li><span class="number" aria-hidden="true">06</span>
+<div>
+<h3>Build changes and integrity
+</h3>
+<p>Review screens and components added or removed since the previous build, and check graph integrity from the CLI.
+</p><code>get_build_diff · design-graph validate</code>
+</div>
+</li>
+</ol><a href="https://github.com/manorfm/design-graph#mcp-tools">Read the tool reference</a>
+</div>
+</div>
+</section>
+<section id="benchmarks" class="section" aria-labelledby="benchmarks-title">
+<div class="container">
+<div class="section-heading"><p class="eyebrow">FIELD NOTES · iPEDE · 2026-10-26</p>
+<h2 id="benchmarks-title">Three pages. Three dimensions of evidence.</h2></div>
+<div class="benchmark-verdict"><p><strong>Causal effect NOT IDENTIFIED.</strong> n=1 per condition: preserved A/v3 versus new B/v5, noncontemporaneous sessions. Technical completion is not evidence of a gain. Final independent QA pending.</p></div>
+<p class="intro">A used conventional source access; B used native Design Graph MCP. This artifact comparison covers Grupos de Componentes, Restaurantes and Estoque. Both used gpt-6.1-sol, medium reasoning, with limits of 900 seconds and 90 tools. The prompt, generation/evaluation boundary and sandbox changed between sessions.</p>
+<h3>01 / Retrieval and context</h3>
+<p>B recorded <span data-source="runs/B/mcp_completed" data-value="31">31</span> matched MCP calls; only <span data-source="runs/B/mcp_useful_target_correct" data-value="20">20</span> were target-correct useful queries. All three pages were queried before the first output. The other calls included one mismatched entity, three discoveries/listings, one configuration and six diagnostics. These counts are not retrieval accuracy.</p>
+<p>Effective context window, tokens per call, backend limit, compaction, resets, truncation, overflow and retrieval score: <strong>unavailable</strong>. Aggregate session input is not an effective context window and provides no proof of avoiding overflow. Unavailable does not mean zero.</p>
+<h3>02 / Generation time and usage</h3>
+<div class="benchmark-table"><table><caption>Session aggregates; generation only, not accepted-page time</caption>
+<thead><tr><th scope="col">Observation</th><th scope="col">A/v3 preserved</th><th scope="col">B/v5 new</th></tr></thead><tbody><tr><th scope="row">Generation session (seconds)</th><td><span data-source="runs/A/seconds" data-value="341.45446998090483" data-format=".6f">341.454470</span></td><td><span data-source="runs/B/seconds" data-value="407.37631836510263" data-format=".6f">407.376318</span></td></tr>
+<tr><th scope="row">Input tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/input_tokens" data-value="1817773">1817773</span></td><td><span data-source="runs/B/last_session_aggregate_usage/input_tokens" data-value="2742036">2742036</span></td></tr>
+<tr><th scope="row">Cached input tokens (subset of input)</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/cached_input_tokens" data-value="1729280">1729280</span></td><td><span data-source="runs/B/last_session_aggregate_usage/cached_input_tokens" data-value="2631040">2631040</span></td></tr>
+<tr><th scope="row">Output tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/output_tokens" data-value="12461">12461</span></td><td><span data-source="runs/B/last_session_aggregate_usage/output_tokens" data-value="12840">12840</span></td></tr>
+<tr><th scope="row">Reasoning output (provider auxiliary field)</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/reasoning_output_tokens" data-value="3953">3953</span></td><td><span data-source="runs/B/last_session_aggregate_usage/reasoning_output_tokens" data-value="4292">4292</span></td></tr>
+<tr><th scope="row">Cache-write input tokens</th><td><span data-source="runs/A/telemetry/last_session_aggregate_usage/cache_write_input_tokens" data-value="0">0</span></td><td><span data-source="runs/B/last_session_aggregate_usage/cache_write_input_tokens" data-value="0">0</span></td></tr>
+<tr><th scope="row">Accepted-page time</th><td>Unavailable; not measured</td><td><span data-source="runs/B/accepted_seconds" data-value="null">Unavailable</span>; not measured</td></tr></tbody></table></div>
+<p>B setup/indexing: <span data-source="runs/B/setup_index_seconds" data-value="5.374724992085248" data-format=".6f">5.374725</span> seconds; read-only readiness: <span data-source="runs/B/readiness_seconds" data-value="0.49372610403224826" data-format=".6f">0.493726</span> seconds, reported separately from generation. Neutral preflight usage is excluded. Reasoning is kept as a separate provider field, not added again to output tokens. OS and model caches were uncontrolled. No monetary cost or gain percentage is calculated.</p>
+<h3>03 / Fidelity and interaction</h3>
+<p>The frozen offline plan passed <strong>86/86 steps for each of original, A and B</strong>, across <span data-source="evaluator/browser_contexts" data-value="18">18</span> fresh browser contexts at 1280×900 and 390×844. Browser errors: <span data-source="evaluator/browser_errors" data-value="0">0</span>; external requests: <span data-source="evaluator/external_requests" data-value="0">0</span>; no capture errors. This covers the frozen plan only, not global functional fidelity or acceptance.</p>
+<div class="benchmark-table"><table><caption>Default-state textual comparison against the original</caption><thead><tr><th scope="col">Page</th><th scope="col">Original</th><th scope="col">A/v3</th><th scope="col">B/v5</th></tr></thead><tbody>
+<tr><th scope="row">Grupos de Componentes</th><td>Reference shell, content and sidebar icons.</td><td>Default matches original.</td><td>Sidebar icons omitted; small spacing drift. Main content and shell retained.</td></tr>
+<tr><th scope="row">Restaurantes</th><td>Premium default and reference positioning.</td><td>Default matches original.</td><td>Premium retained; sidebar icons omitted and positioning differs slightly.</td></tr>
+<tr><th scope="row">Estoque</th><td>Colored KPI icons, tabs and header icons; network/overview scope.</td><td>Default matches original.</td><td>Empty gray KPI icon placeholders; sidebar, tab and header icons omitted; small spacing drift. Network/overview scope retained.</td></tr>
+</tbody></table></div>
+<div class="benchmark-table"><table class="benchmark-mae"><caption>Normalized RGB MAE against original, default screenshots</caption><thead><tr><th scope="col">Page</th><th scope="col">Viewport</th><th scope="col">A/v3</th><th scope="col">B/v5</th></tr></thead><tbody><tr><th scope="row">Grupos de Componentes</th><td>1280x900</td><td><span data-source="evaluation/1/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/2/diagnostic_rgb_mae_fraction" data-value="0.002589891975308642" data-format=".9f">0.002589892</span></td></tr>
+<tr><th scope="row">Grupos de Componentes</th><td>390x844</td><td><span data-source="evaluation/4/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/5/diagnostic_rgb_mae_fraction" data-value="0.009569123067868538" data-format=".9f">0.009569123</span></td></tr>
+<tr><th scope="row">Restaurantes</th><td>1280x900</td><td><span data-source="evaluation/7/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/8/diagnostic_rgb_mae_fraction" data-value="0.0035614515250544663" data-format=".9f">0.003561452</span></td></tr>
+<tr><th scope="row">Restaurantes</th><td>390x844</td><td><span data-source="evaluation/10/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/11/diagnostic_rgb_mae_fraction" data-value="0.009765554943977024" data-format=".9f">0.009765555</span></td></tr>
+<tr><th scope="row">Estoque</th><td>1280x900</td><td><span data-source="evaluation/13/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/14/diagnostic_rgb_mae_fraction" data-value="0.010074183006535948" data-format=".9f">0.010074183</span></td></tr>
+<tr><th scope="row">Estoque</th><td>390x844</td><td><span data-source="evaluation/16/diagnostic_rgb_mae_fraction" data-value="0.0" data-format=".9f">0.000000000</span></td><td><span data-source="evaluation/17/diagnostic_rgb_mae_fraction" data-value="0.011224979885420363" data-format=".9f">0.011224980</span></td></tr>
+</tbody></table></div>
+<p>MAE is a pixel diagnostic: mean absolute RGB channel difference normalized by 255. It is not percentage accuracy, SSIM, similarity, a semantic score or acceptance. A has zero default pixel difference; B has partial visual fidelity.</p>
+<p><strong>Mobile usability FAIL, inherited in all three lanes.</strong> At 390×844 the wide sidebar occupies most of the screen and content/tables are clipped. Reproducing the original does not certify mobile usability.</p>
+<p>B adds XLSX/CSV downloads outside the frozen plan; “Imprimir contagem” downloads CSV. Restaurant exports use static seed data, without assurance of edited/filtered state. These are inventions/divergences, not functional gains. Downloads and global fidelity remain uncertified.</p>
+<h3>Limits, provenance and earlier rounds</h3>
+<p>Prepared source locations were supplied. A copied source ranges; B selected and transpiled AST components/dependencies with a custom wrapper. Neither is an independent reconstruction. Shared dependencies and data limit context-efficiency inference. A lacked B's equivalent sandbox; B used workspace-write with inherited rules. Event/RPC/code review does not prove syscall isolation.</p>
+<p>B/v3 is invalid: zero MCP calls. B/v4 stopped at a guard and has no final usage. Their metrics are not mixed into B/v5. The earlier v2 pilot was inconclusive: one screen and three pairs, incomplete query 5 ground truth invalidating affected retrieval indexes, and a Free versus Premium default failure. It measured no accepted-page time. Historical pilot metrics are not used here.</p>
+<p>Product baseline: <code>ebdbeb24323d7143e0186622a7389b963e5ed350</code>. Measurement code: <code>c68e1cbfd2c13ec5be68ae2a9314470a7c15652b</code>. These are distinct revisions. V5 CLI version and browser/library versions: <strong>not specified in public handoff</strong>; earlier v2 versions are not substituted. Model snapshot/seed are not specified in public handoff.</p>
+<p>No captures are publicly available due to privacy. Private source, screenshots, DOM and raw logs are not included. The two sanitized handoff files are available below; the methodology report is in Portuguese.</p>
+<div class="actions"><a href="benchmark-ipede-v2/report.md" download>Download methodology (report.md)</a><a href="benchmark-ipede-v2/data.json" download>Download source data (data.json)</a></div>
+</div></section>
+<section id="faq" class="section" aria-labelledby="faq-title">
+<div class="container split">
+<div class="section-heading">
+<p class="eyebrow">BEFORE YOU START
+</p>
+<h2 id="faq-title">A few practical details.
+</h2>
+</div>
+<div class="faq-list">
+<details open>
+<summary>Do I need an MCP client?
+</summary>
+<p>No. You can build and query graphs with the CLI. Connect an MCP-compatible client only if you want an agent to use the tools.
+</p>
+</details>
+<details>
+<summary>Can I paste a hosted MCP URL?
+</summary>
+<p>No. Design Graph exposes a local stdio server through design-mcp. The setup above shows the documented Cursor and Claude Code configurations.
+</p>
+</details>
+<details>
+<summary>Which prototypes can I use?
+</summary>
+<p>Supported inputs are single-file HTML prototypes with bundled React, Tailwind or plain HTML, and DC canvas bundles containing DC pages. Check the <a href="https://github.com/manorfm/design-graph#supported-prototypes">supported formats</a> before building your graph.
+</p>
+</details>
+<details>
+<summary>What if I have more than one prototype?
+</summary>
+<p>Each HTML file gets its own database by default. Select a database with --doc in the CLI, or pass doc to an MCP tool call. Use --db when same-named HTML files need separate databases.
+</p>
+</details>
+<details>
+<summary>Does validation prove the implementation matches visually?
+</summary>
+<p>No. Graph validation checks integrity. The MCP component-implementation check is best-effort and cannot fully verify stylesheet or utility-class styling. Review the rendered implementation separately.
+</p>
+</details>
+<details>
+<summary>Do I need to rebuild after editing the HTML?
+</summary>
+<p>Yes. Run design-graph on the HTML file again. Unchanged files are skipped unless you use --force. The MCP server detects rebuilt databases; reconnect after changing its graph-directory configuration or upgrading the package.
+</p>
+</details>
+</div>
+</div>
+</section>
+<section id="start" class="section final-cta" aria-labelledby="start-title">
+<div class="container split">
+<div>
+<h2 id="start-title">Bring your prototype into the conversation.
+</h2>
+<p>Install Design Graph, build a local graph and ask for the context your next UI task needs.
+</p>
+</div>
+<div class="actions"><a class="button primary" href="#setup">Start local setup <span aria-hidden="true">↗</span></a><a class="button" href="https://github.com/manorfm/design-graph/blob/main/README.md">Read the documentation</a>
+</div>
+</div>
+</section>
+</main>
+<footer class="container footer"><a class="brand" href="#top" aria-label="Design Graph home"><img src="assets/mark.svg" width="28" height="28" alt="" aria-hidden="true"><span>design-graph</span></a>
+<nav aria-label="Footer navigation"><a href="https://github.com/manorfm/design-graph">GitHub</a><a href="https://github.com/manorfm/design-graph/blob/main/README.md">Documentation</a><a href="https://pypi.org/project/design-graph/">PyPI</a>
+</nav>
+</footer>
+<p id="copy-status" class="copy-status" role="status" aria-live="polite" aria-atomic="true">
+</p></body></html>
