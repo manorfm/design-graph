@@ -1,0 +1,653 @@
+{
+  "protocol": "ipede-rebuild-v6",
+  "status": "not_collected",
+  "freeze_sha256": null,
+  "identity_sha256": null,
+  "source_sha256": null,
+  "approval": "pending",
+  "setup_seconds": null,
+  "preflight_seconds": null,
+  "order": [
+    "1-A",
+    "1-B",
+    "2-B",
+    "2-A",
+    "3-A",
+    "3-B"
+  ],
+  "model": "gpt-6.1-sol",
+  "effort": "medium",
+  "sessions": [
+    {
+      "page": 1,
+      "lane": "A",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 65,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 13,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 65,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 13,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "lane": "B",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 65,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 13,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 65,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 13,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 26,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lane": "B",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 240,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 48,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 240,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 48,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lane": "A",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 240,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 48,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 240,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 48,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 96,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "lane": "A",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 85,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 17,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 85,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 17,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "lane": "B",
+      "metrics": {
+        "generation_seconds": null,
+        "evaluation_seconds": null,
+        "supervision_seconds": null,
+        "effective_context": null,
+        "money": null,
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "operations": null,
+        "checkpoints": null,
+        "valid": null,
+        "accepted": null,
+        "operations_by_type": null,
+        "errors": null,
+        "mcp": null,
+        "fallback": null,
+        "provenance": null
+      },
+      "quality": [
+        {
+          "viewport": "1280x900",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 85,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 17,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          }
+        },
+        {
+          "viewport": "390x844",
+          "critical_failures": null,
+          "visual": {
+            "denominator": 85,
+            "passed": null,
+            "score": null
+          },
+          "functional": {
+            "denominator": 17,
+            "passed": null,
+            "score": null
+          },
+          "usability": {
+            "denominator": 34,
+            "passed": null,
+            "score": null
+          }
+        }
+      ]
+    }
+  ],
+  "rubric": {
+    "version": 1,
+    "thresholds": {
+      "visual": 0.9,
+      "functional": 1.0,
+      "usability": 1.0,
+      "equivalence_margin": 0.0
+    },
+    "denominators": [
+      {
+        "page": 1,
+        "viewport": "1280x900",
+        "visual": 65,
+        "functional": 13,
+        "usability": 26
+      },
+      {
+        "page": 1,
+        "viewport": "390x844",
+        "visual": 65,
+        "functional": 13,
+        "usability": 26
+      },
+      {
+        "page": 2,
+        "viewport": "1280x900",
+        "visual": 240,
+        "functional": 48,
+        "usability": 96
+      },
+      {
+        "page": 2,
+        "viewport": "390x844",
+        "visual": 240,
+        "functional": 48,
+        "usability": 96
+      },
+      {
+        "page": 3,
+        "viewport": "1280x900",
+        "visual": 85,
+        "functional": 17,
+        "usability": 34
+      },
+      {
+        "page": 3,
+        "viewport": "390x844",
+        "visual": 85,
+        "functional": 17,
+        "usability": 34
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "page": 1,
+      "deltas": {
+        "input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "cached_input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "output_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "generation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "operations": {
+          "absolute": null,
+          "percent": null
+        },
+        "evaluation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "supervision_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "money": {
+          "absolute": null,
+          "percent": null
+        }
+      },
+      "conclusion": "inconclusivo"
+    },
+    {
+      "page": 2,
+      "deltas": {
+        "input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "cached_input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "output_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "generation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "operations": {
+          "absolute": null,
+          "percent": null
+        },
+        "evaluation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "supervision_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "money": {
+          "absolute": null,
+          "percent": null
+        }
+      },
+      "conclusion": "inconclusivo"
+    },
+    {
+      "page": 3,
+      "deltas": {
+        "input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "cached_input_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "output_tokens": {
+          "absolute": null,
+          "percent": null
+        },
+        "generation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "operations": {
+          "absolute": null,
+          "percent": null
+        },
+        "evaluation_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "supervision_seconds": {
+          "absolute": null,
+          "percent": null
+        },
+        "money": {
+          "absolute": null,
+          "percent": null
+        }
+      },
+      "conclusion": "inconclusivo"
+    }
+  ],
+  "totals": {
+    "input_tokens": null,
+    "cached_input_tokens": null,
+    "output_tokens": null,
+    "generation_seconds": null,
+    "operations": null,
+    "evaluation_seconds": null,
+    "supervision_seconds": null,
+    "money": null
+  },
+  "total_generation_with_setup_seconds": null,
+  "limitations": [
+    "n=1 por alvo; estudo de caso, sem generalização de eficácia.",
+    "Nenhuma reconstrução ou avaliação medida coletada; resultados ausentes=null.",
+    "Cache é subconjunto da entrada; setup separado sem rateio; dinheiro=null sem tarifa verificável.",
+    "Revisão humana de acesso e independência é gate obrigatório; workspace-write não isola leitura.",
+    "Clipping herdado pode corresponder ao original e ainda reprovar usabilidade; preservar negativos.",
+    "Rubrica não cobre todas as combinações de estados do original.",
+    "Melhoria de qualidade sem alteração de recursos permanece inconclusiva nesta taxonomia conservadora."
+  ],
+  "lane_totals": {
+    "A": {
+      "input_tokens": null,
+      "cached_input_tokens": null,
+      "output_tokens": null,
+      "generation_seconds": null,
+      "operations": null,
+      "evaluation_seconds": null,
+      "supervision_seconds": null,
+      "money": null
+    },
+    "B": {
+      "input_tokens": null,
+      "cached_input_tokens": null,
+      "output_tokens": null,
+      "generation_seconds": null,
+      "operations": null,
+      "evaluation_seconds": null,
+      "supervision_seconds": null,
+      "money": null
+    }
+  },
+  "overall_deltas": {
+    "input_tokens": {
+      "absolute": null,
+      "percent": null
+    },
+    "cached_input_tokens": {
+      "absolute": null,
+      "percent": null
+    },
+    "output_tokens": {
+      "absolute": null,
+      "percent": null
+    },
+    "generation_seconds": {
+      "absolute": null,
+      "percent": null
+    },
+    "operations": {
+      "absolute": null,
+      "percent": null
+    },
+    "evaluation_seconds": {
+      "absolute": null,
+      "percent": null
+    },
+    "supervision_seconds": {
+      "absolute": null,
+      "percent": null
+    },
+    "money": {
+      "absolute": null,
+      "percent": null
+    }
+  },
+  "setup_comparison": {
+    "A_generation_seconds": null,
+    "B_generation_plus_setup_seconds": null,
+    "delta": {
+      "absolute": null,
+      "percent": null
+    }
+  }
+}

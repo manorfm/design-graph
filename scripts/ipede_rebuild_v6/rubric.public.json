@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "thresholds": {
+    "visual": 0.9,
+    "functional": 1.0,
+    "usability": 1.0,
+    "equivalence_margin": 0.0
+  },
+  "denominators": [
+    {
+      "page": 1,
+      "viewport": "1280x900",
+      "visual": 65,
+      "functional": 13,
+      "usability": 26
+    },
+    {
+      "page": 1,
+      "viewport": "390x844",
+      "visual": 65,
+      "functional": 13,
+      "usability": 26
+    },
+    {
+      "page": 2,
+      "viewport": "1280x900",
+      "visual": 240,
+      "functional": 48,
+      "usability": 96
+    },
+    {
+      "page": 2,
+      "viewport": "390x844",
+      "visual": 240,
+      "functional": 48,
+      "usability": 96
+    },
+    {
+      "page": 3,
+      "viewport": "1280x900",
+      "visual": 85,
+      "functional": 17,
+      "usability": 34
+    },
+    {
+      "page": 3,
+      "viewport": "390x844",
+      "visual": 85,
+      "functional": 17,
+      "usability": 34
+    }
+  ]
+}

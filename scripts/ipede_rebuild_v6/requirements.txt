@@ -1,0 +1,4 @@
+# Install after the project editable/dev dependencies, in the local venv.
+playwright>=1.49
+jsonschema>=4.20
+tomli>=2; python_version < '3.11'

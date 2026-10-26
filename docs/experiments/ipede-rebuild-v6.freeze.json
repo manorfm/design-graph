@@ -1,0 +1,36 @@
+{
+  "protocol": "ipede-rebuild-v6",
+  "freeze_sha256": "d4416617933b15291e25b24d9cf987277ab9e9775d9fd4bf5002b26716b25c03",
+  "identity_sha256": "569da04dfd6089b5fc5af642bdf11e90658fda62597cff59f8be5b163e2d39f1",
+  "source_sha256": "34b4469b68501e1f48a224af67194e98a0a7a9b1315429af3ae8a5125da9cb12",
+  "rubric_sha256": "7b872a0f45babbeab816f66c60b6aa8a33e6248fa37676f68e3d380e604179ad",
+  "rubric_public_sha256": "8751a18984abffe93c0b66b2ad94ae8c094d2ce023aff4efb201dc92d139492e",
+  "schema_sha256": "78263f376d812e0821510890e4a871ea3e47a9e6091aca2cc4bf33b82bc7711d",
+  "oracle_real": true,
+  "integral_index_ready": true,
+  "native_preflight": true,
+  "preflight_kind": "neutral preparation, not collection",
+  "approval": "pending",
+  "measured_sessions": 0,
+  "measured_results": null,
+  "superseded_freeze_sha256": "bb41abaf653a7a3e57ea28c22d97cf99c39a7a9ffe84a5bccbc5bb2a739edda8",
+  "superseded_status": "preparation superseded by scope reinforcement; never baseline or collection",
+  "preflight_executor_seconds": 21.036682262085378,
+  "preflight_usage": {
+    "input_tokens": 119708,
+    "cached_input_tokens": 94592,
+    "output_tokens": 250
+  },
+  "limitations": [
+    "n=1 por alvo; estudo de caso, sem generalização de eficácia.",
+    "Nenhuma reconstrução ou avaliação medida coletada; resultados ausentes=null.",
+    "Cache é subconjunto da entrada; setup separado sem rateio; dinheiro=null sem tarifa verificável.",
+    "Revisão humana de acesso e independência é gate obrigatório; workspace-write não isola leitura.",
+    "Clipping herdado pode corresponder ao original e ainda reprovar usabilidade; preservar negativos.",
+    "Rubrica não cobre todas as combinações de estados do original.",
+    "Melhoria de qualidade sem alteração de recursos permanece inconclusiva nesta taxonomia conservadora.",
+    "Supervisor observes events every 50 ms; 121st invocation invalidates but cannot be prevented before launch by the inherited CLI.",
+    "Trace scanner cannot prove absence of obfuscated browser/listener/transpilation/access; human access and independence review is mandatory.",
+    "Evaluation is downstream human check evidence; no automatic visual scoring or evaluator outputs were generated here."
+  ]
+}
