@@ -503,3 +503,167 @@ def test_quality_gain_equal_physical_resources(dimension):
     assert results.conclusion(a,b)=='não trouxe ganho'
     b['quality'][0][dimension]['score']=1;b['metrics']['cached_input_tokens']=None
     assert results.conclusion(a,b)=='inconclusivo'
+
+
+REFUSAL = '2026-10-26T22:13:02.279972Z ERROR codex_core::tools::router: exec_command failed: CreateProcess: Rejected: rejected: rm -f style commands are not permitted. Use a safer approach'
+
+
+@pytest.mark.parametrize('chunk',[1,17,1000])
+@pytest.mark.parametrize('newline',[True,False])
+def test_r2_literal_stderr_refusal_exit_normal(tmp_path,chunk,newline):
+    # The refusal is data passed to a neutral byte writer, never an invocation.
+    payload=(REFUSAL+ ('\n' if newline else '')).encode()+b'\xff'
+    script='import os,json; payload='+repr(payload)+'; [os.write(2,payload[i:i+'+str(chunk)+']) for i in range(0,len(payload),'+str(chunk)+')]; print(json.dumps({"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}))'
+    result=fake_execute(tmp_path,script)
+    assert result['stop_reason']=='guard_refusal' and result['tool_calls']==0
+    assert (tmp_path/'evidence/stderr.log').read_bytes()==payload
+    diagnostic=result['errors'][0]
+    assert diagnostic['type']=='executor_guard_refusal' and diagnostic['source']=='stderr.log'
+    assert 'id' not in diagnostic and 'command' not in diagnostic
+
+
+@pytest.mark.parametrize('text',['Commands are not permitted by this rule', 'The documentation quotes rejected: commands not permitted',REFUSAL])
+def test_r2_source_json_is_not_executor_refusal(tmp_path,text):
+    event={'type':'item.completed','item':{'id':'read','type':'command_execution','aggregated_output':text}}
+    result=fake_execute(tmp_path,'print('+repr(json.dumps(event))+')')
+    assert result['stop_reason'] is None
+
+
+def test_r2_streams_never_join(tmp_path):
+    script='import os; os.write(2,b"rejected by "); os.write(1,b"guard\\n")'
+    assert fake_execute(tmp_path,script)['stop_reason'] is None
+
+
+def test_r2_real_environment_and_fake_mcp(tmp_path,monkeypatch):
+    from scripts.ipede_rebuild_v6.common import environment
+    monkeypatch.setattr(runner,'inherited_servers',lambda _:[])
+    roots=[]
+    for lane in ['A','B']:
+        work=tmp_path/lane;work.mkdir(); roots.append(work)
+        env=environment(work)
+        script='''import os,json,tempfile,pathlib,subprocess,sys
+root=pathlib.Path.cwd()
+paths=[tempfile.NamedTemporaryFile(delete=False).name]
+for key in KEYS:
+ p=pathlib.Path(os.environ[key]); assert p.is_relative_to(root)
+ if p.is_dir():
+  f=p/'benign';f.write_text('neutral');paths.append(str(f))
+print(json.dumps(dict(cwd=str(root),paths=paths)))
+'''.replace('KEYS',repr(sorted(runner.LOCAL_ENV_KEYS)))
+        import subprocess
+        result=subprocess.run([sys.executable,'-c',script],cwd=work,env=env,capture_output=True,check=True)
+        data=json.loads(result.stdout);assert data['cwd']==str(work)
+        assert all(Path(p).is_relative_to(work) for p in data['paths'])
+        mcp={'command':sys.executable,'args':['-c',script], 'pythonpath':'src','graph':'graph'}
+        cmd=runner.command(work,work/'state',mcp,env)
+        override=[v for v in cmd if v.startswith('mcp_servers.design-graph.env=')][-1]
+        import tomllib
+        actual=tomllib.loads(override)['mcp_servers']['design-graph']['env']
+        # Fake MCP process receives the exact configured local environment.
+        child=subprocess.run([sys.executable,'-c',script],cwd=work,env={**env,**actual},capture_output=True,check=True)
+        assert all(Path(p).is_relative_to(work) for p in json.loads(child.stdout)['paths'])
+    assert not set(roots[0].rglob('*')) & set(roots[1].rglob('*'))
+
+
+def test_r2_failure_matrix_single_attempt_and_materialization(tmp_path):
+    from scripts.ipede_rebuild_v6.failures import sequence
+    from scripts.ipede_rebuild_v6 import results
+    called=[]
+    def attempt(page,lane):
+        called.append((page,lane))
+        return {'stop_reason':['timeout',None,'guard_refusal'][len(called)-1], 'artifact':False}
+    rows=sequence(tmp_path,attempt)
+    assert called==protocol.ORDER[:3]
+    assert [r['status'] for r in rows]==['failed','completed','failed','not_started','not_started','not_started']
+    with pytest.raises(ValueError,match='no retry'):sequence(tmp_path,attempt)
+    prep=tmp_path/'preparation';prep.mkdir();write_json(prep/'rubric.private.json',synthetic_rubric())
+    data=results.materialize(tmp_path,tmp_path/'public')
+    assert data['sessions'][0]['execution']['reason']=='timeout'
+    assert all(s['metrics']['input_tokens'] is None for s in data['sessions'])
+
+
+def test_r2_failure_policy_all_local_positions_and_unknown(tmp_path):
+    from scripts.ipede_rebuild_v6.failures import sequence, LocalFailure
+    calls=[]
+    def local(page,lane):
+        calls.append((page,lane))
+        if len(calls)==3:raise LocalFailure('neutral invalid HTML')
+        return {'stop_reason':['delivery','tool_limit',None,'timeout',None,None][len(calls)-1]}
+    rows=sequence(tmp_path,local)
+    assert calls==protocol.ORDER
+    assert [r['status'] for r in rows]==['failed','failed','failed','failed','completed','completed']
+    child=tmp_path/'unknown';child.mkdir()
+    def unknown(*_):raise RuntimeError('unknown MCP state')
+    rows=sequence(child,unknown)
+    assert rows[0]['status']=='failed' and all(r['status']=='not_started' for r in rows[1:])
+
+
+def test_r2_invalid_usage_retains_metrics(tmp_path):
+    event={'type':'turn.completed','usage':{'input_tokens':1,'cached_input_tokens':2,'output_tokens':1}}
+    result=fake_execute(tmp_path,'print('+repr(json.dumps(event))+')')
+    assert result['stop_reason']=='validation'
+    assert result['usage']['input_tokens'] is None
+    assert (tmp_path/'evidence/metrics.json').is_file()
+
+
+def test_r2_socket_guard_is_historical_function():
+    import ast, subprocess
+    old=subprocess.check_output(['git','show','HEAD:scripts/ipede_rebuild_v6/gates.py'],text=True)
+    now=Path(gates.__file__).read_text()
+    get=lambda text:next(ast.get_source_segment(text,n) for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name=='socket_precheck')
+    assert get(old)==get(now)
+
+
+def test_r2_shell_and_mcp_receive_same_local_variables(tmp_path,monkeypatch):
+    from scripts.ipede_rebuild_v6.common import environment
+    import tomllib
+    monkeypatch.setattr(runner,'inherited_servers',lambda _:[])
+    env=environment(tmp_path)
+    argv=runner.command(tmp_path,tmp_path/'state',dict(command='neutral',pythonpath='src',graph='graph'),env)
+    overrides=[argv[i+1] for i,v in enumerate(argv[:-1]) if v=='-c']
+    shell=tomllib.loads(next(v for v in overrides if v.startswith('shell_environment_policy.set=')))['shell_environment_policy']['set']
+    mcp=tomllib.loads([v for v in overrides if v.startswith('mcp_servers.design-graph.env=')][-1])['mcp_servers']['design-graph']['env']
+    assert all(shell[k]==mcp[k]==env[k] for k in runner.LOCAL_ENV_KEYS)
+    assert 'features.shell_snapshot=false' in argv
+
+
+def test_r2_mcp_runtime_logging_local_then_observed(tmp_path):
+    from scripts.ipede_rebuild_v6.common import environment
+    work=tmp_path/'work';work.mkdir();(work/'output').mkdir()
+    env=environment(work);local=work/'state/mcp';local.mkdir()
+    proof=tmp_path/'evidence';proof.mkdir()
+    script="from pathlib import Path; Path('state/mcp/server-stderr.log').write_text('neutral'); Path('state/mcp/transcript.jsonl').write_text('neutral observations')"
+    result=runner.execute([sys.executable,'-c',script],work,proof,'neutral',env,seconds=5)
+    assert result['stop_reason'] is None
+    assert (local/'transcript.jsonl').read_bytes()==(proof/'transcript.jsonl').read_bytes()
+
+
+def test_r2_initial_process_failure_preserves_metrics(tmp_path):
+    work=tmp_path/'work';work.mkdir();proof=tmp_path/'evidence';proof.mkdir()
+    result=runner.execute(['/nonexistent-neutral-executor'],work,proof,'neutral',{},seconds=1)
+    assert result['stop_reason']=='FileNotFoundError' and result['exit_code'] is None
+    assert result['tool_calls']==0 and result['usage']['input_tokens'] is None
+    assert (proof/'metrics.json').is_file()
+
+
+def test_r2_unterminated_stderr_refusal_stops_live_child(tmp_path):
+    script='import os,time,pathlib; os.write(2,'+repr(REFUSAL.encode())+'); time.sleep(2); pathlib.Path("late-marker").touch()'
+    result=fake_execute(tmp_path,script)
+    assert result['stop_reason']=='guard_refusal' and result['seconds']<2
+    assert not (tmp_path/'work/late-marker').exists()
+
+
+def test_r2_old_structured_guard_error_still_stops(tmp_path):
+    event={'type':'item.completed','item':{'id':'actual-event','type':'command_execution','error':'rejected by guard'}}
+    result=fake_execute(tmp_path,'print('+repr(json.dumps(event))+')')
+    assert result['stop_reason']=='guard_refusal' and result['tool_calls']==1
+
+
+def test_r2_initial_gate_failure_has_six_not_started_positions(tmp_path,monkeypatch):
+    from scripts.ipede_rebuild_v6 import __main__ as cli
+    monkeypatch.setattr(cli,'identity',lambda *a,**k:(_ for _ in ()).throw(ValueError('unknown executor config')))
+    with pytest.raises(ValueError):cli.collect(tmp_path,tmp_path)
+    rows=json.loads((tmp_path/'positions.json').read_text())
+    assert len(rows)==6 and all(r['status']=='not_started' for r in rows)
+    assert all(r['reason']=='systemic_gate_failure' for r in rows)
+    assert not (tmp_path/'sessions').exists()

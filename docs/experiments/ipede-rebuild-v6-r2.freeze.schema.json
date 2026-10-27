@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "freeze_sha256",
+    "identity_sha256",
+    "source_sha256",
+    "rubric_sha256",
+    "schema_sha256",
+    "tests_sha256",
+    "failure_policy_sha256",
+    "worktree_sha256",
+    "venv_sha256",
+    "protocol",
+    "status",
+    "oracle_real",
+    "integral_index_ready",
+    "native_preflight",
+    "preflight_attempts",
+    "preflight_usage",
+    "approval",
+    "measured_sessions",
+    "money",
+    "publication",
+    "socket"
+  ],
+  "properties": {
+    "freeze_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identity_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rubric_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tests_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "failure_policy_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "worktree_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "venv_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "protocol": {
+      "const": "ipede-rebuild-v6-r2"
+    },
+    "status": {
+      "const": "blocked"
+    },
+    "oracle_real": {
+      "const": true
+    },
+    "integral_index_ready": {
+      "const": true
+    },
+    "native_preflight": {
+      "const": false
+    },
+    "preflight_attempts": {
+      "const": 0
+    },
+    "preflight_usage": {
+      "const": null
+    },
+    "approval": {
+      "const": "pending"
+    },
+    "measured_sessions": {
+      "const": 0
+    },
+    "money": {
+      "const": null
+    },
+    "publication": {
+      "const": "blocked: Telegram text result and subsequent acceptance required"
+    },
+    "socket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_bytes",
+        "limit"
+      ],
+      "properties": {
+        "path_bytes": {
+          "type": "integer",
+          "minimum": 108
+        },
+        "limit": {
+          "const": 107
+        }
+      }
+    }
+  }
+}

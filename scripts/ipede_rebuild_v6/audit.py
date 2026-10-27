@@ -52,6 +52,9 @@ def trace_gate(events, lane, workspace=None, forbidden_roots=()):
             'command','arguments','tool','server','changes','path'}}
         invocation.update({k:v for k,v in event.items() if k in {'command','arguments','path'}})
         text = json.dumps(invocation, ensure_ascii=False)
+        if re.search(r'(?i)\brm\s+[^;\n]*-[a-z]*[rf]|\b(?:rmdir|unlink)\b|shutil\.rmtree', text):
+            raise ValueError('destructive cleanup during session')
+        if workspace: text = text.replace(str(Path(workspace).resolve()), '.')
         if re.search(r'(?i)(auth\.json|\.env\b|oracle|\.\./|dangerously-bypass|require_escalated|\$HOME|~[/]|/proc/|/etc/|/home/)', text):
             raise ValueError('forbidden access or escalation in trace')
         if any(str(root) in text for root in forbidden_roots):

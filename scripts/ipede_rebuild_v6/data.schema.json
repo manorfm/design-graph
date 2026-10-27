@@ -26,7 +26,7 @@
   ],
   "properties": {
     "protocol": {
-      "const": "ipede-rebuild-v6"
+      "const": "ipede-rebuild-v6-r2"
     },
     "status": {
       "enum": [
@@ -108,7 +108,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -497,6 +498,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -507,7 +547,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -896,6 +937,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -906,7 +986,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -1295,6 +1376,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1305,7 +1425,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -1694,6 +1815,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1704,7 +1864,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -2093,6 +2254,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -2103,7 +2303,8 @@
             "page",
             "lane",
             "metrics",
-            "quality"
+            "quality",
+            "execution"
           ],
           "properties": {
             "page": {
@@ -2492,6 +2693,45 @@
                 }
               ],
               "items": false
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "reason",
+                "artifact",
+                "accepted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "planned",
+                    "not_started",
+                    "started",
+                    "failed",
+                    "completed"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "artifact": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "accepted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         }

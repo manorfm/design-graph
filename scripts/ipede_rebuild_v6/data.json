@@ -1,5 +1,5 @@
 {
-  "protocol": "ipede-rebuild-v6",
+  "protocol": "ipede-rebuild-v6-r2",
   "status": "not_collected",
   "freeze_sha256": null,
   "identity_sha256": null,
@@ -92,7 +92,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     },
     {
       "page": 1,
@@ -168,7 +174,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     },
     {
       "page": 2,
@@ -244,7 +256,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     },
     {
       "page": 2,
@@ -320,7 +338,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     },
     {
       "page": 3,
@@ -396,7 +420,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     },
     {
       "page": 3,
@@ -472,7 +502,13 @@
           },
           "usability_negatives": null
         }
-      ]
+      ],
+      "execution": {
+        "status": "planned",
+        "reason": null,
+        "artifact": null,
+        "accepted": null
+      }
     }
   ],
   "rubric": {

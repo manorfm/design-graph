@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-CONTRACT = 'ipede-rebuild-v6'
+CONTRACT = 'ipede-rebuild-v6-r2'
 
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -24,7 +24,14 @@ def environment(root):
                       'XDG_CACHE_HOME':'cache', 'XDG_CONFIG_HOME':'config',
                       'XDG_DATA_HOME':'data', 'XDG_STATE_HOME':'state'}.items():
         path = root/name
-        path.mkdir(exist_ok=True)
+        path.mkdir(exist_ok=True, mode=0o700)
+        env[key] = str(path)
+    for key, name in {'XDG_RUNTIME_DIR':'runtime', 'NPM_CONFIG_CACHE':'npm',
+                      'PIP_CACHE_DIR':'pip', 'UV_CACHE_DIR':'uv', 'MPLCONFIGDIR':'mpl',
+                      'PYTHONPYCACHEPREFIX':'pycache', 'SQLITE_TMPDIR':'tmp',
+                      'CUDA_CACHE_PATH':'cuda', 'NODE_REPL_HISTORY':'node-history'}.items():
+        path = root/name
+        if key != 'NODE_REPL_HISTORY': path.mkdir(exist_ok=True, mode=0o700)
         env[key] = str(path)
     env['PYTHONDONTWRITEBYTECODE'] = '1'
     return env

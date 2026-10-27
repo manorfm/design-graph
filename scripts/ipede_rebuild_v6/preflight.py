@@ -11,11 +11,11 @@ import subprocess
 from .common import digest, environment, fresh, hashes, write_json
 from .runner import TIME_LIMIT, TOOL_LIMIT, cleanup, command, execute, guard_refusal, index_command, proxy, config_files
 
-PROTOCOL = 'ipede-rebuild-v6-preflight'
+PROTOCOL = 'ipede-rebuild-v6-r2-preflight'
 
 
 def protocol(version):
-    if version not in {'v6'}:
+    if version not in {'v6', 'v6-r2'}:
         raise ValueError('unsupported preflight version')
     return PROTOCOL
 
@@ -31,7 +31,7 @@ function ObservatoryPage() {
 </script></body></html>\n'''
 
 
-def identity(python, worktree, root, *, version='v6'):
+def identity(python, worktree, root, *, version='v6-r2'):
     executor = shutil.which('codex')
     if not executor:
         raise ValueError('codex executor unavailable; policies must not be relaxed')
@@ -42,7 +42,7 @@ def identity(python, worktree, root, *, version='v6'):
     if launcher.read_bytes()[:2] == b'#!' and len(binaries) != 1:
         raise ValueError('cannot identify unique real executor binary')
     real_binary = binaries[0] if binaries else launcher
-    files = [real_binary, Path(shutil.which('node') or executor), *config_files(root), Path(executor), Path(python), python.parent/'design-mcp', python.parent/'design-graph', home/'config.toml']
+    files = [worktree/'scripts/freeze_ipede_r2.py', worktree/'docs/experiments/ipede-rebuild-v6-r2.freeze.schema.json', worktree/'scripts/prepare_ipede_r2.py', worktree/'tests/unit/scripts/test_ipede_rebuild_v6.py', worktree/'pyproject.toml', worktree/'Makefile', real_binary, Path(shutil.which('node') or executor), *config_files(root), Path(executor), Path(python), python.parent/'design-mcp', python.parent/'design-graph', home/'config.toml']
     # Bind inherited local policies/configuration without retaining their contents or auth.
     for parent in [worktree, *worktree.parents, root, *root.parents]:
         files += [parent/'AGENTS.md', parent/'AGENTS.override.md', parent/'.codex/config.toml']
@@ -50,10 +50,12 @@ def identity(python, worktree, root, *, version='v6'):
     files += sorted((home/'rules').glob('*.rules'))
     files += sorted((worktree/'.codex/rules').glob('*.rules'))
     import importlib.metadata, platform
-    packages = {n:importlib.metadata.version(n) for n in ['kuzu','mcp','beautifulsoup4','playwright','pytest']}
+    packages = {d.metadata['Name']:d.version for d in importlib.metadata.distributions()}
     payload = dict(packages=packages, python_version=platform.python_version(), protocol=protocol(version), executor=str(launcher), real_binary=str(real_binary), python=str(python),
-                   worktree=str(worktree), codex_home=str(home), seconds=TIME_LIMIT, limit=TOOL_LIMIT,
+                   worktree=str(worktree), custody_root=str(root), codex_home=str(home), seconds=TIME_LIMIT, limit=TOOL_LIMIT,
                    command=command(root/'<work>', Path('<state>'), proxy(python, worktree, Path('<graph>'), Path('<evidence>'))),
+                   environment={k:os.environ.get(k) for k in ['PATH','CODEX_HOME','LANG','TZ']},
+                   session_environment=environment_template(),
                    files={str(p): digest(p) if p.is_file() else None for p in files},
                    instrument={k:v for k,v in hashes(Path(__file__).parent).items() if '__pycache__' not in k and not k.endswith('.pyc')},
                    product={k:v for k,v in hashes(worktree/'src').items() if '__pycache__' not in k and not k.endswith('.pyc')})
@@ -121,7 +123,7 @@ def evidence(folder, required_text=None, *, require_usage=False):
     raise ValueError('no successful native MCP call matching real transcript and catalogue')
 
 
-def validate_gate(root, python, worktree, *, version='v6'):
+def validate_gate(root, python, worktree, *, version='v6-r2'):
     expected_protocol = protocol(version)
     folder = root/f'preflight-{version}'
     try:
@@ -135,24 +137,26 @@ def validate_gate(root, python, worktree, *, version='v6'):
             raise ValueError('executor/model/config identity changed')
         if hashes(folder/'evidence') != gate['evidence_hashes']:
             raise ValueError('gate evidence changed')
-        catalogue = evidence(folder/'evidence', required_text='Neutral Observatory', require_usage=version == 'v6')
+        catalogue = evidence(folder/'evidence', required_text='Neutral Observatory', require_usage=version in {'v6','v6-r2'})
         if catalogue != json.loads((folder/'evidence/catalogue.json').read_text()):
             raise ValueError('catalogue differs from real response')
     except (OSError, KeyError, TypeError, ValueError) as exc:
         raise ValueError(f'valid successful {version} preflight required before any launch: {exc}') from exc
 
 
-def preflight(root, python, worktree, *, version='v6'):
+def preflight(root, python, worktree, *, version='v6-r2'):
     expected_protocol = protocol(version)
     from .gates import verify_freeze
     verify_freeze(root, Path(__file__).parent, identity(python,worktree,root,version=version))
     freeze_sha = digest(root/'freeze.json')
+    from .gates import socket_precheck
+    socket_precheck(root/f'preflight-{version}'/'work/tmp')
     folder = fresh(root/f'preflight-{version}')
-    proof = fresh(folder/'evidence'); work = fresh(folder/'work'); state = fresh(folder/'state')
-    graph = fresh(folder/'graph'); (work/'output').mkdir()
+    proof = fresh(folder/'evidence'); work = fresh(folder/'work'); state = work/'state'
+    graph = fresh(work/'graph'); (work/'output').mkdir()
     source = work/'neutral.html'; source.write_text(FIXTURE)
     binding = identity(python, worktree, root, version=version)
-    env = environment(root)
+    env = environment(work)
     env['CODEX_HOME'] = os.environ.get('CODEX_HOME', str(Path.home()/'.codex'))
     env['PYTHONPATH'] = str(worktree/'src'); env['GRAPH_DIR'] = str(graph)
     for key in ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_ORG_ID', 'OPENAI_PROJECT_ID']:
@@ -171,8 +175,9 @@ def preflight(root, python, worktree, *, version='v6'):
         write_json(proof/'index-result.json', dict(exit_code=code, source_sha256=digest(source)))
         if code or guard_refusal((proof/'index.log').read_text()):
             raise ValueError('neutral index failed or refused; no retry')
-        mcp = proxy(python, worktree, graph, proof)
-        argv = command(work, state, mcp)
+        mcp_proof = fresh(state/'mcp')
+        mcp = proxy(python, worktree, graph, mcp_proof)
+        argv = command(work, state, mcp, env)
         prompt = ('Use a native design-graph MCP tool to inspect the indexed neutral.html fixture and report its heading. '
                   'Discover the available tools and make a useful read query. Do not use shell/Python to query the graph. '
                   'Work only here; no browser, browser automation, listener, server, framework, transpilation, web, apps, agents, installs, credentials or parent directories. '
@@ -184,7 +189,7 @@ def preflight(root, python, worktree, *, version='v6'):
         from .audit import trace_gate
         events=[json.loads(line) for line in (proof/'events.jsonl').read_text().splitlines()]
         write_json(proof/'trace-audit.json', trace_gate(events,'B',work))
-        write_json(proof/'catalogue.json', evidence(proof, required_text='Neutral Observatory', require_usage=version == 'v6'))
+        write_json(proof/'catalogue.json', evidence(proof, required_text='Neutral Observatory', require_usage=version in {'v6','v6-r2'}))
         current = identity(python, worktree, root, version=version)
         if binding != current:
             raise ValueError('identity changed during preflight')
@@ -193,3 +198,9 @@ def preflight(root, python, worktree, *, version='v6'):
         write_json(folder/'gate.json', dict(protocol=expected_protocol, success=False, diagnostic=str(exc), identity=binding))
         raise
     return folder
+
+
+def environment_template():
+    from .runner import LOCAL_ENV_KEYS
+    return dict(keys=sorted(LOCAL_ENV_KEYS), root='session/work', auth_home='inherited; never copied',
+                limits='environment and prompt constrain controllable writes; trace QA mandatory; no total read/write isolation claim')

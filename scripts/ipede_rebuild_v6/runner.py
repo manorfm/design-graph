@@ -10,6 +10,10 @@ import time
 from pathlib import Path
 from .common import digest, environment, fresh, hashes, write_json
 
+LOCAL_ENV_KEYS = {'TMPDIR','TMP','TEMP','XDG_CACHE_HOME','XDG_CONFIG_HOME','XDG_DATA_HOME',
+    'XDG_STATE_HOME','XDG_RUNTIME_DIR','NPM_CONFIG_CACHE','PIP_CACHE_DIR','UV_CACHE_DIR',
+    'MPLCONFIGDIR','PYTHONPYCACHEPREFIX','SQLITE_TMPDIR','CUDA_CACHE_PATH','NODE_REPL_HISTORY'}
+
 TIME_LIMIT = 900
 TOOL_LIMIT = 120
 
@@ -20,6 +24,13 @@ def guard_refusal(text):
 
 
 TOOL_TYPES = {'command_execution','file_change','mcp_tool_call','dynamic_tool_call','web_search','image_generation','collab_tool_call'}
+
+
+def executor_refusal(text):
+    """Executor diagnostics only; returned tool/source JSON is never scanned here."""
+    import re
+    return guard_refusal(text) or bool(re.search(
+        r'(?im)^.*ERROR codex_core::tools::router:.*(?:CreateProcess: Rejected:|exec_command failed:).*rejected:[^\n]*not permitted', text))
 
 
 def config_files(cwd):
@@ -49,12 +60,14 @@ def proxy(python, worktree, graph, evidence):
                 pythonpath=str(worktree/'src'), graph=str(graph))
 
 
-def command(cwd, state, mcp=None):
+def command(cwd, state, mcp=None, env=None):
     argv = ['codex','exec','--sandbox','workspace-write','-m','gpt-6.1-sol',
             '--json','--ephemeral','--skip-git-repo-check']
     config = ['model_reasoning_effort="medium"','web_search="disabled"',
-              'features.apps=false','features.multi_agent=false','history.persistence="none"',
+              'features.apps=false','features.multi_agent=false','features.shell_snapshot=false','history.persistence="none"',
               f'log_dir={json.dumps(str(state/"logs"))}', f'sqlite_home={json.dumps(str(state/"sqlite"))}']
+    if env is not None:
+        config.append('shell_environment_policy.set={'+', '.join(k+'='+json.dumps(env[k]) for k in sorted(LOCAL_ENV_KEYS) if k in env)+'}')
     import re
     servers = inherited_servers(cwd)
     if any(not re.fullmatch(r'[A-Za-z0-9_-]+', name) for name in servers):
@@ -67,6 +80,9 @@ def command(cwd, state, mcp=None):
         config += ['mcp_servers.design-graph.enabled=true', f'mcp_servers.design-graph.command={json.dumps(mcp["command"])}',
                    'mcp_servers.design-graph.env={PYTHONPATH='+json.dumps(mcp['pythonpath'])+', GRAPH_DIR='+json.dumps(mcp['graph'])+'}',
                    'mcp_servers.design-graph.startup_timeout_sec=120']
+        if env is not None:
+            local = {k:v for k,v in env.items() if k in LOCAL_ENV_KEYS}
+            config.append('mcp_servers.design-graph.env='+ '{'+', '.join(k+'='+json.dumps(v) for k,v in {**local, 'PYTHONPATH':mcp['pythonpath'], 'GRAPH_DIR':mcp['graph']}.items())+'}')
         if mcp.get('args'):
             config.append('mcp_servers.design-graph.args='+json.dumps(mcp['args']))
     for value in config:
@@ -100,7 +116,17 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
     start = time.monotonic()
     writes, signatures, calls, usage, threads = {}, {}, set(), [], []
     operation_types, errors = {}, {}
-    initial_files = hashes(cwd)
+    runtime = {Path(env[k]).relative_to(cwd).parts[0] for k in LOCAL_ENV_KEYS if k in env and Path(env[k]).is_relative_to(cwd)} | {'state'}
+    def workspace_hashes():
+        # Volatile executor state is runtime, not implementation. Avoid hashing live sqlite/caches.
+        values = {}
+        for path in sorted(cwd.rglob('*')):
+            if path.relative_to(cwd).parts[0] in runtime: continue
+            try:
+                if path.is_file(): values[path.relative_to(cwd).as_posix()] = digest(path)
+            except FileNotFoundError: pass
+        return values
+    initial_files = workspace_hashes()
     checkpoints = evidence/'checkpoints'; checkpoints.mkdir()
     workspace_previous = dict(initial_files)
     reason, proc = None, None
@@ -110,7 +136,11 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
     def sample_outputs():
         nonlocal reason, workspace_previous
         now = time.monotonic()
-        workspace_current = hashes(cwd)
+        # MCP writes only local runtime files. The supervisor copies immutable observations.
+        for name in ['transcript.jsonl','server-stderr.log']:
+            local = cwd/'state/mcp'/name
+            if local.is_file(): shutil.copyfile(local,evidence/name)
+        workspace_current = workspace_hashes()
         if workspace_current != workspace_previous:
             with (evidence/'workspace-writes.jsonl').open('a') as log:
                 log.write(json.dumps({'seconds':now-start,
@@ -123,7 +153,8 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                 matched_screens.update(covered_screens(evidence, selections))
             except (OSError, ValueError, KeyError, TypeError):
                 pass  # incomplete streaming records cannot open the gate
-            if len(matched_screens) != len(selections) and workspace_current != initial_files:
+            implementation = lambda files: {k:v for k,v in files.items() if Path(k).parts[0] not in runtime}
+            if len(matched_screens) != len(selections) and implementation(workspace_current) != implementation(initial_files):
                 reason = reason or 'output_before_screen_queries'
 
         for path in sorted((cwd/'output').rglob('*')):
@@ -137,7 +168,7 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                     item = writes.setdefault(name,dict(first_observed_seconds=now-start))
                     item.update(last_observed_seconds=now-start,sha256=sig[2],bytes=sig[1])
 
-    with (evidence/'events.jsonl').open('w') as raw, (evidence/'observed-events.jsonl').open('w') as observed, (evidence/'stderr.log').open('w') as err:
+    with (evidence/'events.jsonl').open('w') as raw, (evidence/'observed-events.jsonl').open('w') as observed, (evidence/'stderr.log').open('wb') as err:
         pending = b''
         def consume(block, final=False):
             nonlocal pending, reason
@@ -155,6 +186,14 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                 if event.get('type') == 'thread.started': threads.append(event.get('thread_id'))
                 if event.get('type') == 'turn.completed' and 'usage' in event: usage.append(event['usage'])
                 item = event.get('item',{})
+                # Only explicit failed tool diagnostics, never returned source content.
+                diagnostic = item.get('error')
+                if item.get('status') == 'failed' or item.get('exit_code') not in (None,0):
+                    diagnostic = diagnostic or item.get('aggregated_output')
+                if diagnostic and executor_refusal(json.dumps(diagnostic)):
+                    reason = 'guard_refusal'
+                    errors['diagnostic:event'] = dict(type='executor_guard_refusal', source='events.jsonl',
+                        provenance='explicit failed tool diagnostic', diagnostic=diagnostic)
                 if item.get('type') == 'mcp_tool_call':
                     event_type = event.get('type', 'unknown')
                     mcp_events[event_type] = mcp_events.get(event_type, 0) + 1
@@ -171,6 +210,27 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                         errors[key] = item
                     if len(calls)>limit and reason is None: reason='tool_limit'
                 if item.get('type') in {'web_search','collab_tool_call'} and reason is None: reason='prohibited_tool'
+        guard_tails = {}
+        def inspect_guard(stream, block):
+            nonlocal reason
+            guard_tails[stream] = guard_tails.get(stream,b'') + block
+            # Complete stream-specific lines only; no concatenation across streams.
+            lines = guard_tails[stream].split(b'\n')
+            guard_tails[stream] = lines.pop()
+            for line in lines:
+                check_line(stream, line)
+            if stream is proc.stderr: check_line(stream, guard_tails[stream])
+        def check_line(stream, line):
+            nonlocal reason
+            text = line.decode(errors='replace')
+            if stream is proc.stdout:
+                try: json.loads(line); return
+                except (ValueError, UnicodeError): pass
+            if executor_refusal(text):
+                reason = 'guard_refusal'
+                source = 'stderr.log' if stream is proc.stderr else 'events.jsonl'
+                errors['diagnostic:'+source] = dict(type='executor_guard_refusal', source=source,
+                    diagnostic=text, provenance='literal executor stream; no tool event inferred')
         try:
             proc = subprocess.Popen(argv,cwd=cwd,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,start_new_session=True)
@@ -181,7 +241,6 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
             selector = selectors.DefaultSelector()
             selector.register(proc.stdout,selectors.EVENT_READ)
             selector.register(proc.stderr,selectors.EVENT_READ)
-            guard_tail = ""
             try:
                 while True:
                     sample_outputs()
@@ -198,10 +257,9 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                         if not block:
                             selector.unregister(key.fileobj)
                             continue
-                        guard_tail = (guard_tail + block.decode(errors='replace'))[-131072:]
-                        if guard_refusal(guard_tail): reason = 'guard_refusal'
+                        inspect_guard(key.fileobj, block)
                         if key.fileobj is proc.stderr:
-                            err.write(block.decode(errors='replace')); err.flush()
+                            err.write(block); err.flush()
                         else:
                             consume(block)
                     if reason: break
@@ -210,7 +268,7 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                 selector.close()
         except BaseException as exc:
             reason = type(exc).__name__
-            raise
+            errors['executor_exception'] = dict(type='executor_exception', diagnostic=str(exc))
         finally:
             session_end = time.monotonic()
             if proc:
@@ -219,7 +277,7 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                 try:
                     tail = proc.stdout.read() or b''
                     consume(tail, final=True)
-                    if guard_refusal(tail.decode(errors='replace')): reason = 'guard_refusal'
+                    inspect_guard(proc.stdout, tail)
                 except BlockingIOError:
                     pass
                 sample_outputs()  # include writes made immediately before process exit
@@ -227,16 +285,22 @@ def execute(argv, cwd, evidence, prompt, env, seconds=TIME_LIMIT, limit=TOOL_LIM
                     stderr_tail = proc.stderr.read() or b''
                 except BlockingIOError:
                     stderr_tail = b''
-                err.write(stderr_tail.decode(errors='replace')); err.flush()
-                if guard_refusal((evidence/'stderr.log').read_text()): reason = 'guard_refusal'
+                err.write(stderr_tail); err.flush()
+                inspect_guard(proc.stderr, stderr_tail)
+                for stream, tail in guard_tails.items(): check_line(stream, tail)
                 proc.stderr.close()
                 proc.stdout.close()
                 write_json(evidence/'process.json',dict(pid=proc.pid,pgid=proc.pid,closed=True))
+            try: usage_result = final_usage(usage)
+            except ValueError as exc:
+                usage_result = final_usage([])
+                reason = reason or 'validation'
+                errors['usage'] = dict(type='invalid_usage', diagnostic=str(exc))
             result = dict(seconds=session_end-start,supervision_seconds=time.monotonic()-session_end,
                 queried_screen_indexes=sorted(matched_screens),stop_reason=reason,
                 exit_code=proc.returncode if proc else None,tool_calls=len(calls),
                 raw_mcp_item_events=mcp_events, operations_by_type=operation_types, errors=list(errors.values()),
-                usage=final_usage(usage), effective_context=None, money=None, fallback=None,
+                usage=usage_result, effective_context=None, money=None, fallback=None,
                 time_limit_seconds=seconds,tool_limit=limit,raw_usage=usage,thread_ids=threads,
                 output_artifact_observations=writes,observer_resolution_seconds=.05,
                 accepted_timing=None,accepted_timing_reason='requires frozen functional evaluation; artifacts are not accepted pages',

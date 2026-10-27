@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from .common import digest, hashes, write_json
+from .common import CONTRACT, digest, hashes, write_json
 
 
 def socket_precheck(tmpdir, limit=107, suffix='/codex-stdio-xxxxxxxxxxxx.sock'):
@@ -31,7 +31,7 @@ def freeze(root, instrument, identity):
     root = Path(root)
     if (root/'freeze.json').exists(): raise ValueError('freeze exists; do not replace it')
     files = safe_hashes(root/'preparation')
-    payload = {'protocol':'ipede-rebuild-v6','files':files,
+    payload = {'protocol':CONTRACT,'files':files,
                'instrument':safe_hashes(instrument),'identity':identity,
                'collection_status':'pending TL review','approval_required':True}
     write_json(root/'freeze.json',payload)

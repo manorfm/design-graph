@@ -1,4 +1,4 @@
-# ipede-rebuild-v6 — preparação independente
+# ipede-rebuild-v6-r2 — preparação independente
 
 Escopo: preparar e congelar; nenhuma reconstrução medida nesta implementação.
 O histórico fornece somente código genérico de execução e registro. Não fornece
@@ -205,3 +205,20 @@ Freeze bb41ab e preflights anteriores são preparação supersedida pelo reforç
 de escopo, arquivados com hashes; nunca baseline nem coleta. Novo instrumento
 invalida a identity anterior. O novo preflight neutro exige freeze íntegro ANTES
 do primeiro Popen e registra seu SHA no gate. Refusal encerra sem repetição.
+
+
+R2 failure policy is executable in failures.py: one attempt at each ordered
+position. Delivery, timeout, operation budget and local validation failures retain
+artifacts/metrics and allow the next independent position. Refusal, identity,
+configuration, preflight, unknown or systemic MCP errors stop the round; remaining
+positions become not_started with a reason. An artifact never implies acceptance.
+No retries. Approval always starts at {} and binds the exact new freeze.
+
+Each session uses its own work directory and TMPDIR, XDG/cache directories,
+executor logs/sqlite, disabled shell snapshots and explicit shell/MCP environment.
+Authentication home stays inherited; secrets are never copied. Decoding and all
+intermediates stay local. Destructive cleanup is forbidden during collection.
+These controls do not prove total read/write isolation. Human trace QA is mandatory;
+clear outside writes or destructive cleanup reject evidence. Socket guard remains
+107 bytes; incompatible paths block before preflight creation or launch.
+Publication requires a Telegram text result and subsequent human acceptance.

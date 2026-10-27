@@ -1,6 +1,8 @@
-# ipede-rebuild-v6
+# ipede-rebuild-v6-r2
 
-Status: **NÃO COLETADO; aprovação TL pendente**.
+Status: **BLOQUEADO no socket; NÃO COLETADO; aprovação TL pendente**.
+
+Precheck real: 123 bytes > 107. Preflight não lançado; zero tentativas e zero sessões medidas. Novo índice integral e preparação herdada verificada por hash; recibo público R2 separado do histórico.
 
 Protocolo e schemas congeláveis; resultados de geração e avaliação são `null`.
 Modelo gpt-6.1-sol, esforço medium, sessão nova por página/lane, 900 s e 120
@@ -53,3 +55,5 @@ iguais. Cache é subconjunto reportado; dinheiro=null, sem alegação monetária
 Treze checks de legibilidade têm negativos originais congelados, com IDs e
 hashes saneados em `data.json.original_negatives`. São inspeções preparatórias
 de estados já capturados; os demais checks originais não receberam avaliação.
+
+R2: stderr literal preservado; diagnóstico de recusa não infere operação. Ambiente de escrita controlável exclusivo por sessão. Variáveis e prompt não garantem isolamento total: QA de traces obrigatório, escrita externa ou limpeza destrutiva reprova. Uma tentativa por posição; falhas locais preservadas, recusa ou falha sistêmica para a rodada sem retries. Publicação bloqueada até resultado texto Telegram e aceite posterior.

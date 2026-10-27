@@ -1,0 +1,26 @@
+{
+  "protocol": "ipede-rebuild-v6-r2",
+  "status": "blocked",
+  "freeze_sha256": "bbe3a8bc6bca6a5cafb24a0b6ae9235385a3ba0da7d65df02f241a25fcde60e1",
+  "identity_sha256": "1ee37f73a9e2224bd065109b252b1a11daac300a3181fbac02e5c8e6eba64024",
+  "source_sha256": "34b4469b68501e1f48a224af67194e98a0a7a9b1315429af3ae8a5125da9cb12",
+  "rubric_sha256": "b3b9c995712e6f181f8718940bea0771c86167781a2c299e2bf5620e98e36be4",
+  "schema_sha256": "ea15980de44bfedb167457ce9e270eabd07921c18cb0be594502c99bdafab058",
+  "tests_sha256": "a2f79df1113e0537a0792f868deaef8b3c1bf6e5143589823a359001b59c1350",
+  "failure_policy_sha256": "34ce357be65aef79d78a3c13f45d6eb443a1e6ff8d62d16b2f072035392a3770",
+  "worktree_sha256": "4359ac6f87007909b7819b438de57fc95c6db3e90e3bac15f8187c2358946b63",
+  "venv_sha256": "ae6acf5b0362ac5ed827874d1b950297c30ca717df545caf295452ac9258f47f",
+  "oracle_real": true,
+  "integral_index_ready": true,
+  "native_preflight": false,
+  "preflight_attempts": 0,
+  "preflight_usage": null,
+  "approval": "pending",
+  "measured_sessions": 0,
+  "money": null,
+  "socket": {
+    "path_bytes": 123,
+    "limit": 107
+  },
+  "publication": "blocked: Telegram text result and subsequent acceptance required"
+}

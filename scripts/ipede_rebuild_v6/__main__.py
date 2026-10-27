@@ -12,11 +12,11 @@ from .preflight import identity, preflight, validate_gate
 from .protocol import ORDER, prompt
 
 
-def collect(root, worktree):
+def _collect(root, worktree):
     """Downstream only; no launch is possible with pending TL approval."""
     python=Path(sys.executable); binding=identity(python,worktree,root)
     approval(root,Path(__file__).parent,binding)
-    validate_gate(root,python,worktree,version='v6')
+    validate_gate(root,python,worktree,version='v6-r2')
     prep=root/'preparation'
     # Functional oracle and setup readiness are separate mandatory gates.
     if json.loads((prep/'oracle/receipt.json').read_text()).get('passed') is not True:
@@ -33,12 +33,10 @@ def collect(root, worktree):
     from .common import environment
     from .audit import copy_scan, trace_gate
     from .preflight import evidence
-    env=environment(root)
-    env['PYTHONPATH']=str(worktree/'src'); env['GRAPH_DIR']=str(graph)
-    for key in ['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_ORG_ID','OPENAI_PROJECT_ID']: env.pop(key,None)
-    for page,lane in ORDER:
+    from .failures import sequence, LocalFailure
+    def attempt(page,lane):
         verify_freeze(root,Path(__file__).parent,identity(python,worktree,root))
-        session=fresh(sessions/f'{page}-{lane}'); proof=fresh(session/'evidence'); state=fresh(session/'state')
+        session=fresh(sessions/f'{page}-{lane}'); proof=fresh(session/'evidence')
         work=session/'work'; shutil.copytree(prep/'agent-input',work); (work/'output').mkdir()
         t=targets[page-1]
         # Only title and state enter common input. Native semantic names can be
@@ -48,28 +46,54 @@ def collect(root, worktree):
         supplied.pop('target.json')
         if supplied != hashes(prep/'agent-input'):
             raise ValueError('asymmetric source/assets input')
-        mcp=proxy(python,worktree,graph,proof) if lane=='B' else None
-        argv=command(work,state,mcp)
+        env=environment(work); state=work/'state'
+        env['PYTHONPATH']=str(worktree/'src'); env['GRAPH_DIR']=str(graph)
+        for key in ['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_ORG_ID','OPENAI_PROJECT_ID']: env.pop(key,None)
+        from .gates import socket_precheck
+        socket_precheck(env['TMPDIR'])
+        local_graph=state/'graph'
+        if lane=='B': shutil.copytree(graph,local_graph)
+        env['GRAPH_DIR']=str(local_graph)
+        mcp_proof=fresh(state/'mcp') if lane=='B' else None
+        mcp=proxy(python,worktree,local_graph,mcp_proof) if lane=='B' else None
+        argv=command(work,state,mcp,env)
         write_json(proof/'command.json',{'argv':argv,'input_hashes':hashes(work),
                    'prompt_sha256':digest(prep/f'prompt-{lane}.txt'),'freeze_sha256':digest(root/'freeze.json')})
         result=execute(argv,work,proof,prompt(lane),env,selections=[t] if lane=='B' else None)
         if result['stop_reason'] or result['exit_code']:
-            raise ValueError('collection stopped; retain evidence, never retry')
-        if lane=='B': evidence(proof,require_usage=True)
+            return {**result, 'stop_reason':result['stop_reason'] or 'delivery', 'artifact':(work/'output/page.html').is_file()}
+        if lane=='B': evidence(proof,require_usage=True)  # unknown MCP failures stop round
         from .runner import final_usage
         final_usage(result['raw_usage'])
         output=work/'output/page.html'
         if [p.name for p in (work/'output').iterdir()] != ['page.html']:
-            raise ValueError('exactly one HTML required')
+            raise LocalFailure('exactly one HTML required')
         events=[json.loads(x) for x in (proof/'events.jsonl').read_text().splitlines()]
         from .runner import completed_usage
-        completed_usage(events)
+        try: completed_usage(events)
+        except ValueError as exc: raise LocalFailure(str(exc)) from exc
         if hashes(prep/'agent-input') != {k:digest(work/k) for k in hashes(prep/'agent-input')}:
             raise ValueError('supplied source/assets mutated')
-        write_json(proof/'trace-audit.json',trace_gate(events,lane,work))
-        write_json(proof/'copy-audit.json',copy_scan(work/'input/original.html',output))
+        try:
+            write_json(proof/'trace-audit.json',trace_gate(events,lane,work))
+            write_json(proof/'copy-audit.json',copy_scan(work/'input/original.html',output))
+        except ValueError as exc: raise LocalFailure(str(exc)) from exc
         write_json(proof/'acceptance.json',{'valid':None,'manual_review_required':True,
                    'evaluation_seconds':None,'generation_seconds':result['seconds']})
+
+        return {**result, 'artifact':True}
+    return sequence(root,attempt)
+
+def collect(root, worktree):
+    """Preserve a six-position blocked matrix even when initial gates fail."""
+    try:
+        return _collect(root, worktree)
+    except Exception as exc:
+        if root.is_dir() and not (root/'positions.json').exists():
+            write_json(root/'positions.json', [dict(page=p,lane=l,status='not_started',
+                reason='systemic_gate_failure',artifact=None,accepted=None) for p,l in ORDER])
+            write_json(root/'collection-block.private.json',dict(type=type(exc).__name__,diagnostic=str(exc)))
+        raise
 
 
 def main():
@@ -93,10 +117,10 @@ def main():
                 raise ValueError('real preparation evidence required before freeze')
         print(freeze(root,Path(__file__).parent,identity(Path(sys.executable),worktree,root)))
     elif args.action=='preflight':
-        preflight(root,Path(sys.executable),worktree,version='v6')
+        preflight(root,Path(sys.executable),worktree,version='v6-r2')
     elif args.action=='validate':
         approval(root,Path(__file__).parent,identity(Path(sys.executable),worktree,root))
-        validate_gate(root,Path(sys.executable),worktree,version='v6')
+        validate_gate(root,Path(sys.executable),worktree,version='v6-r2')
     elif args.action=='collect': collect(root,worktree)
     elif args.action=='materialize':
         from .results import materialize

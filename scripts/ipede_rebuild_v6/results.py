@@ -6,7 +6,7 @@ import json
 import hashlib
 from pathlib import Path
 import jsonschema
-from .common import digest, fresh, write_json
+from .common import CONTRACT, digest, fresh, write_json
 from .gates import public_document
 from .protocol import ORDER
 from .rubric import VIEWPORTS, public, validate, negative_hash
@@ -130,8 +130,12 @@ def materialize(root, destination):
     data['rubric']=public(rubric)
     data['original_negatives']=original_negatives(rubric)
     data['freeze_sha256']=digest(root/'freeze.json') if (root/'freeze.json').is_file() else None
+    positions=load(root/'positions.json')
     any_metrics=False
     for session,(page,lane) in zip(data['sessions'],ORDER):
+        if positions is not None:
+            position=next(r for r in positions if r['page']==page and r['lane']==lane)
+            session['execution']={k:position[k] for k in ['status','reason','artifact','accepted']}
         base=root/f'sessions/{page}-{lane}';proof=base/'evidence'
         raw=load(proof/'metrics.json');evaluation=load(proof/'evaluation.private.json')
         if evaluation is not None:
@@ -164,7 +168,7 @@ def materialize(root, destination):
                     try:evidence(proof,require_usage=True);m['mcp']={'adherent':raw.get('queried_screen_indexes')==[1]}
                     except (OSError,ValueError,KeyError,TypeError):m['mcp']={'adherent':False}
                     if m['mcp']['adherent'] is not True:m['valid']=False
-                else:m['valid']=None
+                else:m['valid']=None if m['valid'] is not False else False
             # Automated gates plus private human review are both mandatory.
             if (proof/'events.jsonl').is_file() and (base/'work/output/page.html').is_file():
                 from .audit import trace_gate,copy_scan
@@ -205,7 +209,7 @@ def materialize(root, destination):
     validate_data(data)
     public_document(data);fresh(destination);write_json(destination/'data.json',data)
     fmt=lambda value:json.dumps(value,ensure_ascii=False)
-    lines=['# Estudo de caso — n=1 por alvo','',
+    lines=[f'# {CONTRACT} — estudo de caso, n=1 por alvo','',
            'Cache é subconjunto da entrada. Delta=B−A; percentual=100×(B−A)/A; A=0/null => percentual null.',
            'Setup separado, sem rateio. Dinheiro indisponível=null. MCP é aderência, sem crédito de qualidade.', '']
     lines.append('Aceitação de fidelidade/validade usa conformidade por check à referência; usabilidade absoluta e seus negativos permanecem separados. Melhor usabilidade não implica maior fidelidade. Recursos de decisão: input, output, segundos de geração e operações; sem alegação monetária.')
