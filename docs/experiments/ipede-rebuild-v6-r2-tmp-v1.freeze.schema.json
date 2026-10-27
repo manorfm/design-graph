@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "status", "freeze_sha256", "identity_sha256", "source_sha256", "rubric_sha256", "runtime_inventory_sha256", "roots", "lifecycle", "approval", "measured_sessions", "preflight_attempts", "preflight_success", "native_preflight", "usage", "money"],
+  "$defs": {"sha": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+  "properties": {
+    "protocol": {"const": "ipede-rebuild-v6-r2-tmp-v1"},
+    "status": {"const": "pending TL"},
+    "freeze_sha256": {"$ref": "#/$defs/sha"},
+    "identity_sha256": {"$ref": "#/$defs/sha"},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "rubric_sha256": {"$ref": "#/$defs/sha"},
+    "runtime_inventory_sha256": {"$ref": "#/$defs/sha"},
+    "roots": {"type": "object", "additionalProperties": false, "required": ["custody", "scratch", "runtime"], "properties": {"custody": {"$ref": "#/$defs/sha"}, "scratch": {"$ref": "#/$defs/sha"}, "runtime": {"$ref": "#/$defs/sha"}}},
+    "lifecycle": {"type": "object", "required": ["preflight", "collection", "retained_reason"], "additionalProperties": {"type": "string"}},
+    "approval": {"const": {}},
+    "measured_sessions": {"const": 0},
+    "preflight_attempts": {"const": 0},
+    "preflight_success": {"type": "null"},
+    "native_preflight": {"const": false},
+    "usage": {"type": "null"},
+    "money": {"type": "null"}
+  }
+}

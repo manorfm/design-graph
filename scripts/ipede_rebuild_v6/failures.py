@@ -14,7 +14,13 @@ class LocalFailure(ValueError):
 
 def sequence(root, attempt):
     path = root/'positions.json'
-    if path.exists(): raise ValueError('positions already exist; no retry')
+    if path.exists():
+        import json
+        initial=root/'preparation/positions.initial.private.json'
+        marker=root/'collection-attempt.private.json'
+        if not initial.is_file() or marker.exists() or json.loads(path.read_text()) != json.loads(initial.read_text()):
+            raise ValueError('positions already exist; no retry')
+        with marker.open('x') as stream: stream.write('{}\n')
     rows = [dict(page=p,lane=l,status='planned',reason=None,artifact=None,accepted=None) for p,l in ORDER]
     write_json(path, rows)
     stopped = None
@@ -32,7 +38,12 @@ def sequence(root, attempt):
             except Exception as exc:
                 reason = 'validation' if isinstance(exc,LocalFailure) else 'systemic_unknown'
                 output=root/f"sessions/{row['page']}-{row['lane']}/work/output/page.html"
-                row.update(status='failed',reason=reason,artifact=output.is_file())
+                artifact=output.is_file()
+                if (root/'preparation/runtime.private.json').exists():
+                    from .lifecycle import workspace
+                    try: artifact=(workspace(root,f"{row['page']}-{row['lane']}")/'output/page.html').is_file()
+                    except (ValueError,OSError): artifact=None
+                row.update(status='failed',reason=reason,artifact=artifact)
                 # Diagnostics remain private; public matrix uses stable reason codes.
                 write_json(root/f"failure-{row['page']}-{row['lane']}.json",dict(type=type(exc).__name__, diagnostic=str(exc)))
                 if reason not in LOCAL: stopped=reason

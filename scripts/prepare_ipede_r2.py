@@ -4,13 +4,15 @@ Private paths are CLI arguments, never published. Build a fresh integral index.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import time
 
-from scripts.ipede_rebuild_v6.common import fresh, hashes, digest, write_json
+from scripts.ipede_rebuild_v6.common import fresh, hashes, digest, write_json, environment
+from scripts.ipede_rebuild_v6.lifecycle import allocate, physical, owned
 from scripts.ipede_rebuild_v6.protocol import prompt
 from scripts.ipede_rebuild_v6.prepare import graph_ready
 from scripts.ipede_rebuild_v6.rubric import verify_references
@@ -19,18 +21,23 @@ from scripts.ipede_rebuild_v6.rubric import verify_references
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ['previous','root','scratch']:parser.add_argument('--'+name,type=Path,required=True)
-    args=parser.parse_args(); old=args.previous;root=fresh(args.root);prep=fresh(root/'preparation')
+    args=parser.parse_args(); os.umask(0o077)
+    old=physical(args.previous); physical(args.root); owned(args.scratch)
+    root=fresh(args.root);prep=fresh(root/'preparation')
     # Explicit allowlist: no approvals, sessions, outputs or preflight inheritance.
     names=['agent-input','oracle','oracle-local-actions','oracle-variants','functional-plan.private.json',
            'targets.private.json','rubric.private.json','negative-inspection.private.json']
     original={}
     for name in names:
-        source=old/name;target=prep/name
+        source=physical(old/name);target=prep/name
         if source.is_dir():
             if any(p.is_symlink() for p in source.rglob('*')):raise ValueError('symlink in immutable input')
             shutil.copytree(source,target); original.update({name+'/'+k:v for k,v in hashes(source).items()})
         else:shutil.copyfile(source,target);original[name]=digest(source)
+    if len(original) != 336: raise ValueError('expected 336 immutable allowlisted files')
     if hashes(prep)!=original:raise ValueError('copy hash mismatch')
+    if json.loads((prep/'oracle/receipt.json').read_text()).get('passed') is not True:
+        raise ValueError('real oracle required')
     rubric=json.loads((prep/'rubric.private.json').read_text())
     # Inspect all references before validation; never rewrite oracle assertions.
     refs=[c['reference'][k] for r in rubric['rows'] for cs in r['checks'].values() for c in cs for k in ['dom','image']]
@@ -43,7 +50,7 @@ def main():
     argv=[str(Path(sys.executable).parent/'design-graph'),str(source),'--db',str(graph)]
     started=time.monotonic()
     with (args.scratch/'index.log').open('x') as log:
-        subprocess.run(argv,cwd=Path.cwd(),stdout=log,stderr=subprocess.STDOUT,check=True,timeout=900)
+        subprocess.run(argv,cwd=args.scratch,env=environment(args.scratch),stdout=log,stderr=subprocess.STDOUT,check=True,timeout=900)
     seconds=time.monotonic()-started
     readiness=graph_ready(graph,json.loads((prep/'targets.private.json').read_text()))
     write_json(prep/'readiness.private.json',readiness)
@@ -53,6 +60,7 @@ def main():
         immutable_hashes=original,absolute_references=absolute,index_command=argv,
         exclusions=['approvals','preflight','sessions','outputs']))
     (root/'TL-approval.json').write_text('{}\n')
+    allocate(root,args.scratch)
 
 
 if __name__=='__main__':main()

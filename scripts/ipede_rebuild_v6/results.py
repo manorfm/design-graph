@@ -137,13 +137,24 @@ def materialize(root, destination):
             position=next(r for r in positions if r['page']==page and r['lane']==lane)
             session['execution']={k:position[k] for k in ['status','reason','artifact','accepted']}
         base=root/f'sessions/{page}-{lane}';proof=base/'evidence'
+        work=base/'work';trace_work=work
+        if (root/'preparation/runtime.private.json').exists():
+            from .lifecycle import workspace
+            runtime_work=workspace(root,f'{page}-{lane}');trace_work=runtime_work
+            saved=load(base/'preservation.private.json')
+            if saved is not None:
+                from .lifecycle import snapshot
+                if saved.get('source') != str(runtime_work) or saved.get('verified') is not True or snapshot(work) != saved['files']:
+                    raise ValueError('durable session preservation changed')
+            elif (proof/'metrics.json').is_file():
+                raise ValueError('durable session preservation required')
         raw=load(proof/'metrics.json');evaluation=load(proof/'evaluation.private.json')
         if evaluation is not None:
             jsonschema.validate(evaluation,quality_schema(rubric,page))
             frozen=load(root/'freeze.json')
             if frozen.get('files',{}).get('rubric.private.json')!=digest(rubric_path):
                 raise ValueError('evaluation rubric differs from frozen reference')
-            bindings={'freeze_sha256':root/'freeze.json','rubric_sha256':rubric_path,'output_sha256':base/'work/output/page.html','events_sha256':proof/'events.jsonl','metrics_sha256':proof/'metrics.json'}
+            bindings={'freeze_sha256':root/'freeze.json','rubric_sha256':rubric_path,'output_sha256':work/'output/page.html','events_sha256':proof/'events.jsonl','metrics_sha256':proof/'metrics.json'}
             if any(evaluation[k]!=digest(path) for k,path in bindings.items()): raise ValueError('evaluation evidence binding changed')
             for row in evaluation['rows']:
                 for review in row['usability_review'].values():
@@ -170,15 +181,15 @@ def materialize(root, destination):
                     if m['mcp']['adherent'] is not True:m['valid']=False
                 else:m['valid']=None if m['valid'] is not False else False
             # Automated gates plus private human review are both mandatory.
-            if (proof/'events.jsonl').is_file() and (base/'work/output/page.html').is_file():
+            if (proof/'events.jsonl').is_file() and (work/'output/page.html').is_file():
                 from .audit import trace_gate,copy_scan
                 try:
                     events=[json.loads(x) for x in (proof/'events.jsonl').read_text().splitlines()]
-                    trace_gate(events,lane,base/'work')
+                    trace_gate(events,lane,trace_work)
                     from .runner import completed_usage
                     actual=completed_usage(events)
                     if any(m[k] is not None and m[k]!=actual[k] for k in actual):m['valid']=False
-                    copy_scan(base/'work/input/original.html',base/'work/output/page.html')
+                    copy_scan(work/'input/original.html',work/'output/page.html')
                 except (OSError,ValueError):m['valid']=False
             else:m['valid']=None if m['valid'] else m['valid']
         session['quality']=evaluate(rubric,page,evaluation)

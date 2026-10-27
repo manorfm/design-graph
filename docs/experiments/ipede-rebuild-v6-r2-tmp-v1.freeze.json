@@ -1,0 +1,26 @@
+{
+  "protocol": "ipede-rebuild-v6-r2-tmp-v1",
+  "status": "pending TL",
+  "freeze_sha256": "84e63e8ea9cb0fc0398a7c0bd26ffa1de697bc6e13e9f2328ac1a1c9aae3064f",
+  "identity_sha256": "2e39d90a92dcac095e391c5634af72078032573fe25f0b050ef681c6be36d8ae",
+  "source_sha256": "34b4469b68501e1f48a224af67194e98a0a7a9b1315429af3ae8a5125da9cb12",
+  "rubric_sha256": "b3b9c995712e6f181f8718940bea0771c86167781a2c299e2bf5620e98e36be4",
+  "runtime_inventory_sha256": "72c758bfd53d4e928804fdeb7bdfce16fa106c6674731738033ea2b585f283a9",
+  "roots": {
+    "custody": "377a5d59cdaca97fbf4e8ad19da6b450c2934a66378dcd993797f04001bf4f56",
+    "scratch": "c130b2f7840219846ba6019756f383c3e16080d062b0f07268c6727a96e5a5a6",
+    "runtime": "e5492c9a7e7dcb6f621f60bbd85b40a2ea9683bf084e1fc2e82d62aa307fdf25"
+  },
+  "lifecycle": {
+    "preflight": "copy complete work to durable; verify hashes; check no live users; remove only inventoried pf subtree; readback absence",
+    "collection": "no cleanup during collection",
+    "retained_reason": "six downstream sessions after exact TL approval; integral index retained in scratch"
+  },
+  "approval": {},
+  "measured_sessions": 0,
+  "preflight_attempts": 0,
+  "preflight_success": null,
+  "native_preflight": false,
+  "usage": null,
+  "money": null
+}

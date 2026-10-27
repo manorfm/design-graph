@@ -37,51 +37,58 @@ def _collect(root, worktree):
     def attempt(page,lane):
         verify_freeze(root,Path(__file__).parent,identity(python,worktree,root))
         session=fresh(sessions/f'{page}-{lane}'); proof=fresh(session/'evidence')
-        work=session/'work'; shutil.copytree(prep/'agent-input',work); (work/'output').mkdir()
-        t=targets[page-1]
-        # Only title and state enter common input. Native semantic names can be
-        # discovered by B; original module names/locations are private.
-        write_json(work/'target.json',{'title':t['title'],'state':t['state']})
-        supplied = hashes(work)
-        supplied.pop('target.json')
-        if supplied != hashes(prep/'agent-input'):
-            raise ValueError('asymmetric source/assets input')
-        env=environment(work); state=work/'state'
-        env['PYTHONPATH']=str(worktree/'src'); env['GRAPH_DIR']=str(graph)
-        for key in ['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_ORG_ID','OPENAI_PROJECT_ID']: env.pop(key,None)
-        from .gates import socket_precheck
-        socket_precheck(env['TMPDIR'])
-        local_graph=state/'graph'
-        if lane=='B': shutil.copytree(graph,local_graph)
-        env['GRAPH_DIR']=str(local_graph)
-        mcp_proof=fresh(state/'mcp') if lane=='B' else None
-        mcp=proxy(python,worktree,local_graph,mcp_proof) if lane=='B' else None
-        argv=command(work,state,mcp,env)
-        write_json(proof/'command.json',{'argv':argv,'input_hashes':hashes(work),
-                   'prompt_sha256':digest(prep/f'prompt-{lane}.txt'),'freeze_sha256':digest(root/'freeze.json')})
-        result=execute(argv,work,proof,prompt(lane),env,selections=[t] if lane=='B' else None)
-        if result['stop_reason'] or result['exit_code']:
-            return {**result, 'stop_reason':result['stop_reason'] or 'delivery', 'artifact':(work/'output/page.html').is_file()}
-        if lane=='B': evidence(proof,require_usage=True)  # unknown MCP failures stop round
-        from .runner import final_usage
-        final_usage(result['raw_usage'])
-        output=work/'output/page.html'
-        if [p.name for p in (work/'output').iterdir()] != ['page.html']:
-            raise LocalFailure('exactly one HTML required')
-        events=[json.loads(x) for x in (proof/'events.jsonl').read_text().splitlines()]
-        from .runner import completed_usage
-        try: completed_usage(events)
-        except ValueError as exc: raise LocalFailure(str(exc)) from exc
-        if hashes(prep/'agent-input') != {k:digest(work/k) for k in hashes(prep/'agent-input')}:
-            raise ValueError('supplied source/assets mutated')
+        from .lifecycle import workspace
+        work=workspace(root,f'{page}-{lane}')
         try:
-            write_json(proof/'trace-audit.json',trace_gate(events,lane,work))
-            write_json(proof/'copy-audit.json',copy_scan(work/'input/original.html',output))
-        except ValueError as exc: raise LocalFailure(str(exc)) from exc
-        write_json(proof/'acceptance.json',{'valid':None,'manual_review_required':True,
-                   'evaluation_seconds':None,'generation_seconds':result['seconds']})
+            shutil.copytree(prep/'agent-input',work,dirs_exist_ok=True); work.chmod(0o700); (work/'output').mkdir()
+            t=targets[page-1]
+            # Only title and state enter common input. Native semantic names can be
+            # discovered by B; original module names/locations are private.
+            write_json(work/'target.json',{'title':t['title'],'state':t['state']})
+            supplied = hashes(work)
+            supplied.pop('target.json')
+            if supplied != hashes(prep/'agent-input'):
+                raise ValueError('asymmetric source/assets input')
+            env=environment(work); state=work/'state'
+            env['PYTHONPATH']=str(worktree/'src'); env['GRAPH_DIR']=str(graph)
+            for key in ['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_ORG_ID','OPENAI_PROJECT_ID']: env.pop(key,None)
+            from .gates import socket_precheck
+            socket_precheck(env['TMPDIR'])
+            local_graph=state/'graph'
+            if lane=='B': shutil.copytree(graph,local_graph)
+            env['GRAPH_DIR']=str(local_graph)
+            mcp_proof=fresh(state/'mcp') if lane=='B' else None
+            mcp=proxy(python,worktree,local_graph,mcp_proof) if lane=='B' else None
+            argv=command(work,state,mcp,env)
+            write_json(proof/'command.json',{'argv':argv,'input_hashes':hashes(work),
+                       'prompt_sha256':digest(prep/f'prompt-{lane}.txt'),'freeze_sha256':digest(root/'freeze.json')})
+            result=execute(argv,work,proof,prompt(lane),env,selections=[t] if lane=='B' else None)
+            if result['stop_reason'] or result['exit_code']:
+                return {**result, 'stop_reason':result['stop_reason'] or 'delivery', 'artifact':(work/'output/page.html').is_file()}
+            if lane=='B': evidence(proof,require_usage=True)  # unknown MCP failures stop round
+            from .runner import final_usage
+            final_usage(result['raw_usage'])
+            output=work/'output/page.html'
+            if [p.name for p in (work/'output').iterdir()] != ['page.html']:
+                raise LocalFailure('exactly one HTML required')
+            events=[json.loads(x) for x in (proof/'events.jsonl').read_text().splitlines()]
+            from .runner import completed_usage
+            try: completed_usage(events)
+            except ValueError as exc: raise LocalFailure(str(exc)) from exc
+            if hashes(prep/'agent-input') != {k:digest(work/k) for k in hashes(prep/'agent-input')}:
+                raise ValueError('supplied source/assets mutated')
+            try:
+                write_json(proof/'trace-audit.json',trace_gate(events,lane,work))
+                write_json(proof/'copy-audit.json',copy_scan(work/'input/original.html',output))
+            except ValueError as exc: raise LocalFailure(str(exc)) from exc
+            write_json(proof/'acceptance.json',{'valid':None,'manual_review_required':True,
+                       'evaluation_seconds':None,'generation_seconds':result['seconds']})
 
-        return {**result, 'artifact':True}
+            return {**result, 'artifact':True}
+        finally:
+            from .lifecycle import preserve_work
+            preserve_work(root,f'{page}-{lane}',session)
+    # positions.json is an initial pending matrix; sequence remains single-attempt.
     return sequence(root,attempt)
 
 def collect(root, worktree):

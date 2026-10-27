@@ -222,3 +222,51 @@ These controls do not prove total read/write isolation. Human trace QA is mandat
 clear outside writes or destructive cleanup reject evidence. Socket guard remains
 107 bytes; incompatible paths block before preflight creation or launch.
 Publication requires a Telegram text result and subsequent human acceptance.
+
+## Contrato tmp-v1
+
+`ipede-rebuild-v6-r2-tmp-v1` substitui somente a proibição anterior de `/tmp`.
+A custódia nova e o scratch novo são físicos e ficam fora de `/tmp`. O alocador
+usa exclusivamente `tempfile.mkdtemp(dir='/tmp', prefix='r2-')`, sem alias ou
+symlink. Raízes e workspaces são do uid atual, modo 0700; caminhos reais,
+dev/inode, permissões, ambientes e política de retenção entram na preparação
+antes do freeze. São seis posições totais, três por lane, na ordem original.
+Cada uma possui work/TMPDIR/caches exclusivos. `/tmp` só é permitido dentro do
+workspace autorizado e seu TMPDIR; global, parent e sibling são proibidos.
+O guard de socket permanece intacto, sem encurtamento de caminho já rejeitado.
+Não há sandbox total de leitura/escrita; continuam obrigatórias as revisões humanas.
+
+Reprodução (paths privados passados explicitamente; todos devem ser físicos):
+
+```text
+python -m scripts.prepare_ipede_r2 --previous PREPARATION_ANTIGA --root CUSTODIA_NOVA --scratch SCRATCH_NOVO
+python -m scripts.validate_ipede_tmp_v1 --scratch SCRATCH_NOVO
+python -m scripts.seal_ipede_tmp_v1 --root CUSTODIA_NOVA --scratch SCRATCH_NOVO
+python -m scripts.ipede_rebuild_v6 preflight --root CUSTODIA_NOVA
+```
+
+O scratch deve existir, ser novo/exclusivo e 0700. A preparação exige exatamente
+336 arquivos da allowlist original e valida cópia, rubrica, oracle e novo índice
+integral. Nenhum output, gate ou aprovação anterior é herdado. O sealer exige
+logs e códigos de saída dos testes/build, cria seis `not_started`, `{}` e recibo
+público novo `ipede-rebuild-v6-r2-tmp-v1.freeze.json`. Esse recibo descreve o momento
+do selo; o resultado posterior fica no gate privado e no manifesto final.
+Nenhum arquivo de instrumento/teste deve ser editado após o selo.
+
+Antes do único preflight, freeze/identity são comparados novamente. Evidence
+fica na custódia, trabalho no runtime. Tanto sucesso como falha arquivam TODO o
+subtree de trabalho/logs na custódia, com manifesto de arquivos/modos/hashes,
+readback e comparação com a origem. Só depois de comprovar ausência de processos
+ativos é removido o subtree `pf` inventariado, com verificação de ausência e
+recibo. Falha de preservação ou processo vivo bloqueia remoção e retém runtime;
+nenhum registro único é descartado. O scan de `/proc` e lock não constituem
+isolamento contra processos hostis concorrentes. O root de coleção e o índice
+integral ficam retidos para downstream, com `retained_reason`. Nunca há limpeza
+durante collect. Collect ainda exige TL + freeze + preflight válidos e usa os
+workspaces físicos congelados, sem escrita histórica ou symlink de compatibilidade.
+Recusa encerra a única tentativa; nenhuma API alternativa pode ser usada.
+
+Após cada posição downstream, inclusive falha, o trabalho inteiro é copiado para
+`sessions/P-L/work` durável e comparado por hash/modo com o runtime. Isso não
+remove nem limpa o runtime. O materializador verifica essa preservação antes de
+ler outputs. Manifestos registram bytes dos symlinks sem ler seus destinos.

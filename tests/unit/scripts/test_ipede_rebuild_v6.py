@@ -73,8 +73,8 @@ def test_zero_mcp_and_guard_refusal_rejected(tmp_path):
 
 
 def test_freeze_approval_and_tampering(tmp_path):
-    root=tmp_path/'private';root.mkdir();prep=root/'preparation';prep.mkdir();(prep/'input').write_text('neutral')
-    instrument=tmp_path/'instrument';instrument.mkdir();(instrument/'run.py').write_text('neutral')
+    root=tmp_path/'private';root.mkdir(mode=0o700);prep=root/'preparation';prep.mkdir(mode=0o700);(prep/'input').write_text('neutral')
+    instrument=tmp_path/'instrument';instrument.mkdir(mode=0o700);(instrument/'run.py').write_text('neutral')
     sha=gates.freeze(root,instrument,{'model':'fixture'})
     with pytest.raises(ValueError,match='pending TL'):gates.approval(root,instrument,{'model':'fixture'})
     write_json(root/'TL-approval.json',{'approved':True,'reviewer_role':'TL','reviewer':'fixture','reviewed_at':'fixture','freeze_sha256':sha})
@@ -101,7 +101,7 @@ def test_prompt_access_and_order_symmetry(tmp_path,monkeypatch):
 
 
 def fake_execute(tmp_path,script,**kwargs):
-    work=tmp_path/'work';work.mkdir();(work/'output').mkdir();proof=tmp_path/'evidence';proof.mkdir()
+    work=tmp_path/'work';work.mkdir(mode=0o700);(work/'output').mkdir(mode=0o700);proof=tmp_path/'evidence';proof.mkdir(mode=0o700)
     return runner.execute([sys.executable,'-c',script],work,proof,'neutral synthetic fixture',{},seconds=5,**kwargs)
 
 
@@ -181,7 +181,7 @@ def test_collect_checks_pending_approval_before_any_launch(tmp_path,monkeypatch)
 
 
 def test_private_manifest_detects_hashes_and_no_self_reference(tmp_path):
-    (tmp_path/'evidence').mkdir();(tmp_path/'evidence/raw').write_bytes(b'neutral')
+    (tmp_path/'evidence').mkdir(mode=0o700);(tmp_path/'evidence/raw').write_bytes(b'neutral')
     first=gates.manifest(tmp_path)
     receipt=json.loads((tmp_path/'manifest.private.json').read_text())
     assert 'manifest.private.json' not in receipt['files']
@@ -195,8 +195,8 @@ def test_mcp_input_mutation_before_query_is_also_stopped(tmp_path):
 
 
 def test_successful_target_query_precedes_output(tmp_path):
-    proof=tmp_path/'evidence';proof.mkdir();events=rpc_fixture(proof)
-    work=tmp_path/'work';work.mkdir();(work/'output').mkdir()
+    proof=tmp_path/'evidence';proof.mkdir(mode=0o700);events=rpc_fixture(proof)
+    work=tmp_path/'work';work.mkdir(mode=0o700);(work/'output').mkdir(mode=0o700)
     script='import json,time,pathlib;print('+repr(json.dumps(events[0]))+',flush=True);time.sleep(.3);pathlib.Path("output/page.html").write_text("synthetic independent fixture")'
     result=runner.execute([sys.executable,'-c',script],work,proof,'synthetic fixture',{},seconds=5,limit=10,selections=[{'component':'ObservatoryPage'}])
     assert result['stop_reason'] is None
@@ -207,7 +207,7 @@ def test_successful_target_query_precedes_output(tmp_path):
 def test_preflight_evidence_tamper_closes_gate(tmp_path,monkeypatch):
     from scripts.ipede_rebuild_v6 import preflight as pf
     from scripts.ipede_rebuild_v6.common import hashes
-    folder=tmp_path/'preflight-v6';folder.mkdir();proof=folder/'evidence';proof.mkdir()
+    folder=tmp_path/'preflight-v6';folder.mkdir(mode=0o700);proof=folder/'evidence';proof.mkdir(mode=0o700)
     rpc_fixture(proof)
     write_json(proof/'catalogue.json',[{'name':'get_full'}])
     monkeypatch.setattr(pf,'identity',lambda *a,**k:{'neutral':'identity'})
@@ -220,7 +220,7 @@ def test_preflight_evidence_tamper_closes_gate(tmp_path,monkeypatch):
 
 
 def test_timeout_closes_only_owned_process(tmp_path):
-    work=tmp_path/'work';work.mkdir();(work/'output').mkdir();proof=tmp_path/'evidence';proof.mkdir()
+    work=tmp_path/'work';work.mkdir(mode=0o700);(work/'output').mkdir(mode=0o700);proof=tmp_path/'evidence';proof.mkdir(mode=0o700)
     result=runner.execute([sys.executable,'-c','import time;time.sleep(20)'],work,proof,'synthetic',{},seconds=.1,limit=10)
     assert result['stop_reason']=='timeout'
     assert json.loads((proof/'process.json').read_text())['closed']
@@ -266,7 +266,7 @@ def test_real_cli_collect_routing_pending_and_tampered_freeze(tmp_path,monkeypat
     from scripts.ipede_rebuild_v6 import __main__ as cli
     import subprocess
     instrument=Path(cli.__file__).parent
-    (tmp_path/'preparation').mkdir();(tmp_path/'preparation/neutral').write_text('fixture')
+    (tmp_path/'preparation').mkdir(mode=0o700);(tmp_path/'preparation/neutral').write_text('fixture')
     monkeypatch.setattr(cli,'identity',lambda *a,**k:{'fixture':True})
     gates.freeze(tmp_path,instrument,{'fixture':True})
     monkeypatch.setattr(sys,'argv',['ipede','collect','--root',str(tmp_path)])
@@ -315,7 +315,7 @@ def test_results_missing_delta_quality_and_schema(tmp_path):
     from scripts.ipede_rebuild_v6 import results
     from scripts.ipede_rebuild_v6.rubric import validate
     rubric=synthetic_rubric();validate(rubric)
-    prep=tmp_path/'preparation';prep.mkdir();write_json(prep/'rubric.private.json',rubric)
+    prep=tmp_path/'preparation';prep.mkdir(mode=0o700);write_json(prep/'rubric.private.json',rubric)
     data=results.materialize(tmp_path,tmp_path/'public')
     assert data['status']=='not_collected'
     assert all(v is None for s in data['sessions'] for v in s['metrics'].values())
@@ -371,13 +371,13 @@ def test_six_real_format_sessions_materialize_neutral_metrics(tmp_path,monkeypat
     from scripts.ipede_rebuild_v6 import results
     from scripts.ipede_rebuild_v6 import preflight as pf
     from scripts.ipede_rebuild_v6.common import digest
-    rubric=synthetic_rubric();prep=tmp_path/'preparation';prep.mkdir()
+    rubric=synthetic_rubric();prep=tmp_path/'preparation';prep.mkdir(mode=0o700)
     write_json(prep/'rubric.private.json',rubric);write_json(prep/'setup.private.json',{'index_seconds':4})
     write_json(tmp_path/'freeze.json',{'identity':{'sha256':'a'*64},'files':{'rubric.private.json':digest(prep/'rubric.private.json')}})
     monkeypatch.setattr(pf,'evidence',lambda *a,**k:[])
     for page,lane in protocol.ORDER:
         base=tmp_path/f'sessions/{page}-{lane}';proof=base/'evidence';proof.mkdir(parents=True)
-        work=base/'work';(work/'input').mkdir(parents=True);(work/'output').mkdir()
+        work=base/'work';(work/'input').mkdir(parents=True);(work/'output').mkdir(mode=0o700)
         (work/'input/original.html').write_text('<main>Neutral source</main>')
         (work/'output/page.html').write_text('<style>main{color:blue}</style><main>Neutral result</main>')
         (proof/'events.jsonl').write_text(json.dumps({'type':'turn.completed','usage':{'input_tokens':100 if lane=='A' else 80,'output_tokens':10}})+'\n')
@@ -539,7 +539,7 @@ def test_r2_real_environment_and_fake_mcp(tmp_path,monkeypatch):
     monkeypatch.setattr(runner,'inherited_servers',lambda _:[])
     roots=[]
     for lane in ['A','B']:
-        work=tmp_path/lane;work.mkdir(); roots.append(work)
+        work=tmp_path/lane;work.mkdir(mode=0o700); roots.append(work)
         env=environment(work)
         script='''import os,json,tempfile,pathlib,subprocess,sys
 root=pathlib.Path.cwd()
@@ -576,7 +576,7 @@ def test_r2_failure_matrix_single_attempt_and_materialization(tmp_path):
     assert called==protocol.ORDER[:3]
     assert [r['status'] for r in rows]==['failed','completed','failed','not_started','not_started','not_started']
     with pytest.raises(ValueError,match='no retry'):sequence(tmp_path,attempt)
-    prep=tmp_path/'preparation';prep.mkdir();write_json(prep/'rubric.private.json',synthetic_rubric())
+    prep=tmp_path/'preparation';prep.mkdir(mode=0o700);write_json(prep/'rubric.private.json',synthetic_rubric())
     data=results.materialize(tmp_path,tmp_path/'public')
     assert data['sessions'][0]['execution']['reason']=='timeout'
     assert all(s['metrics']['input_tokens'] is None for s in data['sessions'])
@@ -592,7 +592,7 @@ def test_r2_failure_policy_all_local_positions_and_unknown(tmp_path):
     rows=sequence(tmp_path,local)
     assert calls==protocol.ORDER
     assert [r['status'] for r in rows]==['failed','failed','failed','failed','completed','completed']
-    child=tmp_path/'unknown';child.mkdir()
+    child=tmp_path/'unknown';child.mkdir(mode=0o700)
     def unknown(*_):raise RuntimeError('unknown MCP state')
     rows=sequence(child,unknown)
     assert rows[0]['status']=='failed' and all(r['status']=='not_started' for r in rows[1:])
@@ -629,9 +629,9 @@ def test_r2_shell_and_mcp_receive_same_local_variables(tmp_path,monkeypatch):
 
 def test_r2_mcp_runtime_logging_local_then_observed(tmp_path):
     from scripts.ipede_rebuild_v6.common import environment
-    work=tmp_path/'work';work.mkdir();(work/'output').mkdir()
-    env=environment(work);local=work/'state/mcp';local.mkdir()
-    proof=tmp_path/'evidence';proof.mkdir()
+    work=tmp_path/'work';work.mkdir(mode=0o700);(work/'output').mkdir(mode=0o700)
+    env=environment(work);local=work/'state/mcp';local.mkdir(mode=0o700)
+    proof=tmp_path/'evidence';proof.mkdir(mode=0o700)
     script="from pathlib import Path; Path('state/mcp/server-stderr.log').write_text('neutral'); Path('state/mcp/transcript.jsonl').write_text('neutral observations')"
     result=runner.execute([sys.executable,'-c',script],work,proof,'neutral',env,seconds=5)
     assert result['stop_reason'] is None
@@ -639,7 +639,7 @@ def test_r2_mcp_runtime_logging_local_then_observed(tmp_path):
 
 
 def test_r2_initial_process_failure_preserves_metrics(tmp_path):
-    work=tmp_path/'work';work.mkdir();proof=tmp_path/'evidence';proof.mkdir()
+    work=tmp_path/'work';work.mkdir(mode=0o700);proof=tmp_path/'evidence';proof.mkdir(mode=0o700)
     result=runner.execute(['/nonexistent-neutral-executor'],work,proof,'neutral',{},seconds=1)
     assert result['stop_reason']=='FileNotFoundError' and result['exit_code'] is None
     assert result['tool_calls']==0 and result['usage']['input_tokens'] is None

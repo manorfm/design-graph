@@ -42,7 +42,13 @@ def identity(python, worktree, root, *, version='v6-r2'):
     if launcher.read_bytes()[:2] == b'#!' and len(binaries) != 1:
         raise ValueError('cannot identify unique real executor binary')
     real_binary = binaries[0] if binaries else launcher
-    files = [worktree/'scripts/freeze_ipede_r2.py', worktree/'docs/experiments/ipede-rebuild-v6-r2.freeze.schema.json', worktree/'scripts/prepare_ipede_r2.py', worktree/'tests/unit/scripts/test_ipede_rebuild_v6.py', worktree/'pyproject.toml', worktree/'Makefile', real_binary, Path(shutil.which('node') or executor), *config_files(root), Path(executor), Path(python), python.parent/'design-mcp', python.parent/'design-graph', home/'config.toml']
+    files = [worktree/'scripts/validate_ipede_tmp_v1.py', worktree/'scripts/seal_ipede_tmp_v1.py', worktree/'tests/unit/scripts/test_ipede_tmp_v1.py', worktree/'docs/experiments/ipede-rebuild-v6-r2-tmp-v1.freeze.schema.json', worktree/'scripts/freeze_ipede_r2.py', worktree/'docs/experiments/ipede-rebuild-v6-r2.freeze.schema.json', worktree/'scripts/prepare_ipede_r2.py', worktree/'tests/unit/scripts/test_ipede_rebuild_v6.py', worktree/'pyproject.toml', worktree/'Makefile', real_binary, Path(shutil.which('node') or executor), *config_files(root), Path(executor), Path(python), python.parent/'design-mcp', python.parent/'design-graph', home/'config.toml']
+    runtime_file=root/'preparation/runtime.private.json'
+    runtime_inventory=json.loads(runtime_file.read_text()) if runtime_file.is_file() else None
+    if runtime_inventory:
+        from .lifecycle import validate
+        validate(root)
+        for path in runtime_inventory['workspaces'].values(): files += config_files(Path(path))
     # Bind inherited local policies/configuration without retaining their contents or auth.
     for parent in [worktree, *worktree.parents, root, *root.parents]:
         files += [parent/'AGENTS.md', parent/'AGENTS.override.md', parent/'.codex/config.toml']
@@ -51,7 +57,7 @@ def identity(python, worktree, root, *, version='v6-r2'):
     files += sorted((worktree/'.codex/rules').glob('*.rules'))
     import importlib.metadata, platform
     packages = {d.metadata['Name']:d.version for d in importlib.metadata.distributions()}
-    payload = dict(packages=packages, python_version=platform.python_version(), protocol=protocol(version), executor=str(launcher), real_binary=str(real_binary), python=str(python),
+    payload = dict(runtime_inventory=runtime_inventory, packages=packages, python_version=platform.python_version(), protocol=protocol(version), executor=str(launcher), real_binary=str(real_binary), python=str(python),
                    worktree=str(worktree), custody_root=str(root), codex_home=str(home), seconds=TIME_LIMIT, limit=TOOL_LIMIT,
                    command=command(root/'<work>', Path('<state>'), proxy(python, worktree, Path('<graph>'), Path('<evidence>'))),
                    environment={k:os.environ.get(k) for k in ['PATH','CODEX_HOME','LANG','TZ']},
@@ -147,21 +153,23 @@ def validate_gate(root, python, worktree, *, version='v6-r2'):
 def preflight(root, python, worktree, *, version='v6-r2'):
     expected_protocol = protocol(version)
     from .gates import verify_freeze
-    verify_freeze(root, Path(__file__).parent, identity(python,worktree,root,version=version))
+    binding = identity(python,worktree,root,version=version)
+    verify_freeze(root, Path(__file__).parent, binding)
     freeze_sha = digest(root/'freeze.json')
     from .gates import socket_precheck
-    socket_precheck(root/f'preflight-{version}'/'work/tmp')
+    from .lifecycle import workspace, retire_preflight
+    work = workspace(root, 'preflight')
+    socket_precheck(work/'tmp')
     folder = fresh(root/f'preflight-{version}')
-    proof = fresh(folder/'evidence'); work = fresh(folder/'work'); state = work/'state'
-    graph = fresh(work/'graph'); (work/'output').mkdir()
-    source = work/'neutral.html'; source.write_text(FIXTURE)
-    binding = identity(python, worktree, root, version=version)
-    env = environment(work)
-    env['CODEX_HOME'] = os.environ.get('CODEX_HOME', str(Path.home()/'.codex'))
-    env['PYTHONPATH'] = str(worktree/'src'); env['GRAPH_DIR'] = str(graph)
-    for key in ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_ORG_ID', 'OPENAI_PROJECT_ID']:
-        env.pop(key, None)
+    proof = fresh(folder/'evidence'); state = work/'state'
     try:
+        graph = fresh(work/'graph'); (work/'output').mkdir()
+        source = work/'neutral.html'; source.write_text(FIXTURE)
+        env = environment(work)
+        env['CODEX_HOME'] = os.environ.get('CODEX_HOME', str(Path.home()/'.codex'))
+        env['PYTHONPATH'] = str(worktree/'src'); env['GRAPH_DIR'] = str(graph)
+        for key in ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_ORG_ID', 'OPENAI_PROJECT_ID']:
+            env.pop(key, None)
         from .gates import socket_precheck
         write_json(proof/'tmpdir-check.json', socket_precheck(env['TMPDIR']))
         argv = index_command(python.parent, source, graph)
@@ -180,7 +188,7 @@ def preflight(root, python, worktree, *, version='v6-r2'):
         argv = command(work, state, mcp, env)
         prompt = ('Use a native design-graph MCP tool to inspect the indexed neutral.html fixture and report its heading. '
                   'Discover the available tools and make a useful read query. Do not use shell/Python to query the graph. '
-                  'Work only here; no browser, browser automation, listener, server, framework, transpilation, web, apps, agents, installs, credentials or parent directories. '
+                  'Work only inside this authorized physical workspace and its exclusive TMPDIR/caches. /tmp is permitted only within these paths; never global /tmp, parent or sibling. No destructive cleanup or rm -rf. No browser, browser automation, listener, server, framework, transpilation, web, apps, agents, installs, credentials or parent directories. '
                   'Any guard/policy refusal requires stopping the refused action immediately; never retry it through another API. '
                   'If MCP is unavailable, stop and report failure. Budget: 900 seconds, 120 tools.\n')
         (proof/'prompt.txt').write_text(prompt)
@@ -197,10 +205,20 @@ def preflight(root, python, worktree, *, version='v6-r2'):
     except BaseException as exc:
         write_json(folder/'gate.json', dict(protocol=expected_protocol, success=False, diagnostic=str(exc), identity=binding))
         raise
+    finally:
+        # Success and failure preserve the same complete runtime bytes. Never clean collection.
+        try:
+            retire_preflight(root, freeze_sha)
+        except BaseException as cleanup_error:
+            write_json(folder/'cleanup-block.private.json', dict(diagnostic=str(cleanup_error), runtime_retained=True))
+            gate=json.loads((folder/'gate.json').read_text())
+            gate.update(success=False, cleanup_diagnostic=str(cleanup_error))
+            write_json(folder/'gate.json',gate)
+            raise
     return folder
 
 
 def environment_template():
     from .runner import LOCAL_ENV_KEYS
-    return dict(keys=sorted(LOCAL_ENV_KEYS), root='session/work', auth_home='inherited; never copied',
+    return dict(keys=sorted(LOCAL_ENV_KEYS), root='exact inventoried physical workspace', auth_home='inherited; never copied',
                 limits='environment and prompt constrain controllable writes; trace QA mandatory; no total read/write isolation claim')

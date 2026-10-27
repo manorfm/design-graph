@@ -54,14 +54,22 @@ def trace_gate(events, lane, workspace=None, forbidden_roots=()):
         text = json.dumps(invocation, ensure_ascii=False)
         if re.search(r'(?i)\brm\s+[^;\n]*-[a-z]*[rf]|\b(?:rmdir|unlink)\b|shutil\.rmtree', text):
             raise ValueError('destructive cleanup during session')
-        if workspace: text = text.replace(str(Path(workspace).resolve()), '.')
+        if workspace:
+            from .lifecycle import physical
+            real = str(physical(workspace))
+            for raw in re.findall(re.escape(real) + r"[^\s\"\\;|&<>]*", text):
+                if raw == real or raw.startswith(real+'/'):
+                    if not Path(raw).resolve().is_relative_to(Path(real)):
+                        raise ValueError('symlink/outside workspace access')
+            # Require a path boundary: sibling names sharing a prefix stay forbidden.
+            text = re.sub(re.escape(real) + r'(?=/|[\"\s]|$)', '.', text)
         if re.search(r'(?i)(auth\.json|\.env\b|oracle|\.\./|dangerously-bypass|require_escalated|\$HOME|~[/]|/proc/|/etc/|/home/)', text):
             raise ValueError('forbidden access or escalation in trace')
         if any(str(root) in text for root in forbidden_roots):
             raise ValueError('private/parent/sibling access')
         # Absolute paths must be confined to the session; generic system executables
         # are reviewable but never authorize reads of system/private material.
-        for path in re.findall(r'(?<![\w:])/(?:[\w. -]+/)*[\w.~-]+', text):
+        for path in re.findall(r'(?<![\w:./])/(?:[\w. -]+/)*[\w.~-]+', text):
             if workspace and not Path(path).resolve().is_relative_to(Path(workspace).resolve()):
                 if not path.startswith(('/usr/bin/', '/bin/')):
                     raise ValueError('absolute access outside session')
