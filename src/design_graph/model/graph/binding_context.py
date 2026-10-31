@@ -179,6 +179,28 @@ def _has_extension(connection):
     }
 
 
+def _check_schema(connection):
+    rows = _rows(connection, "CALL table_info('BindingContextSnapshot') RETURN *")
+    actual = {(r[1], r[2], r[4]) for r in rows}
+    expected = {
+        ("snapshot_id", "STRING", True),
+        ("format", "STRING", False),
+        ("payload", "STRING", False),
+    }
+    if len(rows) != 3 or actual != expected:
+        raise ValueError("partial or incompatible binding context physical schema")
+
+
+def _rollback(connection):
+    try:
+        _rows(connection, "ROLLBACK")
+    except RuntimeError as exc:
+        # Kuzu automatically aborts on binder/execution errors. Preserve the
+        # original failure instead of replacing it with a spurious rollback.
+        if str(exc) != "No active transaction for ROLLBACK.":
+            raise
+
+
 def write_binding_context(connection, snapshot: BindingSnapshot) -> str:
     """Append an immutable snapshot atomically; never replace an old capture.
 
@@ -194,6 +216,7 @@ def write_binding_context(connection, snapshot: BindingSnapshot) -> str:
             "CREATE NODE TABLE IF NOT EXISTS BindingContextSnapshot("
             "snapshot_id STRING PRIMARY KEY, format STRING, payload STRING)",
         )
+        _check_schema(connection)
         _rows(
             connection,
             "CREATE (:BindingContextSnapshot {snapshot_id: $id, format: $format, payload: $payload})",
@@ -201,7 +224,7 @@ def write_binding_context(connection, snapshot: BindingSnapshot) -> str:
         )
         _rows(connection, "COMMIT")
     except Exception:
-        _rows(connection, "ROLLBACK")
+        _rollback(connection)
         raise
     return revision
 
@@ -209,6 +232,7 @@ def write_binding_context(connection, snapshot: BindingSnapshot) -> str:
 def _read(connection, revision, expected_sha256):
     if not _has_extension(connection):
         return None  # legacy/unknown, NEVER reconstruct or auto-upgrade
+    _check_schema(connection)
     metadata = _rows(
         connection,
         "MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id "
@@ -266,5 +290,5 @@ def read_binding_context(
         _rows(connection, "COMMIT")
         return value
     except Exception:
-        _rows(connection, "ROLLBACK")
+        _rollback(connection)
         raise

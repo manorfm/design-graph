@@ -1,7 +1,8 @@
 """Versioned IR-only public binding projection, never a runtime helper selector.
 
-No whole-unit or function bodies leave this API. Source is exposed only as exact
-contributing declaration tokens; all occurrences are retained, not defs[0].
+No whole-unit, declaration-token or function-body slices leave this API. All
+contributing occurrence records are retained, not defs[0]. A checked span is not
+proof that its bytes form an identifier token under a hostile coherent rewrite.
 """
 
 from __future__ import annotations
@@ -51,7 +52,6 @@ def project_binding_context(snapshot, *, unit: str, region: str):
         snapshot.community, revision, unit, kind, local
     )
     source_unit = capture.ir.units[0]
-    source = source_unit.source.encode("utf-8")
     regions = {r.id: r for r in capture.ir.regions}
     environments = {e.id: e for e in capture.ir.environments}
 
@@ -77,14 +77,6 @@ def project_binding_context(snapshot, *, unit: str, region: str):
         while cursor is not None:
             env_ids.add(cursor)
             cursor = environments[cursor].outer
-    bindings = sorted(
-        (
-            b
-            for b in capture.ir.bindings
-            if b.environment in env_ids and b.name in needed_names
-        ),
-        key=lambda b: b.id,
-    )
     occurrences = {d.id: d for d in capture.ir.occurrences}
     site_ids = {
         region,
@@ -112,7 +104,26 @@ def project_binding_context(snapshot, *, unit: str, region: str):
             )
         }
         site_ids.update(paired)
-        changed = before != site_ids
+        before_envs = set(env_ids)
+        env_ids.update(
+            regions[s].environment
+            for s in site_ids
+            if regions[s].environment is not None
+        )
+        outers = {
+            environments[e].outer for e in env_ids if environments[e].outer is not None
+        }
+        env_ids.update(outers)
+        site_ids.update(environments[e].owner for e in env_ids)
+        changed = before != site_ids or before_envs != env_ids
+    bindings = sorted(
+        (
+            b
+            for b in capture.ir.bindings
+            if b.environment in env_ids and b.name in needed_names
+        ),
+        key=lambda b: b.id,
+    )
 
     def occurrence(local):
         d = occurrences[local]
@@ -126,8 +137,6 @@ def project_binding_context(snapshot, *, unit: str, region: str):
             "kind": d.kind.value,
             "start": d.start,
             "end": d.end,
-            "source_token": source[d.start : d.end].decode("utf-8"),
-            "source_role": "declaration-token-not-runtime-value",
         }
 
     return {
