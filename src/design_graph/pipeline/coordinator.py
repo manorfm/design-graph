@@ -80,6 +80,7 @@ async def run_pipeline(
     force: bool = False,
     concurrency: int = EXTRACTION_CONCURRENCY,
     reporter: BuildPhaseReporter | None = None,
+    binding_options=None,
 ) -> BuildStats | None:
     """
     Full build pipeline. Returns None when the build is skipped
@@ -104,14 +105,24 @@ async def run_pipeline(
     )
 
     prev_state = load_build_state(state_path)
+    binding_stage = None
+    if binding_options is not None:
+        from design_graph.pipeline.binding_build import BindingStage
+        binding_stage = BindingStage(document, binding_options)
     if (
         not force and db_path.exists()
         and prev_state.html_hash == document.digest
         and prev_state.schema_version == MODEL_VERSION
+        and (binding_stage is None or binding_stage.unchanged(db_path))
     ):
         logger.info("pipeline: skipping unchanged prototype %s", html_path.name)
         _reporter.build_skipped("HTML unchanged — use --force to rebuild")
         return None
+
+    if binding_stage is not None:
+        if db_path.exists() or binding_stage.manifest_path(db_path).exists():
+            raise ValueError('binding build requires a new destination; changed source/options cannot replace baseline')
+        binding_stage.capture(db_path.stem)
 
     # ── Phase 2–4: Capture ────────────────────────────────────────────────────
     _reporter.phase_started("Parsing boundaries and tokens", total=0)
@@ -152,7 +163,11 @@ async def run_pipeline(
     phase.start()
 
     raw_stats: dict[str, int] = {}
-    with GraphWriteSession(db_path) as writer:
+    session = GraphWriteSession(db_path)
+    if binding_stage is not None:
+        from design_graph.pipeline.binding_build import BindingWriteSession
+        session = BindingWriteSession(db_path, binding_stage)
+    with session as writer:
         writer.record_model(result.capture)
         writer.write_resources(result.resources)
         writer.write_tokens(tokens)
@@ -200,6 +215,8 @@ async def run_pipeline(
         source_path=html_path, database_path=db_path, diff=diff,
         skipped_entries=result.skipped_entries,
     ))
+    if binding_stage is not None:
+        binding_stage.seal(db_path)
     elapsed = time.monotonic() - t_start
 
     stats = BuildStats(

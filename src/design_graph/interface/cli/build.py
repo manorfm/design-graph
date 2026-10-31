@@ -52,6 +52,9 @@ class BuildCliArgs:
     verbose:     bool
     quiet:       bool
     json_output: bool = False
+    binding_node: Path | None = None
+    binding_engine: Path | None = None
+    binding_fingerprint: str | None = None
 
 
 @dataclass
@@ -135,7 +138,13 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
                    help="Suppress all output except errors")
     p.add_argument("--json",    dest="json_output", action="store_true",
                    help="Emit machine-readable JSON to stdout (for CI pipelines)")
+    p.add_argument('--binding-node', type=Path, help='Opt-in whole-unit capture: explicit pinned Node')
+    p.add_argument('--binding-engine', type=Path, help='Explicit prepared binding engine directory')
+    p.add_argument('--binding-fingerprint', help='Explicit reviewed engine fingerprint')
     ns = p.parse_args(argv)
+    configured = (ns.binding_node, ns.binding_engine, ns.binding_fingerprint)
+    if any(configured) and not all(configured):
+        p.error('all three --binding-node/engine/fingerprint options are required')
     return BuildCliArgs(
         html_path=ns.html_path,
         db_path=ns.db_path,
@@ -145,6 +154,9 @@ def parse_build_args(argv: list[str]) -> BuildCliArgs:
         verbose=ns.verbose,
         quiet=ns.quiet,
         json_output=ns.json_output,
+        binding_node=ns.binding_node,
+        binding_engine=ns.binding_engine,
+        binding_fingerprint=ns.binding_fingerprint,
     )
 
 
@@ -273,10 +285,11 @@ def _run_build(argv: list[str]) -> None:
     state_path = state_repository.path
     from design_graph.model.graph.catalog import GraphCatalog
     catalog = GraphCatalog.discover(db_path.parent)
-    state_repository.migrate_legacy(
-        db_path.parent / ".graph-state.json",
-        known_databases=tuple(database.path for database in catalog.databases),
-    )
+    if not parsed.binding_node:
+        state_repository.migrate_legacy(
+            db_path.parent / ".graph-state.json",
+            known_databases=tuple(database.path for database in catalog.databases),
+        )
 
     previous_state = state_repository.load()
     source_changed = bool(
@@ -291,17 +304,23 @@ def _run_build(argv: list[str]) -> None:
         )
 
     effective_force = parsed.force or source_changed
-    if effective_force:
+    if effective_force and not parsed.binding_node:
         state_repository.clear()
 
+    binding_options = None
+    if parsed.binding_node:
+        assert parsed.binding_engine is not None and parsed.binding_fingerprint is not None
+        from design_graph.pipeline.binding_build import BindingBuildOptions
+        binding_options = BindingBuildOptions(parsed.binding_node, parsed.binding_engine, parsed.binding_fingerprint)
     try:
         stats = asyncio.run(run_pipeline(
             parsed.html_path, db_path, state_path,
             show_diff=parsed.show_diff,
             force=effective_force,
             reporter=reporter,
+            binding_options=binding_options,
         ))
-    except UnsupportedPrototypeError as exc:
+    except (UnsupportedPrototypeError, ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)
 

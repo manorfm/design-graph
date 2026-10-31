@@ -48,6 +48,10 @@ class QueryCliArgs:
     until:    str | None    = None
     limit:    int | None    = None
     raw:      bool          = False
+    snapshot: str = ''
+    unit: str = ''
+    region: str = ''
+    expected_sha256: str | None = None
 
 
 # ── Argument parser (pure, testable) ──────────────────────────────────────────
@@ -113,6 +117,11 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
     metrics_p.add_argument("--raw", action="store_true", default=False,
                             help="Show the raw call list instead of the aggregate summary")
 
+    binding = sub.add_parser('binding-context', parents=[shared], help='Read an explicit qualified binding root (IR_ONLY)')
+    binding.add_argument('--snapshot', required=True)
+    binding.add_argument('--unit', required=True)
+    binding.add_argument('--region', required=True)
+    binding.add_argument('--expected-sha256', default=None)
     ns = p.parse_args(argv)
 
     query    = " ".join(ns.terms) if hasattr(ns, "terms") else ""
@@ -133,6 +142,10 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
         until=getattr(ns, "until", None),
         limit=getattr(ns, "limit", None),
         raw=getattr(ns, "raw", False),
+        snapshot=getattr(ns, 'snapshot', ''),
+        unit=getattr(ns, 'unit', ''),
+        region=getattr(ns, 'region', ''),
+        expected_sha256=getattr(ns, 'expected_sha256', None),
     )
 
 
@@ -184,6 +197,11 @@ def main() -> None:
         raise
 
     configure_cli_logging(verbose=args.verbose)
+
+    if args.command == 'binding-context':
+        from design_graph.interface.cli.binding_query import binding_query_main
+        binding_query_main(args)
+        return
 
     from design_graph.interface.mcp.tools import ToolDispatcher
 
