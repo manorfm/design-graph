@@ -78,6 +78,19 @@ class BindingCapture:
     def capture(
         self, source: bytes, *, locator: str, source_type: str, syntax: str
     ) -> BindingCaptureIR:
+        captured = self._capture_snapshot_unit(
+            source, locator=locator, source_type=source_type, syntax=syntax
+        )
+        captured.check()
+        return captured
+
+    def _capture_snapshot_unit(
+        self, source: bytes, *, locator: str, source_type: str, syntax: str
+    ) -> BindingCaptureIR:
+        """Build orchestration admits the complete snapshot before using this IR.
+
+        Not a public selection/transport path: capture() remains independently strict.
+        """
         if type(source) is not bytes or len(source) > 1024 * 1024:
             raise ValueError("whole unit must be UTF8 bytes, at most 1 MiB")
         if (
@@ -101,7 +114,6 @@ class BindingCapture:
             tuple(_decode(CoverageGap, g) for g in raw["gaps"]),
             tuple(_decode(FunctionSite, f) for f in raw["functions"]),
         )
-        captured.check()  # Independently recomputes first-binding lookup in Python.
         return captured
 
     def _capture_native(self, text, source_type, syntax):

@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 
 from design_graph.model.binding_capture_ir import BindingCaptureIR
-from design_graph.model.binding_ir import _decode, _object
+from design_graph.model.binding_ir import CheckResult, _decode, _object, _validate_typed
 
 # Reader limits, independent of producer source/stdout limits. Kuzu length() is
 # character-based: the pre-fetch character ceiling bounds UTF8 to at most 8 MiB.
@@ -83,7 +83,11 @@ class BindingSnapshot:
         return value
 
     def validate(self) -> None:
-        value = _decode(BindingSnapshot, asdict(self))
+        _validate_typed(BindingSnapshot, self)
+        self._check_decoded()
+
+    def _check_decoded(self) -> tuple[CheckResult, ...]:
+        value = self
         if (
             value.version != LOGICAL_VERSION
             or not value.community
@@ -97,8 +101,10 @@ class BindingSnapshot:
         ):
             raise ValueError("duplicate or invalid qualified root inventory")
         units = {}
+        results = []
         for capture in value.captures:
-            capture.check()  # Recompute origin and first-binding lookup, never trust targets.
+            # Recompute origin and nearest lookup, never derive facts from targets.
+            results.append(capture._check_decoded())
             unit = capture.ir.units[0]
             identity = (
                 "u:"
@@ -129,13 +135,17 @@ class BindingSnapshot:
                     "root must identify a whole unit or function creation site"
                 )
 
+        return tuple(results)
+
     def to_json(self) -> str:
-        self.validate()
+        return _prepare_snapshot(self).payload
+
+    def _canonical_json(self) -> str:
         data = {
             "version": self.version,
             "community": self.community,
             "captures": [
-                json.loads(c.to_json())
+                c._canonical_data()
                 for c in sorted(self.captures, key=lambda c: c.ir.units[0].id)
             ],
             "roots": [asdict(r) for r in sorted(self.roots)],
@@ -146,23 +156,52 @@ class BindingSnapshot:
 
     @classmethod
     def from_json(cls, text: str):
-        _admit(text)
-        try:
-            data = json.loads(
-                text,
-                object_pairs_hook=_object,
-                parse_constant=lambda _: (_ for _ in ()).throw(
-                    ValueError("nonfinite JSON")
-                ),
-            )
-            value = _decode(cls, data)
-            value.validate()
-            return value
-        except (RecursionError, TypeError, UnicodeError) as exc:
-            raise ValueError("invalid binding context transport") from exc
+        return _decode_snapshot(text).snapshot
 
     def digest(self) -> str:
-        return sha256(self.to_json().encode("utf-8")).hexdigest()
+        return _prepare_snapshot(self).revision
+
+
+@dataclass(frozen=True)
+class _CheckedSnapshot:
+    """Invocation-local work, not a caller-supplied credential or public transport.
+
+    Private Python calls are not a security boundary. Ordinary APIs never accept
+    this context, and no context is retained on public snapshot objects or caches.
+    """
+
+    snapshot: BindingSnapshot
+    results: tuple[CheckResult, ...]
+    payload: str
+    revision: str
+
+
+def _finish_snapshot(snapshot, results):
+    payload = snapshot._canonical_json()
+    return _CheckedSnapshot(
+        snapshot, results, payload, sha256(payload.encode("utf-8")).hexdigest()
+    )
+
+
+def _prepare_snapshot(snapshot):
+    _validate_typed(BindingSnapshot, snapshot)
+    return _finish_snapshot(snapshot, snapshot._check_decoded())
+
+
+def _decode_snapshot(text):
+    _admit(text)
+    try:
+        data = json.loads(
+            text,
+            object_pairs_hook=_object,
+            parse_constant=lambda _: (_ for _ in ()).throw(
+                ValueError("nonfinite JSON")
+            ),
+        )
+        snapshot = _decode(BindingSnapshot, data)
+        return _finish_snapshot(snapshot, snapshot._check_decoded())
+    except (RecursionError, TypeError, UnicodeError) as exc:
+        raise ValueError("invalid binding context transport") from exc
 
 
 def _rows(connection, query, parameters=None):
@@ -207,8 +246,11 @@ def write_binding_context(connection, snapshot: BindingSnapshot) -> str:
     Caller supplies a real Kuzu connection, with no transaction already active.
     Schema + row commit together; duplicate revision is an error, not an upsert.
     """
-    payload = snapshot.to_json()
-    revision = sha256(payload.encode("utf-8")).hexdigest()
+    return _write_checked_context(connection, _prepare_snapshot(snapshot))
+
+
+def _write_checked_context(connection, checked):
+    payload, revision = checked.payload, checked.revision
     _rows(connection, "BEGIN TRANSACTION")
     try:
         _rows(
@@ -253,13 +295,13 @@ def _read(connection, revision, expected_sha256):
     )
     if len(rows) != 1:
         raise ValueError("incomplete binding snapshot")
-    snapshot = BindingSnapshot.from_json(rows[0][0])
-    actual = snapshot.digest()
+    checked = _decode_snapshot(rows[0][0])
+    actual = checked.revision
     if actual != revision or (
         expected_sha256 is not None and actual != expected_sha256
     ):
         raise ValueError("binding snapshot commitment or external digest mismatch")
-    return snapshot
+    return checked
 
 
 def read_binding_context(
@@ -272,6 +314,13 @@ def read_binding_context(
     Even with an anchor, the semantic checker reports IR_ONLY, not runtime value
     or producer correctness. Operational/catalog errors propagate fail-closed.
     """
+    checked = _read_checked_context(
+        connection, revision, expected_sha256=expected_sha256
+    )
+    return checked.snapshot if checked is not None else None
+
+
+def _read_checked_context(connection, revision, *, expected_sha256=None):
     if (
         type(revision) is not str
         or len(revision) != 64

@@ -7,8 +7,7 @@ import sys
 
 import kuzu
 
-from design_graph.model.binding_public_context import project_binding_context
-from design_graph.model.graph.binding_context import read_binding_context
+from design_graph.model.binding_public_context import read_project_binding_context
 
 
 def run_binding_query(args):
@@ -23,11 +22,12 @@ def run_binding_query(args):
     try:
         connection = kuzu.Connection(database)
         try:
-            snapshot = read_binding_context(
-                connection, args.snapshot, expected_sha256=args.expected_sha256
-            )
-            result = project_binding_context(
-                snapshot, unit=args.unit, region=args.region
+            result = read_project_binding_context(
+                connection,
+                args.snapshot,
+                expected_sha256=args.expected_sha256,
+                unit=args.unit,
+                region=args.region,
             )
             print(json.dumps(result, sort_keys=True))
         finally:

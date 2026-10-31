@@ -24,8 +24,9 @@ from design_graph.model.graph.binding_context import (
     PHYSICAL_VERSION,
     BindingRoot,
     BindingSnapshot,
+    _prepare_snapshot,
+    _write_checked_context,
     read_binding_context,
-    write_binding_context,
 )
 from design_graph.model.graph.schema import MODEL_VERSION, initialize_schema
 from design_graph.model.graph.writer import GraphWriter
@@ -118,7 +119,7 @@ class BindingStage:
         captures, roots = [], []
         for unit in self.units:
             try:
-                captured = self.producer.capture(
+                captured = self.producer._capture_snapshot_unit(
                     unit.source,
                     locator=unit.locator,
                     source_type=unit.source_type,
@@ -132,12 +133,15 @@ class BindingStage:
                 for region in captured.ir.regions
                 if region.slot.value in ("root", "function-creation")
             )
-        self.snapshot = BindingSnapshot.create(community, captures, roots)
+        self.snapshot = BindingSnapshot(
+            LOGICAL_VERSION, community, tuple(captures), tuple(roots)
+        )
+        self._checked = _prepare_snapshot(self.snapshot)
         for record in self.coverage:
             if record["status"] == "selected":
                 record["status"] = "captured"
         self.manifest.update(
-            snapshot=self.snapshot.digest(),
+            snapshot=self._checked.revision,
             build_fingerprint=self.fingerprint,
             roots=[{"unit": r.unit, "region": r.region} for r in self.snapshot.roots],
         )
@@ -195,7 +199,7 @@ class BindingWriteSession:
                     raise ValueError(
                         "critical general graph writes failed; binding build not sealed"
                     )
-                write_binding_context(self.conn, self.stage.snapshot)
+                _write_checked_context(self.conn, self.stage._checked)
                 self.stage.manifest["general"] = general_receipt(self.conn)
                 self.conn.close()
                 self.conn = None

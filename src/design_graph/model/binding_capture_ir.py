@@ -22,6 +22,7 @@ from .binding_ir import (
     _Checker,
     _decode,
     _object,
+    _validate_typed,
     canonical_bindings,
 )
 
@@ -187,11 +188,17 @@ class BindingCaptureIR:
     functions: tuple[FunctionSite, ...]
 
     def check(self) -> CheckResult:
-        value = _decode(BindingCaptureIR, asdict(self))
-        self._check_profile(value)
-        self._check_function_sites(value)
-        self._check_gaps(value)
-        return _CaptureChecker(value.ir, value.intrinsics).run()
+        _validate_typed(BindingCaptureIR, self)
+        return self._check_decoded()
+
+    def _check_decoded(self) -> CheckResult:
+        """Common semantics after strict decode or exact immutable type audit."""
+        self._check_profile(self)
+        self._check_function_sites(self)
+        self._check_gaps(self)
+        result = _CaptureChecker(self.ir, self.intrinsics).run()
+        _validate_typed(CheckResult, result)
+        return result
 
     @staticmethod
     def _check_profile(value):
@@ -251,6 +258,16 @@ class BindingCaptureIR:
 
     def to_json(self) -> str:
         self.check()
+        return json.dumps(
+            self._canonical_data(),
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+
+    def _canonical_data(self):
+        """Serialize within a checked invocation; never an admission entry point."""
         data = asdict(self)
         for key, records in data["ir"].items():
             if isinstance(records, tuple):
@@ -262,16 +279,10 @@ class BindingCaptureIR:
         )
         data["gaps"] = sorted(data["gaps"], key=lambda r: (r["region"], r["kind"]))
         data["functions"] = sorted(data["functions"], key=lambda r: r["region"])
-        return json.dumps(
-            data,
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
+        return data
 
     @classmethod
     def from_json(cls, text: str) -> BindingCaptureIR:
         value = _decode(cls, json.loads(text, object_pairs_hook=_object))
-        value.check()
+        value._check_decoded()
         return value

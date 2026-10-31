@@ -289,16 +289,46 @@ def project_binding_context(snapshot, *, unit: str, region: str):
     """
     if snapshot is None:
         return _legacy_context()
-    snapshot.validate()
+    from design_graph.model.graph.binding_context import _prepare_snapshot
+
+    return _project_checked(_prepare_snapshot(snapshot), unit=unit, region=region)
+
+
+def read_project_binding_context(
+    connection,
+    revision: str,
+    *,
+    unit: str,
+    region: str,
+    expected_sha256: str | None = None,
+):
+    """Admit fresh stored bytes and project with that invocation's checked work.
+
+    Accept identifiers and an optional independently retained anchor, never a
+    claimed validated handle. A later invocation always reads and checks again.
+    """
+    from design_graph.model.graph.binding_context import _read_checked_context
+
+    checked = _read_checked_context(
+        connection, revision, expected_sha256=expected_sha256
+    )
+    if checked is None:
+        return _legacy_context()
+    return _project_checked(checked, unit=unit, region=region)
+
+
+def _project_checked(checked, *, unit, region):
+    snapshot = checked.snapshot
     if not any(root.unit == unit and root.region == region for root in snapshot.roots):
         raise ValueError("unknown qualified public binding root")
-    capture = next(c for c in snapshot.captures if c.ir.units[0].id == unit)
-    revision = snapshot.digest()
+    index = next(i for i, c in enumerate(snapshot.captures) if c.ir.units[0].id == unit)
+    capture = snapshot.captures[index]
+    revision = checked.revision
     identity = partial(qualified_identity, snapshot.community, revision, unit)
     regions = {r.id: r for r in capture.ir.regions}
     environments = {e.id: e for e in capture.ir.environments}
     refs = _select_references(capture, region, regions)
-    resolutions = {r.id: r for r in capture.check().resolutions}
+    resolutions = {r.id: r for r in checked.results[index].resolutions}
     env_ids = _reference_environments(refs, resolutions, environments)
     site_ids, env_ids = _close_provenance(region, refs, env_ids, regions, environments)
     bindings = _select_bindings(capture, refs, env_ids)

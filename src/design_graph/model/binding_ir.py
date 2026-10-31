@@ -192,6 +192,51 @@ def _decode(type_: Any, value: Any) -> Any:
     return value
 
 
+def _validate_typed(type_: Any, value: Any) -> None:
+    """Check exact field types AND deep immutability without copying the IR.
+
+    This is not an origin/authenticity check. Type-hint memoization lives only
+    within this traversal; no accepted value survives into another invocation.
+    Transport callers use _decode instead, which already constructs exact types.
+    """
+    hints = {}
+
+    def visit(expected, item):
+        origin, args = get_origin(expected), get_args(expected)
+        if origin in (Union, UnionType):
+            for choice in args:
+                try:
+                    visit(choice, item)
+                    return
+                except ValueError:
+                    pass
+            raise ValueError("invalid optional field")
+        if origin is tuple:
+            if type(item) is not tuple:
+                raise ValueError("expected immutable tuple")
+            if len(args) == 2 and args[1] is Ellipsis:
+                for child in item:
+                    visit(args[0], child)
+            else:
+                if len(item) != len(args):
+                    raise ValueError("incorrect tuple arity")
+                for child_type, child in zip(args, item):
+                    visit(child_type, child)
+            return
+        if is_dataclass(expected):
+            if type(item) is not expected or not expected.__dataclass_params__.frozen:
+                raise ValueError("expected exact frozen record")
+            if expected not in hints:
+                hints[expected] = get_type_hints(expected)
+            for field in fields(expected):
+                visit(hints[expected][field.name], getattr(item, field.name))
+            return
+        if type(item) is not expected:
+            raise ValueError("incorrect scalar or enum type")
+
+    visit(type_, value)
+
+
 def _object(pairs):
     result = {}
     for key, value in pairs:
