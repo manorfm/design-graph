@@ -56,7 +56,8 @@ def enumerate_units(document):
         ):
             reason = "unsupported-script-type"
         if any(
-            tag.has_attr(key) for key in ("data-presets", "data-plugins", "language")
+            tag.has_attr(key)
+            for key in ("data-presets", "data-plugins", "data-type", "language")
         ):
             reason = "unsupported-script-options"
         content = tag.get_text().encode("utf8")
