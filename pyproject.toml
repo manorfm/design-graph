@@ -35,7 +35,15 @@ interactive = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-design_graph = ["resources/skills/**/*.md"]
+design_graph = [
+    "resources/skills/**/*.md",
+    "capture/binding_engine/*.mjs",
+    "capture/binding_engine/*.d.mts",
+    "capture/binding_engine/*.patch",
+    "capture/binding_engine/*.json",
+    "capture/binding_engine/*-LICENSE",
+    "capture/binding_engine/README.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
