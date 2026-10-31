@@ -8,6 +8,29 @@ from pathlib import Path
 import kuzu
 
 from tests.unit.pipeline.test_binding_cli import build, query
+from tests.unit.pipeline.test_binding_cli import pytestmark as pytestmark
+
+
+def test_real_general_write_failure_did_not_seal_normal_cli_build(tmp_path):
+    source = html_source(tmp_path)
+    db = tmp_path / "failed.db"
+    # Fault injection at the existing GraphWriter boundary, not a fake Kuzu.
+    # The normal CLI, capture, GraphRows and real failing Kuzu cast still run.
+    fault = """
+from design_graph.model.graph.writer import GraphWriter
+original = GraphWriter.record_model
+def invalid_model(self, *args, **kwargs):
+ original(self, *args, **kwargs)
+ for row in self._rows.nodes['Model'].values():
+  row['version'] = 'not-an-integer'
+GraphWriter.record_model = invalid_model
+"""
+    failed = build(source, db, before=fault)
+    assert failed.returncode != 0
+    assert "critical general graph writes failed" in failed.stderr
+    assert not db.exists()
+    assert not Path(str(db) + ".binding.json").exists()
+    assert not Path(str(db) + ".state.json").exists()
 
 
 def html_source(tmp_path, script="const X = 1; function empty() {}"):

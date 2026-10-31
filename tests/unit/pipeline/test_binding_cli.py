@@ -6,6 +6,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    not all(
+        os.environ.get(key)
+        for key in ("DG_CAPTURE_NODE", "DG_CAPTURE_ENGINE", "DG_CAPTURE_FINGERPRINT")
+    ),
+    reason="requires explicitly prepared reviewed binding engine and Node",
+)
+
 SOURCE = """const X = 9;
 function empty() {}
 function defaults(p = () => X) { var X = 2; return [p, X]; }
@@ -14,7 +24,7 @@ function switches() { switch (X) { case 0: const X = 1; return X; } }
 """
 
 
-def cli(module, args, *, cold=False):
+def cli(module, args, *, cold=False, before=""):
     guard = (
         """
 import importlib.abc, sys, subprocess
@@ -29,9 +39,34 @@ subprocess.Popen = forbidden
         if cold
         else ""
     )
-    code = guard + f"\nfrom {module} import main\nmain()\n"
+    audit = """
+import atexit, hashlib, json, os, pathlib
+def audit_imports():
+ if 'DG_PERSISTENCE_EVIDENCE' not in os.environ: return
+ out = pathlib.Path(os.environ['DG_PERSISTENCE_EVIDENCE'])
+ expected = json.loads((out/'snapshot-hashes.json').read_text())
+ root = out/'snapshot'
+ imported = {}
+ for name, module in list(sys.modules.items()):
+  if name.startswith('design_graph') and getattr(module, '__file__', None):
+   path = pathlib.Path(module.__file__).resolve()
+   relative = str(path.relative_to(root))
+   digest = hashlib.sha256(path.read_bytes()).hexdigest()
+   assert expected[relative] == digest, ('non-frozen product import', path)
+   imported[relative] = digest
+ with (out/'cli-imports.jsonl').open('a') as stream:
+  stream.write(json.dumps({'argv':sys.argv, 'imports':imported})+'\\n')
+atexit.register(audit_imports)
+"""
+    code = (
+        "import sys\n"
+        + guard
+        + audit
+        + before
+        + f"\nfrom {module} import main\nmain()\n"
+    )
     env = dict(os.environ, PATH="/no-node" if cold else os.environ["PATH"])
-    return subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-B", "-c", code, *map(str, args)],
         check=False,
         capture_output=True,
@@ -39,9 +74,27 @@ subprocess.Popen = forbidden
         env=env,
         timeout=45,
     )
+    if os.environ.get("DG_PERSISTENCE_EVIDENCE"):
+        evidence = Path(os.environ["DG_PERSISTENCE_EVIDENCE"]) / "cli-raw.jsonl"
+        with evidence.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "module": module,
+                        "args": list(map(str, args)),
+                        "cold": cold,
+                        "returncode": result.returncode,
+                        "stdout": result.stdout,
+                        "stderr": result.stderr,
+                    }
+                )
+                + "\n"
+            )
+    assert "Exception ignored in atexit" not in result.stderr, result.stderr
+    return result
 
 
-def build(source, db, *extra):
+def build(source, db, *extra, before=""):
     return cli(
         "design_graph.interface.cli.build",
         [
@@ -57,6 +110,7 @@ def build(source, db, *extra):
             os.environ["DG_CAPTURE_FINGERPRINT"],
             *extra,
         ],
+        before=before,
     )
 
 
