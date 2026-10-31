@@ -96,6 +96,14 @@ is not asserted to equal a normative ECMAScript Environment Record. Native
 root/global/module scopes are projected onto one explicitly **static-unit** root;
 function body lexical cells are separated from function var cells.
 
+Lexical `for`, `for-in` and `for-of` headers own a static block environment;
+`var` and assignment headers inherit their enclosing environment. Explicit AST
+phase sites cover initialization/left binding, test, update, RHS and body. The
+lexical RHS sees the loop name even where runtime access would encounter TDZ.
+Nested closures retain this static chain. These are abstract source bindings:
+per-iteration cell identities, initialization, iterator execution and values
+remain unknown. No concrete iteration environment or runtime execution is claimed.
+
 Known contracted positives include lexical shadowing, parameter expressions,
 function+var in both orders, var+var, implicit arguments/arguments shadowing,
 named function expressions, class/extends/method controls and JSX references.
@@ -104,7 +112,7 @@ source declarations remain distinct occurrences of the one canonical binding.
 
 Dynamic `with` bodies, affected sloppy-eval functions/units and Annex-B-affected
 functions/units yield explicit **unknown**, without poisoning unrelated sibling
-functions. TS/TSX is outside this capture contract. Imports, catch/loop-specific
+functions. TS/TSX is outside this capture contract. Imports, catch-specific
 scopes, class field/static-block environments and other unmapped native scopes
 are currently fail-closed, not silently approximated. Such boundaries may reject
 the whole unit; accepted dynamic gaps are localized. Unbound globals are

@@ -39,6 +39,21 @@ function walk(node,parent,current){
   else walk(node.body,lexical,le);
   return;
  }
+ if(['ForStatement','ForInStatement','ForOfStatement'].includes(node.type)){
+  const declaration=node.type==='ForStatement'?node.init:node.left;
+  // One static lexical name inventory, NOT a concrete per-iteration cell.
+  // The RHS of lexical for-in/of sees the loop name (possibly TDZ), too.
+  // Sites come from AST evaluation phases, independently of native targets.
+  const lexical=declaration?.type==='VariableDeclaration'&&declaration.kind!=='var';
+  const loop=region(lexical?'block':'evaluation',node,parent);
+  const e=lexical?env('block',loop,current):current;
+  if(lexical)blockEnvs.set(node,e);
+  const phases=node.type==='ForStatement'?[node.init,node.test,node.update,node.body]:[node.right,node.left,node.body];
+  for(const phase of phases)if(phase){
+   const site=region('evaluation',phase,loop);walk(phase,site,e);
+  }
+  return;
+ }
  if(node.type==='SwitchStatement'){
   const sw=region('switch',node,parent),disc=region('switch-discriminant',node.discriminant,sw);
   walk(node.discriminant,disc,current);
