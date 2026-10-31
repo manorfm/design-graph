@@ -172,12 +172,13 @@ class ToolDispatcher:
                 cast("GraphReader", SimpleNamespace(get_full_source=lambda _: source)), name, args.get("part", 1),
             )
 
-        result = fn()
         if tool_name == "assemble_page":
-            from design_graph.interface.mcp.qualified_source_tool import honest_coverage
+            from design_graph.interface.mcp.qualified_source_tool import (
+                assemble_with_coverage,
+            )
 
-            return honest_coverage(result)
-        return result
+            return assemble_with_coverage(reader, name, args.get("known"), args.get("part", 1))
+        return fn()
 
     def _find_reader(self, name: str) -> GraphReader | None:
         try:

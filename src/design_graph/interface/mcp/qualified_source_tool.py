@@ -57,28 +57,81 @@ QUALIFIED_PROPERTIES = {
 
 
 def honest_coverage(text: str) -> str:
-    """Preserve legacy content except unsupported absence/completeness assertions."""
-    replacements = {
-        FALSE_COMPLETENESS: COVERAGE_NOTICE,
-        "Nenhum além dos que você já tem.": "Nenhum componente adicional registrado; cobertura não provada.",
-        "Nenhum dado repetido.": "Nenhum dado repetido registrado; cobertura não provada.",
-        "Nenhum estado nem ação nos elementos desta tela.": "Nenhum estado nem ação registrado; cobertura não provada.",
-        "Nenhum token ligado aos componentes desta tela.": "Nenhum token registrado ligado aos componentes; cobertura não provada.",
-    }
-    lines = []
-    fence = None
-    for line in text.splitlines(keepends=True):
-        content = line.rstrip("\r\n")
-        marker = re.match(r"^(`{3,}|~{3,})", content)
-        if marker and fence is None:
-            fence = marker.group(1)
-        elif fence is not None:
-            if content == fence:
-                fence = None
-        elif content in replacements:
-            line = replacements[content] + line[len(content):]
-        lines.append(line)
-    return "".join(lines)
+    """Correct only the exact terminal standalone completeness footer.
+
+    Compatibility for prose-only callers; product assembly uses structured blocks
+    below, never this function on source-bearing documents.
+    """
+    footer = "\n## 8. Completude\n" + FALSE_COMPLETENESS
+    if text.endswith(footer):
+        return text[:-len(FALSE_COMPLETENESS)] + COVERAGE_NOTICE
+    return text
+
+
+def _assembly_parts(assembly, known):
+    """Correct generated metadata before packing; code block text is opaque."""
+    from design_graph.interface.mcp.assemble_tool import (
+        _Block,
+        _blocks,
+        _code_blocks,
+        _completeness_lines,
+        _pack,
+    )
+
+    components = [c for c in assembly["components"] if c["name"] not in known]
+    omitted = [c["name"] for c in assembly["components"] if c["name"] in known]
+    data_part = None
+    parts = []
+    for _ in range(3):
+        blocks = _blocks(assembly, known, data_part)
+        assert [b.title for b in blocks[-5:]] == [
+            "4. Dados", "5. Comportamento", "6. Tokens", "7. Dependências", "8. Completude",
+        ]
+        # The baseline generator owns these positions: the final five blocks
+        # are data/behaviour/tokens/dependencies/completeness, never source.
+        # No source title or Markdown delimiter is interpreted as metadata.
+        blocks[-1] = _Block("8. Completude", "\n".join([
+            "## 8. Completude", COVERAGE_NOTICE,
+            *_completeness_lines(assembly["name"], omitted)[1:], "",
+        ]))
+        if not assembly["data"] and not assembly["unread_lists"]:
+            blocks[-5] = _Block("4. Dados", "## 4. Dados\nNenhum dado repetido registrado; cobertura não provada.\n")
+        if not any(o.get("states") or o.get("actions") for o in [assembly, *assembly["components"]]):
+            blocks[-4] = _Block("5. Comportamento", "## 5. Comportamento\nNenhum estado nem ação registrado; cobertura não provada.\n")
+        if not assembly["tokens"]:
+            blocks[-3] = _Block("6. Tokens", "## 6. Tokens usados, por modo\nNenhum token registrado ligado aos componentes; cobertura não provada.\n")
+        if not components:
+            index = 1 + len(_code_blocks("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], assembly["source_lang"]))
+            blocks[index] = _Block("3. Componentes", "## 3. Componentes\nNenhum componente adicional registrado; cobertura não provada.\n")
+        parts = _pack(blocks)
+        found = next(n for n, page in enumerate(parts, 1) if any(b is blocks[-5] for b in page))
+        if found == data_part:
+            return parts
+        data_part = found
+    return parts
+
+
+def assemble_with_coverage(reader, name, known=None, part=1):
+    """Legacy assembly with generated claims corrected before source rendering."""
+    from design_graph.interface.mcp.assemble_tool import _names, _part_number
+
+    assembly = reader.get_screen_assembly(name)
+    if not assembly:
+        return f"Tela '{name}' não encontrada. Use list_screens() para ver as telas do protótipo."
+    names = _names(known)
+    parts = _assembly_parts(assembly, names)
+    number = _part_number(part, len(parts))
+    if number is None:
+        return f"Parte inválida: {part!r}. A montagem de '{assembly['name']}' tem as partes 1 a {len(parts)}."
+    heading = f"# Montar: {assembly['name']}"
+    lines = [heading if len(parts) == 1 else f"{heading} — parte {number}/{len(parts)}", ""]
+    if len(parts) > 1 and number == 1:
+        lines += ["### Partes", *(f"- Parte {n}: {', '.join(b.title for b in page)}" for n, page in enumerate(parts, 1)), ""]
+    lines += [b.text for b in parts[number - 1]]
+    if number < len(parts):
+        same_known = " — com o mesmo known" if names else ""
+        lines.append(f"> Continua: assemble_page('{assembly['name']}', part={number + 1}){same_known}")
+    return "\n".join(lines)
 
 
 def _string(value, field):
@@ -233,7 +286,7 @@ def _source_blocks(records):
 
 
 def _render(tool, args, records, connection):
-    from design_graph.interface.mcp.assemble_tool import _names, _pack, _packed
+    from design_graph.interface.mcp.assemble_tool import _names, _pack
 
     blocks = []
     if tool == "assemble_page":
@@ -242,7 +295,7 @@ def _render(tool, args, records, connection):
         assembly = GraphReader(connection).get_screen_assembly(args["name"])
         if not assembly or assembly["name"] != args["name"]:
             raise ValueError("qualified assembly requires an exact unambiguous stored screen name")
-        blocks = [b for page in _packed(assembly, _names(args.get("known"))) for b in page]
+        blocks = [b for page in _assembly_parts(assembly, _names(args.get("known"))) for b in page]
     parts = _pack(blocks + _source_blocks(records))
     number = args.get("part", 1)
     if number > len(parts):
@@ -252,7 +305,7 @@ def _render(tool, args, records, connection):
     if number == 1:
         lines += ["### Partes", *(f"- Parte {n}: {', '.join(b.title for b in page)}"
                                    for n, page in enumerate(parts, 1))]
-    lines += [honest_coverage(b.text) for b in parts[number - 1]]
+    lines += [b.text for b in parts[number - 1]]
     if number < len(parts):
         lines.append(f"> Continua: {tool}(part={number + 1}) — repeat identical db/snapshot/source_selections/name/known/aspect arguments.")
     return "\n".join(lines)
