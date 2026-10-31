@@ -73,6 +73,18 @@ function pattern(node,parent,current){
  }
  for(const child of children(node))pattern(child,parent,current);
 }
+// Inventory declaration positions, not scope kinds: Annex B also accepts case,
+// if/else and labelled declarations. Ordinary Program/FunctionBody declarations
+// are excluded. This is a conservative risk inventory, never a synthesized var.
+const annexDeclarations=new Set();
+function inventoryAnnex(node,parent=null,owner=null){
+ if(node.type==='FunctionDeclaration'&&!node.async&&!node.generator){
+  const ordinary=parent?.type==='Program'||(parent?.type==='BlockStatement'&&owner?.body===parent&&['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(owner.type));
+  if(!ordinary)annexDeclarations.add(node);
+ }
+ for(const child of children(node))inventoryAnnex(child,node,parent);
+}
+inventoryAnnex(ast);
 for(const n of ast.body)walk(n,root,rootEnv);
 for(const s of manager.scopes){
  let e;
@@ -91,8 +103,11 @@ for(const s of manager.scopes){
   while(r.parent&&r.slot!=='function-creation')r=regions.find(x=>x.id===r.parent);
   markGap(r,'sloppy-direct-eval');
  }
- if(!s.isStrict&&request.source_type==='script'&&s.type==='block'&&s.variables.some(v=>v.defs.some(d=>d.type==='FunctionName'))){
-  let r=regions.find(r=>r.environment===scopeEnvs.get(s));
+ if(!s.isStrict&&request.source_type==='script')for(const v of s.variables)for(const d of v.defs){
+  if(d.type!=='FunctionName'||!annexDeclarations.has(d.node))continue;
+  // Start outside the declaration's own function; its enclosing unit/function
+  // and closures may observe legacy bindings even after the block is exited.
+  let r=regions.find(r=>r.id===nodeRegions.get(d.node).parent);
   while(r.parent&&r.slot!=='function-creation')r=regions.find(x=>x.id===r.parent);
   markGap(r,'annex-b');
  }
