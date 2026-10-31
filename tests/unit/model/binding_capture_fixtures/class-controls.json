@@ -1,0 +1,19 @@
+[
+ {"name":"class-method-default","source":"class C {m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-constructor-default","source":"class C {constructor(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;this.p=/*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"derived-constructor-default","source":"class B{};class C extends B {constructor(/*D:param*/p=0,r=()=>/*d*/p){super();var /*D:body*/p;this.p=/*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-static-method","source":"class C {static m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-private-method","source":"class C {#m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-computed-pattern","source":"const /*D:outer*/X='k';class C {m({[/*k*/X]:/*D:param*/p}){var /*D:body*/p;return /*b*/p;}}","defs":{"k":["outer"],"b":["body"]}},
+ {"name":"class-simple-merge","source":"class C {m(/*D:param*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"b":["param","body"]}},
+ {"name":"class-rest-merge","source":"class C {m(.../*D:param*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"b":["param","body"]}},
+ {"name":"class-destructuring-merge","source":"class C {m({/*D:param*/p}){var /*D:body*/p;return /*b*/p;}}","defs":{"b":["param","body"]}},
+ {"name":"class-generator-method","source":"class C {*m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-async-method","source":"class C {async m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-async-generator-method","source":"class C {async *m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"class-function-var-merge","source":"class C {m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:var*/p;function /*D:fn*/p(){}return /*b*/p;}}","defs":{"d":["param"],"b":["var","fn"]},"relations":[["d","b",false]]},
+ {"name":"class-nested-default-function","source":"class C {m(/*D:outer*/p=0,r=function(/*D:inner*/p=()=>/*d*/p){var /*D:innerbody*/p;return /*i*/p;}){var /*D:outerbody*/p;return /*b*/p;}}","defs":{"d":["inner"],"i":["innerbody"],"b":["outerbody"]},"relations":[["d","i",false],["i","b",false]]},
+ {"name":"named-expression-name","source":"const f=function /*D:name*/p(x=()=>/*d*/p){var /*D:body*/p;return /*b*/p;};","defs":{"d":["name"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"object-method-default","source":"const o={m(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}};","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]},
+ {"name":"async-generator-default","source":"async function* f(/*D:param*/p=0,r=()=>/*d*/p){var /*D:body*/p;return /*b*/p;}","defs":{"d":["param"],"b":["body"]},"relations":[["d","b",false]]}
+]

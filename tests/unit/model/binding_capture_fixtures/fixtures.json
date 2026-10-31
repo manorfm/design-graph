@@ -1,0 +1,605 @@
+[
+  {
+    "name": "direct",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){var X=B;return p;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "dcbb11b7632d44648b5bba9725da022ec01f4494c4c70a782870603d0079f4e5"
+  },
+  {
+    "name": "closure",
+    "source": "const O={};const B={};const X=O;function Probe(p=()=>/*d*/X){var X=B;return p;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "d9357a97710271d4dcdc0123f6e1643e65d88ca40fd2b88a17597301cf4fc412"
+  },
+  {
+    "name": "body_const",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){const X=B;return p;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "4286035548d3f66a07b78e20627f242eb874217c07af4fa357aa6a97b949a53f"
+  },
+  {
+    "name": "homonym_init",
+    "source": "const O={};const B={};const X=O;function Probe(p=O,read=()=>/*d*/p){var p=B;return [read(),/*b*/p];}",
+    "legacy_expected": [
+      [
+        "d",
+        "p",
+        0
+      ],
+      [
+        "b",
+        "p",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "c3b531f89d2d2df5a395ff96cdf1f309d5549df04953232d5b7feceed3a6974f"
+  },
+  {
+    "name": "homonym_uninit",
+    "source": "const O={};const B={};const X=O;function Probe(p=O,read=()=>/*d*/p){var p;/*w*/p=B;return [read(),/*b*/p];}",
+    "legacy_expected": [
+      [
+        "d",
+        "p",
+        0
+      ],
+      [
+        "w",
+        "p",
+        1
+      ],
+      [
+        "b",
+        "p",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "0ee548aa378e133bcac7dc02db4c31963654e54613740e2a2c4fd5ee5f6e70fe"
+  },
+  {
+    "name": "homonym_copy",
+    "source": "const O={};const B={};const X=O;function Probe(p=O,read=()=>/*d*/p){var p;return [read(),/*b*/p];}",
+    "legacy_expected": [
+      [
+        "d",
+        "p",
+        0
+      ],
+      [
+        "b",
+        "p",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "c799499b4e01cb8027459c5186401c3db334364710c3eeda1635f55f8363cfd3"
+  },
+  {
+    "name": "hoist",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){const before=/*h*/X;{{var X=B;}}return [p,before,/*b*/X];}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "h",
+        "X",
+        1
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "188b87439ea1acd416d692076ec62d5837c69294f7353f7fcdd437d194136c1f"
+  },
+  {
+    "name": "simple",
+    "source": "const O={};const B={};const X=O;function Probe(p){var X=B;return ()=>/*b*/X;}",
+    "legacy_expected": [
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "1f165ca390e171bb4ffcf7afef05a4d7318be79b16894ea1763c56b40d9c0b82"
+  },
+  {
+    "name": "destruct_default",
+    "source": "const O={};const B={};const X=O;function Probe({p=/*d*/X}={}){var X=B;return p;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "e1e62e00df441b78824b99c55f2538f41f8524e84cc5dcf757bca77a158ac623"
+  },
+  {
+    "name": "rest",
+    "source": "const O={};const B={};const X=O;function Probe(...p){var X=B;return ()=>/*b*/X;}",
+    "legacy_expected": [
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "3896b307c7ea0dfd63a37e9e75a3ddad600b581ebb9910205f990df522a3d2db"
+  },
+  {
+    "name": "body_closure",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){var X=B;return ()=>/*b*/X;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "5eafae22a8a33f5a500703cfee206939f0822e64d7c49e6bc401f70db8a8d53c"
+  },
+  {
+    "name": "nested",
+    "source": "const O={};const B={};const X=O;function Probe(p=()=>/*o*/X){var X=B;function Inner(q=()=>/*d*/X){var X=O;return [q(),()=>/*b*/X];}return [p(),Inner()];}",
+    "legacy_expected": [
+      [
+        "o",
+        "X",
+        0
+      ],
+      [
+        "d",
+        "X",
+        1
+      ],
+      [
+        "b",
+        "X",
+        2
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "a97f0cbee690cd46fae3e3922d79912260468c3f080da76d063b036018a6d578"
+  },
+  {
+    "name": "function_decl",
+    "source": "const O={};const B={};const X=O;function Probe(p=()=>/*d*/X){function X(){return B;}return [p(),/*b*/X];}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "1ff59d5c2131869eaf02f4be5c61f3e33ca307b7eef7d624d7248253230592fe"
+  },
+  {
+    "name": "switch",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){switch(/*s*/X){case O:const X=B;return [p,/*b*/X];default:return null;}}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "s",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "5aaacc34419fc07f5251da2f5a4391a4eb83b64f37b9b6cf0db5681e47fd8d4e"
+  },
+  {
+    "name": "switch_tdz",
+    "source": "const O={};const B={};const X=O;function Probe(p=/*d*/X){switch(p){case /*t*/X:const X=B;return /*b*/X;}}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "t",
+        "X",
+        1
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "ec54dac4f80cd0cb17a6b1fa7f964c1be37e8928ffa7b064f520bc02ce3bd5f7"
+  },
+  {
+    "name": "utf8",
+    "source": "const O={};const B={};const X=O;const Café=O; /* 😀é */ function Probe(p=()=>/*d*/Café){var Café=B;return p();}",
+    "legacy_expected": [
+      [
+        "d",
+        "Café",
+        0
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "3c392a1d1e697502b5597e71f975687e1d26c119526dd88ef1278e98af6159d1"
+  },
+  {
+    "name": "computed",
+    "source": "const O={};const B={};const X=O;function Probe({[/*k*/X]:p}){var X=B;return [p,/*b*/X];}",
+    "legacy_expected": [
+      [
+        "k",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "8f3ddaba36210b301dda61bffc85333ffb5e83ebdb3d44eae77135b6a217e21a"
+  },
+  {
+    "name": "nested_pattern",
+    "source": "const O={};const B={};const X=O;function Probe([{p=/*d*/X}]){var X=B;return /*b*/X;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "0bac7539089f0271ecdfe607a4bca8e94f92d3237f50f39f0643c8d54607f7c9"
+  },
+  {
+    "name": "rest_pattern_expression",
+    "source": "const O={};const B={};const X=O;function Probe(...[{p=/*d*/X}]){var X=B;return /*b*/X;}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "fa4fdc3443bce247f1df7ee240ab74940ddfd3a2cad8748798c72220a36fa8a2"
+  },
+  {
+    "name": "computed_homonym",
+    "source": "const O={};const B={};const X=O;function Probe({[O]:p}){var p;return /*b*/p;}",
+    "legacy_expected": [
+      [
+        "b",
+        "p",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "e27f781ac0d2e526628b9e539c45859ab6c99c20b2f21480660d5b33bc595f5c"
+  },
+  {
+    "name": "functionvar",
+    "source": "const O={};const B={};const X=O;function Probe(p=0){function X(){return B;}var X;return /*b*/X;}",
+    "legacy_expected": [
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "0070639001956975e43781a86183fbbc4a258f8742ccc6926b572e6e04ca6ea0"
+  },
+  {
+    "name": "functionvar_reverse",
+    "source": "const O={};const B={};const X=O;function Probe(p=0){var X;function X(){return B;}return /*b*/X;}",
+    "legacy_expected": [
+      [
+        "b",
+        "X",
+        2
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "64b63c83098e3accb045b2b6a3939f0de9f0508a2d429509880c7982fc5cc81f"
+  },
+  {
+    "name": "functionvar_default",
+    "source": "const O={};const B={};const X=O;function Probe(p=()=>/*d*/X){function X(){return B;}var X;return [p(),/*b*/X];}",
+    "legacy_expected": [
+      [
+        "d",
+        "X",
+        0
+      ],
+      [
+        "b",
+        "X",
+        1
+      ]
+    ],
+    "mode": "module",
+    "syntax": "js",
+    "origin": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/test_experiment.py",
+    "sha256": "add786e0c0f4145805a6e22709142dd700d81e4180e341da5d49431c6d765689"
+  },
+  {
+    "name": "simple_alias",
+    "source": "function Probe(p){var p;return /*b*/p;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "0ba5cf314badabf2f8b6e2c4fad39362cf8f94e2f41e3d01cac19497cc35f266"
+  },
+  {
+    "name": "destruct_alias",
+    "source": "function Probe({p}){var p;return /*b*/p;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "89f2c3059fcc7c88ca05f35ca455d8ec44a6f3cc2465a0cadd2fce8c10af9bcf"
+  },
+  {
+    "name": "rest_alias",
+    "source": "function Probe(...p){var p;return /*b*/p;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "2730e58bb8e338b9bba4bffa4a2dbc3540ac3d845aac6e46335058e97687e269"
+  },
+  {
+    "name": "var_var",
+    "source": "function Probe(){var X;var X;return /*b*/X;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "2c35f74ce8139922e012b2bc82b0c31d599f0e29dc7a5414302efc1e7b1b9f7a"
+  },
+  {
+    "name": "shadow",
+    "source": "let X;function Probe(){let X;return ()=>/*b*/X;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "737601f1de960720d730b6dd4ffdd85a5e0d4f5dc2fbef7413a5fbf39aef49e3"
+  },
+  {
+    "name": "annexb",
+    "source": "var X;function Probe(){if(true){function X(){}}return /*b*/X;}",
+    "mode": "script",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "e7ed9b199857ccf3e9350959a2467e6f043296054a7b706c9642d5e2f10fc5bc"
+  },
+  {
+    "name": "eval",
+    "source": "let X;function Probe(){eval(\"var X=1\");return /*b*/X;}",
+    "mode": "script",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "08a5754fc674eaee2dde90bfe4ac93bf9ff44ce740eaf63044e965a928ca6fa6"
+  },
+  {
+    "name": "with",
+    "source": "var X;function Probe(o){with(o){return /*b*/X;}}",
+    "mode": "script",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "38d2a03d69066c973af86a6a5a2adddf1c5da43f61765ec7684b6b633d1c9a21"
+  },
+  {
+    "name": "global_script",
+    "source": "var X;function Probe(){return /*b*/X;}",
+    "mode": "script",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "156d16c3042a04fb6227702676cdfb2ab28c7246f23152f351018ba92d1b541d"
+  },
+  {
+    "name": "global_module",
+    "source": "var X;function Probe(){return /*b*/X;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "new control",
+    "sha256": "156d16c3042a04fb6227702676cdfb2ab28c7246f23152f351018ba92d1b541d"
+  },
+  {
+    "name": "jsx",
+    "source": "const Widget=()=>null;const view=<Widget/>;",
+    "mode": "module",
+    "syntax": "jsx",
+    "origin": "new control",
+    "sha256": "11f5859af97feae78b30b6231729dfc43424fe485ba68a5852305276db00f8f7"
+  },
+  {
+    "name": "typescript",
+    "source": "type X={p:number};const X=1;function Probe(p:X):number{return /*b*/X;}",
+    "mode": "module",
+    "syntax": "ts",
+    "origin": "new control",
+    "sha256": "839874afdb015172e3fe948fc3e6221f8601ec410a59327c80419363a1045ad1"
+  },
+  {
+    "name": "tsx",
+    "source": "type P={x:number};const Widget=(p:P)=>null;const view=<Widget x={1}/>;",
+    "mode": "module",
+    "syntax": "tsx",
+    "origin": "new control",
+    "sha256": "8d61c31edbdca117b0df5aa0abce693c5256c4c0a35ea820013bc95791b90f8b"
+  },
+  {
+    "name": "class_method_homonym",
+    "source": "class C { method(p=0,read=()=>/*d*/p){var p=1;return [read(),/*b*/p];}}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "11c4d74548d4d6bda434e148327046322a6bc62d1081b73f8e4a3e0d68a190e1"
+  },
+  {
+    "name": "object_method_homonym",
+    "source": "const o={method(p=0,read=()=>/*d*/p){var p=1;return [read(),/*b*/p];}};",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "40d28c9d4dcafee44d1a51130d248e4a4bcabd9f1a76d33db3ee4ac8fda6d88e"
+  },
+  {
+    "name": "arrow_homonym",
+    "source": "const f=(p=0,read=()=>/*d*/p)=>{var p=1;return [read(),/*b*/p];};",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "849c4fdc6bde5f2165a6426f78e7cdeff4480b799d14efda8bb12572fee6126c"
+  },
+  {
+    "name": "async_homonym",
+    "source": "async function f(p=0,read=()=>/*d*/p){var p=1;return [read(),/*b*/p];}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "0be0d59fb0cd81af032d112cc59988d8ec930384728a4a750074e1cc2be221b1"
+  },
+  {
+    "name": "generator_homonym",
+    "source": "function* f(p=0,read=()=>/*d*/p){var p=1;return [read(),/*b*/p];}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "637e26c080f2da5cf84259acd3101cf2e77f024e6678079e55ffb3ebbdaef02f"
+  },
+  {
+    "name": "arguments_single",
+    "source": "function f(p=0,read=()=>/*d*/arguments){return /*b*/arguments;}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "5616c741f1596a916e6b0cc2b4951c40c65e6a80ea038101d12bf1c86c51305a"
+  },
+  {
+    "name": "parameter_function_homonym",
+    "source": "function f(p=0,read=()=>/*d*/p){function p(){}var p;return [read(),/*b*/p];}",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "dacc9ffdf9e557c5843b4a4dbb4d51f1ba2c612e4545d44d5f610fe3bcb7e91c"
+  },
+  {
+    "name": "functionname_homonym",
+    "source": "const f=function p(x=()=>/*d*/p){var p;return /*b*/p;};",
+    "mode": "module",
+    "syntax": "js",
+    "origin": "additional spike boundary",
+    "sha256": "67c20486ff03e012493349d050a3dfeba760c9fe60a6201590e97b24e8c4e4ec"
+  }
+]

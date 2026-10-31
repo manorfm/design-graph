@@ -1,0 +1,14 @@
+{
+  "name": "design-graph-engine-research",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "espree": "11.2.0",
+    "eslint-scope": "9.1.2",
+    "@babel/parser": "8.0.10",
+    "@babel/traverse": "8.0.10",
+    "typescript": "6.0.3",
+    "@typescript-eslint/scope-manager": "8.72.1",
+    "@typescript-eslint/typescript-estree": "8.72.1"
+  }
+}

@@ -1,0 +1,489 @@
+{
+  "note": "Normative occurrence sets from old manually labeled fixture declaration indices; source snapshots only map their byte spans, not trust baseline resolution. Function+var expanded to all valid occurrences. New alias controls explicitly enumerate both declarations. Identity is separate from value.",
+  "fixtures": {
+    "direct": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ]
+    },
+    "closure": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ]
+    },
+    "body_const": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ]
+    },
+    "homonym_init": {
+      "d": [
+        [
+          47,
+          48
+        ]
+      ],
+      "b": [
+        [
+          72,
+          73
+        ]
+      ]
+    },
+    "homonym_uninit": {
+      "d": [
+        [
+          47,
+          48
+        ]
+      ],
+      "w": [
+        [
+          72,
+          73
+        ]
+      ],
+      "b": [
+        [
+          72,
+          73
+        ]
+      ]
+    },
+    "homonym_copy": {
+      "d": [
+        [
+          47,
+          48
+        ]
+      ],
+      "b": [
+        [
+          72,
+          73
+        ]
+      ]
+    },
+    "hoist": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "h": [
+        [
+          83,
+          84
+        ]
+      ],
+      "b": [
+        [
+          83,
+          84
+        ]
+      ]
+    },
+    "simple": {
+      "b": [
+        [
+          54,
+          55
+        ]
+      ]
+    },
+    "destruct_default": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ]
+    },
+    "rest": {
+      "b": [
+        [
+          57,
+          58
+        ]
+      ]
+    },
+    "body_closure": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          61,
+          62
+        ]
+      ]
+    },
+    "nested": {
+      "o": [
+        [
+          28,
+          29
+        ]
+      ],
+      "d": [
+        [
+          65,
+          66
+        ]
+      ],
+      "b": [
+        [
+          102,
+          103
+        ]
+      ]
+    },
+    "function_decl": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          70,
+          71
+        ]
+      ]
+    },
+    "switch": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "s": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          85,
+          86
+        ]
+      ]
+    },
+    "switch_tdz": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "t": [
+        [
+          85,
+          86
+        ]
+      ],
+      "b": [
+        [
+          85,
+          86
+        ]
+      ]
+    },
+    "utf8": {
+      "d": [
+        [
+          38,
+          43
+        ]
+      ]
+    },
+    "computed": {
+      "k": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          65,
+          66
+        ]
+      ]
+    },
+    "nested_pattern": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          65,
+          66
+        ]
+      ]
+    },
+    "rest_pattern_expression": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          68,
+          69
+        ]
+      ]
+    },
+    "computed_homonym": {
+      "b": [
+        [
+          60,
+          61
+        ]
+      ]
+    },
+    "functionvar": {
+      "b": [
+        [
+          61,
+          62
+        ],
+        [
+          79,
+          80
+        ]
+      ]
+    },
+    "functionvar_reverse": {
+      "b": [
+        [
+          56,
+          57
+        ],
+        [
+          67,
+          68
+        ]
+      ]
+    },
+    "functionvar_default": {
+      "d": [
+        [
+          28,
+          29
+        ]
+      ],
+      "b": [
+        [
+          70,
+          71
+        ],
+        [
+          88,
+          89
+        ]
+      ]
+    },
+    "simple_alias": {
+      "b": [
+        [
+          15,
+          16
+        ],
+        [
+          22,
+          23
+        ]
+      ]
+    },
+    "destruct_alias": {
+      "b": [
+        [
+          16,
+          17
+        ],
+        [
+          24,
+          25
+        ]
+      ]
+    },
+    "rest_alias": {
+      "b": [
+        [
+          18,
+          19
+        ],
+        [
+          25,
+          26
+        ]
+      ]
+    },
+    "var_var": {
+      "b": [
+        [
+          21,
+          22
+        ],
+        [
+          27,
+          28
+        ]
+      ]
+    },
+    "shadow": {
+      "b": [
+        [
+          27,
+          28
+        ]
+      ]
+    },
+    "annexb": {},
+    "eval": {},
+    "with": {},
+    "global_script": {
+      "b": [
+        [
+          4,
+          5
+        ]
+      ]
+    },
+    "global_module": {
+      "b": [
+        [
+          4,
+          5
+        ]
+      ]
+    },
+    "jsx": {},
+    "typescript": {},
+    "tsx": {},
+    "class_method_homonym": {},
+    "object_method_homonym": {},
+    "arrow_homonym": {},
+    "async_homonym": {},
+    "generator_homonym": {},
+    "arguments_single": {},
+    "parameter_function_homonym": {},
+    "functionname_homonym": {}
+  },
+  "custody": [
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-direct.json",
+      "sha256": "e67babd83d3275173818793bac058dcd4a7dda074f18d5702c5f0e078ac97006"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-closure.json",
+      "sha256": "9fd465c2dd892a84fb2022b360e9ababb003e8542405aec11313ca496f965bcd"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-body_const.json",
+      "sha256": "b71e9b0e15d9f62269ffa62015ee083f229e44e5fa1e65bab7e010c701422f13"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-homonym_init.json",
+      "sha256": "a8e7fce1ac9ac9b40a3f23e46e29282b9719e90c5311e8fb8df3e67f9e61038a"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-homonym_uninit.json",
+      "sha256": "719e8c2381ed7624b0830332bacfce5c76b22dcc16b57588a3fceafd5588fe8e"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-homonym_copy.json",
+      "sha256": "1536bad67e3efa2e27b895fbd8ba5fe295645c71ecb4eab3c2a74b348060e6ac"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-hoist.json",
+      "sha256": "9374d1d2acaa160cebe1a239394c50fbcac3657d0436567c830e6e276a182ee3"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-simple.json",
+      "sha256": "f5e102ab090a692788f0ceff5998a4189b018835cbceec0f3e671a7fe197f7a6"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-destruct_default.json",
+      "sha256": "cc448cad8e20d55859ccad602ed8b42f144b6e91b132517f6afd96bded677dd3"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-rest.json",
+      "sha256": "0b7b23da9ddb04f3644012e374abaa68d79a61a13cb2b11376c7ad635c197b9b"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-body_closure.json",
+      "sha256": "baee865bcea610b2379f73a117d5d24e6c9b674a13b5395587aec1239e3c0728"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-nested.json",
+      "sha256": "ef3a7e633c2dedcbb1287a25e2716148b81223c3352fd5e33cd69214b2108978"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-function_decl.json",
+      "sha256": "8c7349700fae602e3cf913d1ffbea3a8ae90673ca59ee12407a3fb918e66a817"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-switch.json",
+      "sha256": "505602d8d63b7303bead52c7943b4358cc6f0c089dfdc5a05e21b717e9faaffc"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-switch_tdz.json",
+      "sha256": "dc27c9f203c3888ed9526f6c7de8b818c3c657f0ad6465e92ba99b40dfc1dd97"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-utf8.json",
+      "sha256": "991d44c19719bcf3475cb0fb7cade96ae65082b148ded558c3b80f0e49089867"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-computed.json",
+      "sha256": "4f42366d7e2fa4d05aec7dcd8b0dbb13e91845df43dc863ecf3b97064ebfc3d6"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-nested_pattern.json",
+      "sha256": "869277dede1b30ec050d3e235d04a8cb5dcdaa125d08c2c5452d806c42881aff"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-rest_pattern_expression.json",
+      "sha256": "108b463428c38c2af1540348fc03df4652e66a521998ba3935e19d5b179adbc1"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-computed_homonym.json",
+      "sha256": "8df0cfc887b8e168e0689e33df7cb564d5bad67cf9b2cf35bd77b2f28b7c4699"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-functionvar.json",
+      "sha256": "5d10d7fab801d270e484641def0ef6cff0481dff171b53b7ba91a7092685bc6e"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-functionvar_reverse.json",
+      "sha256": "66be486cd7b99b23deab07466f5a9bad77ceb65a52c9a51e118be9199d21dd0b"
+    },
+    {
+      "path": "/home/manoelmedeiros/.hermes/cache/scratch/var-body-experiment-20261030/refined/baseline-functionvar_default.json",
+      "sha256": "47c4629f72478d7ff462b49700df5de07f695b2b2447b84de240386c60f7a01f"
+    }
+  ]
+}

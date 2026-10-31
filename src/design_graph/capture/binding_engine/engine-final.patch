@@ -1,0 +1,146 @@
+--- a/dist/referencer/Referencer.js
++++ b/dist/referencer/Referencer.js
+@@ -153,6 +153,27 @@
+         this.visit(node.body);
+         this.close(node);
+     }
++    // FDI: expressions in binding patterns, not just non-simple parameters.
++    nestFunctionBodyScope(node, isMethodDefinition) {
++        const containsExpression = pattern => {
++            if (!pattern) return false;
++            switch (pattern.type) {
++                case "AssignmentPattern": return true;
++                case "RestElement": return containsExpression(pattern.argument);
++                case "ArrayPattern": return pattern.elements.some(containsExpression);
++                case "ObjectPattern": return pattern.properties.some(prop =>
++                    prop.type === "RestElement" ? containsExpression(prop.argument) :
++                    prop.computed || containsExpression(prop.value));
++                case "TSParameterProperty": return containsExpression(pattern.parameter);
++                default: return false;
++            }
++        };
++        if (!node.params.some(containsExpression)) return;
++        this.currentScope().designGraphRole = "parameters";
++        // This is a var environment, not a second call: do not create arguments.
++        this.scopeManager.nestFunctionScope(node, isMethodDefinition, true);
++        this.currentScope().designGraphRole = "body-variables";
++    }
+     visitFunction(node) {
+         // FunctionDeclaration name is defined in upper scope
+         // NOTE: Not referring variableScope. It is intended.
+@@ -186,6 +207,7 @@
+         // In TypeScript there are a number of function-like constructs which have no body,
+         // so check it exists before traversing
+         if (node.body) {
++            this.nestFunctionBodyScope(node, false);
+             // Skip BlockStatement to prevent creating BlockStatement scope.
+             if (node.body.type === types_1.AST_NODE_TYPES.BlockStatement) {
+                 this.visitChildren(node.body);
+@@ -567,4 +589,3 @@
+     }
+ }
+ exports.Referencer = Referencer;
+-//# sourceMappingURL=Referencer.js.map
+\ No newline at end of file
+--- a/dist/referencer/ClassVisitor.js
++++ b/dist/referencer/ClassVisitor.js
+@@ -98,6 +98,7 @@
+         }
+         this.visitType(node.returnType);
+         this.visitType(node.typeParameters);
++        this.#referencer.nestFunctionBodyScope(node, true);
+         this.#referencer.visitChildren(node.body);
+         this.#referencer.close(node);
+     }
+@@ -176,4 +177,3 @@
+     }
+ }
+ exports.ClassVisitor = ClassVisitor;
+-//# sourceMappingURL=ClassVisitor.js.map
+\ No newline at end of file
+--- a/dist/ScopeManager.js
++++ b/dist/ScopeManager.js
+@@ -138,9 +138,9 @@
+         (0, assert_1.assert)(this.currentScope);
+         return this.nestScope(new scope_1.FunctionExpressionNameScope(this, this.currentScope, node));
+     }
+-    nestFunctionScope(node, isMethodDefinition) {
++    nestFunctionScope(node, isMethodDefinition, isBodyVariableScope = false) {
+         (0, assert_1.assert)(this.currentScope);
+-        return this.nestScope(new scope_1.FunctionScope(this, this.currentScope, node, isMethodDefinition));
++        return this.nestScope(new scope_1.FunctionScope(this, this.currentScope, node, isMethodDefinition, isBodyVariableScope));
+     }
+     nestFunctionTypeScope(node) {
+         (0, assert_1.assert)(this.currentScope);
+@@ -187,4 +187,3 @@
+     }
+ }
+ exports.ScopeManager = ScopeManager;
+-//# sourceMappingURL=ScopeManager.js.map
+\ No newline at end of file
+--- a/dist/scope/FunctionScope.js
++++ b/dist/scope/FunctionScope.js
+@@ -5,11 +5,11 @@
+ const ScopeBase_1 = require("./ScopeBase");
+ const ScopeType_1 = require("./ScopeType");
+ class FunctionScope extends ScopeBase_1.ScopeBase {
+-    constructor(scopeManager, upperScope, block, isMethodDefinition) {
++    constructor(scopeManager, upperScope, block, isMethodDefinition, isBodyVariableScope = false) {
+         super(scopeManager, ScopeType_1.ScopeType.function, upperScope, block, isMethodDefinition);
+         // section 9.2.13, FunctionDeclarationInstantiation.
+         // NOTE Arrow functions never have an arguments objects.
+-        if (this.block.type !== types_1.AST_NODE_TYPES.ArrowFunctionExpression) {
++        if (!isBodyVariableScope && this.block.type !== types_1.AST_NODE_TYPES.ArrowFunctionExpression) {
+             this.defineVariable('arguments', this.set, this.variables, null, null);
+         }
+     }
+@@ -24,6 +24,11 @@
+         if (this.block.type === types_1.AST_NODE_TYPES.Program) {
+             return true;
+         }
++        // Implicit arguments is instantiated before parameter evaluation.
++        // It has no source Definition; every([]) must not classify it as body-only.
++        if (variable.name === "arguments" && variable.defs.length === 0) {
++            return true;
++        }
+         const bodyStart = this.block.body?.range[0] ?? -1;
+         // It's invalid resolution in the following case:
+         return !(variable.scope === this &&
+@@ -33,4 +38,3 @@
+     }
+ }
+ exports.FunctionScope = FunctionScope;
+-//# sourceMappingURL=FunctionScope.js.map
+\ No newline at end of file
+--- a/dist/ScopeManager.d.ts
++++ b/dist/ScopeManager.d.ts
+@@ -62,7 +62,7 @@
+     nestConditionalTypeScope(node: ConditionalTypeScope['block']): ConditionalTypeScope;
+     nestForScope(node: ForScope['block']): ForScope;
+     nestFunctionExpressionNameScope(node: FunctionExpressionNameScope['block']): FunctionExpressionNameScope;
+-    nestFunctionScope(node: FunctionScope['block'], isMethodDefinition: boolean): FunctionScope;
++    nestFunctionScope(node: FunctionScope['block'], isMethodDefinition: boolean, isBodyVariableScope?: boolean): FunctionScope;
+     nestFunctionTypeScope(node: FunctionTypeScope['block']): FunctionTypeScope;
+     nestGlobalScope(node: GlobalScope['block']): GlobalScope;
+     nestMappedTypeScope(node: MappedTypeScope['block']): MappedTypeScope;
+--- a/dist/scope/FunctionScope.d.ts
++++ b/dist/scope/FunctionScope.d.ts
+@@ -6,6 +6,7 @@
+ import { ScopeBase } from './ScopeBase';
+ import { ScopeType } from './ScopeType';
+ export declare class FunctionScope extends ScopeBase<ScopeType.function, TSESTree.ArrowFunctionExpression | TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.Program | TSESTree.TSDeclareFunction | TSESTree.TSEmptyBodyFunctionExpression, Scope> {
+-    constructor(scopeManager: ScopeManager, upperScope: FunctionScope['upper'], block: FunctionScope['block'], isMethodDefinition: boolean);
++    constructor(scopeManager: ScopeManager, upperScope: FunctionScope['upper'], block: FunctionScope['block'], isMethodDefinition: boolean, isBodyVariableScope?: boolean);
++    designGraphRole?: "parameters" | "body-variables";
+     protected isValidResolution(ref: Reference, variable: Variable): boolean;
+ }
+--- a/dist/referencer/Referencer.d.ts
++++ b/dist/referencer/Referencer.d.ts
+@@ -31,6 +31,7 @@
+     private referenceJsxPragma;
+     protected visitClass(node: TSESTree.ClassDeclaration | TSESTree.ClassExpression): void;
+     protected visitForIn(node: TSESTree.ForInStatement | TSESTree.ForOfStatement): void;
++    nestFunctionBodyScope(node: TSESTree.ArrowFunctionExpression | TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.TSDeclareFunction | TSESTree.TSEmptyBodyFunctionExpression, isMethodDefinition: boolean): void;
+     protected visitFunction(node: TSESTree.ArrowFunctionExpression | TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.TSDeclareFunction | TSESTree.TSEmptyBodyFunctionExpression): void;
+     protected visitFunctionParameterTypeAnnotation(node: TSESTree.Parameter): void;
+     protected visitJSXElement(node: TSESTree.JSXClosingElement | TSESTree.JSXOpeningElement): void;

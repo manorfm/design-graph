@@ -1,0 +1,367 @@
+[
+  {
+    "name": "implicit-default-arrow-body",
+    "source": "function f(p=0,r=()=>/*d*/arguments){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ],
+    "implicitCounts": {
+      "d": 1
+    }
+  },
+  {
+    "name": "implicit-direct-default",
+    "source": "function f(p=/*d*/arguments){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "arrow-inherits-through-two-defaults",
+    "source": "function f(p=()=>((x=()=>/*d*/arguments)=>/*a*/arguments)){return ()=>/*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "a": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "a",
+        true
+      ],
+      [
+        "a",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "a",
+      "b"
+    ]
+  },
+  {
+    "name": "arrow-simple-body-inherits",
+    "source": "function f(){const r=()=>/*d*/arguments;return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "arrow-own-parameter-arguments",
+    "source": "function f(){return (/*D:param*/arguments=()=>/*d*/arguments)=>/*b*/arguments;}",
+    "defs": {
+      "d": [
+        "param"
+      ],
+      "b": [
+        "param"
+      ]
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "mode": "script"
+  },
+  {
+    "name": "body-var-arguments-distinct",
+    "source": "function f(p=()=>/*d*/arguments){var /*D:body*/arguments;return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": [
+        "body"
+      ]
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        false
+      ]
+    ],
+    "implicit": [
+      "d"
+    ],
+    "mode": "script"
+  },
+  {
+    "name": "parameter-arguments-no-implicit",
+    "source": "const f=function(/*D:param*/arguments=0,r=()=>/*d*/arguments){var /*D:body*/arguments;return /*b*/arguments;};",
+    "mode": "script",
+    "defs": {
+      "d": [
+        "param"
+      ],
+      "b": [
+        "body"
+      ]
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        false
+      ]
+    ],
+    "implicitCounts": {
+      "d": 0
+    }
+  },
+  {
+    "name": "class-method-arguments",
+    "source": "class C {m(r=()=>/*d*/arguments){return /*b*/arguments;}}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ],
+    "implicitCounts": {
+      "d": 1
+    }
+  },
+  {
+    "name": "class-constructor-arguments",
+    "source": "class C {constructor(r=()=>/*d*/arguments){this.a=/*b*/arguments;}}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "object-method-arguments",
+    "source": "const o={m(r=()=>/*d*/arguments){return /*b*/arguments;}};",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "named-expression-arguments",
+    "source": "const f=function named(r=()=>/*d*/arguments){return /*b*/arguments;};",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "generator-arguments",
+    "source": "function* f(r=()=>/*d*/arguments){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "async-arguments",
+    "source": "async function f(r=()=>/*d*/arguments){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "async-generator-arguments",
+    "source": "async function* f(r=()=>/*d*/arguments){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "b"
+    ]
+  },
+  {
+    "name": "nested-default-function-arguments",
+    "source": "function f(r=function(x=()=>/*d*/arguments){return /*i*/arguments;}){return /*b*/arguments;}",
+    "defs": {
+      "d": [],
+      "i": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "i",
+        true
+      ],
+      [
+        "i",
+        "b",
+        false
+      ]
+    ],
+    "implicit": [
+      "d",
+      "i",
+      "b"
+    ]
+  },
+  {
+    "name": "class-nested-arrow-inherits",
+    "source": "class C {m(r=(x=()=>/*d*/arguments)=>/*a*/arguments){return /*b*/arguments;}}",
+    "defs": {
+      "d": [],
+      "a": [],
+      "b": []
+    },
+    "relations": [
+      [
+        "d",
+        "a",
+        true
+      ],
+      [
+        "a",
+        "b",
+        true
+      ]
+    ],
+    "implicit": [
+      "d",
+      "a",
+      "b"
+    ]
+  },
+  {
+    "name": "nested-parameter-environments",
+    "source": "function f(/*D:outer*/p=0,r=(/*D:inner*/p=()=>/*d*/p)=>{var /*D:innerbody*/p;return /*i*/p;}){var /*D:outerbody*/p;return /*b*/p;}",
+    "defs": {
+      "d": [
+        "inner"
+      ],
+      "i": [
+        "innerbody"
+      ],
+      "b": [
+        "outerbody"
+      ]
+    },
+    "relations": [
+      [
+        "d",
+        "i",
+        false
+      ],
+      [
+        "i",
+        "b",
+        false
+      ]
+    ]
+  }
+]

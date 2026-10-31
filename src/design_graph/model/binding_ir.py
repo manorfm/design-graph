@@ -28,6 +28,8 @@ class DeclarationKind(str, Enum):
     LET = "let"
     CONST = "const"
     PARAMETER = "parameter"
+    CLASS = "class"
+    FUNCTION_NAME = "function-name"
 
 
 class EnvironmentKind(str, Enum):
@@ -211,6 +213,8 @@ class EvaluationSlot(str, Enum):
     FUNCTION_BODY = "function-body"
     PARAMETER_DEFAULT = "parameter-default"
     PARAMETER_COMPUTED = "parameter-computed"
+    FUNCTION_NAME = "function-name"
+    CLASS = "class"
 
 
 class AccessKind(str, Enum):
@@ -327,6 +331,14 @@ class Envelope:
         envelope = _decode(Envelope, asdict(self))
         if envelope.version != "binding-ir/1" or envelope.profile != "lexical-chain/1":
             raise ValueError("unsupported version or profile")
+        if any(
+            d.kind in (DeclarationKind.CLASS, DeclarationKind.FUNCTION_NAME)
+            for d in envelope.occurrences
+        ) or any(
+            r.slot in (EvaluationSlot.CLASS, EvaluationSlot.FUNCTION_NAME)
+            for r in envelope.regions
+        ):
+            raise ValueError("capture-only extension requires version 2")
         result = _Checker(envelope).run()
         if receipt is not None:
             if not isinstance(receipt, AdmissionReceipt):
@@ -528,7 +540,7 @@ class _Checker:
             required = EnvironmentKind.ROOT
         elif parent is None:
             raise ValueError("non-root without parent")
-        elif r.slot == EvaluationSlot.BLOCK:
+        elif r.slot in (EvaluationSlot.BLOCK, EvaluationSlot.CLASS, EvaluationSlot.FUNCTION_NAME):
             required = EnvironmentKind.BLOCK
         elif r.slot in (EvaluationSlot.SWITCH_CASE, EvaluationSlot.SWITCH_DISCRIMINANT):
             if parent.slot != EvaluationSlot.SWITCH:
@@ -581,10 +593,13 @@ class _Checker:
         self.origins[key] = result
         return result
 
+    def canonical_inventory(self):
+        return canonical_bindings(self.e.environments, self.e.occurrences)
+
     def run(self) -> CheckResult:
         self.source_units()
         self.topology()
-        expected = canonical_bindings(self.e.environments, self.e.occurrences)
+        expected = self.canonical_inventory()
         if sorted(self.e.bindings, key=lambda b: b.id) != sorted(
             expected, key=lambda b: b.id
         ):
