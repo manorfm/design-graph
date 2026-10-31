@@ -39,6 +39,7 @@ def read_manifest(path, identity, fingerprint):
         "build_fingerprint",
         "snapshot",
         "roots",
+        "general",
     }:
         raise ValueError("incompatible binding completion fields")
     actual = {key: previous[key] for key in expected}

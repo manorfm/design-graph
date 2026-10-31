@@ -30,8 +30,12 @@ from design_graph.model.graph.binding_context import (
 from design_graph.model.graph.schema import MODEL_VERSION, initialize_schema
 from design_graph.model.graph.writer import GraphWriter
 from design_graph.pipeline.binding_completion import read_manifest, verify_snapshot
+from design_graph.pipeline.binding_general_completion import (
+    general_receipt,
+    verify_general,
+)
 
-CONTRACT = "binding-build/2"
+CONTRACT = "binding-build/3"
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,7 @@ class BindingStage:
             try:
                 snapshot = read_binding_context(connection, previous["snapshot"])
                 verify_snapshot(snapshot, previous, self.manifest)
+                verify_general(connection, previous["general"])
                 return (
                     True  # read_binding_context already verified the selected digest.
                 )
@@ -191,6 +196,7 @@ class BindingWriteSession:
                         "critical general graph writes failed; binding build not sealed"
                     )
                 write_binding_context(self.conn, self.stage.snapshot)
+                self.stage.manifest["general"] = general_receipt(self.conn)
                 self.conn.close()
                 self.conn = None
                 self.db.close()
