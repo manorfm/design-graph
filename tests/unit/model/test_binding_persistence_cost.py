@@ -190,7 +190,7 @@ def test_deep_mutable_descendants_refuse(capture, which):
         snapshot(forged)
 
 
-def test_normal_build_checked_and_canonicalized_once(tmp_path):
+def test_normal_build_revalidated_at_explicit_ownership_boundaries(tmp_path):
     from tests.unit.pipeline.test_binding_cli import build
 
     html = tmp_path / "small.html"
@@ -220,13 +220,13 @@ atexit.register(lambda: Path({str(receipt)!r}).write_text(json.dumps(counts)))
 """
     result = build(html, db, before=instrument)
     assert result.returncode == 0, result.stderr
-    assert json.loads(receipt.read_text()) == {"semantic": 1, "canonical": 1}
+    assert json.loads(receipt.read_text()) == {"semantic": 18, "canonical": 3}
     manifest = json.loads(Path(str(db) + ".binding.json").read_text())
-    assert manifest["contract"] == "binding-build/3" and manifest["general"]
+    assert manifest["contract"] == "binding-build/4" and manifest["general"]
     unchanged = build(html, db, before=instrument)
     assert unchanged.returncode == 0, unchanged.stderr
     assert json.loads(unchanged.stdout)["status"] == "skipped"
-    assert json.loads(receipt.read_text()) == {"semantic": 1, "canonical": 1}
+    assert json.loads(receipt.read_text()) == {"semantic": 6, "canonical": 2}
 
 
 def test_same_connection_mutated_bytes_are_checked_next_call(

@@ -134,6 +134,9 @@ async def run_pipeline(
             name, index=idx, total=total
         ),
     )
+    if binding_stage is not None:
+        from design_graph.model.graph.source_build_ownership import DocumentDomain
+        binding_stage.domain = DocumentDomain(db_path.stem, tuple(sorted(s.name for s in result.screens)))
     extracted_comps = result.components
     screens         = result.screens
     sections_map    = result.sections
@@ -210,13 +213,16 @@ async def run_pipeline(
     # changed since I last looked" shouldn't depend on the CLI user having
     # happened to pass --diff on their last build.
     diff = compute_diff(prev_state, screens, comp_counter)
-    save_build_state(state_path, build_new_state(
+    new_state = build_new_state(
         document.digest, screens, comp_counter,
         source_path=html_path, database_path=db_path, diff=diff,
         skipped_entries=result.skipped_entries,
-    ))
+    )
     if binding_stage is not None:
+        binding_stage.publish_state(state_path, new_state, save_build_state)
         binding_stage.seal(db_path)
+    else:
+        save_build_state(state_path, new_state)
     elapsed = time.monotonic() - t_start
 
     stats = BuildStats(

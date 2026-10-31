@@ -93,6 +93,61 @@ def general_receipt(connection):
     }
 
 
+def property_receipt(connection):
+    """Explicit full-property v1; legacy general_receipt semantics stay unchanged.
+
+    Bound strings before fetching them, then total canonical bytes/rows. The
+    physical JSON extension is deliberately excluded to avoid a recursive hash.
+    """
+    from design_graph.model.graph.source_build_ownership import (
+        GeneralCommitment, PayloadOwner, TableCommitment,
+    )
+    shape = general_receipt(connection)
+    nodes, rels = node_tables(), rel_tables()
+    tables, owners, total_bytes, total_rows = [], [], 0, 0
+    for name, table in list(nodes.items()) + list(rels.items()):
+        is_node = name in nodes
+        pattern = f'(n:{name})' if is_node else f'(a:{table.source})-[r:{name}]->(b:{table.target})'
+        prefix = 'n' if is_node else 'r'
+        columns = list(table.columns)
+        keys = [f'n.{table.key}'] if is_node else [f'a.{nodes[table.source].key}', f'b.{nodes[table.target].key}']
+        projection = keys + [f'{prefix}.{col}' for col in columns]
+        strings = [f'{prefix}.{col}' for col in columns if table.columns[col] == 'STRING']
+        # Aggregate preflight happens before any potentially large source fetch.
+        if strings:
+            sizes = ','.join(f'coalesce(sum(size({col})),0)' for col in strings)
+            if sum(rows(connection, f'MATCH {pattern} RETURN {sizes}')[0]) > MAX_IDENTITY_BYTES:
+                raise ValueError('general property pre-fetch character budget exceeded')
+        count = shape['tables'][name]['count']
+        total_rows += count
+        result = connection.execute(f'MATCH {pattern} RETURN ' + ','.join(f'{expression} AS p{i}' for i, expression in enumerate(projection)))
+        encoded_rows = []
+        try:
+            while result.has_next():
+                row = result.get_next()
+                encoded = canonical(row).encode()
+                total_bytes += len(encoded)
+                if total_bytes > MAX_IDENTITY_BYTES or total_rows > MAX_ROWS:
+                    raise ValueError('general property byte/row budget exceeded')
+                encoded_rows.append(encoded)
+                key = canonical(row[:len(keys)])
+                for col, value in zip(columns, row[len(keys):]):
+                    # All STRING payloads receive document-level owner locators;
+                    # never silently omit a newly delivered source-derived field.
+                    if table.columns[col] == 'STRING':
+                        if len(owners) >= MAX_ROWS:
+                            raise ValueError('general owner locator budget exceeded')
+                        owners.append(PayloadOwner(name, key, col, sha256(canonical(value).encode()).hexdigest()))
+        finally:
+            result.close()
+        digest = sha256()
+        for encoded in sorted(encoded_rows):
+            digest.update(len(encoded).to_bytes(8, 'big') + encoded)
+        schema = canonical({'columns': table.columns, 'key': table.key} if is_node else {'columns': table.columns, 'source': table.source, 'target': table.target})
+        tables.append(TableCommitment(name, schema, count, digest.hexdigest()))
+    return GeneralCommitment('binding-general-properties/1', MODEL_VERSION, 'html_prototype', sha256(canonical(shape).encode()).hexdigest(), tuple(tables)), tuple(sorted(owners, key=lambda o: canonical([o.table, o.key, o.field, o.payload_sha256])))
+
+
 def verify_general(connection, expected):
     if canonical(general_receipt(connection)) != canonical(expected):
         raise ValueError("general graph differs from completed build shape/identity")

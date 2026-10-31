@@ -29,7 +29,7 @@ def test_catch_static_cells_survived_normal_build_and_cold_read(tmp_path):
     built_result = json.loads(built.stdout)
     assert built_result["screens"] >= 1 and built_result["write_errors"] == 0
     manifest = json.loads(Path(str(db) + ".binding.json").read_text())
-    assert manifest["contract"] == "binding-build/3"
+    assert manifest["contract"] == "binding-build/4"
     assert manifest["coverage"][0]["status"] == "captured"
     root = next(r for r in manifest["roots"] if r["region"] == "r0")
     read = query(db, manifest["snapshot"], root["unit"], root["region"])

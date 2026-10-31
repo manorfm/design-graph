@@ -30,27 +30,27 @@ def completed_identity(identity):
     return result
 
 
-def read_manifest(path, identity, fingerprint):
+def read_completion(path):
+    """Bounded independently retained builder seal, never an in-DB flag."""
     with path.open("rb") as stream:
         raw = stream.read(MAX_MANIFEST_BYTES + 1)
     if len(raw) > MAX_MANIFEST_BYTES:
         raise ValueError("binding manifest byte budget exceeded")
     text = raw.decode("utf8", errors="strict")
-    _scan_json(
-        text,
-        MAX_MANIFEST_BYTES,
-        MAX_MANIFEST_BYTES,
-        MAX_MANIFEST_RECORDS,
-        MAX_MANIFEST_DEPTH,
-    )
-    previous = json.loads(text, object_pairs_hook=_object)
+    _scan_json(text, MAX_MANIFEST_BYTES, MAX_MANIFEST_BYTES, MAX_MANIFEST_RECORDS, MAX_MANIFEST_DEPTH)
+    value = json.loads(text, object_pairs_hook=_object)
+    if type(value) is not dict:
+        raise ValueError("closed binding completion required")
+    return value
+
+
+def read_manifest(path, identity, fingerprint):
+    previous = read_completion(path)
     expected = completed_identity(identity)
-    if type(previous) is not dict or set(previous) != set(expected) | {
-        "build_fingerprint",
-        "snapshot",
-        "roots",
-        "general",
-    }:
+    additions = {"build_fingerprint", "snapshot", "roots", "general"}
+    if identity.get('contract') == 'binding-build/4':
+        additions.add('ownership')
+    if type(previous) is not dict or set(previous) != set(expected) | additions:
         raise ValueError("incompatible binding completion fields")
     actual = {key: previous[key] for key in expected}
     if canonical(actual) != canonical(expected):
