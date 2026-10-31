@@ -6,6 +6,7 @@ from design_graph.model.entities import ComponentType, TokenCategory
 from design_graph.interface.mcp.build_tools import DEFAULT_METRICS_LIMIT
 from design_graph.interface.mcp.component_tools import DEFAULT_LIST_COMPONENTS_LIMIT
 from design_graph.interface.mcp.binding_context_tool import TOOL_DEFINITION as BINDING_CONTEXT_TOOL
+from design_graph.interface.mcp.qualified_source_tool import QUALIFIED_PROPERTIES
 
 # Wire budget retained independently of the capture-backed validation module.
 # Importing that module here would make graph-only tools/list load a parser.
@@ -105,11 +106,16 @@ TOOL_DEFINITIONS: list[dict] = [
             "modes, navigation, components), the screen's own skeleton, each component it renders once, "
             "the data they repeat, the tokens it uses by mode, and the libraries and fonts to install. "
             "Pass known=[names] with the components you already received for another screen to leave "
-            "their definitions out. A long answer comes in parts (part=N); nothing is cut."
+            "their definitions out. A long answer comes in parts (part=N). Dependency closure is "
+            "incomplete/unknown. Optional db/snapshot/source_selections add explicit checked stored-source "
+            "supplements, never inferred name/member dependencies; repeat identical arguments for each part. "
+            "Qualified mode requires an exact screen name and reads legacy/evidence from the same DB. "
+            "IR_ONLY, initialization/value unknown; initializer text is syntax only."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
+                **QUALIFIED_PROPERTIES,
                 "name": {"type": "string", "description": "Screen name"},
                 "known": {"type": "array", "items": {"type": "string"},
                           "description": "Components you already have — their definitions are left out"},
@@ -167,11 +173,16 @@ TOOL_DEFINITIONS: list[dict] = [
             "aspect=source: a component's or screen's source as the prototype wrote it, in parts for long ones "
             "(part=N). aspect=styles / aspect=texts: the complete style or text list of a component (name=) or of "
             "a screen section (screen= and section=). aspect=data: a component's referenced module data (e.g. an "
-            "icon-name → SVG-path table) — reuse those exact values."
+            "icon-name → SVG-path table) — reuse those exact values. Optional db/snapshot/source_selections "
+            "on aspect=source directly retrieves explicit qualified stored-source evidence, not a name-based "
+            "binding-to-body link. No doc/session mixing. Retained receipts are inline hash/interval data, "
+            "never paths. IR_ONLY; initialization/value unknown; initializer syntax only. Repeat identical "
+            "selection arguments for every part. Automatic runtime member/cross-unit linkage is unsupported."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
+                **QUALIFIED_PROPERTIES,
                 "aspect": {"type": "string", "enum": ["source", "styles", "texts", "data"]},
                 "name": {"type": "string", "description": "Component or screen name"},
                 "screen": {"type": "string", "description": "Screen of the section (styles/texts of a section)"},

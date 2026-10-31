@@ -79,6 +79,14 @@ class ToolDispatcher:
 
             return get_binding_context(args)
 
+        if tool_name in {"get_full", "assemble_page"}:
+            from design_graph.interface.mcp.qualified_source_tool import (
+                QUALIFIED_KEYS, qualified_source,
+            )
+
+            if QUALIFIED_KEYS.intersection(args):
+                return qualified_source(tool_name, args)
+
         # Legacy consumers are deliberately not dependencies of qualified retrieval.
         from design_graph.interface.mcp import (
             assemble_tool, asset_tool, build_tools, component_tools,
@@ -135,7 +143,21 @@ class ToolDispatcher:
             available = ", ".join(dispatch_map.keys())
             return f"Unknown tool: {tool_name}. Available: {available}"
 
-        return fn()
+        result = fn()
+        if tool_name == "assemble_page":
+            from design_graph.interface.mcp.qualified_source_tool import honest_coverage
+
+            return honest_coverage(result)
+        if tool_name == "get_full" and args.get("aspect") == "source" and "Fonte não disponível" in result:
+            from design_graph.interface.mcp.qualified_source_tool import COVERAGE_NOTICE
+
+            result = result.replace("Fonte não disponível para", "Fonte indisponível na busca legada por nome para")
+            result = result.replace("Rode: design-graph --force <proto.html>", "A ausência nessa busca não prova ausência de fonte persistida.")
+            return result + "\n\n" + COVERAGE_NOTICE + (
+                " Request direct qualified stored-source evidence via explicit db/snapshot/source_selections; "
+                "availability is checked there without inferring a name/member mapping."
+            )
+        return result
 
     def _find_reader(self, name: str) -> GraphReader | None:
         try:
