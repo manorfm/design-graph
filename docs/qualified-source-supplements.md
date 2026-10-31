@@ -73,13 +73,26 @@ closed. No silent truncation or first-name fallback is used.
 Without qualified arguments, successful legacy source/data and assembly content
 are preserved byte-for-byte. Only a structured legacy source miss activates a
 bounded lexical fallback on the already selected doc/session reader connection.
-It requires **exactly one persisted snapshot** (never latest/global discovery),
-fully admits it once per invocation, and requires one declared name across all
-units/scopes, one declaration occurrence, and one smallest captured function
-region containing that identifier. Collisions, missing identities and exhausted
-budgets fail closed; a reader without the extension reports source context unknown.
+It discovers at most two snapshot identities and admits a singleton once, but
+**admission and singleton cardinality are not ownership**. Before name selection
+or automatic source emission, the ownership gate refuses with explicit
+`Source ownership/correspondence unknown` when the selected legacy graph cannot
+associate its complete document/build source inventory to that exact snapshot.
 
-The fallback follows only checked same-unit lexical reference targets. It emits
+The current legacy model has no such persisted association: Model records only
+version/capture; source rows have no build, snapshot or unit identity. State is
+build-diff metadata. The completion manifest's general receipt commits graph
+keys/edges rather than source payloads. A whole unique component matching a
+qualified region proves a shared fragment, not ownership of the other units or
+helpers; it cannot exclude stale same-shape builds or mixed communities. Names,
+paths, working directory, same connection and disclaimers do not repair this.
+Consequently **automatic fallback is currently withheld even for the retained
+original**; its actual source ownership is unknown, not disproved. Successful
+legacy retrieval and explicit qualified source retrieval remain available.
+
+The source-context selection/formatting controls below remain isolated controls,
+not an ownership positive or an enabled automatic delivery claim.
+The isolated source-context selector follows checked same-unit lexical reference targets. It formats
 function-region bytes and declaration-identifier line excerpts with UTF-8 byte
 bounds and hashes. A line excerpt is source context, **not a complete initializer
 or runtime value**: full declaration extent and multiline continuation stay

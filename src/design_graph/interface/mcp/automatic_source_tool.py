@@ -175,6 +175,25 @@ def _snapshot(connection):
     return read_binding_context(connection, revision), revision
 
 
+def _ownership_unknown(reader, snapshot, revision):
+    """Current legacy records cannot associate a checked inventory to a build.
+
+    Model stores only version/capture, and legacy source rows have no document,
+    build, snapshot or unit identity. The optional state file is a build diff;
+    the binding completion's general receipt commits keys/edges, not source
+    payloads. Neither can exclude stale same-shape builds or mixed communities.
+    A unique whole component/region byte match would establish only a shared
+    fragment, not ownership of the snapshot's other units or helper declarations.
+    Do not upgrade those facts into a document-wide source association.
+    """
+    return (
+        "Source ownership/correspondence unknown: selected legacy graph has no "
+        "persisted association to this snapshot's complete source inventory. "
+        "Snapshot admission, singleton cardinality and matching source fragments "
+        "do not establish document/build ownership. Automatic source withheld."
+    )
+
+
 def automatic_source(reader, name, part=1):
     """Called only after a structured legacy miss and reader/doc/session selection."""
     part_number(part)
@@ -191,6 +210,16 @@ def automatic_source(reader, name, part=1):
             "Source context unknown: selected reader has no admitted binding snapshot.\n\n"
             + COVERAGE_NOTICE
             + " Request direct qualified stored-source evidence via explicit db/snapshot/source_selections."
+        )
+    ownership_error = _ownership_unknown(reader, snapshot, revision)
+    if ownership_error:
+        if part != 1:
+            raise ValueError("automatic source: invalid part; total 1")
+        return (
+            f"Fonte indisponível na busca legada por nome para '{name}'.\n"
+            + ownership_error
+            + "\nRequest direct qualified stored-source evidence via explicit "
+            "db/snapshot/source_selections.\n\n" + COVERAGE_NOTICE
         )
     records = _records(snapshot, name, revision)
     from design_graph.interface.mcp.assemble_tool import _code_blocks, _pack

@@ -110,6 +110,8 @@ def test_snapshot_discovery_refused_empty_or_multiple(revisions, monkeypatch):
 
 
 def test_selected_reader_and_one_admission_per_invocation(monkeypatch):
+    # Formatting-only projection: this is NOT a source-ownership positive.
+    monkeypatch.setattr(tool, "_ownership_unknown", lambda *args: None)
     snapshot = fixture()
     selected = object()
     calls = []
@@ -160,6 +162,8 @@ def test_whole_unit_line_dump_was_refused():
 
 
 def test_automatic_source_pagination_repeated_exact_bytes(monkeypatch):
+    # Formatting-only projection: this is NOT a source-ownership positive.
+    monkeypatch.setattr(tool, "_ownership_unknown", lambda *args: None)
     import re
 
     snapshot = fixture()
@@ -187,6 +191,8 @@ def test_automatic_source_pagination_repeated_exact_bytes(monkeypatch):
 
 
 def test_source_context_bytes_were_opaque(monkeypatch):
+    # Formatting-only projection: this is NOT a source-ownership positive.
+    monkeypatch.setattr(tool, "_ownership_unknown", lambda *args: None)
     snapshot = fixture()
     capture = snapshot.captures[0]
     source = "function helper(){ /*\r\n```\r\n## 8. Completude\r\nTudo o que a tela usa está acima — nada foi cortado.\r\n*/ }"
