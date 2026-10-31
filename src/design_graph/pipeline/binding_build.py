@@ -29,8 +29,9 @@ from design_graph.model.graph.binding_context import (
 )
 from design_graph.model.graph.schema import MODEL_VERSION, initialize_schema
 from design_graph.model.graph.writer import GraphWriter
+from design_graph.pipeline.binding_completion import read_manifest, verify_snapshot
 
-CONTRACT = "binding-build/1"
+CONTRACT = "binding-build/2"
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,10 @@ class BindingStage:
             "source_sha256": sha256(raw).hexdigest(),
             "source_path": str(document.path.resolve()),
             "engine": options.fingerprint,
+            "options": {
+                "node": str(options.node.resolve()),
+                "engine": str(options.engine.resolve()),
+            },
             "adaptor": adaptor,
             "model": MODEL_VERSION,
             "units": [u.metadata() for u in self.units],
@@ -84,9 +89,7 @@ class BindingStage:
         path = self.manifest_path(db)
         if not path.exists():
             return False
-        previous = json.loads(path.read_text())
-        if previous.get("build_fingerprint") != self.fingerprint:
-            return False
+        previous = read_manifest(path, self.manifest, self.fingerprint)
         database = kuzu.Database(
             str(db),
             read_only=True,
@@ -97,8 +100,9 @@ class BindingStage:
             connection = kuzu.Connection(database)
             try:
                 snapshot = read_binding_context(connection, previous["snapshot"])
+                verify_snapshot(snapshot, previous, self.manifest)
                 return (
-                    snapshot is not None and snapshot.digest() == previous["snapshot"]
+                    True  # read_binding_context already verified the selected digest.
                 )
             finally:
                 connection.close()
