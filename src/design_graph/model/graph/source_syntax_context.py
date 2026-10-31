@@ -126,31 +126,50 @@ class SourceSyntaxSnapshot:
         return _json(asdict(self))
 
     def digest(self):
-        self.check()
-        body = self._body()
-        _admit(body)
-        return sha256(body.encode()).hexdigest()
+        return _prepare_syntax(self).digest
 
     def to_json(self):
-        digest = self.digest()
-        text = '{"sha256":' + _json(digest) + ',"snapshot":' + self._body() + "}"
-        _admit(text)
-        return text
+        return _prepare_syntax(self).payload
 
     @classmethod
     def from_json(cls, text):
-        _admit(text)
-        try:
-            data = json.loads(text, object_pairs_hook=_object)
-            if type(data) is not dict or set(data) != {"sha256", "snapshot"}:
-                raise ValueError("closed source syntax envelope required")
-            _digest_token(data["sha256"])
-            value = _decode(cls, data["snapshot"])
-            if value.digest() != data["sha256"]:
-                raise ValueError("source syntax payload digest mismatch")
-            return value
-        except (RecursionError, TypeError, UnicodeError) as exc:
-            raise ValueError("invalid source syntax transport") from exc
+        return _decode_syntax(text).snapshot
+
+
+@dataclass(frozen=True)
+class _AdmittedSyntax:
+    snapshot: SourceSyntaxSnapshot
+    body: str
+    payload: str
+    digest: str
+
+
+def _prepare_syntax(snapshot):
+    # Private, invocation-local facts only. Public calls always enter admission.
+    _finite(snapshot)
+    _validate_typed(SourceSyntaxSnapshot, snapshot)
+    snapshot.check()
+    body = snapshot._body()
+    _admit(body)
+    digest = sha256(body.encode()).hexdigest()
+    payload = '{"sha256":' + _json(digest) + ',"snapshot":' + body + '}'
+    _admit(payload)
+    return _AdmittedSyntax(snapshot, body, payload, digest)
+
+
+def _decode_syntax(text):
+    _admit(text)  # BEFORE decoding/allocating hostile transport
+    try:
+        data = json.loads(text, object_pairs_hook=_object)
+        if type(data) is not dict or set(data) != {"sha256", "snapshot"}:
+            raise ValueError("closed source syntax envelope required")
+        _digest_token(data['sha256'])
+        admitted = _prepare_syntax(_decode(SourceSyntaxSnapshot, data['snapshot']))
+        if admitted.digest != data['sha256']:
+            raise ValueError("source syntax payload digest mismatch")
+        return admitted
+    except (RecursionError, TypeError, UnicodeError) as exc:
+        raise ValueError("invalid source syntax transport") from exc
 
 
 @dataclass(frozen=True)
@@ -168,7 +187,7 @@ def write_source_syntax(connection, snapshot: SourceSyntaxSnapshot):
     )
 
 
-def _read(connection, snapshot, expected_sha256):
+def _read_admitted(connection, snapshot, expected_sha256):
     if not _has_extension(connection):
         return None
     _check_schema(connection)
@@ -191,12 +210,17 @@ def _read(connection, snapshot, expected_sha256):
     )
     if len(rows) != 1:
         raise ValueError("incomplete source syntax snapshot")
-    value = SourceSyntaxSnapshot.from_json(rows[0][0])
-    if value.scope.snapshot != snapshot:
+    admitted = _decode_syntax(rows[0][0])
+    if admitted.snapshot.scope.snapshot != snapshot:
         raise ValueError("qualified source syntax snapshot identity mismatch")
-    if expected_sha256 is not None and value.digest() != expected_sha256:
+    if expected_sha256 is not None and admitted.digest != expected_sha256:
         raise ValueError("external capture custody digest mismatch")
-    return value
+    return admitted
+
+
+def _read(connection, snapshot, expected_sha256):
+    admitted = _read_admitted(connection, snapshot, expected_sha256)
+    return None if admitted is None else admitted.snapshot
 
 
 def read_source_syntax(connection, snapshot, *, expected_sha256=None):

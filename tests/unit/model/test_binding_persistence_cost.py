@@ -199,14 +199,20 @@ def test_normal_build_revalidated_at_explicit_ownership_boundaries(tmp_path):
     )
     db = tmp_path / "built.db"
     receipt = tmp_path / "counts.json"
-    instrument = f"""\nimport atexit, json
+    instrument = f"""\nimport atexit, json, sys
 from pathlib import Path
 from design_graph.model.binding_capture_ir import _CaptureChecker
 from design_graph.model.graph.binding_context import BindingSnapshot
-counts = {{"semantic": 0, "canonical": 0}}
+counts = {{"semantic": 0, "canonical": 0, "admissions": []}}
 original = _CaptureChecker.run
 def run(self):
  counts["semantic"] += 1
+ frame=sys._getframe(1); names=[]
+ while frame:
+  names.append(frame.f_code.co_name); frame=frame.f_back
+ # Ordered by the independent transport boundary, not incidental helper depth.
+ phase=next((name for name in ("_decode_receipt", "_read_admitted", "_decode_snapshot", "_prepare_syntax", "_prepare_snapshot", "capture_source_syntax") if name in names), None)
+ counts["admissions"].append(phase)
  return original(self)
 _CaptureChecker.run = run
 # Count the snapshot's canonical entry in both old and corrected code.
@@ -220,13 +226,17 @@ atexit.register(lambda: Path({str(receipt)!r}).write_text(json.dumps(counts)))
 """
     result = build(html, db, before=instrument)
     assert result.returncode == 0, result.stderr
-    assert json.loads(receipt.read_text()) == {"semantic": 18, "canonical": 3}
+    # Six independent one-unit admissions: native capture, lexical preparation,
+    # syntax preparation, and reopened embedded, qualified, lexical payloads.
+    # Receipt serialization/digest must not add another semantic admission.
+    assert json.loads(receipt.read_text()) == {"semantic": 6, "canonical": 2, "admissions": ["capture_source_syntax", "_prepare_snapshot", "_prepare_syntax", "_decode_receipt", "_read_admitted", "_decode_snapshot"]}
     manifest = json.loads(Path(str(db) + ".binding.json").read_text())
     assert manifest["contract"] == "binding-build/4" and manifest["general"]
     unchanged = build(html, db, before=instrument)
     assert unchanged.returncode == 0, unchanged.stderr
     assert json.loads(unchanged.stdout)["status"] == "skipped"
-    assert json.loads(receipt.read_text()) == {"semantic": 6, "canonical": 2}
+    # Reuse must freshly admit each of the three persisted payloads once.
+    assert json.loads(receipt.read_text()) == {"semantic": 3, "canonical": 1, "admissions": ["_decode_receipt", "_read_admitted", "_decode_snapshot"]}
 
 
 def test_same_connection_mutated_bytes_are_checked_next_call(

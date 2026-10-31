@@ -93,3 +93,51 @@ def test_unselected_syntax_inventory_mutation_refused_by_retained_anchor(owned):
     finally:
         reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload', {'id': anchor['snapshot'], 'payload': payload}).close()
     assert s.load_source_build_ownership(reader) == value
+
+
+@pytest.mark.parametrize('method', ['check', 'digest', 'to_json'])
+def test_public_receipt_each_call_admitted_once_then_rejects_unselected(owned, monkeypatch, method):
+    from design_graph.model import binding_capture_ir as ir
+    value, _, _ = owned
+    original = ir._CaptureChecker.run
+    calls = []
+    def run(self):
+        calls.append(self)
+        return original(self)
+    monkeypatch.setattr(ir._CaptureChecker, 'run', run)
+    for n in (1, 2):
+        getattr(value, method)()
+        assert len(calls) == n * len(value.syntax.captures)
+    captures = value.syntax.captures
+    bad_unit = replace(captures[-1].lexical.ir.units[0], source='foreign')
+    bad_ir = replace(captures[-1].lexical.ir, units=(bad_unit,))
+    bad_capture = replace(captures[-1], lexical=replace(captures[-1].lexical, ir=bad_ir))
+    bad = replace(value, syntax=replace(value.syntax, captures=captures[:-1] + (bad_capture,)))
+    with pytest.raises(ValueError):
+        getattr(bad, method)()
+
+
+def test_each_owned_read_has_one_property_admission_and_rereads_seal(owned, monkeypatch):
+    from design_graph.model.graph import source_build_ownership as s
+    from design_graph.pipeline import binding_general_completion as general
+    value, reader, db = owned
+    original = general.property_receipt
+    calls = []
+    def receipt(connection):
+        calls.append(connection)
+        return original(connection)
+    monkeypatch.setattr(general, 'property_receipt', receipt)
+    for n in (1, 2):
+        assert s.load_source_build_ownership(reader) == value
+        assert len(calls) == n
+    seal = Path(str(db) + '.binding.json')
+    payload = seal.read_bytes()
+    data = json.loads(payload)
+    data['ownership']['sha256'] = '0' * 64
+    try:
+        seal.write_text(json.dumps(data))
+        with pytest.raises(ValueError, match='anchor mismatch'):
+            s.load_source_build_ownership(reader)
+    finally:
+        seal.write_bytes(payload)
+    assert s.load_source_build_ownership(reader) == value

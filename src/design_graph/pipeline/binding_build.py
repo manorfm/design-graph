@@ -26,21 +26,23 @@ from design_graph.model.graph.binding_context import (
     BindingSnapshot,
     _prepare_snapshot,
     _write_checked_context,
-    read_binding_context,
 )
 from design_graph.model.graph.schema import MODEL_VERSION, initialize_schema
 from design_graph.model.graph.writer import GraphWriter
 from design_graph.pipeline.binding_completion import read_manifest, verify_snapshot
 from design_graph.pipeline.binding_general_completion import (
     general_receipt,
-    verify_general,
 )
 
 from design_graph.model.graph.source_build_ownership import (
-    VERSION, append_receipt, create_receipt, load_source_build_ownership,
-    _read_owned, receipt_key, selected_domain,
+    VERSION, _append_admitted_receipt as append_receipt, _create_receipt as create_receipt,
+    _load_source_build_facts, _read_owned_facts, _prepare_receipt,
+    receipt_key, selected_domain,
 )
-from design_graph.model.graph.source_syntax_context import SourceSyntaxSnapshot
+from design_graph.model.graph.source_syntax_context import (
+    SourceSyntaxSnapshot, LOGICAL_VERSION as SYNTAX_VERSION, _inventory,
+    _prepare_syntax, _PreparedWrite,
+)
 from design_graph.model.source_syntax import SourceInventory
 
 CONTRACT = "binding-build/4"
@@ -121,11 +123,10 @@ class BindingStage:
         try:
             connection = kuzu.Connection(database)
             try:
-                snapshot = read_binding_context(connection, previous["snapshot"])
-                verify_snapshot(snapshot, previous, self.manifest)
-                verify_general(connection, previous["general"])
                 from design_graph.model.graph.reader import GraphReader
-                owned = load_source_build_ownership(GraphReader(connection, Path(str(db) + '.state.json')))
+                facts = _load_source_build_facts(GraphReader(connection, Path(str(db) + '.state.json')))
+                verify_snapshot(facts.lexical.snapshot, previous, self.manifest)
+                owned = facts.value
                 if owned.build_fingerprint != self.fingerprint:
                     raise ValueError('ownership build fingerprint differs')
                 return (
@@ -160,10 +161,12 @@ class BindingStage:
             LOGICAL_VERSION, community, tuple(captures), tuple(roots)
         )
         self._checked = _prepare_snapshot(self.snapshot)
-        self.syntax = SourceSyntaxSnapshot.create(
+        self.syntax = SourceSyntaxSnapshot(
+            SYNTAX_VERSION,
             SourceInventory(self.fingerprint, self.manifest['source_path'], tuple(c.source_syntax.unit for c in syntax_captures)),
-            tuple(syntax_captures),
+            _inventory(syntax_captures), tuple(syntax_captures),
         )
+        self._syntax_admitted = _prepare_syntax(self.syntax)
         for record in self.coverage:
             if record["status"] == "selected":
                 record["status"] = "captured"
@@ -241,16 +244,17 @@ class BindingWriteSession:
                 # Separate public writes, no nested transaction: this entire DB
                 # remains private until one atomic link. Existing qualified CLI
                 # can read retained syntax without claiming general ownership.
-                from design_graph.model.graph.source_syntax_context import write_source_syntax
-                write_source_syntax(self.conn, self.stage.syntax)
+                admitted = self.stage._syntax_admitted
+                _write_checked_context(self.conn, _PreparedWrite(admitted.payload, admitted.snapshot.scope.snapshot))
                 if sha256(self.stage.document.path.read_bytes()).hexdigest() != self.stage.manifest['source_sha256']:
                     raise ValueError('source changed during general capture')
                 if selected_domain(self.conn, self.final.stem) != self.stage.domain:
                     raise ValueError('persisted Screen domain differs from capture session')
                 self.stage.manifest["general"] = general_receipt(self.conn)
-                receipt = create_receipt(self.conn, self.stage)
-                append_receipt(self.conn, receipt)
-                self.stage.manifest['ownership'] = {'version': VERSION, 'snapshot': receipt_key(receipt.domain), 'sha256': receipt.digest()}
+                receipt = create_receipt(self.conn, self.stage, self.stage._syntax_admitted)
+                admitted_receipt = _prepare_receipt(receipt, self.stage._syntax_admitted)
+                append_receipt(self.conn, admitted_receipt)
+                self.stage.manifest['ownership'] = {'version': VERSION, 'snapshot': receipt_key(receipt.domain), 'sha256': admitted_receipt.digest}
                 self.conn.close()
                 self.conn = None
                 self.db.close()
@@ -268,13 +272,17 @@ class BindingWriteSession:
         try:
             connection = kuzu.Connection(database)
             try:
-                snapshot = read_binding_context(connection, self.stage.manifest['snapshot'])
-                verify_snapshot(snapshot, self.stage.manifest, self.stage.manifest)
-                from design_graph.model.graph.source_syntax_context import read_source_syntax
-                stored = read_source_syntax(connection, self.stage.syntax.scope.snapshot, expected_sha256=self.stage.syntax.digest())
-                if stored != self.stage.syntax:
-                    raise ValueError('private qualified syntax differs')
-                _read_owned(connection, selected_domain(connection, self.final.stem), self.stage.manifest['ownership'])
+                from design_graph.model.graph.binding_context import _rows, _rollback
+                _rows(connection, 'BEGIN TRANSACTION READ ONLY')
+                try:
+                    facts = _read_owned_facts(connection, selected_domain(connection, self.final.stem), self.stage.manifest['ownership'])
+                    verify_snapshot(facts.lexical.snapshot, self.stage.manifest, self.stage.manifest)
+                    if facts.value.syntax != self.stage.syntax:
+                        raise ValueError('private qualified syntax differs')
+                    _rows(connection, 'COMMIT')
+                except Exception:
+                    _rollback(connection)
+                    raise
             finally:
                 connection.close()
         finally:
