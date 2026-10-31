@@ -85,3 +85,62 @@ def test_annex_unit_gap_includes_closures():
         "let X;switch(0){case 0:function X(){}}function f(){return /*r*/X;}"
     )
     assert marked(result, "r")[0].state.value == "unknown"
+
+
+@pytest.mark.parametrize(
+    "parameters,statement",
+    [
+        ("eval", 'eval("var X=1");'),
+        ("", 'const eval=globalThis.eval;eval("var X=1");'),
+        ("", 'let eval=globalThis.eval;eval("var X=1");'),
+        ("value", 'let eval=()=>0;eval=value;eval("var X=1");'),
+        ("", 'function eval(){}eval("var X=1");'),
+        ("", 'const eval=()=>0;eval("var X=1");'),
+    ],
+)
+def test_bound_eval_is_not_a_nonintrinsic_value_proof(parameters, statement):
+    source = (
+        "let X;function bad("
+        + parameters
+        + "){const c=()=>/*c*/X;"
+        + statement
+        + "return /*r*/X;}function good(){return /*g*/X;}"
+    )
+    result = capture(source)
+    assert any(g.kind == "sloppy-direct-eval" for g in result.gaps)
+    for marker in ("r", "c"):
+        assert marked(result, marker)[0].state.value == "unknown"
+    assert marked(result, "g")[1] == [(4, 5, "let")]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        '(0,eval)("var X=1")',
+        'eval?.("var X=1")',
+        'globalThis.eval("var X=1")',
+        'eval.call(null,"var X=1")',
+    ],
+)
+def test_indirect_eval_does_not_add_local_binding_gap(call):
+    result = capture("let X;function f(){" + call + ";return /*r*/X;}")
+    assert not result.gaps
+    assert marked(result, "r")[1] == [(4, 5, "let")]
+
+
+@pytest.mark.parametrize("mode,prefix", [("script", '"use strict";'), ("module", "")])
+def test_strict_direct_eval_stays_resolved(mode, prefix):
+    source = prefix + 'let X;function f(){eval("var X=1");return /*r*/X;}'
+    result = capture(source, mode)
+    start = source.index("let X") + 4
+    assert not result.gaps
+    assert marked(result, "r")[1] == [(start, start + 1, "let")]
+
+
+def test_parenthesized_direct_eval_and_default_closure_are_local():
+    result = capture(
+        'let X;function f(eval,p=()=>/*p*/X){(eval)("var X=1");return /*r*/X;}function g(){return /*g*/X;}'
+    )
+    for marker in ("p", "r"):
+        assert marked(result, marker)[0].state.value == "unknown"
+    assert marked(result, "g")[1] == [(4, 5, "let")]

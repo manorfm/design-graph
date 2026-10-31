@@ -58,7 +58,7 @@ function walk(node,parent,current){
   walk(node.object,parent,current);const r=region('evaluation',node.body,parent,null,null,false);
   gaps.push({region:r.id,kind:'dynamic-with'});blockEnvs.set(node,current);walk(node.body,r,current);return;
  }
- if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&node.callee.name==='eval')directEvalNodes.add(node.callee);
+ if(node.type==='CallExpression'&&!node.optional&&node.callee.type==='Identifier'&&node.callee.name==='eval')directEvalNodes.add(node.callee);
  nodeRegions.set(node,parent);
  for(const child of children(node))walk(child,parent,current);
 }
@@ -98,7 +98,9 @@ for(const s of manager.scopes){
 // Dynamic regions are localized to the affected lexical function/unit, not siblings.
 const markGap=(r,kind)=>{r.complete=false;if(!gaps.some(g=>g.region===r.id&&g.kind===kind))gaps.push({region:r.id,kind});};
 for(const s of manager.scopes){
- if(!s.isStrict)for(const ref of s.references)if(directEvalNodes.has(ref.identifier)&&!ref.resolved){
+ // A resolved lexical binding says nothing about whether its value is %eval%.
+ // No value proof is available here, even for a locally declared function.
+ if(!s.isStrict)for(const ref of s.references)if(directEvalNodes.has(ref.identifier)){
   let r=nodeRegions.get(ref.identifier);
   while(r.parent&&r.slot!=='function-creation')r=regions.find(x=>x.id===r.parent);
   markGap(r,'sloppy-direct-eval');
