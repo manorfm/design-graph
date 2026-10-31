@@ -98,7 +98,6 @@ class ToolDispatcher:
             discovery_tools,
             full_tools,
             screen_tools,
-            validation_tool,
         )
 
         doc  = args.get("doc")
@@ -122,6 +121,11 @@ class ToolDispatcher:
             return err
 
         screen, section = args.get("screen", ""), args.get("section", "")
+        def validate_implementation():
+            from design_graph.interface.mcp import validation_tool
+
+            return validation_tool.validate_component_implementation(reader, name, args.get('source', ''))
+
         dispatch_map = {
             "assemble_page":             lambda: assemble_tool.assemble_page(
                 reader, name, args.get("known"), args.get("part", 1),
@@ -141,9 +145,7 @@ class ToolDispatcher:
             "impact":                    lambda: discovery_tools.impact(reader, name),
             "list_components":           lambda: component_tools.list_components(reader, args.get("comp_type"), args.get("limit")),
             "get_build_diff":            lambda: build_tools.get_build_diff(reader),
-            "validate_component_implementation": lambda: validation_tool.validate_component_implementation(
-                reader, name, args.get("source", ""),
-            ),
+            "validate_component_implementation": validate_implementation,
         }
 
         fn = dispatch_map.get(tool_name)
@@ -162,6 +164,11 @@ class ToolDispatcher:
             source = reader.get_full_source(name)
             if not source:
                 return automatic_source(reader, name, args.get("part", 1))
+            from design_graph.interface.mcp.source_candidate_assembly import render_source
+
+            augmented = render_source(reader, name, source, args.get("part", 1))
+            if augmented is not None:
+                return augmented
             # The legacy formatter receives the already resolved record. Status never
             # depends on rendered text, and the reader is queried exactly once.
             return full_tools.get_full_source(

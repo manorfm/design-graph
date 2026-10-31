@@ -200,9 +200,14 @@ def automatic_source(reader, name, part=1):
     if type(name) is not str or not 1 <= len(name) <= 4096 or "\x00" in name:
         raise ValueError("automatic source: invalid name")
     connection = getattr(reader, "_conn", None)
-    snapshot, revision = (
-        _snapshot(connection) if connection is not None else (None, None)
-    )
+    try:
+        snapshot, revision = (
+            _snapshot(connection) if connection is not None else (None, None)
+        )
+    except (ValueError, RuntimeError):
+        if part != 1:
+            raise ValueError('automatic source: invalid part; total 1') from None
+        return _ownership_unknown(reader, None, None) + '\n\n' + COVERAGE_NOTICE
     if snapshot is None:
         return (
             f"Fonte indisponível na busca legada por nome para '{name}'. "

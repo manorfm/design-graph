@@ -305,7 +305,25 @@ def load_source_build_ownership(reader):
 
 
 def _load_source_build_facts(reader):
-    """Resolve completion from this normal reader, not caller-supplied provenance.
+    from design_graph.model.graph.binding_context import _rollback
+
+    connection = reader._conn
+    _rows(connection, 'BEGIN TRANSACTION READ ONLY')
+    try:
+        facts = _read_source_build_facts(reader)
+        _rows(connection, 'COMMIT')
+        return facts
+    except Exception:
+        _rollback(connection)
+        raise
+
+
+def _read_source_build_facts(reader):
+    """Resolve completion inside the caller's private invocation read transaction.
+
+    No checked flag or facts survive the invocation. The public loader starts its
+    own transaction; the automatic consumer also reads its exact selected fields
+    before committing the same admission transaction.
 
     Completion is independently retained OUTSIDE the graph, but remains local
     builder custody, not a signature. Rewriting the seal too can forge consistency.
@@ -330,19 +348,13 @@ def _load_source_build_facts(reader):
     if sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest() != previous['build_fingerprint']:
         raise ValueError('ownership completion fingerprint mismatch')
     connection = reader._conn
-    _rows(connection, 'BEGIN TRANSACTION READ ONLY')
-    try:
-        facts = _read_owned_facts(connection, selected_domain(connection, db.stem), previous.get('ownership'))
-        value = facts.value
-        if value.build_fingerprint != previous.get('build_fingerprint') or value.lexical_snapshot != previous.get('snapshot'):
-            raise ValueError('ownership completion identity mismatch')
-        if sha256(_json(previous['general']).encode()).hexdigest() != value.general.identity_sha256:
-            raise ValueError('ownership completion general commitment mismatch')
-        expected_roots = sorted(({'unit': c.lexical.ir.units[0].id, 'region': r.id} for c in value.syntax.captures for r in c.lexical.ir.regions if r.slot.value in ('root', 'function-creation')), key=_json)
-        if _json(sorted(previous['roots'], key=_json)) != _json(expected_roots):
-            raise ValueError('ownership completion roots mismatch')
-        _rows(connection, 'COMMIT')
-        return facts
-    except Exception:
-        _rollback(connection)
-        raise
+    facts = _read_owned_facts(connection, selected_domain(connection, db.stem), previous.get('ownership'))
+    value = facts.value
+    if value.build_fingerprint != previous.get('build_fingerprint') or value.lexical_snapshot != previous.get('snapshot'):
+        raise ValueError('ownership completion identity mismatch')
+    if sha256(_json(previous['general']).encode()).hexdigest() != value.general.identity_sha256:
+        raise ValueError('ownership completion general commitment mismatch')
+    expected_roots = sorted(({'unit': c.lexical.ir.units[0].id, 'region': r.id} for c in value.syntax.captures for r in c.lexical.ir.regions if r.slot.value in ('root', 'function-creation')), key=_json)
+    if _json(sorted(previous['roots'], key=_json)) != _json(expected_roots):
+        raise ValueError('ownership completion roots mismatch')
+    return facts

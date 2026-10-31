@@ -458,6 +458,16 @@ def project_candidates(scope, captures, unit, use_id):
         or unit not in by_unit
     ):
         raise ValueError("foreign or incomplete source inventory scope")
+    return _project_admitted_candidates(scope, captures, unit, use_id)
+
+
+def _project_admitted_candidates(scope, captures, unit, use_id):
+    """Private pure projection over immutable facts admitted in this invocation.
+
+    Public project_candidates still performs its complete independent admission.
+    The BUILD reader alone reuses its already checked inventory for multiple uses.
+    """
+    by_unit = {c.source_syntax.unit: c for c in captures}
     consumer = by_unit[unit]
     use = next((u for u in consumer.source_syntax.uses if u.id == use_id), None)
     if use is None:

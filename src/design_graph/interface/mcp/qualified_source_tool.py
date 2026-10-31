@@ -68,7 +68,7 @@ def honest_coverage(text: str) -> str:
     return text
 
 
-def _assembly_parts(assembly, known):
+def _assembly_parts(assembly, known, supplements=(), coverage=COVERAGE_NOTICE):
     """Correct generated metadata before packing; code block text is opaque."""
     from design_graph.interface.mcp.assemble_tool import (
         _Block,
@@ -91,7 +91,7 @@ def _assembly_parts(assembly, known):
         # are data/behaviour/tokens/dependencies/completeness, never source.
         # No source title or Markdown delimiter is interpreted as metadata.
         blocks[-1] = _Block("8. Completude", "\n".join([
-            "## 8. Completude", COVERAGE_NOTICE,
+            "## 8. Completude", coverage,
             *_completeness_lines(assembly["name"], omitted)[1:], "",
         ]))
         if not assembly["data"] and not assembly["unread_lists"]:
@@ -103,7 +103,7 @@ def _assembly_parts(assembly, known):
         if not components:
             index = 1 + len(_code_blocks("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], assembly["source_lang"]))
             blocks[index] = _Block("3. Componentes", "## 3. Componentes\nNenhum componente adicional registrado; cobertura não provada.\n")
-        parts = _pack(blocks)
+        parts = _pack(blocks + list(supplements))
         found = next(n for n, page in enumerate(parts, 1) if any(b is blocks[-5] for b in page))
         if found == data_part:
             return parts
@@ -115,11 +115,15 @@ def assemble_with_coverage(reader, name, known=None, part=1):
     """Legacy assembly with generated claims corrected before source rendering."""
     from design_graph.interface.mcp.assemble_tool import _names, _part_number
 
+    part_number(part)
     assembly = reader.get_screen_assembly(name)
     if not assembly:
         return f"Tela '{name}' não encontrada. Use list_screens() para ver as telas do protótipo."
     names = _names(known)
-    parts = _assembly_parts(assembly, names)
+    from design_graph.interface.mcp.source_candidate_assembly import NOTICE, candidate_blocks
+
+    supplements = candidate_blocks(reader, [assembly['name'], *(c['name'] for c in assembly['components'])])
+    parts = _assembly_parts(assembly, names, supplements, NOTICE if supplements else COVERAGE_NOTICE)
     number = _part_number(part, len(parts))
     if number is None:
         return f"Parte inválida: {part!r}. A montagem de '{assembly['name']}' tem as partes 1 a {len(parts)}."
