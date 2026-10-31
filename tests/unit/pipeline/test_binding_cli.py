@@ -162,11 +162,29 @@ def test_normal_build_reopened_cold_public_multi_root(tmp_path):
         assert row["evidence"] == "IR_ONLY"
         assert row["initialization"] == row["value"] == "unknown"
         assert row["source"]["unit"] == root["unit"]
+        original = next(
+            unit
+            for unit in manifest["units"]
+            if unit["locator"] == row["source"]["locator"]
+        )
+        assert row["source"]["sha256"] == original["source_sha256"]
+        assert row["source"]["byte_length"] == original["byte_length"]
         assert "source_code" not in row and "body" not in row["source"]
         public.append(row)
     empty = [row for row in public if not row["references"]]
     assert empty and all(row["sites"] and row["environments"] for row in empty)
     assert len({row["root"]["identity"] for row in public}) == len(public)
+    same_local_root = [row for row in public if row["root"]["local_region"] == "r0"]
+    assert len(same_local_root) == 2
+    assert (
+        same_local_root[0]["source"]["sha256"] != same_local_root[1]["source"]["sha256"]
+    )
+    identities = [
+        {binding["identity"] for binding in row["bindings"]} for row in same_local_root
+    ]
+    assert identities[0] and identities[1] and identities[0].isdisjoint(identities[1])
+    refused = query(db, manifest["snapshot"], "u:missing", roots[0]["region"])
+    assert refused.returncode != 0 and not refused.stdout
     assert any(
         len(binding["occurrences"]) == 2
         for row in public
