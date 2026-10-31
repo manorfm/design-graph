@@ -5,7 +5,11 @@ from __future__ import annotations
 from design_graph.model.entities import ComponentType, TokenCategory
 from design_graph.interface.mcp.build_tools import DEFAULT_METRICS_LIMIT
 from design_graph.interface.mcp.component_tools import DEFAULT_LIST_COMPONENTS_LIMIT
-from design_graph.interface.mcp.validation_tool import MAX_VALIDATION_SOURCE_CHARS
+from design_graph.interface.mcp.binding_context_tool import TOOL_DEFINITION as BINDING_CONTEXT_TOOL
+
+# Wire budget retained independently of the capture-backed validation module.
+# Importing that module here would make graph-only tools/list load a parser.
+MAX_VALIDATION_SOURCE_CHARS = 20_000
 
 
 def _doc_param() -> dict:
@@ -19,6 +23,7 @@ def _doc_param() -> dict:
 
 
 TOOL_DEFINITIONS: list[dict] = [
+    BINDING_CONTEXT_TOOL,
     {
         "name": "list_screens",
         "description": "Lists all screens in all loaded prototypes, grouped by document.",

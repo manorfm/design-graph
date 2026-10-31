@@ -13,18 +13,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from design_graph.interface.mcp import (
-    assemble_tool,
-    asset_tool,
-    build_tools,
-    component_tools,
-    discovery_tools,
-    full_tools,
-    screen_tools,
-    validation_tool,
-)
+from typing import TYPE_CHECKING
+
 from design_graph.model.graph.catalog import GraphDocumentName
-from design_graph.model.graph.reader import GraphReader
+
+if TYPE_CHECKING:
+    from design_graph.model.graph.reader import GraphReader
 
 
 class ToolDispatcher:
@@ -80,6 +74,17 @@ class ToolDispatcher:
 
     def dispatch(self, tool_name: str, args: dict, active_doc: str) -> str:
         """Route a tool call to its tool."""
+        if tool_name == "get_binding_context":
+            from design_graph.interface.mcp.binding_context_tool import get_binding_context
+
+            return get_binding_context(args)
+
+        # Legacy consumers are deliberately not dependencies of qualified retrieval.
+        from design_graph.interface.mcp import (
+            assemble_tool, asset_tool, build_tools, component_tools,
+            discovery_tools, full_tools, screen_tools, validation_tool,
+        )
+
         doc  = args.get("doc")
         name = args.get("name", "")
 
