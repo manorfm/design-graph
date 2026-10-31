@@ -14,7 +14,7 @@ from design_graph.model.binding_ir import _decode
 from design_graph.model.source_syntax import SourceSyntax, SourceSyntaxCapture
 
 
-def capture_source_syntax(producer, source, *, locator, source_type, syntax):
+def capture_source_syntax(producer, source, *, locator, source_type, syntax, owner_events=None):
     if type(source) is not bytes or len(source) > 1024 * 1024:
         raise ValueError("whole unit must be UTF8 bytes, at most 1 MiB")
     if (
@@ -36,6 +36,11 @@ def capture_source_syntax(producer, source, *, locator, source_type, syntax):
         "model/source_syntax.py",
         "model/binding_capture_ir.py",
         "model/binding_ir.py",
+        "capture/owned_emission.py",
+        "capture/owned_html_capture.py",
+        "capture/html_prototype/extraction/definition_merge.py",
+        "model/source_owner.py",
+        "model/entities.py",
     }
     if (
         set(pin) != {"version", "files"}
@@ -73,4 +78,6 @@ def capture_source_syntax(producer, source, *, locator, source_type, syntax):
         "source-syntax-capture/1", fingerprint, lexical, _decode(SourceSyntax, facts)
     )
     result.check()
+    if owner_events is not None:
+        owner_events.extend(raw['ownerSources'])
     return result

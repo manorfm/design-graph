@@ -117,13 +117,13 @@ class BindingCapture:
         return captured
 
     def capture_source_syntax(
-        self, source: bytes, *, locator: str, source_type: str, syntax: str
+        self, source: bytes, *, locator: str, source_type: str, syntax: str, owner_events=None
     ):
         """Explicit new envelope; never silently upgraded by legacy capture/build."""
         from design_graph.capture.source_syntax_capture import capture_source_syntax
 
         return capture_source_syntax(
-            self, source, locator=locator, source_type=source_type, syntax=syntax
+            self, source, locator=locator, source_type=source_type, syntax=syntax, owner_events=owner_events
         )
 
     def _capture_native(self, text, source_type, syntax, *, source_syntax=None):

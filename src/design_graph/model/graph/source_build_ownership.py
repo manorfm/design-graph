@@ -11,17 +11,28 @@ from hashlib import sha256
 from pathlib import Path
 
 from design_graph.model.binding_ir import _decode, _object, _validate_typed
-from design_graph.model.source_syntax import _finite
 from design_graph.model.graph.binding_context import (
-    PHYSICAL_VERSION, MAX_JSON_CHARS, _admit, _check_schema, _has_extension,
-    _json, _rows, _write_checked_context, _CheckedSnapshot,
-)
-from design_graph.model.graph.source_syntax_context import (
-    SourceSyntaxSnapshot, _PreparedWrite, _digest_token, _prepare_syntax,
+    MAX_JSON_CHARS,
+    PHYSICAL_VERSION,
+    _admit,
+    _check_schema,
+    _CheckedSnapshot,
+    _has_extension,
+    _json,
+    _rows,
+    _write_checked_context,
 )
 from design_graph.model.graph.schema import MODEL_VERSION
+from design_graph.model.graph.source_syntax_context import (
+    SourceSyntaxSnapshot,
+    _digest_token,
+    _prepare_syntax,
+    _PreparedWrite,
+)
+from design_graph.model.source_owner import SourceOwnerWitness, check_witnesses
+from design_graph.model.source_syntax import _finite
 
-VERSION = 'source-build-ownership/1'
+VERSION = 'source-build-ownership/2'
 BUILDER = 'binding-build/4'
 
 
@@ -75,6 +86,7 @@ class PayloadOwner:
     key: str
     field: str
     payload_sha256: str
+    raw_sha256: str = ''
 
 
 @dataclass(frozen=True)
@@ -111,7 +123,8 @@ class SourceBuildOwnership:
     owners: tuple[PayloadOwner, ...]
     syntax_sha256: str
     syntax: SourceSyntaxSnapshot
-    granularity: str = 'document-build inventory; precise JS unit/region owner unknown'
+    witnesses: tuple[SourceOwnerWitness, ...] = ()
+    granularity: str = 'field emission native owner; unsupported derivations explicit'
 
     def check(self):
         _check_receipt(self, _prepare_syntax(self.syntax))
@@ -134,7 +147,7 @@ def _check_receipt(self, admitted):
         raise ValueError('unsupported source build ownership version')
     if self.general.version != 'binding-general-properties/1' or self.general.model != MODEL_VERSION or self.general.capture != 'html_prototype':
         raise ValueError('incompatible ownership model')
-    if self.granularity != 'document-build inventory; precise JS unit/region owner unknown':
+    if self.granularity != 'field emission native owner; unsupported derivations explicit':
         raise ValueError('unsupported ownership granularity')
     if not self.domain.document or len(self.domain.document) > 4096 or not self.domain.screens or tuple(sorted(set(self.domain.screens))) != self.domain.screens:
         raise ValueError('invalid selected document/Screen domain')
@@ -169,6 +182,7 @@ def _check_receipt(self, admitted):
         _digest_token(pin.sha256)
     if any(c.lexical.engine_fingerprint != self.producer.engine or c.producer_fingerprint != self.producer.syntax_fingerprint for c in self.syntax.captures):
         raise ValueError('ownership producer mismatch')
+    check_witnesses(self.witnesses, self.owners, self.syntax)
     if len(self.coverage) > 4096 or len({v.locator for v in self.coverage}) != len(self.coverage):
         raise ValueError('invalid bounded coverage inventory')
     for record in self.coverage:
@@ -230,7 +244,7 @@ def _create_receipt(connection, stage, admitted):
         tuple(CoverageRecord(**v) for v in stage.coverage),
         ProducerIdentity(stage.manifest['engine'], stage.manifest['syntax_producer'], tuple(ArtifactPin(k, v) for k, v in sorted(stage.manifest['adaptor'].items()))),
         stage.fingerprint, stage._checked.revision, general, owners,
-        admitted.digest, syntax,
+        admitted.digest, syntax, witnesses=stage.field_witnesses(owners),
     )
 
 
@@ -296,8 +310,8 @@ def _load_source_build_facts(reader):
     Completion is independently retained OUTSIDE the graph, but remains local
     builder custody, not a signature. Rewriting the seal too can forge consistency.
     """
-    from design_graph.pipeline.binding_completion import read_completion
     from design_graph.model.graph.binding_context import _rollback
+    from design_graph.pipeline.binding_completion import read_completion
     state = reader._state_path
     if state is None or not str(state).endswith('.state.json'):
         raise ValueError('ownership unknown: selected reader has no retained build completion')

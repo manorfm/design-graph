@@ -35,8 +35,16 @@ from design_graph.model.entities import ExtractedComponent
 from design_graph.model.graph.diff import compute_diff
 from design_graph.model.graph.schema import MODEL_VERSION
 from design_graph.model.graph.writer import GraphWriteSession
-from design_graph.pipeline.build_progress import BuildPhaseReporter, PhaseTimer, SilentBuildReporter
-from design_graph.pipeline.state import build_new_state, load_build_state, save_build_state
+from design_graph.pipeline.build_progress import (
+    BuildPhaseReporter,
+    PhaseTimer,
+    SilentBuildReporter,
+)
+from design_graph.pipeline.state import (
+    build_new_state,
+    load_build_state,
+    save_build_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +135,8 @@ async def run_pipeline(
     # ── Phase 2–4: Capture ────────────────────────────────────────────────────
     _reporter.phase_started("Parsing boundaries and tokens", total=0)
     phase.start()
-    result = await capture.capture(
-        document,
+    capture_call = binding_stage.capture_general if binding_stage is not None else lambda **kwargs: capture.capture(document, **kwargs)
+    result = await capture_call(
         concurrency=concurrency,
         on_component_extracted=lambda name, idx, total: _reporter.component_extracted(
             name, index=idx, total=total

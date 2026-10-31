@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 
+from design_graph.model.source_owner import SourceOwnerWitness
+
 # Matches the {[icon:id]} marker IconAsset.__str__ produces, for expansion
 # back into full markup by resolve_icon_markers.
 RE_ICON_MARKER = re.compile(r'\{\[icon:(icon_[0-9a-f]{8})\]\}')
@@ -467,6 +469,7 @@ class ExtractedComponent:
     hook_refs: list[str] = field(default_factory=list)   # names of the prototype's own hooks it calls
     referenced_data: dict[str, object] = field(default_factory=dict)
     source_lang: str = ""                 # language of source_code, as the capture stated it ("jsx", "html", …)
+    source_owner: "SourceOwnerWitness | None" = None
     declares_inline_styles: bool = False  # the source carries inline styling, captured as Style rows or not
     # {const_name: value} for every module-level constant this component's
     # own body references by name (e.g. ICONS for a component that does
@@ -513,6 +516,7 @@ class ExtractedScreen:
     viewport_height: int = 0
     links: list[ScreenLink] = field(default_factory=list)  # navigation to other screens
     variant_of: str = ""                                # base screen this one varies, "" when it is a base
+    source_owner: "SourceOwnerWitness | None" = None
     variant_axis: str = ""                              # what varies: "viewport", "mode", …
 
 

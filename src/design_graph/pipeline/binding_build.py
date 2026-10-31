@@ -28,22 +28,35 @@ from design_graph.model.graph.binding_context import (
     _write_checked_context,
 )
 from design_graph.model.graph.schema import MODEL_VERSION, initialize_schema
+from design_graph.model.graph.source_build_ownership import (
+    VERSION,
+    _load_source_build_facts,
+    _prepare_receipt,
+    _read_owned_facts,
+    receipt_key,
+    selected_domain,
+)
+from design_graph.model.graph.source_build_ownership import (
+    _append_admitted_receipt as append_receipt,
+)
+from design_graph.model.graph.source_build_ownership import (
+    _create_receipt as create_receipt,
+)
+from design_graph.model.graph.source_syntax_context import (
+    LOGICAL_VERSION as SYNTAX_VERSION,
+)
+from design_graph.model.graph.source_syntax_context import (
+    SourceSyntaxSnapshot,
+    _inventory,
+    _prepare_syntax,
+    _PreparedWrite,
+)
 from design_graph.model.graph.writer import GraphWriter
+from design_graph.model.source_syntax import SourceInventory
 from design_graph.pipeline.binding_completion import read_manifest, verify_snapshot
 from design_graph.pipeline.binding_general_completion import (
     general_receipt,
 )
-
-from design_graph.model.graph.source_build_ownership import (
-    VERSION, _append_admitted_receipt as append_receipt, _create_receipt as create_receipt,
-    _load_source_build_facts, _read_owned_facts, _prepare_receipt,
-    receipt_key, selected_domain,
-)
-from design_graph.model.graph.source_syntax_context import (
-    SourceSyntaxSnapshot, LOGICAL_VERSION as SYNTAX_VERSION, _inventory,
-    _prepare_syntax, _PreparedWrite,
-)
-from design_graph.model.source_syntax import SourceInventory
 
 CONTRACT = "binding-build/4"
 
@@ -104,6 +117,8 @@ class BindingStage:
             json.dumps(self.manifest, sort_keys=True).encode()
         ).hexdigest()
         self.snapshot = None
+        self.owner_events = []
+        self.general_capture = None
 
     @staticmethod
     def manifest_path(db):
@@ -141,14 +156,16 @@ class BindingStage:
         captures, syntax_captures, roots = [], [], []
         for unit in self.units:
             try:
+                events = []
                 captured = self.producer.capture_source_syntax(
-                    unit.source,
+                    unit.source, owner_events=events,
                     locator=unit.locator,
                     source_type=unit.source_type,
                     syntax=unit.syntax,
                 )
             except ValueError as exc:
                 raise ValueError(f"binding unit {unit.locator}: {exc}") from exc
+            self.owner_events.append(tuple(events))
             syntax_captures.append(captured)
             captured = captured.lexical
             captures.append(captured)
@@ -175,6 +192,42 @@ class BindingStage:
             build_fingerprint=self.fingerprint,
             roots=[{"unit": r.unit, "region": r.region} for r in self.snapshot.roots],
         )
+
+    async def capture_general(self, **kwargs):
+        from design_graph.capture.html_prototype.parsing.source_loader import decompose
+        from design_graph.capture.owned_emission import native_boundaries
+        from design_graph.capture.owned_html_capture import OwnedHtmlPrototypeCapture
+        if self.snapshot is None:
+            raise ValueError('native capture must precede general capture')
+        from design_graph.capture.html_prototype.html_capture import (
+            HtmlPrototypeCapture,
+        )
+        flattened = decompose(self.document).js
+        if '\n'.join(u.source.decode().strip() for u in self.units) != flattened:
+            # Bundler/general input transforms lack an exact translation. Keep
+            # every normal field and explicitly persist unsupported provenance.
+            self.general_capture = await HtmlPrototypeCapture().capture(self.document, **kwargs)
+            return self.general_capture
+        boundaries = native_boundaries(self.units, self.syntax.captures, self.owner_events, flattened)
+        self.general_capture = await OwnedHtmlPrototypeCapture(boundaries).capture(self.document, **kwargs)
+        return self.general_capture
+
+    def field_witnesses(self, owners):
+        from design_graph.model.source_owner import VERSION, SourceOwnerWitness
+        if self.general_capture is None:
+            raise ValueError('owned general capture required before receipt')
+        from design_graph.pipeline.binding_completion import canonical
+        emitted = {(table, canonical([entity.name]), 'source_code'): entity.source_owner
+                   for table, entities in (('Component', self.general_capture.components), ('Screen', self.general_capture.screens)) for entity in entities}
+        result = []
+        for owner in owners:
+            if owner.table not in ('Component', 'Screen') or owner.field != 'source_code':
+                continue
+            witness = emitted.get((owner.table, owner.key, owner.field))
+            if witness is None or witness.payload_sha256 != owner.raw_sha256:
+                witness = SourceOwnerWitness(VERSION, owner.table, owner.key, owner.field, owner.raw_sha256, 'unsupported-derivation', () if witness is None else witness.origins)
+            result.append(witness)
+        return tuple(result)
 
     def publish_state(self, path, state, save):
         temporary = path.with_name('.' + path.name + '.' + uuid4().hex + '.tmp')
@@ -272,7 +325,7 @@ class BindingWriteSession:
         try:
             connection = kuzu.Connection(database)
             try:
-                from design_graph.model.graph.binding_context import _rows, _rollback
+                from design_graph.model.graph.binding_context import _rollback, _rows
                 _rows(connection, 'BEGIN TRANSACTION READ ONLY')
                 try:
                     facts = _read_owned_facts(connection, selected_domain(connection, self.final.stem), self.stage.manifest['ownership'])

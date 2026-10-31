@@ -15,6 +15,7 @@ const manager=analyze(ast,{sourceType:request.source_type,lib:[],jsxPragma:null}
 const offsets=new Map([[0,0]]);let u=0,b=0;
 for(const ch of source){u+=ch.length;b+=Buffer.byteLength(ch,'utf8');offsets.set(u,b);}
 const byte=x=>{if(!offsets.has(x))throw Error('noncanonical UTF16 offset');return offsets.get(x);};
+const ownerSources=[];
 const regions=[],environments=[],nodeRegions=new Map(),scopeEnvs=new Map(),functionInfo=new Map(),blockEnvs=new Map(),nameEnvs=new Map(),gaps=[],directEvalNodes=new Set(),functions=[];
 const env=(kind,owner,outer,complete=true)=>{const e={id:'e'+environments.length,kind,owner:owner.id,outer,complete};environments.push(e);owner.environment=e.id;return e.id;};
 const region=(slot,node,parent,environment=null,split_parameters=null,complete=true)=>{const r={id:'r'+regions.length,slot,parent:parent?.id??null,environment,start:byte(node.range[0]),end:byte(node.range[1]),split_parameters,complete};regions.push(r);return r;};
@@ -41,6 +42,7 @@ function walk(node,parent,current){
   }
   const split=node.params.some(contains),creation=region('function-creation',node,parent,null,split);
   functions.push({region:creation.id,kind:node.type==='ArrowFunctionExpression'?'arrow':'ordinary'});
+  ownerSources.push({native_region:creation.id,node_type:node.type,name:node.id?.name??null,start:byte(node.range[0]),end:byte(node.range[1]),body_start:byte(node.body.range[0])});
   const params=region('function-parameters',node,creation);const pe=env(split?'parameters':'function-shared',params,current);
   const body=region('function-body',node.body,creation);const ve=split?env('function-var',body,pe):pe;
   const lexical=region('block',node.body,body);const le=env('block',lexical,ve);
@@ -188,7 +190,7 @@ for(const s of manager.scopes)for(const ref of s.references){
  sourceReferenceNodes.set(node,'ref'+references.length);
  references.push({id:'ref'+references.length,region:r.id,name:node.name,namespace:'value',access:ref.isReadWrite()?'read-write':ref.isWrite()?'write':'read',start:byte(node.range[0]),end:byte(node.range[1]),target:ref.resolved?nativeKeys.get(ref.resolved):null});
 }
-const output={regions,environments,occurrences,variables,references,intrinsics,gaps,functions};
+const output={ownerSources,regions,environments,occurrences,variables,references,intrinsics,gaps,functions};
 if(request.source_syntax!==undefined){
  if(request.source_syntax!=='source-syntax/1')throw Error('unsupported source syntax contract');
  const {captureSourceSyntax}=await import('./source-syntax.mjs');

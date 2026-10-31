@@ -11,6 +11,7 @@ contributes, and takes render order from the live one.
 from __future__ import annotations
 
 from design_graph.model.entities import ComponentType, ExtractedComponent
+from design_graph.model.source_owner import merged
 
 
 def _label_definitions(definitions: list[str]) -> str:
@@ -98,6 +99,7 @@ def merge_definitions(variants: list[ExtractedComponent]) -> ExtractedComponent:
             variants[0].comp_type,
         ),
         source_code=source_code,
+        source_owner=merged(variants, source_code),
         occurrence=max(variant.occurrence for variant in variants),
         classes=" ".join(classes),
         styles=list(styles.values()),

@@ -1,1 +1,18 @@
-{"files":{"capture/binding_capture.py":"c1911ebce6172fa4cf426184278e6072f68442307de9e8e7461ba1b359da8bc8","capture/binding_engine/capture.mjs":"0df9106f3d82311a0dd89e8d3db5b28123fda05c83eb00b0757d3dc21135f8f4","capture/binding_engine/pin.json":"6cfef0f7025ce2633f13cbbcd967c2307dfcacba8ef3b676bc069b52658e86fb","capture/binding_engine/source-syntax.mjs":"a6f86a82985d7516474abedd733b6d092a981e54a8fec904d07076155eaf4e8a","capture/source_syntax_capture.py":"3cd1f414bcbc7ec9113f016b2077c25bfdfe48d61816175b897490d95780c391","model/binding_capture_ir.py":"3d269f5c2f8f47b056319ae8a63000b203975563a97b7e051d4d2af1470c6569","model/binding_ir.py":"9a79035e2e4afeb362c8d5dc8475edfd38c5f146dbf9e78094486c078987d43c","model/source_syntax.py":"a8bc9ce9c485e0467a5dcae165157df8b9e8ffb7348f5bcbd192212b903fcce1"},"version":"source-syntax-producer/1"}
+{
+  "files": {
+    "capture/binding_capture.py": "e925261ca7af018ac0c92d0714a0f64cfcff8699b2875793b90f905e868cb28b",
+    "capture/binding_engine/capture.mjs": "7472663c990ef274cfcf0af03fb2c7da1030e0a11aa8e3449be8236d5a7dbe14",
+    "capture/binding_engine/pin.json": "6cfef0f7025ce2633f13cbbcd967c2307dfcacba8ef3b676bc069b52658e86fb",
+    "capture/binding_engine/source-syntax.mjs": "a6f86a82985d7516474abedd733b6d092a981e54a8fec904d07076155eaf4e8a",
+    "capture/source_syntax_capture.py": "5c3229ad5f2d47b1c844e3b3b7e1b7262cf4aa6960ee85ffc795671a7913fa11",
+    "model/binding_capture_ir.py": "3d269f5c2f8f47b056319ae8a63000b203975563a97b7e051d4d2af1470c6569",
+    "model/binding_ir.py": "9a79035e2e4afeb362c8d5dc8475edfd38c5f146dbf9e78094486c078987d43c",
+    "model/source_syntax.py": "a8bc9ce9c485e0467a5dcae165157df8b9e8ffb7348f5bcbd192212b903fcce1",
+    "capture/owned_emission.py": "a2d531f44113c06ccae4b8b7e016379d45b18633b29eced76d7a0d1e9ed70928",
+    "capture/owned_html_capture.py": "6ed4e13f59d86d31e16c3e50fb4cbb71ab209c2aa181e9654012461efa4a04e7",
+    "capture/html_prototype/extraction/definition_merge.py": "1062f2d4ec553298a99871d2d79ef0e15c9ea400baf895c21c72da4fc2035758",
+    "model/source_owner.py": "b1feea42a947d079a2080efd8f3802e6f21be68c5fcfae3a36d8af28db330007",
+    "model/entities.py": "9c80e9c80336a4bf38060cf54f1267ef0d9e97d465320f08f64706fa4182af79"
+  },
+  "version": "source-syntax-producer/1"
+}

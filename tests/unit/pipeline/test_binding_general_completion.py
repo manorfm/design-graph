@@ -93,24 +93,22 @@ def test_fresh_source_change_recaptures_only_fresh_destination(tmp_path):
     assert json.loads(result.stdout)["status"] == "skipped"
 
 
-def test_valid_zero_general_rows_can_be_reused(tmp_path):
+def test_zero_screen_capture_cannot_publish_ownership(tmp_path):
     source = tmp_path / "input.html"
     source.write_text("<html><script>const X=1;</script></html>")
     db = tmp_path / "zero.db"
     injection = """
 from design_graph.capture.base import CaptureResult
-from design_graph.capture.registry import capture_named
-capture = capture_named('html_prototype')
+from design_graph.capture.owned_html_capture import OwnedHtmlPrototypeCapture
 async def zero(*args, **kwargs):
  return CaptureResult('html_prototype', [], [], {}, [])
-capture.capture = zero
+OwnedHtmlPrototypeCapture.capture = zero
 """
     result = build(source, db, before=injection)
-    assert result.returncode == 0, result.stderr
-    manifest = json.loads((tmp_path / "zero.db.binding.json").read_text())
-    assert manifest["general"]["tables"]["Screen"]["count"] == 0
-    before = files(db)
-    result = build(source, db)
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)["status"] == "skipped"
-    assert files(db) == before
+    # The source-ownership contract already required a selected Screen in the
+    # parent. Empty tables are valid, but a wholly empty Screen domain is not.
+    assert result.returncode != 0 and not result.stdout
+    assert 'missing/bounded selected Screen inventory required' in result.stderr
+    assert not db.exists()
+    assert not (tmp_path / 'zero.db.binding.json').exists()
+    assert not (tmp_path / 'zero.db.state.json').exists()

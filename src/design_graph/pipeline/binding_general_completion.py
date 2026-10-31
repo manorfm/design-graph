@@ -100,7 +100,9 @@ def property_receipt(connection):
     physical JSON extension is deliberately excluded to avoid a recursive hash.
     """
     from design_graph.model.graph.source_build_ownership import (
-        GeneralCommitment, PayloadOwner, TableCommitment,
+        GeneralCommitment,
+        PayloadOwner,
+        TableCommitment,
     )
     shape = general_receipt(connection)
     nodes, rels = node_tables(), rel_tables()
@@ -137,7 +139,7 @@ def property_receipt(connection):
                     if table.columns[col] == 'STRING':
                         if len(owners) >= MAX_ROWS:
                             raise ValueError('general owner locator budget exceeded')
-                        owners.append(PayloadOwner(name, key, col, sha256(canonical(value).encode()).hexdigest()))
+                        owners.append(PayloadOwner(name, key, col, sha256(canonical(value).encode()).hexdigest(), sha256((value or '').encode()).hexdigest()))
         finally:
             result.close()
         digest = sha256()
