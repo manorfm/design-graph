@@ -137,6 +137,30 @@ def test_strict_direct_eval_stays_resolved(mode, prefix):
     assert marked(result, "r")[1] == [(start, start + 1, "let")]
 
 
+@pytest.mark.parametrize("mode", ["script", "module"])
+@pytest.mark.parametrize("parameters", ["", "p=()=>/*p*/X"])
+def test_body_class_uses_lexical_environment_and_actual_shared_token(mode, parameters):
+    source = (
+        "let X;function f("
+        + parameters
+        + "){class X {m(){return /*i*/X;}}return /*o*/X;}"
+    )
+    result = capture(source, mode)
+    inside, inner_occurrences = marked(result, "i")
+    outside, outer_occurrences = marked(result, "o")
+    start = source.index("class X") + 6
+    assert inside.target != outside.target
+    assert inner_occurrences == outer_occurrences == [(start, start + 1, "class")]
+    bindings = {b.id: b for b in result.ir.bindings}
+    envs = {e.id: e for e in result.ir.environments}
+    assert envs[bindings[outside.target].environment].kind.value == "block"
+    assert envs[bindings[inside.target].environment].kind.value == "block"
+    assert bindings[inside.target].environment != bindings[outside.target].environment
+    assert not result.gaps
+    if parameters:
+        assert marked(result, "p")[1] == [(4, 5, "let")]
+
+
 def test_parenthesized_direct_eval_and_default_closure_are_local():
     result = capture(
         'let X;function f(eval,p=()=>/*p*/X){(eval)("var X=1");return /*r*/X;}function g(){return /*g*/X;}'

@@ -119,7 +119,7 @@ for(const s of manager.scopes)for(const v of s.variables){
  if(!v.isValueVariable)continue;
  let e=scopeEnvs.get(s);
  const defs=v.defs;
- if(s.type==='function'&&defs.length&&defs.every(d=>d.type==='Variable'&&['let','const'].includes(d.parent?.kind))){e=functionInfo.get(s.block).le;}
+ if(s.type==='function'&&defs.length&&defs.every(d=>d.type==='ClassName'||(d.type==='Variable'&&['let','const'].includes(d.parent?.kind)))){e=functionInfo.get(s.block).le;}
  const key=[e,v.name];nativeKeys.set(v,key);
  const ids=[];
  for(const d of defs){
