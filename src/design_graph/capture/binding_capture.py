@@ -92,7 +92,7 @@ class BindingCapture:
         ir, intrinsics = self._inventory(raw, source, locator, source_type, syntax)
         ir = self._project_references(ir, raw["references"], intrinsics)
         captured = BindingCaptureIR(
-            "binding-capture/2",
+            "binding-capture/3",
             source_type,
             syntax,
             self.fingerprint,
@@ -165,8 +165,8 @@ class BindingCapture:
             for i in raw["intrinsics"]
         )
         ir = Envelope(
-            "binding-ir/2",
-            "static-unit-chain/2",
+            "binding-ir/3",
+            "static-unit-chain/3",
             (
                 SourceUnit(
                     unit,

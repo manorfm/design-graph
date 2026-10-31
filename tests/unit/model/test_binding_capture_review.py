@@ -191,8 +191,8 @@ def test_untrusted_payload_structure_bounds(p):
     with pytest.raises(ValueError):
         BindingCaptureIR.from_json(
             c.to_json().replace(
-                '"version":"binding-capture/2"',
-                '"version":"binding-capture/2","version":"binding-capture/2"',
+                '"version":"binding-capture/3"',
+                '"version":"binding-capture/3","version":"binding-capture/3"',
             )
         )
 

@@ -75,10 +75,12 @@ function walk(node,parent,current){
   }
   // Catch binding initialization precedes the separate body lexical scope.
   // A parameter-less native catch still has its own (empty) static scope.
-  const caught=region('block',node,parent),ce=env('block',caught,current);
+  const caught=region('catch',node,parent),ce=env('block',caught,current);
   blockEnvs.set(node,ce);
   if(node.param)pattern(node.param,caught,ce,true);
-  walk(node.body,caught,ce);return;
+  const body=region('catch-body',node.body,caught),be=env('block',body,ce);
+  blockEnvs.set(node.body,be);
+  for(const child of node.body.body)walk(child,body,be);return;
  }
  if(node.type==='SwitchStatement'){
   const sw=region('switch',node,parent),disc=region('switch-discriminant',node.discriminant,sw);
@@ -104,7 +106,8 @@ function walk(node,parent,current){
  for(const child of children(node))walk(child,parent,current);
 }
 function pattern(node,parent,current,catchParameter=false){
- nodeRegions.set(node,parent);
+ // Native default-initializer writes also need an AST-owned parameter site.
+ nodeRegions.set(node,catchParameter&&node.type==='Identifier'?region('evaluation',node,parent):parent);
  if(node.type==='AssignmentPattern'){
   pattern(node.left,parent,current,catchParameter);const r=region(catchParameter?'evaluation':'parameter-default',node.right,parent);walk(node.right,r,current);return;
  }

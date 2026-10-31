@@ -79,7 +79,11 @@ binding identities where the same identifier token creates two bindings.
 
 ## Versioned profile and limits
 
-`binding-capture/2` wraps `binding-ir/2`, profile `static-unit-chain/2`.
+`binding-capture/3` wraps `binding-ir/3`, profile `static-unit-chain/3`.
+Old capture v2/profile v2 payloads are unsupported and refused, including cold
+retrieval; recapture from the retained whole source is required. No in-place
+upgrade or reinterpretation is performed. The native engine pin is unchanged;
+the pipeline fingerprints all adaptor `.mjs` bytes, invalidating stale build reuse.
 The v1 profile and its 69 controls remain valid and separate. The extension adds:
 
 - whole static script/module-unit declarations (not a normative Global Record);
@@ -107,13 +111,25 @@ remain unknown. No concrete iteration environment or runtime execution is claime
 Native catch scopes have AST-owned static block environments, separate from
 catch-body lexical blocks. CatchClause definitions retain every original binding
 token as kind `parameter`; this includes identifiers and nested binding patterns.
-In capture profile v2 only, a single `parameter` occurrence in a block is checked
-as a lexical singleton, without inventing a function-formal environment or changing
-its serialized kind. Function parameters keep the original v1 coexistence rules.
+In capture profile v3 only, normalization requires an explicit AST-produced
+`catch` owner, not a generic `block` owner. It owns exactly one `catch-body`
+child with its own block environment and outer link to the catch environment.
+Only parameter occurrences before the body are admitted in the catch cell;
+each name is a singleton. Direct parameter evaluation children precede the body,
+including initializer-write identifier sites, computed keys and defaults.
+Body sites require a catch parent; both environments obey the normal qualified
+owner/outer transition rules. Generic block let/function-to-parameter relabels
+are refused. Function parameters keep the original v1 coexistence rules.
+The new slots are capture-only; the v1 checker continues to refuse them.
 Computed keys and default expressions use AST evaluation sites in the catch
 parameter environment; nested closure creation preserves that environment. A catch
 without a parameter retains the native empty static scope, not a claimed runtime
 Environment Record. No thrown value, initialization or successful evaluation is known.
+
+Typed catch provenance checks internal consistency, not authenticity of arbitrary
+coherently rewritten IR. The reader neither reparses source nor matches a source
+text regex. A same-payload source hash does not authenticate AST provenance;
+evidence remains IR_ONLY without an independent trusted admission channel.
 
 Simple catch `var` homonyms remain distinct: the var declaration occurrence belongs
 to the enclosing var cell, while its initializer write can target the catch cell.

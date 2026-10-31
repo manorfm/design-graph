@@ -1,4 +1,4 @@
-"""Version 2 static-unit capture profile, not normative runtime environments.
+"""Version 3 static-unit capture profile, not normative runtime environments.
 
 Adds abstract module/script cells and intrinsic arguments to the v1 chain checker.
 Host object properties, instantiation, initialization and value facts are not proved.
@@ -17,6 +17,7 @@ from .binding_ir import (
     DeclarationKind,
     Envelope,
     EnvironmentKind,
+    EvaluationSlot,
     Namespace,
     _Checker,
     _decode,
@@ -70,13 +71,15 @@ class _CaptureChecker(_Checker):
             expected.extend(canonical_bindings((env,), tuple(ds)))
         return self._intrinsic_inventory(expected)
 
-    @staticmethod
-    def _normalize_group(env, ds):
+    def _normalize_group(self, env, ds):
         kinds = {d.kind for d in ds}
         # Catch parameters are lexical block cells in the static-unit profile,
         # not function-formal environments. Keep their real parameter occurrence
         # kind; normalize only for the v1 inventory/coexistence validator.
         if env.kind == EnvironmentKind.BLOCK and kinds == {DeclarationKind.PARAMETER}:
+            owner = self.get(self.regions, env.unit, env.owner)
+            if owner.slot != EvaluationSlot.CATCH:
+                raise ValueError("parameter in non-parameter environment")
             if len(ds) != 1:
                 raise ValueError("duplicate catch parameter occurrence")
             ds = [replace(ds[0], kind=DeclarationKind.LET)]
@@ -97,6 +100,57 @@ class _CaptureChecker(_Checker):
         }:
             ds = [replace(d, kind=DeclarationKind.LET) for d in ds]
         return env, ds
+
+    def topology(self):
+        super().topology()
+        # Typed producer provenance is consistency, not source authentication.
+        for region in self.e.regions:
+            if region.slot == EvaluationSlot.CATCH_BODY:
+                parent = self.get(self.regions, region.unit, region.parent)
+                if parent.slot != EvaluationSlot.CATCH:
+                    raise ValueError("catch body has wrong owner")
+            if region.slot != EvaluationSlot.CATCH:
+                continue
+            parent = self.get(self.regions, region.unit, region.parent)
+            if parent.slot not in (
+                EvaluationSlot.ROOT,
+                EvaluationSlot.BLOCK,
+                EvaluationSlot.CATCH_BODY,
+                EvaluationSlot.EVALUATION,
+                EvaluationSlot.SWITCH_CASE,
+            ):
+                raise ValueError("catch has wrong parent site")
+            children = [
+                r
+                for r in self.e.regions
+                if r.unit == region.unit and r.parent == region.id
+            ]
+            bodies = [r for r in children if r.slot == EvaluationSlot.CATCH_BODY]
+            if len(bodies) != 1:
+                raise ValueError("incomplete or duplicate catch body")
+            body = bodies[0]
+            if not region.start < body.start < body.end == region.end:
+                raise ValueError("invalid catch body bounds")
+            for child in children:
+                if child is body:
+                    continue
+                if child.slot != EvaluationSlot.EVALUATION or child.end > body.start:
+                    raise ValueError("invalid catch parameter evaluation site")
+            for declaration in self.e.occurrences:
+                if (declaration.unit, declaration.environment) != (
+                    region.unit,
+                    region.environment,
+                ):
+                    continue
+                if declaration.kind != DeclarationKind.PARAMETER or not (
+                    region.start < declaration.start < declaration.end <= body.start
+                ):
+                    raise ValueError("invalid catch parameter occurrence/site")
+            if any(
+                ref.unit == region.unit and ref.region == region.id
+                for ref in self.e.references
+            ):
+                raise ValueError("catch reference requires an evaluation or body site")
 
     def _intrinsic_inventory(self, expected):
         seen = set()
@@ -142,9 +196,9 @@ class BindingCaptureIR:
     @staticmethod
     def _check_profile(value):
         if (
-            value.version != "binding-capture/2"
-            or value.ir.version != "binding-ir/2"
-            or value.ir.profile != "static-unit-chain/2"
+            value.version != "binding-capture/3"
+            or value.ir.version != "binding-ir/3"
+            or value.ir.profile != "static-unit-chain/3"
         ):
             raise ValueError("unsupported capture version/profile")
         if value.source_type not in ("script", "module") or value.syntax not in (

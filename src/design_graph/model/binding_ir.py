@@ -215,6 +215,8 @@ class EvaluationSlot(str, Enum):
     PARAMETER_COMPUTED = "parameter-computed"
     FUNCTION_NAME = "function-name"
     CLASS = "class"
+    CATCH = "catch"
+    CATCH_BODY = "catch-body"
 
 
 class AccessKind(str, Enum):
@@ -335,7 +337,13 @@ class Envelope:
             d.kind in (DeclarationKind.CLASS, DeclarationKind.FUNCTION_NAME)
             for d in envelope.occurrences
         ) or any(
-            r.slot in (EvaluationSlot.CLASS, EvaluationSlot.FUNCTION_NAME)
+            r.slot
+            in (
+                EvaluationSlot.CLASS,
+                EvaluationSlot.FUNCTION_NAME,
+                EvaluationSlot.CATCH,
+                EvaluationSlot.CATCH_BODY,
+            )
             for r in envelope.regions
         ):
             raise ValueError("capture-only extension requires version 2")
@@ -540,7 +548,13 @@ class _Checker:
             required = EnvironmentKind.ROOT
         elif parent is None:
             raise ValueError("non-root without parent")
-        elif r.slot in (EvaluationSlot.BLOCK, EvaluationSlot.CLASS, EvaluationSlot.FUNCTION_NAME):
+        elif r.slot in (
+            EvaluationSlot.BLOCK,
+            EvaluationSlot.CLASS,
+            EvaluationSlot.FUNCTION_NAME,
+            EvaluationSlot.CATCH,
+            EvaluationSlot.CATCH_BODY,
+        ):
             required = EnvironmentKind.BLOCK
         elif r.slot in (EvaluationSlot.SWITCH_CASE, EvaluationSlot.SWITCH_DISCRIMINANT):
             if parent.slot != EvaluationSlot.SWITCH:

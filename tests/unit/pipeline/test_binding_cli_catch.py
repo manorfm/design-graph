@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from tests.unit.pipeline.test_binding_cli import build, query
 from tests.unit.pipeline.test_binding_cli import pytestmark as prepared_engine_mark
 from tests.unit.pipeline.test_binding_cli_controls import open_db
@@ -90,3 +92,67 @@ def test_catch_static_cells_survived_normal_build_and_cold_read(tmp_path):
                 indent=2,
             )
         )
+
+
+@pytest.mark.parametrize(
+    "mutation", ["owner", "origin", "site", "cross-unit", "old-profile"]
+)
+def test_catch_persisted_typed_edits_refused_cold_retrieval(tmp_path, mutation):
+    source = tmp_path / "typed.html"
+    source.write_text(
+        "<html><body><main>Typed</main><script>let x;try{}catch(x){()=>x;}</script></body></html>"
+    )
+    db = tmp_path / "typed.db"
+    built = build(source, db)
+    assert built.returncode == 0, built.stderr
+    manifest = json.loads(Path(str(db) + ".binding.json").read_text())
+    root = next(r for r in manifest["roots"] if r["region"] == "r0")
+    positive = query(db, manifest["snapshot"], root["unit"], root["region"])
+    assert positive.returncode == 0, positive.stderr
+    assert json.loads(positive.stdout)["evidence"] == "IR_ONLY"
+    database, connection = open_db(db)
+    try:
+        revision = manifest["snapshot"]
+        result = connection.execute(
+            "MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload",
+            {"id": revision},
+        )
+        payload = json.loads(result.get_next()[0])
+        result.close()
+        captured = payload["captures"][0]
+        ir = captured["ir"]
+        caught = next(r for r in ir["regions"] if r["slot"] == "catch")
+        assert any(
+            d["kind"] == "parameter" and d["environment"] == caught["environment"]
+            for d in ir["occurrences"]
+        )
+        if mutation == "owner":
+            caught["slot"] = "block"
+        elif mutation == "origin":
+            ir["resolutions"][0]["origin"] = ir["environments"][0]["id"]
+        elif mutation == "site":
+            body = next(r for r in ir["regions"] if r["slot"] == "catch-body")
+            body["parent"] = ir["units"][0]["root_region"]
+        elif mutation == "cross-unit":
+            caught["unit"] = "u:other"
+        else:
+            captured["version"] = "binding-capture/2"
+            ir["version"], ir["profile"] = "binding-ir/2", "static-unit-chain/2"
+        raw = json.dumps(payload)
+        connection.execute(
+            "MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload",
+            {"id": revision, "payload": raw},
+        ).close()
+        result = connection.execute(
+            "MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload",
+            {"id": revision},
+        )
+        assert result.get_next()[0] == raw
+        result.close()
+    finally:
+        connection.close()
+        database.close()
+    refused = query(db, revision, root["unit"], root["region"])
+    assert refused.returncode != 0 and not refused.stdout
+    stale = build(source, db)
+    assert stale.returncode != 0 and not stale.stdout

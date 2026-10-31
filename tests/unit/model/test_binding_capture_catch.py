@@ -213,3 +213,96 @@ def test_catch_origins_rejected_a_real_outer_native_target():
     forged = provider()._project_references(ir, raw["references"], intrinsics)
     with pytest.raises(ValueError, match="first-binding lookup"):
         replace(result, ir=forged, intrinsics=intrinsics).check()
+
+
+@pytest.mark.parametrize("source", ["{let x;x;}", "{function x(){}x;}"])
+def test_generic_block_parameter_relabel_was_refused(source):
+    from design_graph.model.binding_ir import DeclarationKind, EvaluationSlot
+
+    result = capture(source)
+    original = result.ir.occurrences[0]
+    forged = replace(
+        result,
+        ir=replace(
+            result.ir, occurrences=(replace(original, kind=DeclarationKind.PARAMETER),)
+        ),
+    )
+    with pytest.raises(ValueError, match="parameter in non-parameter environment"):
+        forged.check()
+    with pytest.raises(ValueError):
+        forged.to_json()
+    # A self-asserted catch slot alone is insufficient: no typed body exists.
+    owner = next(
+        e.owner for e in forged.ir.environments if e.id == original.environment
+    )
+    forged = replace(
+        forged,
+        ir=replace(
+            forged.ir,
+            regions=tuple(
+                replace(r, slot=EvaluationSlot.CATCH) if r.id == owner else r
+                for r in forged.ir.regions
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="catch body"):
+        forged.check()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["owner", "body", "outer", "site", "unit", "kind", "old-profile"]
+)
+def test_catch_typed_contract_edits_were_refused(mutation):
+    import json
+    from dataclasses import asdict
+
+    from design_graph.model.binding_capture_ir import BindingCaptureIR
+    from design_graph.model.binding_ir import DeclarationKind, EvaluationSlot
+
+    result = capture("let key;try{}catch({[key]:x=()=>x}){x;}")
+    ir = result.ir
+    caught = next(r for r in ir.regions if r.slot == EvaluationSlot.CATCH)
+    body = next(r for r in ir.regions if r.slot == EvaluationSlot.CATCH_BODY)
+    if mutation in ("owner", "body", "site", "unit"):
+        region = caught if mutation == "owner" else body
+        changes = (
+            {"slot": EvaluationSlot.BLOCK}
+            if mutation in ("owner", "body")
+            else (
+                {"parent": ir.units[0].root_region}
+                if mutation == "site"
+                else {"unit": "u:other"}
+            )
+        )
+        ir = replace(
+            ir,
+            regions=tuple(
+                replace(r, **changes) if r == region else r for r in ir.regions
+            ),
+        )
+    elif mutation == "outer":
+        ir = replace(
+            ir,
+            environments=tuple(
+                replace(e, outer=None) if e.id == body.environment else e
+                for e in ir.environments
+            ),
+        )
+    elif mutation == "kind":
+        ir = replace(
+            ir,
+            occurrences=tuple(
+                replace(d, kind=DeclarationKind.LET)
+                if d.environment == caught.environment
+                else d
+                for d in ir.occurrences
+            ),
+        )
+    else:
+        result = replace(result, version="binding-capture/2")
+        ir = replace(ir, version="binding-ir/2", profile="static-unit-chain/2")
+    forged = replace(result, ir=ir)
+    with pytest.raises(ValueError):
+        forged.check()
+    with pytest.raises(ValueError):
+        BindingCaptureIR.from_json(json.dumps(asdict(forged)))
