@@ -16,6 +16,8 @@ def test_engine_runtime_assets_are_explicit_package_data():
     required = {
         "README.md",
         "capture.mjs",
+        "source-syntax.mjs",
+        "source-syntax-pin.json",
         "engine-api.d.mts",
         "engine-api.mjs",
         "engine-final.patch",

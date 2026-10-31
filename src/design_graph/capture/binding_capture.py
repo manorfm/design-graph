@@ -116,13 +116,25 @@ class BindingCapture:
         )
         return captured
 
-    def _capture_native(self, text, source_type, syntax):
+    def capture_source_syntax(
+        self, source: bytes, *, locator: str, source_type: str, syntax: str
+    ):
+        """Explicit new envelope; never silently upgraded by legacy capture/build."""
+        from design_graph.capture.source_syntax_capture import capture_source_syntax
+
+        return capture_source_syntax(
+            self, source, locator=locator, source_type=source_type, syntax=syntax
+        )
+
+    def _capture_native(self, text, source_type, syntax, *, source_syntax=None):
         request = {
             "source": text,
             "source_type": source_type,
             "syntax": syntax,
             "engine": str(self.toolchain),
         }
+        if source_syntax is not None:
+            request["source_syntax"] = source_syntax
         result = subprocess.run(
             [str(self.node), str(self.assets / "capture.mjs")],
             input=json.dumps(request),

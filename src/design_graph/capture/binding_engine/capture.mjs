@@ -159,6 +159,7 @@ for(const s of manager.scopes){
  }
 }
 const occurrences=[],variables=[],nativeKeys=new Map(),intrinsics=[];
+const sourceReferenceNodes=new Map(),sourceDeclarationNodes=new Map();
 for(const s of manager.scopes)for(const v of s.variables){
  if(!v.isValueVariable)continue;
  let e=scopeEnvs.get(s);
@@ -174,6 +175,7 @@ for(const s of manager.scopes)for(const v of s.variables){
   else if(d.type==='ClassName')kind='class';
   else throw Error('unsupported definition '+d.type);
   const id='d'+occurrences.length;ids.push(id);
+  sourceDeclarationNodes.set(d.name,{id,target:key});
   occurrences.push({id,environment:e,name:v.name,namespace:'value',kind,start:byte(d.name.range[0]),end:byte(d.name.range[1])});
  }
  if(!defs.length){if(v.name!=='arguments'||s.type!=='function')throw Error('unsupported intrinsic');intrinsics.push({environment:e,kind:'arguments'});}
@@ -183,6 +185,13 @@ const references=[];
 for(const s of manager.scopes)for(const ref of s.references){
  if(!ref.isValueReference)continue;
  const node=ref.identifier,r=nodeRegions.get(node);if(!r)throw Error('reference AST evaluation region absent');
+ sourceReferenceNodes.set(node,'ref'+references.length);
  references.push({id:'ref'+references.length,region:r.id,name:node.name,namespace:'value',access:ref.isReadWrite()?'read-write':ref.isWrite()?'write':'read',start:byte(node.range[0]),end:byte(node.range[1]),target:ref.resolved?nativeKeys.get(ref.resolved):null});
 }
-process.stdout.write(JSON.stringify({regions,environments,occurrences,variables,references,intrinsics,gaps,functions}));
+const output={regions,environments,occurrences,variables,references,intrinsics,gaps,functions};
+if(request.source_syntax!==undefined){
+ if(request.source_syntax!=='source-syntax/1')throw Error('unsupported source syntax contract');
+ const {captureSourceSyntax}=await import('./source-syntax.mjs');
+ output.source_syntax=captureSourceSyntax(ast,children,byte,sourceReferenceNodes,sourceDeclarationNodes);
+}
+process.stdout.write(JSON.stringify(output));
