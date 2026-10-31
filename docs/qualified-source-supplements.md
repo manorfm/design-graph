@@ -70,8 +70,28 @@ Up to 16 nonduplicate selections and 512 KiB of aggregate selected UTF-8 source
 are accepted. Invalid parts, selectors, receipts, budgets and snapshots fail
 closed. No silent truncation or first-name fallback is used.
 
-Without qualified arguments, legacy useful source/data and assembly content are
-preserved. Normal dispatch replaces unsupported completeness/absence assertions
-with explicit coverage limits. Legacy name lookup may still lack a helper body;
-that is different from direct qualified source being available. Automatic
-name/member-to-source resolution remains unsupported.
+Without qualified arguments, successful legacy source/data and assembly content
+are preserved byte-for-byte. Only a structured legacy source miss activates a
+bounded lexical fallback on the already selected doc/session reader connection.
+It requires **exactly one persisted snapshot** (never latest/global discovery),
+fully admits it once per invocation, and requires one declared name across all
+units/scopes, one declaration occurrence, and one smallest captured function
+region containing that identifier. Collisions, missing identities and exhausted
+budgets fail closed; a reader without the extension reports source context unknown.
+
+The fallback follows only checked same-unit lexical reference targets. It emits
+function-region bytes and declaration-identifier line excerpts with UTF-8 byte
+bounds and hashes. A line excerpt is source context, **not a complete initializer
+or runtime value**: full declaration extent and multiline continuation stay
+unknown. It never guesses initializer ends or dumps the entire source unit.
+The existing structured source paginator preserves opaque source bytes. Repeat
+identical doc/session/name/aspect arguments with `part=N`; `known` does not hide
+this evidence. Limits: 512 KiB aggregate source, 64 context records, 4096 captured
+references in the selected unit, plus the existing whole-snapshot admission limits.
+There is no cross-invocation checked-object cache.
+
+This direct helper-source correction does not implement automatic assembly
+linkage. In particular, the original screen chain still lacks the association
+`K = window.V6K` needed to reach the helper. R13 assembly closure remains open;
+source context does not certify runtime values, source-to-IR authenticity or
+legacy graph-to-binding snapshot correspondence.

@@ -154,18 +154,14 @@ class ToolDispatcher:
         if tool_name == "get_full" and args.get("aspect") == "source":
             from types import SimpleNamespace
 
-            from design_graph.interface.mcp.qualified_source_tool import COVERAGE_NOTICE
+            from design_graph.interface.mcp.automatic_source_tool import (
+                automatic_source,
+            )
 
             assert reader is not None
             source = reader.get_full_source(name)
             if not source:
-                return (
-                    f"Fonte indisponível na busca legada por nome para '{name}'. "
-                    "A ausência nessa busca não prova ausência de fonte persistida.\n\n"
-                    + COVERAGE_NOTICE
-                    + " Request direct qualified stored-source evidence via explicit db/snapshot/source_selections; "
-                    "availability is checked there without inferring a name/member mapping."
-                )
+                return automatic_source(reader, name, args.get("part", 1))
             # The legacy formatter receives the already resolved record. Status never
             # depends on rendered text, and the reader is queried exactly once.
             return full_tools.get_full_source(
