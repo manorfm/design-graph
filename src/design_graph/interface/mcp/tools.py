@@ -12,8 +12,7 @@ ToolDispatcher.pick_reader() resolves which prototype to use:
 from __future__ import annotations
 
 from pathlib import Path
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from design_graph.model.graph.catalog import GraphDocumentName
 
@@ -75,13 +74,16 @@ class ToolDispatcher:
     def dispatch(self, tool_name: str, args: dict, active_doc: str) -> str:
         """Route a tool call to its tool."""
         if tool_name == "get_binding_context":
-            from design_graph.interface.mcp.binding_context_tool import get_binding_context
+            from design_graph.interface.mcp.binding_context_tool import (
+                get_binding_context,
+            )
 
             return get_binding_context(args)
 
         if tool_name in {"get_full", "assemble_page"}:
             from design_graph.interface.mcp.qualified_source_tool import (
-                QUALIFIED_KEYS, qualified_source,
+                QUALIFIED_KEYS,
+                qualified_source,
             )
 
             if QUALIFIED_KEYS.intersection(args):
@@ -89,8 +91,14 @@ class ToolDispatcher:
 
         # Legacy consumers are deliberately not dependencies of qualified retrieval.
         from design_graph.interface.mcp import (
-            assemble_tool, asset_tool, build_tools, component_tools,
-            discovery_tools, full_tools, screen_tools, validation_tool,
+            assemble_tool,
+            asset_tool,
+            build_tools,
+            component_tools,
+            discovery_tools,
+            full_tools,
+            screen_tools,
+            validation_tool,
         )
 
         doc  = args.get("doc")
@@ -143,20 +151,32 @@ class ToolDispatcher:
             available = ", ".join(dispatch_map.keys())
             return f"Unknown tool: {tool_name}. Available: {available}"
 
+        if tool_name == "get_full" and args.get("aspect") == "source":
+            from types import SimpleNamespace
+
+            from design_graph.interface.mcp.qualified_source_tool import COVERAGE_NOTICE
+
+            assert reader is not None
+            source = reader.get_full_source(name)
+            if not source:
+                return (
+                    f"Fonte indisponível na busca legada por nome para '{name}'. "
+                    "A ausência nessa busca não prova ausência de fonte persistida.\n\n"
+                    + COVERAGE_NOTICE
+                    + " Request direct qualified stored-source evidence via explicit db/snapshot/source_selections; "
+                    "availability is checked there without inferring a name/member mapping."
+                )
+            # The legacy formatter receives the already resolved record. Status never
+            # depends on rendered text, and the reader is queried exactly once.
+            return full_tools.get_full_source(
+                cast("GraphReader", SimpleNamespace(get_full_source=lambda _: source)), name, args.get("part", 1),
+            )
+
         result = fn()
         if tool_name == "assemble_page":
             from design_graph.interface.mcp.qualified_source_tool import honest_coverage
 
             return honest_coverage(result)
-        if tool_name == "get_full" and args.get("aspect") == "source" and "Fonte não disponível" in result:
-            from design_graph.interface.mcp.qualified_source_tool import COVERAGE_NOTICE
-
-            result = result.replace("Fonte não disponível para", "Fonte indisponível na busca legada por nome para")
-            result = result.replace("Rode: design-graph --force <proto.html>", "A ausência nessa busca não prova ausência de fonte persistida.")
-            return result + "\n\n" + COVERAGE_NOTICE + (
-                " Request direct qualified stored-source evidence via explicit db/snapshot/source_selections; "
-                "availability is checked there without inferring a name/member mapping."
-            )
         return result
 
     def _find_reader(self, name: str) -> GraphReader | None:
