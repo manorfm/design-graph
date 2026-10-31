@@ -52,6 +52,9 @@ class QueryCliArgs:
     unit: str = ''
     region: str = ''
     expected_sha256: str | None = None
+    input_artifact: str = ''
+    inventory_units: tuple[str, ...] = ()
+    use: str = ''
 
 
 # ── Argument parser (pure, testable) ──────────────────────────────────────────
@@ -122,6 +125,13 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
     binding.add_argument('--unit', required=True)
     binding.add_argument('--region', required=True)
     binding.add_argument('--expected-sha256', default=None)
+    syntax = sub.add_parser('source-candidate', parents=[shared], help='Read explicitly qualified syntax candidates (not runtime bindings)')
+    syntax.add_argument('--snapshot', required=True)
+    syntax.add_argument('--input-artifact', required=True)
+    syntax.add_argument('--inventory-unit', action='append', required=True)
+    syntax.add_argument('--unit', required=True)
+    syntax.add_argument('--use', required=True)
+    syntax.add_argument('--expected-sha256', default=None)
     ns = p.parse_args(argv)
 
     query    = " ".join(ns.terms) if hasattr(ns, "terms") else ""
@@ -146,6 +156,9 @@ def parse_query_args(argv: list[str]) -> QueryCliArgs:
         unit=getattr(ns, 'unit', ''),
         region=getattr(ns, 'region', ''),
         expected_sha256=getattr(ns, 'expected_sha256', None),
+        input_artifact=getattr(ns, 'input_artifact', ''),
+        inventory_units=tuple(getattr(ns, 'inventory_unit', ())),
+        use=getattr(ns, 'use', ''),
     )
 
 
@@ -201,6 +214,13 @@ def main() -> None:
     if args.command == 'binding-context':
         from design_graph.interface.cli.binding_query import binding_query_main
         binding_query_main(args)
+        return
+
+    if args.command == 'source-candidate':
+        from design_graph.interface.cli.source_syntax_query import (
+            source_syntax_query_main,
+        )
+        source_syntax_query_main(args)
         return
 
     from design_graph.interface.mcp.tools import ToolDispatcher
