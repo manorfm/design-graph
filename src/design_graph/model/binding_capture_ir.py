@@ -73,6 +73,13 @@ class _CaptureChecker(_Checker):
     @staticmethod
     def _normalize_group(env, ds):
         kinds = {d.kind for d in ds}
+        # Catch parameters are lexical block cells in the static-unit profile,
+        # not function-formal environments. Keep their real parameter occurrence
+        # kind; normalize only for the v1 inventory/coexistence validator.
+        if env.kind == EnvironmentKind.BLOCK and kinds == {DeclarationKind.PARAMETER}:
+            if len(ds) != 1:
+                raise ValueError("duplicate catch parameter occurrence")
+            ds = [replace(ds[0], kind=DeclarationKind.LET)]
         if kinds & {DeclarationKind.CLASS, DeclarationKind.FUNCTION_NAME}:
             if len(ds) != 1 or env.kind not in (
                 EnvironmentKind.ROOT,

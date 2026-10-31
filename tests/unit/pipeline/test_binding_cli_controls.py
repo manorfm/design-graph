@@ -17,10 +17,13 @@ def test_failed_capture_inventory_did_not_claim_selected_units_were_captured(tmp
     from design_graph.capture.base import PrototypeDocument
     from design_graph.capture.binding_units import enumerate_units
 
-    source = html_source(tmp_path, "try { throw 1; } catch (item) { item; }")
+    source = html_source(tmp_path, "class C { static { let item; item; } }")
     db = tmp_path / "unsupported.db"
     failed = build(source, db)
-    assert failed.returncode != 0 and "unsupported native scope catch" in failed.stderr
+    assert (
+        failed.returncode != 0
+        and "unsupported native scope class-static-block" in failed.stderr
+    )
     assert not db.exists() and not Path(str(db) + ".binding.json").exists()
     units, inventory = enumerate_units(PrototypeDocument.read(source))
     assert len(units) == 1

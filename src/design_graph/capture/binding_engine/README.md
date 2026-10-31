@@ -104,6 +104,27 @@ Nested closures retain this static chain. These are abstract source bindings:
 per-iteration cell identities, initialization, iterator execution and values
 remain unknown. No concrete iteration environment or runtime execution is claimed.
 
+Native catch scopes have AST-owned static block environments, separate from
+catch-body lexical blocks. CatchClause definitions retain every original binding
+token as kind `parameter`; this includes identifiers and nested binding patterns.
+In capture profile v2 only, a single `parameter` occurrence in a block is checked
+as a lexical singleton, without inventing a function-formal environment or changing
+its serialized kind. Function parameters keep the original v1 coexistence rules.
+Computed keys and default expressions use AST evaluation sites in the catch
+parameter environment; nested closure creation preserves that environment. A catch
+without a parameter retains the native empty static scope, not a claimed runtime
+Environment Record. No thrown value, initialization or successful evaluation is known.
+
+Simple catch `var` homonyms remain distinct: the var declaration occurrence belongs
+to the enclosing var cell, while its initializer write can target the catch cell.
+This is the native static lookup admitted under the Annex B.3.4 simple-identifier
+profile, not a claim that every host admits this source. Unlike Annex B block
+function semantics, that exception is not restricted to sloppy code; strict and
+module static controls keep the same distinction. Destructured catch/var homonyms
+are refused explicitly (the parser does not enforce every early error). Existing
+sloppy block-function and direct-eval gaps still apply; strict lexical functions
+are not downgraded. This is bounded catch support, not full catch conformance.
+
 Known contracted positives include lexical shadowing, parameter expressions,
 function+var in both orders, var+var, implicit arguments/arguments shadowing,
 named function expressions, class/extends/method controls and JSX references.
@@ -112,8 +133,8 @@ source declarations remain distinct occurrences of the one canonical binding.
 
 Dynamic `with` bodies, affected sloppy-eval functions/units and Annex-B-affected
 functions/units yield explicit **unknown**, without poisoning unrelated sibling
-functions. TS/TSX is outside this capture contract. Imports, catch-specific
-scopes, class field/static-block environments and other unmapped native scopes
+functions. TS/TSX is outside this capture contract. Imports, class field/static-block
+environments and other unmapped native scopes
 are currently fail-closed, not silently approximated. Such boundaries may reject
 the whole unit; accepted dynamic gaps are localized. Unbound globals are
 **unresolved**, never proved, and host/global-object properties and cross-unit

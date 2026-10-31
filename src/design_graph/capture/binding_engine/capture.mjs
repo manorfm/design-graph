@@ -21,6 +21,18 @@ const region=(slot,node,parent,environment=null,split_parameters=null,complete=t
 const root=region('root',ast,null); const rootEnv=env('root',root,null);
 const contains=p=>!!p&&(p.type==='AssignmentPattern'||(p.type==='Property'&&p.computed)||children(p).some(contains));
 function children(node){return Object.entries(node).flatMap(([k,v])=>['range','loc','parent','tokens','comments'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x&&typeof x.type==='string'):v&&typeof v.type==='string'?[v]:[]);}
+function boundNames(node){
+ if(!node)return [];
+ if(node.type==='Identifier')return [node.name];
+ if(node.type==='Property')return boundNames(node.value);
+ if(node.type==='AssignmentPattern')return boundNames(node.left);
+ return children(node).flatMap(boundNames);
+}
+function catchVarNames(node){
+ if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression','ClassDeclaration','ClassExpression'].includes(node.type))return [];
+ if(node.type==='VariableDeclaration'&&node.kind==='var')return node.declarations.flatMap(d=>boundNames(d.id));
+ return children(node).flatMap(catchVarNames);
+}
 function walk(node,parent,current){
  if(!node)return;
  if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)){
@@ -54,6 +66,20 @@ function walk(node,parent,current){
   }
   return;
  }
+ if(node.type==='CatchClause'){
+  // The native parser does not enforce every catch early error. The simple
+  // identifier var exception never extends to destructured catch bindings.
+  if(node.param&&node.param.type!=='Identifier'){
+   const names=new Set(boundNames(node.param));
+   if(catchVarNames(node.body).some(name=>names.has(name)))throw Error('unsupported catch pattern var redeclaration');
+  }
+  // Catch binding initialization precedes the separate body lexical scope.
+  // A parameter-less native catch still has its own (empty) static scope.
+  const caught=region('block',node,parent),ce=env('block',caught,current);
+  blockEnvs.set(node,ce);
+  if(node.param)pattern(node.param,caught,ce,true);
+  walk(node.body,caught,ce);return;
+ }
  if(node.type==='SwitchStatement'){
   const sw=region('switch',node,parent),disc=region('switch-discriminant',node.discriminant,sw);
   walk(node.discriminant,disc,current);
@@ -77,16 +103,16 @@ function walk(node,parent,current){
  nodeRegions.set(node,parent);
  for(const child of children(node))walk(child,parent,current);
 }
-function pattern(node,parent,current){
+function pattern(node,parent,current,catchParameter=false){
  nodeRegions.set(node,parent);
  if(node.type==='AssignmentPattern'){
-  pattern(node.left,parent,current);const r=region('parameter-default',node.right,parent);walk(node.right,r,current);return;
+  pattern(node.left,parent,current,catchParameter);const r=region(catchParameter?'evaluation':'parameter-default',node.right,parent);walk(node.right,r,current);return;
  }
  if(node.type==='Property'){
-  if(node.computed){const r=region('parameter-computed',node.key,parent);walk(node.key,r,current);}
-  pattern(node.value,parent,current);return;
+  if(node.computed){const r=region(catchParameter?'evaluation':'parameter-computed',node.key,parent);walk(node.key,r,current);}
+  pattern(node.value,parent,current,catchParameter);return;
  }
- for(const child of children(node))pattern(child,parent,current);
+ for(const child of children(node))pattern(child,parent,current,catchParameter);
 }
 // Inventory declaration positions, not scope kinds: Annex B also accepts case,
 // if/else and labelled declarations. Ordinary Program/FunctionBody declarations
@@ -140,7 +166,7 @@ for(const s of manager.scopes)for(const v of s.variables){
  for(const d of defs){
   let kind;
   if(d.type==='Variable')kind=d.parent.kind;
-  else if(d.type==='Parameter')kind='parameter';
+  else if(d.type==='Parameter'||d.type==='CatchClause')kind='parameter';
   else if(d.type==='FunctionName')kind=s.type==='function-expression-name'?'function-name':'function';
   else if(d.type==='ClassName')kind='class';
   else throw Error('unsupported definition '+d.type);
