@@ -13,24 +13,30 @@ from hashlib import sha256
 from design_graph.model.binding_capture_ir import BindingCaptureIR
 from design_graph.model.binding_ir import CheckResult, _decode, _object, _validate_typed
 
-# Reader limits, independent of producer source/stdout limits. Kuzu length() is
-# character-based: the pre-fetch character ceiling bounds UTF8 to at most 8 MiB.
-MAX_JSON_CHARS = 2 * 1024 * 1024
-MAX_JSON_BYTES = 8 * 1024 * 1024
-MAX_RECORDS = 20_000  # all JSON objects, including nested records
+# Finite whole-snapshot profile; producer source/stdout/time limits are separate.
+# Kuzu size(STRING) counts characters: 16 Mi characters bounds UTF8 to 64 MiB
+# before fetch. Canonical output is ASCII, making characters the tighter budget.
+MAX_JSON_CHARS = 16 * 1024 * 1024
+MAX_JSON_BYTES = 64 * 1024 * 1024
+MAX_RECORDS = 100_000  # all JSON objects, including nested records
 MAX_DEPTH = 64  # JSON nesting, distinct from the checker's semantic chain limit
 MAX_UNITS = 64
-MAX_ROOTS = 256
-LOGICAL_VERSION = "binding-context/1"
+MAX_ROOTS = 4096
+LOGICAL_VERSION = "binding-context/2"
 PHYSICAL_VERSION = "binding-context-kuzu/1"
 TABLE = "BindingContextSnapshot"
 
 
 def _admit(text: str) -> None:
-    """Bound bytes, containers and nesting BEFORE JSON object allocation."""
-    if type(text) is not str or len(text) > MAX_JSON_CHARS:
+    """Admit the closed whole-snapshot profile before JSON allocation."""
+    _scan_json(text, MAX_JSON_CHARS, MAX_JSON_BYTES, MAX_RECORDS, MAX_DEPTH)
+
+
+def _scan_json(text, max_chars, max_bytes, max_records, max_depth):
+    """Finite scanner shared with the separately bounded completion manifest."""
+    if type(text) is not str or len(text) > max_chars:
         raise ValueError("binding context character budget exceeded")
-    if len(text.encode("utf-8")) > MAX_JSON_BYTES:
+    if len(text.encode("utf-8")) > max_bytes:
         raise ValueError("binding context byte budget exceeded")
     quoted = escaped = False
     depth = records = 0
@@ -47,7 +53,7 @@ def _admit(text: str) -> None:
         elif char in "[{":
             depth += 1
             records += char == "{"
-            if depth > MAX_DEPTH or records > MAX_RECORDS:
+            if depth > max_depth or records > max_records:
                 raise ValueError("binding context depth/record budget exceeded")
         elif char in "]}":
             depth -= 1

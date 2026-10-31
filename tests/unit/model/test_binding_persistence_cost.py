@@ -315,7 +315,7 @@ def test_exact_typed_tuple_arity_and_nested_scalar_types(capture):
         forged.check()
 
 
-def test_unchanged_product_caps():
+def test_finite_product_caps():
     assert (
         context.MAX_JSON_CHARS,
         context.MAX_JSON_BYTES,
@@ -323,4 +323,4 @@ def test_unchanged_product_caps():
         context.MAX_DEPTH,
         context.MAX_UNITS,
         context.MAX_ROOTS,
-    ) == (2097152, 8388608, 20000, 64, 64, 256)
+    ) == (16777216, 67108864, 100000, 64, 64, 4096)

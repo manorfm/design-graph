@@ -4,9 +4,13 @@ import json
 import re
 
 from design_graph.model.binding_ir import _object
-from design_graph.model.graph.binding_context import _admit
+from design_graph.model.graph.binding_context import _scan_json
 
+# Completion parsing is not the snapshot profile. Retain its smaller independent
+# allocation budget even when snapshot admission changes.
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
+MAX_MANIFEST_RECORDS = 20_000
+MAX_MANIFEST_DEPTH = 64
 
 
 def canonical(value):
@@ -32,7 +36,13 @@ def read_manifest(path, identity, fingerprint):
     if len(raw) > MAX_MANIFEST_BYTES:
         raise ValueError("binding manifest byte budget exceeded")
     text = raw.decode("utf8", errors="strict")
-    _admit(text)  # Existing bounded depth/container admission, before JSON allocation.
+    _scan_json(
+        text,
+        MAX_MANIFEST_BYTES,
+        MAX_MANIFEST_BYTES,
+        MAX_MANIFEST_RECORDS,
+        MAX_MANIFEST_DEPTH,
+    )
     previous = json.loads(text, object_pairs_hook=_object)
     expected = completed_identity(identity)
     if type(previous) is not dict or set(previous) != set(expected) | {
