@@ -459,6 +459,12 @@ class _Checker:
             raise ValueError("duplicate or empty source unit")
         self.envs = _index(envelope.environments)
         self.regions = _index(envelope.regions)
+        # Qualified child inventories stay local to this semantic admission.
+        self.function_children = defaultdict(list)
+        for region in envelope.regions:
+            self.function_children[region.unit, region.parent, region.slot].append(
+                region
+            )
         self.refs = _index(envelope.references)
         self.resolutions = _index(envelope.resolutions)
         self.bindings = _index(envelope.bindings)
@@ -558,11 +564,7 @@ class _Checker:
                 self.function_child(r, EvaluationSlot.FUNCTION_BODY)
 
     def function_child(self, function, slot):
-        children = [
-            r
-            for r in self.e.regions
-            if r.unit == function.unit and r.parent == function.id and r.slot == slot
-        ]
+        children = self.function_children.get((function.unit, function.id, slot), ())
         if len(children) != 1:
             raise ValueError("incomplete or duplicate function slots")
         return children[0]
