@@ -88,7 +88,7 @@ def enumerate_units(document):
         else:
             unit = ScriptUnit(locator, content, source_type, syntax)
             units.append(unit)
-            coverage.append({**record, **unit.metadata(), "status": "captured"})
+            coverage.append({**record, **unit.metadata(), "status": "selected"})
     if bundle:
         for key in sorted(set(bundle.manifest) - referenced):
             coverage.append(

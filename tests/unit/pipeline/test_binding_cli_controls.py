@@ -8,7 +8,23 @@ from pathlib import Path
 import kuzu
 
 from tests.unit.pipeline.test_binding_cli import build, query
-from tests.unit.pipeline.test_binding_cli import pytestmark as pytestmark
+from tests.unit.pipeline.test_binding_cli import pytestmark as prepared_engine_mark
+
+pytestmark = prepared_engine_mark
+
+
+def test_failed_capture_inventory_did_not_claim_selected_units_were_captured(tmp_path):
+    from design_graph.capture.base import PrototypeDocument
+    from design_graph.capture.binding_units import enumerate_units
+
+    source = html_source(tmp_path, "for (let item of [1]) { item; }")
+    db = tmp_path / "unsupported.db"
+    failed = build(source, db)
+    assert failed.returncode != 0 and "unsupported native scope for" in failed.stderr
+    assert not db.exists() and not Path(str(db) + ".binding.json").exists()
+    units, inventory = enumerate_units(PrototypeDocument.read(source))
+    assert len(units) == 1
+    assert inventory[0]["status"] == "selected"
 
 
 def test_real_general_write_failure_did_not_seal_normal_cli_build(tmp_path):

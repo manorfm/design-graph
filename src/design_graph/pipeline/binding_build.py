@@ -108,12 +108,15 @@ class BindingStage:
     def capture(self, community):
         captures, roots = [], []
         for unit in self.units:
-            captured = self.producer.capture(
-                unit.source,
-                locator=unit.locator,
-                source_type=unit.source_type,
-                syntax=unit.syntax,
-            )
+            try:
+                captured = self.producer.capture(
+                    unit.source,
+                    locator=unit.locator,
+                    source_type=unit.source_type,
+                    syntax=unit.syntax,
+                )
+            except ValueError as exc:
+                raise ValueError(f"binding unit {unit.locator}: {exc}") from exc
             captures.append(captured)
             roots.extend(
                 BindingRoot(captured.ir.units[0].id, region.id)
@@ -121,6 +124,9 @@ class BindingStage:
                 if region.slot.value in ("root", "function-creation")
             )
         self.snapshot = BindingSnapshot.create(community, captures, roots)
+        for record in self.coverage:
+            if record["status"] == "selected":
+                record["status"] = "captured"
         self.manifest.update(
             snapshot=self.snapshot.digest(),
             build_fingerprint=self.fingerprint,
