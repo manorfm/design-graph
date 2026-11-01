@@ -16,9 +16,7 @@ from uuid import uuid4
 
 import kuzu
 
-from design_graph.capture import binding_capture, binding_units
-from design_graph.capture.binding_capture import BindingCapture
-from design_graph.capture.binding_units import enumerate_units
+from design_graph.capture.registry import binding_capture_for
 from design_graph.model.graph.binding_context import (
     LOGICAL_VERSION,
     PHYSICAL_VERSION,
@@ -70,19 +68,11 @@ class BindingBuildOptions:
 
 class BindingStage:
     def __init__(self, document, options):
-        self.producer = BindingCapture(
-            node=options.node, toolchain=options.engine, fingerprint=options.fingerprint
+        self.producer = binding_capture_for(
+            document, node=options.node, toolchain=options.engine,
+            fingerprint=options.fingerprint,
         )
-        self.units, self.coverage = enumerate_units(document)
-        assets = self.producer.assets
-        adaptor = {
-            p.name: sha256(p.read_bytes()).hexdigest()
-            for p in sorted(assets.glob("*.mjs"))
-        }
-        for module in (binding_capture, binding_units):
-            adaptor[Path(module.__file__).name] = sha256(
-                Path(module.__file__).read_bytes()
-            ).hexdigest()
+        self.units, self.coverage = self.producer.units, self.producer.coverage
         self.document = document
         raw = document.path.read_bytes()
         self.input_bytes = len(raw)
@@ -92,9 +82,6 @@ class BindingStage:
             raise ValueError('source ownership whole-unit/coverage budget exceeded')
         if raw.decode("utf8", errors="strict") != document.text:
             raise ValueError("source changed during capture")
-        syntax_pin = json.loads((assets / 'source-syntax-pin.json').read_text())
-        syntax_fingerprint = sha256(json.dumps(syntax_pin, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-        adaptor['source-syntax-pin.json'] = sha256((assets / 'source-syntax-pin.json').read_bytes()).hexdigest()
         self.manifest = {
             "contract": CONTRACT,
             "logical": LOGICAL_VERSION,
@@ -102,12 +89,12 @@ class BindingStage:
             "source_sha256": sha256(raw).hexdigest(),
             "source_path": str(document.path.resolve()),
             "engine": options.fingerprint,
-            "syntax_producer": syntax_fingerprint,
+            "syntax_producer": self.producer.syntax_fingerprint,
             "options": {
                 "node": str(options.node.resolve()),
                 "engine": str(options.engine.resolve()),
             },
-            "adaptor": adaptor,
+            "adaptor": self.producer.adaptor,
             "model": MODEL_VERSION,
             "units": [u.metadata() for u in self.units],
             "coverage": self.coverage,
@@ -194,22 +181,11 @@ class BindingStage:
         )
 
     async def capture_general(self, **kwargs):
-        from design_graph.capture.html_prototype.parsing.source_loader import decompose
-        from design_graph.capture.owned_emission import native_boundaries
-        from design_graph.capture.owned_html_capture import OwnedHtmlPrototypeCapture
         if self.snapshot is None:
             raise ValueError('native capture must precede general capture')
-        from design_graph.capture.html_prototype.html_capture import (
-            HtmlPrototypeCapture,
+        self.general_capture = await self.producer.capture_general(
+            self.syntax.captures, self.owner_events, **kwargs
         )
-        flattened = decompose(self.document).js
-        if '\n'.join(u.source.decode().strip() for u in self.units) != flattened:
-            # Bundler/general input transforms lack an exact translation. Keep
-            # every normal field and explicitly persist unsupported provenance.
-            self.general_capture = await HtmlPrototypeCapture().capture(self.document, **kwargs)
-            return self.general_capture
-        boundaries = native_boundaries(self.units, self.syntax.captures, self.owner_events, flattened)
-        self.general_capture = await OwnedHtmlPrototypeCapture(boundaries).capture(self.document, **kwargs)
         return self.general_capture
 
     def field_witnesses(self, owners):

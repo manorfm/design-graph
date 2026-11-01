@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol
 
+from design_graph.model.source_syntax import SourceSyntaxCapture
+
 from design_graph.model.entities import (
     DesignToken,
     ExtractedComponent,
@@ -75,6 +77,36 @@ class CaptureResult:
 
 
 ComponentProgress = Callable[[str, int, int], None]
+
+
+class BindingUnit(Protocol):
+    """Exact whole source unit selected by its format-owned inventory."""
+
+    locator: str
+    source: bytes
+    source_type: str
+    syntax: str
+
+    def metadata(self) -> dict: ...
+
+
+class BindingCaptureSession(Protocol):
+    """Invocation-local source inventory and emission, never graph admission."""
+
+    units: tuple[BindingUnit, ...]
+    coverage: list[dict]
+    adaptor: dict[str, str]
+    syntax_fingerprint: str
+
+    def capture_source_syntax(
+        self, source: bytes, *, locator: str, source_type: str, syntax: str,
+        owner_events: list,
+    ) -> SourceSyntaxCapture: ...
+
+    async def capture_general(
+        self, syntax_captures: tuple[SourceSyntaxCapture, ...], owner_events: list,
+        *, concurrency: int, on_component_extracted: ComponentProgress | None = None,
+    ) -> CaptureResult: ...
 
 
 class Capture(Protocol):
