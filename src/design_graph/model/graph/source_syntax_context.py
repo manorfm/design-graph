@@ -146,9 +146,7 @@ class _AdmittedSyntax:
 
 def _prepare_syntax(snapshot):
     # Private, invocation-local facts only. Public calls always enter admission.
-    _finite(snapshot)
-    _validate_typed(SourceSyntaxSnapshot, snapshot)
-    snapshot.check()
+    SourceSyntaxSnapshot.check(snapshot)
     body = snapshot._body()
     _admit(body)
     digest = sha256(body.encode()).hexdigest()
