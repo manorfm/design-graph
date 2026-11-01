@@ -7,7 +7,7 @@
     "capture/source_syntax_capture.py": "5c3229ad5f2d47b1c844e3b3b7e1b7262cf4aa6960ee85ffc795671a7913fa11",
     "model/binding_capture_ir.py": "3d269f5c2f8f47b056319ae8a63000b203975563a97b7e051d4d2af1470c6569",
     "model/binding_ir.py": "7cb3b9f335f1bdb0b87fde405b1b4eaa1b76799360b5e1b601daf4bb6d72b5e7",
-    "model/source_syntax.py": "92e7f85a4946e16a0f613e3cf97ecc1fe5c1851a3ddf8d1af45636c08347a3c4",
+    "model/source_syntax.py": "5801c210e69f5b03c2a71e5e0fd933e807341502fbfe1dbc1c0798b6499f4b25",
     "capture/owned_emission.py": "a2d531f44113c06ccae4b8b7e016379d45b18633b29eced76d7a0d1e9ed70928",
     "capture/owned_html_capture.py": "6ed4e13f59d86d31e16c3e50fb4cbb71ab209c2aa181e9654012461efa4a04e7",
     "capture/html_prototype/extraction/definition_merge.py": "1062f2d4ec553298a99871d2d79ef0e15c9ea400baf895c21c72da4fc2035758",

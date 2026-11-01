@@ -18,6 +18,7 @@ from design_graph.model.source_syntax import (
     CandidateSelection,
     SourceInventory,
     SourceSyntaxCapture,
+    _check_capture_semantics,
     _finite,
     project_candidates,
 )
@@ -101,7 +102,8 @@ class SourceSyntaxSnapshot:
         if len(set(units)) != len(units) or self.scope.units != units:
             raise ValueError("duplicate or mixed source inventory scope")
         for capture in self.captures:
-            capture.check()
+            # The whole-snapshot finite/exact-type audits admitted this same member.
+            _check_capture_semantics(capture)
             unit = capture.lexical.ir.units[0]
             identity = (
                 "u:"

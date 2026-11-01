@@ -171,12 +171,7 @@ class SourceSyntaxCapture:
     def check(self):
         _finite(self)
         _validate_typed(SourceSyntaxCapture, self)
-        if self.version != "source-syntax-capture/1" or not re.fullmatch(
-            "[0-9a-f]{64}", self.producer_fingerprint
-        ):
-            raise ValueError("unsupported source syntax capture contract/custody")
-        self.lexical.check()
-        _SyntaxChecker(self).run()
+        _check_capture_semantics(self)
 
     def to_json(self):
         self.check()
@@ -196,6 +191,16 @@ class SourceSyntaxCapture:
         value = _decode(cls, json.loads(text, object_pairs_hook=_object))
         value.check()
         return value
+
+
+def _check_capture_semantics(capture):
+    """Check semantics only after the caller admitted this exact capture's structure."""
+    if capture.version != "source-syntax-capture/1" or not re.fullmatch(
+        "[0-9a-f]{64}", capture.producer_fingerprint
+    ):
+        raise ValueError("unsupported source syntax capture contract/custody")
+    capture.lexical.check()
+    _SyntaxChecker(capture).run()
 
 
 def syntax_status(capture):
