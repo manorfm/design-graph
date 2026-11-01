@@ -28,6 +28,9 @@ jobs:
       - name: Check architecture guardrails (G1-G11)
         run: pytest tests/test_architecture_guardrails.py -v --tb=short
 
+      - name: Provision verified native capture capability
+        run: bash scripts/provision-ci-capture.sh
+
       - name: Run tests with coverage
         run: pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml -v
 
