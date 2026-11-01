@@ -160,36 +160,51 @@ def canonical_bindings(
 
 
 def _decode(type_: Any, value: Any) -> Any:
-    """Closed, exact JSON types: bool is not int, unknown keys never disappear."""
-    origin, args = get_origin(type_), get_args(type_)
-    if origin in (Union, UnionType):
-        for choice in args:
+    """Decode every value exactly, reusing only invocation-local schema facts.
+
+    Schema entries are immutable field-name/type tuples, never admitted payloads.
+    Each independent transport decode starts with a fresh schema inventory.
+    """
+    schemas = {}
+
+    def visit(expected, item):
+        origin, args = get_origin(expected), get_args(expected)
+        if origin in (Union, UnionType):
+            for choice in args:
+                try:
+                    return visit(choice, item)
+                except ValueError:
+                    pass
+            raise ValueError("invalid optional field")
+        if expected is type(None):
+            if item is None:
+                return None
+            raise ValueError("expected null")
+        if origin is tuple:
+            if not isinstance(item, (list, tuple)):
+                raise ValueError("expected array")
+            return tuple(visit(args[0], child) for child in item)
+        if isinstance(expected, type) and issubclass(expected, Enum):
             try:
-                return _decode(choice, value)
-            except ValueError:
-                pass
-        raise ValueError("invalid optional field")
-    if type_ is type(None):
-        if value is None:
-            return None
-        raise ValueError("expected null")
-    if origin is tuple:
-        if not isinstance(value, (list, tuple)):
-            raise ValueError("expected array")
-        return tuple(_decode(args[0], item) for item in value)
-    if isinstance(type_, type) and issubclass(type_, Enum):
-        try:
-            return type_(value)
-        except (ValueError, TypeError):
-            raise ValueError("unknown enum value") from None
-    if is_dataclass(type_):
-        if type(value) is not dict or set(value) != {f.name for f in fields(type_)}:
-            raise ValueError("missing or unknown record fields")
-        hints = get_type_hints(type_)
-        return type_(**{k: _decode(hints[k], v) for k, v in value.items()})
-    if type(value) is not type_:
-        raise ValueError("incorrect scalar type")
-    return value
+                return expected(item)
+            except (ValueError, TypeError):
+                raise ValueError("unknown enum value") from None
+        if is_dataclass(expected):
+            if expected not in schemas:
+                hints = get_type_hints(expected)
+                field_types = tuple(
+                    (field.name, hints[field.name]) for field in fields(expected)
+                )
+                schemas[expected] = (frozenset(name for name, _ in field_types), field_types)
+            names, field_types = schemas[expected]
+            if type(item) is not dict or set(item) != names:
+                raise ValueError("missing or unknown record fields")
+            return expected(**{name: visit(kind, item[name]) for name, kind in field_types})
+        if type(item) is not expected:
+            raise ValueError("incorrect scalar type")
+        return item
+
+    return visit(type_, value)
 
 
 def _validate_typed(type_: Any, value: Any) -> None:
