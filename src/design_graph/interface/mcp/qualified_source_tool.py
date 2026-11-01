@@ -120,7 +120,10 @@ def assemble_with_coverage(reader, name, known=None, part=1):
     if not assembly:
         return f"Tela '{name}' não encontrada. Use list_screens() para ver as telas do protótipo."
     names = _names(known)
-    from design_graph.interface.mcp.source_candidate_assembly import NOTICE, candidate_blocks
+    from design_graph.interface.mcp.source_candidate_assembly import (
+        NOTICE,
+        candidate_blocks,
+    )
 
     supplements = candidate_blocks(reader, [assembly['name'], *(c['name'] for c in assembly['components'])])
     parts = _assembly_parts(assembly, names, supplements, NOTICE if supplements else COVERAGE_NOTICE)
@@ -271,8 +274,8 @@ def _records(snapshot, revision, selections):
     return records
 
 
-def _source_blocks(records):
-    from design_graph.interface.mcp.assemble_tool import _code_blocks
+def _source_sections(records):
+    from design_graph.interface.mcp.qualified_pagination import Section
 
     blocks = []
     for index, record in enumerate(records, 1):
@@ -285,34 +288,71 @@ def _source_blocks(records):
             "IR_ONLY; initialization/value unknown; original initializer text is syntax only. "
             "Binding-to-body and runtime member/cross-unit linkage not asserted."
         )
-        blocks.extend(_code_blocks(f"Selected source {index}", intro, record["source"], record["syntax"]))
+        blocks.append(Section(f"Selected source {index}", intro, record["source"], record["syntax"]))
     return blocks
 
 
-def _render(tool, args, records, connection):
-    from design_graph.interface.mcp.assemble_tool import _names, _pack
+def _qualified_assembly_sections(assembly, known):
+    """Generate all metadata facts before packing, keeping source separate.
 
-    blocks = []
+    List locations name their stable section, not a page guessed by repeated
+    repacking. Component inventories and known/omitted semantics are unchanged.
+    """
+    from design_graph.interface.mcp.assemble_tool import (
+        _behaviour_lines,
+        _completeness_lines,
+        _data_lines,
+        _header_lines,
+        _token_lines,
+    )
+    from design_graph.interface.mcp.discovery_tools import resource_lines
+    from design_graph.interface.mcp.markdown import props_table_lines
+    from design_graph.interface.mcp.qualified_pagination import Section
+
+    components = [c for c in assembly["components"] if c["name"] not in known]
+    omitted = [c["name"] for c in assembly["components"] if c["name"] in known]
+    sections = [
+        Section("1. Cabeçalho", "\n".join(["## 1. Cabeçalho", *_header_lines(assembly, None), ""])),
+        Section("2. Esqueleto", "## 2. Esqueleto", assembly["skeleton"], assembly["source_lang"]),
+        Section("3. Componentes", "## 3. Componentes\n" + (
+            "" if components else "Nenhum componente adicional registrado; cobertura não provada.\n")),
+    ]
+    for component in components:
+        intro = f"### {component['name']}"
+        if not component["defined"]:
+            sections.append(Section(component["name"], intro + "\nReferenciado, sem definição no protótipo (externo ou de biblioteca).\n"))
+            continue
+        lines = [intro, f"**Tipo**: {component['comp_type']}"]
+        if component["props"]:
+            lines += ["", *props_table_lines(component["props"])]
+        sections.append(Section(component["name"], "\n".join(lines), component["source_code"], component["source_lang"]))
+    data = _data_lines(assembly["data"], assembly["unread_lists"]) if assembly["data"] or assembly["unread_lists"] else ["Nenhum dado repetido registrado; cobertura não provada."]
+    behaviour = _behaviour_lines(assembly, components) if any(o.get("states") or o.get("actions") for o in [assembly, *assembly["components"]]) else ["Nenhum estado nem ação registrado; cobertura não provada."]
+    tokens = _token_lines(assembly["tokens"]) if assembly["tokens"] else ["Nenhum token registrado ligado aos componentes; cobertura não provada."]
+    for title, lines in [
+        ("4. Dados", data), ("5. Comportamento", behaviour),
+        ("6. Tokens usados, por modo", tokens),
+        ("7. Dependências", resource_lines(assembly["resources"], heading="###") or ["Nenhuma registrada."]),
+        ("8. Completude", [COVERAGE_NOTICE, *_completeness_lines(assembly["name"], omitted)[1:]]),
+    ]:
+        sections.append(Section(title, "\n".join(["## " + title, *lines, ""])))
+    return sections
+
+
+def _render(tool, args, records, connection):
+    from design_graph.interface.mcp.assemble_tool import _names
+    from design_graph.interface.mcp.qualified_pagination import render
+
+    sections = []
     if tool == "assemble_page":
         from design_graph.model.graph.reader import GraphReader
 
         assembly = GraphReader(connection).get_screen_assembly(args["name"])
         if not assembly or assembly["name"] != args["name"]:
             raise ValueError("qualified assembly requires an exact unambiguous stored screen name")
-        blocks = [b for page in _assembly_parts(assembly, _names(args.get("known"))) for b in page]
-    parts = _pack(blocks + _source_blocks(records))
-    number = args.get("part", 1)
-    if number > len(parts):
-        raise ValueError(f"invalid qualified source part: total {len(parts)}")
+        sections = _qualified_assembly_sections(assembly, _names(args.get("known")))
     heading = f"# {'Montar: ' + args['name'] if tool == 'assemble_page' else 'Qualified source evidence'}"
-    lines = [f"{heading} — parte {number}/{len(parts)}", COVERAGE_NOTICE]
-    if number == 1:
-        lines += ["### Partes", *(f"- Parte {n}: {', '.join(b.title for b in page)}"
-                                   for n, page in enumerate(parts, 1))]
-    lines += [b.text for b in parts[number - 1]]
-    if number < len(parts):
-        lines.append(f"> Continua: {tool}(part={number + 1}) — repeat identical db/snapshot/source_selections/name/known/aspect arguments.")
-    return "\n".join(lines)
+    return render(sections + _source_sections(records), heading, COVERAGE_NOTICE, tool, args.get("part", 1))
 
 
 def qualified_source(tool, args):

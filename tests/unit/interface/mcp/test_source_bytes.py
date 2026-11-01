@@ -159,19 +159,38 @@ finally: conn.close();db.close()
                     assert COVERAGE_NOTICE not in joined
                 else:
                     if label.startswith("qualified"):
-                        from design_graph.interface.mcp.qualified_source_tool import (
-                            _records,
-                            _source_blocks,
+                        from design_graph.interface.mcp.qualified_pagination import (
+                            _plan,
                         )
+                        from design_graph.interface.mcp.qualified_source_tool import (
+                            _qualified_assembly_sections,
+                            _records,
+                            _source_sections,
+                        )
+                        from design_graph.model.graph.reader import GraphReader
 
-                        for block in _source_blocks(_records(snapshot, revision, qualified["source_selections"])):
-                            assert block.text in joined
+                        sections = _source_sections(_records(snapshot, revision, qualified["source_selections"]))
+                        heading = "# Qualified source evidence"
+                        if tool == "assemble_page":
+                            db = kuzu.Database(str(path), read_only=True, buffer_pool_size=128*1024*1024, max_num_threads=2)
+                            conn = kuzu.Connection(db)
+                            try:
+                                sections = _qualified_assembly_sections(GraphReader(conn).get_screen_assembly("Home"), {"Home"}) + sections
+                            finally:
+                                conn.close(); db.close()
+                            heading = "# Montar: Home"
+                        planned, _, _ = _plan(sections, heading, COVERAGE_NOTICE, tool)
+                        assert all(len(page) <= 20_000 for page in pages)
+                        for chunks in planned:
+                            for chunk in chunks:
+                                assert chunk in joined
                     assert COVERAGE_NOTICE in joined
                 assert joined.count(CLAIM) == (10 if label == "qualified-assembly" else 5)
                 if tool == "assemble_page":
                     assert "## 8. Completude\n" + COVERAGE_NOTICE in joined
-                    for block in _code_blocks("2. Esqueleto", "## 2. Esqueleto", source, "js"):
-                        assert block.text in joined
+                    if not label.startswith("qualified"):
+                        for block in _code_blocks("2. Esqueleto", "## 2. Esqueleto", source, "js"):
+                            assert block.text in joined
                 outcomes[label] = {"parts": total, "repeats_identical": True, "source_sha256": hashlib.sha256(source.encode()).hexdigest()}
             (tmp_path / "sdk-byte-results.json").write_text(json.dumps(outcomes, indent=2))
 
