@@ -9,6 +9,8 @@ from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 
+from design_graph.source_contract import BINDING_CAPTURE_V3
+
 from design_graph.model.binding_capture_ir import (
     BindingCaptureIR,
     CoverageGap,
@@ -93,12 +95,9 @@ class BindingCapture:
         """
         if type(source) is not bytes or len(source) > 1024 * 1024:
             raise ValueError("whole unit must be UTF8 bytes, at most 1 MiB")
-        if (
-            source_type not in ("script", "module")
-            or syntax not in ("js", "jsx")
-            or not locator
-        ):
+        if not locator:
             raise ValueError("explicit supported locator/source_type/syntax required")
+        BINDING_CAPTURE_V3.check_kind(source_type, syntax)
         text = source.decode("utf8", errors="strict")
         self._verify_toolchain()
         raw = self._capture_native(text, source_type, syntax)

@@ -46,6 +46,31 @@ or completion mismatch fails closed without a truthful completion seal. A
 failure is not grounds to split units, omit roots, increase operating limits,
 or claim the diagnostic capture was a successful build.
 
+## Architecture and retained wire contracts
+
+The pipeline selects an invocation-local whole-unit capture session through
+`capture.registry` and its `capture.base` protocol. Format-owned unit selection,
+producer asset custody and exact native-to-general coordinate translation stay
+inside capture. Graph admission and completion publication stay outside it.
+
+Canonical model key JSON and persisted completion parsing/receipts live in the
+model; a cold ownership read never imports build orchestration to validate its
+retained completion. Completion limits remain independent of snapshot limits.
+
+`design_graph.source_contract` is a parser-free, immutable wire-profile leaf,
+below both capture and the model. It explicitly declares the existing closed
+`binding-capture/3` source types (`script`, `module`) and syntax labels (`js`,
+`jsx`). It does not select a parser or interpret source. Both native producer
+entries and persisted model admission apply the same contract. Model admission
+still checks exact field types, semantic structure and budgets independently;
+a producer does not confer an admission credential. Stored labels and canonical
+envelope bytes are unchanged. Unsupported labels require a separately reviewed
+profile change, not an arbitrary string or runtime registry extension.
+
+The source-syntax custody manifest includes this wire contract and the extracted
+canonical serializer. Dependency hashes change with reviewed Python source;
+vendored native engine bytes and the physical storage format do not change.
+
 ## Calibration and scope
 
 Current v3 whole-original diagnostic measurement at parent

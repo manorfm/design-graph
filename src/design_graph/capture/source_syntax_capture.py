@@ -4,6 +4,8 @@ import json
 from hashlib import sha256
 from pathlib import Path
 
+from design_graph.source_contract import BINDING_CAPTURE_V3
+
 from design_graph.model.binding_capture_ir import (
     BindingCaptureIR,
     CoverageGap,
@@ -20,10 +22,9 @@ def capture_source_syntax(producer, source, *, locator, source_type, syntax, own
     if (
         type(locator) is not str
         or not locator
-        or source_type not in ("script", "module")
-        or syntax not in ("js", "jsx")
     ):
         raise ValueError("explicit supported source identity required")
+    BINDING_CAPTURE_V3.check_kind(source_type, syntax)
     producer._verify_toolchain()
     root = Path(__file__).parents[1]
     pin = json.loads((producer.assets / "source-syntax-pin.json").read_text())
@@ -41,6 +42,7 @@ def capture_source_syntax(producer, source, *, locator, source_type, syntax, own
         "capture/html_prototype/extraction/definition_merge.py",
         "model/source_owner.py",
         "model/serialization.py",
+        "source_contract.py",
         "model/entities.py",
     }
     if (

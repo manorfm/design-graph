@@ -11,6 +11,8 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 
+from design_graph.source_contract import BINDING_CAPTURE_V3
+
 from .binding_ir import (
     Binding,
     CheckResult,
@@ -203,16 +205,12 @@ class BindingCaptureIR:
     @staticmethod
     def _check_profile(value):
         if (
-            value.version != "binding-capture/3"
+            value.version != BINDING_CAPTURE_V3.version
             or value.ir.version != "binding-ir/3"
             or value.ir.profile != "static-unit-chain/3"
         ):
             raise ValueError("unsupported capture version/profile")
-        if value.source_type not in ("script", "module") or value.syntax not in (
-            "js",
-            "jsx",
-        ):
-            raise ValueError("unsupported source kind")
+        BINDING_CAPTURE_V3.check_kind(value.source_type, value.syntax)
         if len(value.engine_fingerprint) != 64 or any(
             c not in "0123456789abcdef" for c in value.engine_fingerprint
         ):
