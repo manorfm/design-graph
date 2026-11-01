@@ -109,7 +109,7 @@ def test_unit_budget_refuses_before_checking(capture, monkeypatch):
 
 
 def test_manifest_kept_its_own_object_ceiling(tmp_path):
-    from design_graph.pipeline.binding_completion import read_manifest
+    from design_graph.model.graph.binding_completion import read_manifest
 
     path = tmp_path / "oversized-manifest.json"
     path.write_text("[" + ",".join("{}" for _ in range(20_001)) + "]")

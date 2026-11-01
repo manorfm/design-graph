@@ -51,8 +51,8 @@ from design_graph.model.graph.source_syntax_context import (
 )
 from design_graph.model.graph.writer import GraphWriter
 from design_graph.model.source_syntax import SourceInventory
-from design_graph.pipeline.binding_completion import read_manifest, verify_snapshot
-from design_graph.pipeline.binding_general_completion import (
+from design_graph.model.graph.binding_completion import read_manifest, verify_snapshot
+from design_graph.model.graph.binding_general_completion import (
     general_receipt,
 )
 
@@ -192,7 +192,7 @@ class BindingStage:
         from design_graph.model.source_owner import VERSION, SourceOwnerWitness
         if self.general_capture is None:
             raise ValueError('owned general capture required before receipt')
-        from design_graph.pipeline.binding_completion import canonical
+        from design_graph.model.serialization import canonical
         emitted = {(table, canonical([entity.name]), 'source_code'): entity.source_owner
                    for table, entities in (('Component', self.general_capture.components), ('Screen', self.general_capture.screens)) for entity in entities}
         result = []

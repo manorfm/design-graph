@@ -40,6 +40,7 @@ def capture_source_syntax(producer, source, *, locator, source_type, syntax, own
         "capture/owned_html_capture.py",
         "capture/html_prototype/extraction/definition_merge.py",
         "model/source_owner.py",
+        "model/serialization.py",
         "model/entities.py",
     }
     if (

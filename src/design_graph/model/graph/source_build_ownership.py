@@ -234,7 +234,7 @@ def create_receipt(connection, stage):
 def _create_receipt(connection, stage, admitted):
     if admitted.snapshot is not stage.syntax:
         raise ValueError('private syntax admission identity mismatch')
-    from design_graph.pipeline.binding_general_completion import property_receipt
+    from design_graph.model.graph.binding_general_completion import property_receipt
     general, owners = property_receipt(connection)
     syntax = stage.syntax
     return SourceBuildOwnership(
@@ -258,7 +258,7 @@ def _append_admitted_receipt(connection, admitted):
 
 def _read_owned_facts(connection, domain, anchor):
     """Internal one-invocation admission; anchor comes only from builder seal."""
-    from design_graph.pipeline.binding_general_completion import property_receipt
+    from design_graph.model.graph.binding_general_completion import property_receipt
     if type(anchor) is not dict or set(anchor) != {'version', 'snapshot', 'sha256'} or anchor['version'] != VERSION:
         raise ValueError('missing/incompatible ownership completion anchor')
     for k in ('snapshot', 'sha256'):
@@ -329,7 +329,7 @@ def _read_source_build_facts(reader):
     builder custody, not a signature. Rewriting the seal too can forge consistency.
     """
     from design_graph.model.graph.binding_context import _rollback
-    from design_graph.pipeline.binding_completion import read_completion
+    from design_graph.model.graph.binding_completion import read_completion
     state = reader._state_path
     if state is None or not str(state).endswith('.state.json'):
         raise ValueError('ownership unknown: selected reader has no retained build completion')

@@ -31,7 +31,7 @@ class SourceOwnerWitness:
 
 
 def emitted(table, key, payload, origin, original):
-    from design_graph.pipeline.binding_completion import canonical
+    from design_graph.model.serialization import canonical
     return SourceOwnerWitness(VERSION, table, canonical([key]), 'source_code', sha256(payload.encode()).hexdigest(), 'exact-slice' if payload == original else 'unsupported-derivation', (origin,))
 
 

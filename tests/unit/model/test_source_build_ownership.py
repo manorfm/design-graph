@@ -119,7 +119,7 @@ def test_public_receipt_each_call_admitted_once_then_rejects_unselected(owned, m
 
 def test_each_owned_read_has_one_property_admission_and_rereads_seal(owned, monkeypatch):
     from design_graph.model.graph import source_build_ownership as s
-    from design_graph.pipeline import binding_general_completion as general
+    from design_graph.model.graph import binding_general_completion as general
     value, reader, db = owned
     original = general.property_receipt
     calls = []

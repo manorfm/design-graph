@@ -4,6 +4,7 @@ import json
 import re
 
 from design_graph.model.binding_ir import _object
+from design_graph.model.serialization import canonical
 from design_graph.model.graph.binding_context import _scan_json
 
 # Completion parsing is not the snapshot profile. Retain its smaller independent
@@ -11,11 +12,6 @@ from design_graph.model.graph.binding_context import _scan_json
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 MAX_MANIFEST_RECORDS = 20_000
 MAX_MANIFEST_DEPTH = 64
-
-
-def canonical(value):
-    """Keep JSON types distinct (not Python's True == 1)."""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 def completed_identity(identity):

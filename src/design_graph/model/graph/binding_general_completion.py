@@ -3,7 +3,7 @@
 from hashlib import sha256
 
 from design_graph.model.graph.schema import MODEL_VERSION, node_tables, rel_tables
-from design_graph.pipeline.binding_completion import canonical
+from design_graph.model.serialization import canonical
 
 MAX_ROWS = 100_000
 MAX_IDENTITY_BYTES = 8 * 1024 * 1024
