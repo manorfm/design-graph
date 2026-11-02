@@ -19,8 +19,11 @@ class Refuse(importlib.abc.MetaPathFinder):
   if fullname.startswith('design_graph.capture') or (fullname.startswith('design_graph.') and 'parsing' in fullname):
    raise AssertionError('retrieval imported capture/parser: '+fullname)
 sys.meta_path.insert(0, Refuse())
-def forbidden(*a, **k): raise AssertionError('retrieval launched subprocess')
-subprocess.Popen = forbidden
+# Retain Popen's generic type for SDK runtime annotations, but deny creation
+# before __init__ can allocate a process, throughout imports and retrieval.
+class ForbiddenPopen(subprocess.Popen):
+ def __new__(cls, *a, **k): raise AssertionError('retrieval launched subprocess')
+subprocess.Popen = ForbiddenPopen
 from design_graph.interface.mcp.server import MCPServer, run_stdio
 server = MCPServer([])
 # TEST_SETUP
@@ -66,6 +69,39 @@ def test_registered_qualified_companion_on_actual_protocol():
         assert "expected_sha256" in tool.input_schema["properties"]
 
     protocol(check, cold=False)
+
+
+def test_protocol_subprocess_guard_kept_runtime_annotations_and_denial():
+    setup = """
+def verify_guard():
+ assert isinstance(subprocess.Popen, type)
+ assert subprocess.Popen[bytes].__origin__ is subprocess.Popen
+ denied_operations = []
+ for name, operation in (
+  ('Popen', lambda: subprocess.Popen([sys.executable, '-c', 'pass'])),
+  ('run', lambda: subprocess.run([sys.executable, '-c', 'pass'])),
+ ):
+  try:
+   operation()
+  except AssertionError as error:
+   assert str(error) == 'retrieval launched subprocess'
+   denied_operations.append(name)
+  else:
+   raise AssertionError('subprocess guard permitted '+name)
+ assert denied_operations == ['Popen', 'run']
+verify_guard()
+original_tool_definitions = server.tool_definitions
+def guarded_tool_definitions():
+ verify_guard()
+ return original_tool_definitions()
+server.tool_definitions = guarded_tool_definitions
+"""
+
+    async def check(client):
+        names = [tool.name for tool in (await client.list_tools()).tools]
+        assert names.count("get_binding_context") == 1
+
+    protocol(check, setup=setup)
 
 
 @pytest.fixture(scope="module")
