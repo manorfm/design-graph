@@ -240,6 +240,7 @@ class BindingWriteSession:
         self.final, self.stage = final, stage
         self.temp = final.with_name("." + final.name + "." + uuid4().hex + ".building")
         self.db = self.conn = self.lock = None
+        self._durable_sha256 = None
 
     def __enter__(self):
         self.final.parent.mkdir(parents=True, exist_ok=True)
@@ -250,8 +251,11 @@ class BindingWriteSession:
                 raise ValueError(
                     "binding build requires a new destination; baseline preserved"
                 )
+            # The retained three-snapshot row group needs more than 128 MiB
+            # during checkpoint. This bounded writer cache remains within the
+            # existing 2 GiB process cap; cold readers keep their 128 MiB cache.
             self.db = kuzu.Database(
-                str(self.temp), buffer_pool_size=128 * 1024 * 1024, max_num_threads=2
+                str(self.temp), buffer_pool_size=256 * 1024 * 1024, max_num_threads=2
             )
             self.conn = kuzu.Connection(self.db)
             initialize_schema(self.conn)
@@ -284,14 +288,32 @@ class BindingWriteSession:
                 admitted_receipt = _prepare_receipt(receipt, self.stage._syntax_admitted)
                 append_receipt(self.conn, admitted_receipt)
                 self.stage.manifest['ownership'] = {'version': VERSION, 'snapshot': receipt_key(receipt.domain), 'sha256': admitted_receipt.digest}
+                # Kuzu 0.11's destructor suppresses checkpoint failures. A
+                # successful close alone does not make the main file portable:
+                # private-name readers can still recover the missing rows from
+                # its WAL. Require a checked checkpoint before closing handles.
+                self.conn.execute('CHECKPOINT').close()
                 self.conn.close()
                 self.conn = None
                 self.db.close()
                 self.db = None
+                wal = Path(str(self.temp) + '.wal')
+                if wal.exists() and wal.stat().st_size:
+                    raise ValueError('checkpoint left a private WAL; build not published')
+                with self.temp.open('rb') as stream:
+                    os.fsync(stream.fileno())
+                    self._durable_sha256 = self._file_digest(stream)
                 self.verify_private()
-                # Kuzu 0.11 is a single file. link is atomic and refuses an existing name.
+                # Only the durable main file is linked, never a guessed WAL pair.
+                # link is atomic and refuses an existing/racing destination.
                 os.link(self.temp, self.final)
+                self.verify_published()
                 self.temp.unlink()
+                directory = os.open(self.final.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
         finally:
             self.close()
         return False
@@ -312,6 +334,43 @@ class BindingWriteSession:
                 except Exception:
                     _rollback(connection)
                     raise
+            finally:
+                connection.close()
+        finally:
+            database.close()
+
+    @staticmethod
+    def _file_digest(stream):
+        digest = sha256()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+        return digest.hexdigest()
+
+    def verify_published(self):
+        """Check the exact final name before state/completion can be sealed.
+
+        Full semantic admission already ran against this durable inode in
+        verify_private. Bind every byte across that admission and promotion, not
+        only the receipt: any changed general/lexical/syntax fact must fail too.
+        Reopen the final name independently without a private-name recovery WAL.
+        """
+        if not self.final.samefile(self.temp) or Path(str(self.final) + '.wal').exists():
+            raise ValueError('published database differs or has an unexpected WAL')
+        with self.final.open('rb') as stream:
+            if self._durable_sha256 is None or self._file_digest(stream) != self._durable_sha256:
+                raise ValueError('published database bytes differ from admitted artifact')
+        database = kuzu.Database(str(self.final), read_only=True, buffer_pool_size=128 * 1024 * 1024, max_num_threads=2)
+        try:
+            connection = kuzu.Connection(database)
+            try:
+                from design_graph.model.graph.binding_context import _rows, MAX_JSON_CHARS
+                anchor = self.stage.manifest['ownership']
+                metadata = _rows(connection, 'MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.format,size(s.payload)', {'id': anchor['snapshot']})
+                if len(metadata) != 1 or metadata[0][0] != PHYSICAL_VERSION or not 0 < metadata[0][1] <= MAX_JSON_CHARS:
+                    raise ValueError('published ownership receipt missing or incompatible')
+                payload = _rows(connection, 'MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload', {'id': anchor['snapshot']})[0][0]
+                if sha256(payload.encode()).hexdigest() != anchor['sha256']:
+                    raise ValueError('published ownership receipt differs')
             finally:
                 connection.close()
         finally:

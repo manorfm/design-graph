@@ -28,9 +28,18 @@ and requires a separately reviewed adapter.
 
 Normal builds reuse the pinned syntax producer, deriving lexical output from that
 same capture. General, lexical, qualified-syntax and ownership writes use separate
-non-nested transactions in a private database. After deterministic close, the
-builder reopens and checks the private database before an atomic no-clobber link
-to a new destination. It then publishes state without clobbering an existing
+non-nested transactions in a private database. The builder requires an explicit
+successful `CHECKPOINT`, closes all connection/database handles, refuses a
+nonempty private WAL, and fsyncs the main file. Kuzu 0.11's close-time checkpoint
+is best-effort and can suppress buffer-pool exhaustion; close alone is not a
+publication barrier. The builder reopens and fully checks the durable private
+database before an atomic no-clobber link to a new destination. It reopens that
+exact final name read-only, checks the linked inode and anchored ownership
+payload, and compares a streaming whole-file SHA-256 taken before private
+admission with the exact final file. Thus general/lexical/syntax mutations across
+promotion cannot hide behind an unchanged receipt. It then fsyncs the directory
+before publishing state/completion. It never copies a private WAL into place.
+It then publishes state without clobbering an existing
 sidecar, and finally links an independently retained `.binding.json` completion
 seal with the receipt's version, logical key and payload digest. These filesystem
 steps are **not** a multi-file atomic transaction. A failure after DB publication
@@ -59,7 +68,11 @@ rows/owner locators, 8 MiB total canonical general-property bytes. String aggreg
 sizes are checked before fetching payloads. The completion retains its separate
 2 MiB/20000-container/64-depth cap. Builds run with the existing 20-second native
 capture timeout. Tests/evidence use real shared flock, 2 GiB memory, zero swap,
-120-second batches, 45-second CLI calls and 128 MiB/two-thread Kuzu.
+120-second batches and 45-second CLI calls. Kuzu uses two threads, a bounded
+256 MiB writer buffer pool (the retained three-snapshot row group cannot checkpoint
+within 128 MiB), and unchanged 128 MiB cold-reader pools. This internal allocation
+is not an increase to the 2 GiB external process cap. Checkpoint exhaustion at any
+input size propagates as a failed build; it must not produce a completion seal.
 
 Kuzu initialization transitively imports asyncio/subprocess. Cold installed-reader
 evidence records that dependency exception, then removes the subprocess cache and
