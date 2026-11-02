@@ -214,10 +214,18 @@ def _validate_typed(type_: Any, value: Any) -> None:
     within this traversal; no accepted value survives into another invocation.
     Transport callers use _decode instead, which already constructs exact types.
     """
-    hints = {}
+    schemas = {}
 
     def visit(expected, item):
-        origin, args = get_origin(expected), get_args(expected)
+        if expected not in schemas:
+            # Cache only schema introspection for this traversal, never values or
+            # admission results. Every occurrence still receives every check.
+            members = None
+            if is_dataclass(expected):
+                hints = get_type_hints(expected)
+                members = tuple((field.name, hints[field.name]) for field in fields(expected))
+            schemas[expected] = (get_origin(expected), get_args(expected), members)
+        origin, args, members = schemas[expected]
         if origin in (Union, UnionType):
             for choice in args:
                 try:
@@ -238,13 +246,11 @@ def _validate_typed(type_: Any, value: Any) -> None:
                 for child_type, child in zip(args, item):
                     visit(child_type, child)
             return
-        if is_dataclass(expected):
+        if members is not None:
             if type(item) is not expected or not expected.__dataclass_params__.frozen:
                 raise ValueError("expected exact frozen record")
-            if expected not in hints:
-                hints[expected] = get_type_hints(expected)
-            for field in fields(expected):
-                visit(hints[expected][field.name], getattr(item, field.name))
+            for name, child_type in members:
+                visit(child_type, getattr(item, name))
             return
         if type(item) is not expected:
             raise ValueError("incorrect scalar or enum type")

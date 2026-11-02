@@ -6,7 +6,7 @@
     "capture/binding_engine/source-syntax.mjs": "a6f86a82985d7516474abedd733b6d092a981e54a8fec904d07076155eaf4e8a",
     "capture/source_syntax_capture.py": "ecbb590d149eef2b0b315ffcdeaa76895d46a638a76e765ab0bc9476603bdf13",
     "model/binding_capture_ir.py": "6ced3373b9c93c6116b27a5e43168bbde82fa1e75cc3bbb9669f90ce10221928",
-    "model/binding_ir.py": "7cb3b9f335f1bdb0b87fde405b1b4eaa1b76799360b5e1b601daf4bb6d72b5e7",
+    "model/binding_ir.py": "c59f61141d0c67f187b2edc0083323fdb4605889c86b368a96b846a78163d494",
     "model/source_syntax.py": "5801c210e69f5b03c2a71e5e0fd933e807341502fbfe1dbc1c0798b6499f4b25",
     "capture/owned_emission.py": "a2d531f44113c06ccae4b8b7e016379d45b18633b29eced76d7a0d1e9ed70928",
     "capture/owned_html_capture.py": "6ed4e13f59d86d31e16c3e50fb4cbb71ab209c2aa181e9654012461efa4a04e7",
