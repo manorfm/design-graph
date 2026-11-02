@@ -45,11 +45,14 @@ def test_unsupported_or_mistyped_kind_was_rejected_independently(source_type, sy
 def test_both_producer_entries_admitted_kind_before_native_execution():
     from design_graph.capture.binding_capture import BindingCapture
     from design_graph.capture.source_syntax_capture import capture_source_syntax
+    native_attempts = []
     def forbidden(*args, **kwargs):
+        native_attempts.append((args, kwargs))
         raise AssertionError('unsupported kind reached native engine')
     producer = SimpleNamespace(_verify_toolchain=forbidden)
-    for source_type, syntax in [('script', 'ts'), ('unknown', 'jsx')]:
-        with pytest.raises(ValueError):
+    for source_type, syntax in [('script', 'ts'), ('module', 'ts'), ('script', 'tsx'), ('module', 'tsx'), ('unknown', 'jsx')]:
+        with pytest.raises(ValueError, match='^unsupported source kind$'):
             BindingCapture._capture_snapshot_unit(producer, b'const x=1;', locator='pure:x', source_type=source_type, syntax=syntax)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='^unsupported source kind$'):
             capture_source_syntax(producer, b'const x=1;', locator='pure:x', source_type=source_type, syntax=syntax)
+    assert native_attempts == []

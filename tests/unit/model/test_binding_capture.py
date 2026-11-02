@@ -112,7 +112,7 @@ def test_expanded_real_controls(f):
 def test_reused_44_whole_units(f):
     assert sha256(f["source"].encode()).hexdigest() == f["sha256"]
     if f["syntax"] in ("ts", "tsx"):
-        with pytest.raises(ValueError, match="explicit supported"):
+        with pytest.raises(ValueError, match="^unsupported source kind$"):
             captured_fixture(f)
         return
     capture = captured_fixture(f)
