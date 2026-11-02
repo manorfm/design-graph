@@ -228,7 +228,7 @@ def test_generated_body_and_envelope_budgets_retained(monkeypatch):
         storage._prepare_syntax(value)
 
 
-def test_embedded_and_qualified_nonempty_admitted_fresh(monkeypatch):
+def test_reference_and_qualified_nonempty_admitted_fresh(monkeypatch):
     from design_graph.model.graph import source_build_ownership as ownership
 
     value = positive()
@@ -249,17 +249,26 @@ def test_embedded_and_qualified_nonempty_admitted_fresh(monkeypatch):
         return result
 
     monkeypatch.setattr(storage, "_validate_typed", typed)
-    decoded = ownership._decode_receipt(embedded.to_json())
-    qualified = storage._decode_syntax(payload)
+    text = embedded.to_json()
+    hydrated = storage._decode_syntax(payload)
+    decoded = ownership.SourceBuildOwnership.from_json(text, syntax=hydrated.snapshot)
+    assert decoded == embedded and decoded is not embedded
+    assert all(c.source_syntax.uses for c in decoded.syntax.captures)
     assert len(seen) == 3
-    assert seen[0] is value and seen[1] is decoded.syntax
-    assert seen[2] is qualified.snapshot
+    assert seen[0] is value and seen[1] is hydrated.snapshot
+    assert seen[2] is decoded.syntax and decoded.syntax is hydrated.snapshot
+    assert decoded.syntax is not value
+    qualified = storage._decode_syntax(payload)
+    assert len(seen) == 4 and seen[3] is qualified.snapshot
     assert (
         qualified.snapshot == decoded.syntax
         and qualified.snapshot is not decoded.syntax
     )
     decoded.check()
-    assert len(seen) == 4 and seen[-1] is decoded.syntax
+    assert len(seen) == 5 and seen[-1] is decoded.syntax
+    repeated = ownership.SourceBuildOwnership.from_json(text, syntax=decoded.syntax)
+    assert repeated == decoded and repeated is not decoded
+    assert len(seen) == 6 and seen[-1] is decoded.syntax
 
 
 @pytest.mark.parametrize(

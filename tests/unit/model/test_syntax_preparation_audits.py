@@ -193,7 +193,7 @@ def receipt(value):
     )
 
 
-def test_embedded_receipt_and_qualified_copy_admitted_independently(monkeypatch):
+def test_reference_receipt_and_qualified_copy_admitted_independently(monkeypatch):
     from design_graph.model.graph import source_build_ownership as ownership
 
     value = snapshot()
@@ -208,17 +208,23 @@ def test_embedded_receipt_and_qualified_copy_admitted_independently(monkeypatch)
         return original(item)
 
     monkeypatch.setattr(storage, "_finite", observe)
-    decoded = ownership._decode_receipt(embedded.to_json())
-    assert decoded == embedded
-    assert counts == {"snapshot": 2}, (
-        "receipt serialization and decode are independent preparations"
+    text = embedded.to_json()
+    hydrated = storage._decode_syntax(transport)
+    decoded = ownership.SourceBuildOwnership.from_json(text, syntax=hydrated.snapshot)
+    assert decoded == embedded and decoded is not embedded
+    assert decoded.syntax is hydrated.snapshot and decoded.syntax is not value
+    assert counts == {"snapshot": 3}, (
+        "serialization, supplied syntax decode and public hydration admit independently"
     )
     qualified = storage._decode_syntax(transport)
     assert qualified.snapshot == decoded.syntax
     assert qualified.snapshot is not decoded.syntax
-    assert counts == {"snapshot": 3}
+    assert counts == {"snapshot": 4}
     decoded.check()
-    assert counts == {"snapshot": 4}, "no checked object credential survives admission"
+    assert counts == {"snapshot": 5}, "no checked object credential survives admission"
+    repeated = ownership.SourceBuildOwnership.from_json(text, syntax=decoded.syntax)
+    assert repeated == decoded and repeated is not decoded
+    assert counts == {"snapshot": 6}, "public hydration must freshly admit supplied syntax"
 
 
 def test_exact_tuple_arity_remained_closed():
