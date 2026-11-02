@@ -820,6 +820,7 @@ class TestToolDefinitions:
             "list_screens", "list_components", "search", "assemble_page", "get_screen", "get_component",
             "get_full", "get_tokens", "get_resources", "get_asset", "impact",
             "validate_component_implementation", "set_prototype", "get_build_diff", "get_metrics",
+            "get_binding_context",
         }
         assert names == expected
 
