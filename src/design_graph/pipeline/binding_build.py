@@ -56,7 +56,7 @@ from design_graph.model.graph.binding_general_completion import (
     general_receipt,
 )
 
-CONTRACT = "binding-build/4"
+CONTRACT = "binding-build/5"
 
 
 @dataclass(frozen=True)

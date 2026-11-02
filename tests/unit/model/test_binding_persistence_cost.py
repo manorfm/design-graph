@@ -226,17 +226,19 @@ atexit.register(lambda: Path({str(receipt)!r}).write_text(json.dumps(counts)))
 """
     result = build(html, db, before=instrument)
     assert result.returncode == 0, result.stderr
-    # Six independent one-unit admissions: native capture, lexical preparation,
-    # syntax preparation, and reopened embedded, qualified, lexical payloads.
+    # Five independent one-unit admissions: native capture, lexical preparation,
+    # syntax preparation, and reopened qualified and lexical payloads. The wire
+    # receipt references the qualified syntax instead of embedding a second copy.
     # Receipt serialization/digest must not add another semantic admission.
-    assert json.loads(receipt.read_text()) == {"semantic": 6, "canonical": 2, "admissions": ["capture_source_syntax", "_prepare_snapshot", "_prepare_syntax", "_decode_receipt", "_read_admitted", "_decode_snapshot"]}
+    assert json.loads(receipt.read_text()) == {"semantic": 5, "canonical": 2, "admissions": ["capture_source_syntax", "_prepare_snapshot", "_prepare_syntax", "_read_admitted", "_decode_snapshot"]}
     manifest = json.loads(Path(str(db) + ".binding.json").read_text())
-    assert manifest["contract"] == "binding-build/4" and manifest["general"]
+    assert manifest["contract"] == "binding-build/5" and manifest["general"]
     unchanged = build(html, db, before=instrument)
     assert unchanged.returncode == 0, unchanged.stderr
     assert json.loads(unchanged.stdout)["status"] == "skipped"
-    # Reuse must freshly admit each of the three persisted payloads once.
-    assert json.loads(receipt.read_text()) == {"semantic": 3, "canonical": 1, "admissions": ["_decode_receipt", "_read_admitted", "_decode_snapshot"]}
+    # Reuse must freshly admit both persisted syntax-bearing payloads once;
+    # owner/reference admission still runs separately, with no syntax copy.
+    assert json.loads(receipt.read_text()) == {"semantic": 2, "canonical": 1, "admissions": ["_read_admitted", "_decode_snapshot"]}
 
 
 def test_same_connection_mutated_bytes_are_checked_next_call(

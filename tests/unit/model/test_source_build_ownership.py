@@ -58,7 +58,7 @@ def test_hostile_exact_closed_typed_transport(owned, mutation):
     from design_graph.model.graph.source_build_ownership import SourceBuildOwnership
     value, _, _ = owned
     with pytest.raises(ValueError):
-        SourceBuildOwnership.from_json(json.dumps(mutation(json.loads(value.to_json()))))
+        SourceBuildOwnership.from_json(json.dumps(mutation(json.loads(value.to_json()))), syntax=value.syntax)
 
 
 def test_finite_preflight_before_json_allocation(owned, monkeypatch):
@@ -78,20 +78,19 @@ def test_finite_preflight_before_json_allocation(owned, monkeypatch):
 def test_unselected_syntax_inventory_mutation_refused_by_retained_anchor(owned):
     from design_graph.model.graph import source_build_ownership as s
     value, reader, db = owned
-    anchor = json.loads(Path(str(db)+'.binding.json').read_text())['ownership']
-    row = reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload', {'id': anchor['snapshot']})
+    row = reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload', {'id': value.build_fingerprint})
     try:
         payload = row.get_all()[0][0]
     finally:
         row.close()
     changed = json.loads(payload)
-    changed['syntax']['captures'][1]['lexical']['ir']['units'][0]['source'] += '\nconst FOREIGN=1;'
-    reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload', {'id': anchor['snapshot'], 'payload': json.dumps(changed)}).close()
+    changed['snapshot']['captures'][1]['lexical']['ir']['units'][0]['source'] += '\nconst FOREIGN=1;'
+    reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload', {'id': value.build_fingerprint, 'payload': json.dumps(changed)}).close()
     try:
-        with pytest.raises(ValueError, match='anchor mismatch'):
+        with pytest.raises(ValueError, match='source|digest'):
             s.load_source_build_ownership(reader)
     finally:
-        reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload', {'id': anchor['snapshot'], 'payload': payload}).close()
+        reader._conn.execute('MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id SET s.payload=$payload', {'id': value.build_fingerprint, 'payload': payload}).close()
     assert s.load_source_build_ownership(reader) == value
 
 

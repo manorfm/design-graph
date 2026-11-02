@@ -1,8 +1,19 @@
-# Fresh BUILD source ownership v1
+# Fresh BUILD source ownership
 
-`binding-build/4` creates a typed `source-build-ownership/1` append-only logical
+`binding-build/5` creates a typed `source-build-ownership/3` append-only logical
 receipt in the unchanged `BindingContextSnapshot` physical JSON table. Existing
 `binding-general-completion/1` shape receipts retain their original meaning.
+
+The ownership wire stores an exact `{snapshot, sha256}` syntax reference instead
+of embedding the qualified syntax a second time. Every owner, witness, input
+unit, coverage record and producer pin is retained. Referenced syntax is fetched
+under its own unchanged prefetch/transport bounds, decoded and semantically
+admitted on every read, then matched against the independently anchored receipt.
+The in-memory `SourceBuildOwnership` still contains the complete syntax snapshot.
+Its public `from_json(text, syntax=...)` requires the separate untrusted snapshot
+and independently admits it; this argument is not a checked flag or cache.
+Embedded ownership v2/build4 receipts are explicitly incompatible, not silently
+interpreted as references. No existing graph or completion is migrated in place.
 
 The local builder commits every property and the schema of all 39 general tables,
 relationship endpoints, keys, nulls, Model identity and multiplicity. Each STRING

@@ -6,7 +6,7 @@ provenance flag/digest, infer ownership from singleton snapshots, or recapture h
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from hashlib import sha256
 from pathlib import Path
 
@@ -32,8 +32,8 @@ from design_graph.model.graph.source_syntax_context import (
 from design_graph.model.source_owner import SourceOwnerWitness, check_witnesses
 from design_graph.model.source_syntax import _finite
 
-VERSION = 'source-build-ownership/2'
-BUILDER = 'binding-build/4'
+VERSION = 'source-build-ownership/3'
+BUILDER = 'binding-build/5'
 
 
 @dataclass(frozen=True)
@@ -107,7 +107,7 @@ class GeneralCommitment:
 
 
 @dataclass(frozen=True)
-class SourceBuildOwnership:
+class _OwnershipFacts:
     version: str
     builder: str
     domain: DocumentDomain
@@ -122,6 +122,23 @@ class SourceBuildOwnership:
     general: GeneralCommitment
     owners: tuple[PayloadOwner, ...]
     syntax_sha256: str
+
+
+@dataclass(frozen=True)
+class _SyntaxReference:
+    snapshot: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class _ReceiptReference(_OwnershipFacts):
+    syntax: _SyntaxReference
+    witnesses: tuple[SourceOwnerWitness, ...] = ()
+    granularity: str = 'field emission native owner; unsupported derivations explicit'
+
+
+@dataclass(frozen=True)
+class SourceBuildOwnership(_OwnershipFacts):
     syntax: SourceSyntaxSnapshot
     witnesses: tuple[SourceOwnerWitness, ...] = ()
     granularity: str = 'field emission native owner; unsupported derivations explicit'
@@ -136,8 +153,16 @@ class SourceBuildOwnership:
         return _prepare_receipt(self).digest
 
     @classmethod
-    def from_json(cls, text):
-        return _decode_receipt(text)
+    def from_json(cls, text, *, syntax=None):
+        """Decode a reference receipt with separately supplied, untrusted syntax.
+
+        This is not a checked handle: the complete syntax is admitted every call.
+        Graph consumers resolve it from persisted bytes, never caller claims.
+        """
+        wire = _decode_receipt(text)
+        if syntax is None:
+            raise ValueError('ownership reference requires separately supplied syntax')
+        return _hydrate_receipt(wire, _prepare_syntax(syntax))
 
 
 def _check_receipt(self, admitted):
@@ -201,7 +226,12 @@ class _AdmittedReceipt:
 
 def _prepare_receipt(value, syntax=None):
     _check_receipt(value, _prepare_syntax(value.syntax) if syntax is None else syntax)
-    text = _json(asdict(value))
+    wire = _ReceiptReference(
+        **{f.name: getattr(value, f.name) for f in fields(_OwnershipFacts)},
+        syntax=_SyntaxReference(value.build_fingerprint, value.syntax_sha256),
+        witnesses=value.witnesses, granularity=value.granularity,
+    )
+    text = _json(asdict(wire))
     _admit(text)
     return _AdmittedReceipt(value, text, sha256(text.encode()).hexdigest())
 
@@ -209,11 +239,28 @@ def _prepare_receipt(value, syntax=None):
 def _decode_receipt(text):
     _admit(text)  # byte/depth/container scan BEFORE allocation
     try:
-        value = _decode(SourceBuildOwnership, json.loads(text, object_pairs_hook=_object))
-        value.check()
-        return value
+        data = json.loads(text, object_pairs_hook=_object)
+        if type(data) is not dict or data.get('version') != VERSION or data.get('builder') != BUILDER:
+            raise ValueError('unsupported source build ownership version')
+        wire = _decode(_ReceiptReference, data)
+        for token in (wire.syntax.snapshot, wire.syntax.sha256):
+            _digest_token(token)
+        if (wire.syntax.snapshot, wire.syntax.sha256) != (wire.build_fingerprint, wire.syntax_sha256):
+            raise ValueError('ownership syntax reference mismatch')
+        return wire
     except (TypeError, KeyError, RecursionError, UnicodeError) as exc:
         raise ValueError('invalid source ownership transport') from exc
+
+
+def _hydrate_receipt(wire, admitted):
+    if (admitted.snapshot.scope.snapshot, admitted.digest) != (wire.syntax.snapshot, wire.syntax.sha256):
+        raise ValueError('ownership syntax reference mismatch')
+    value = SourceBuildOwnership(
+        **{f.name: getattr(wire, f.name) for f in fields(_OwnershipFacts)},
+        syntax=admitted.snapshot, witnesses=wire.witnesses, granularity=wire.granularity,
+    )
+    _check_receipt(value, admitted)
+    return value
 
 
 def receipt_key(domain):
@@ -272,13 +319,15 @@ def _read_owned_facts(connection, domain, anchor):
     payload = _rows(connection, 'MATCH (s:BindingContextSnapshot) WHERE s.snapshot_id=$id RETURN s.payload', {'id': anchor['snapshot']})[0][0]
     if sha256(payload.encode()).hexdigest() != anchor['sha256']:
         raise ValueError('independently retained ownership anchor mismatch')
-    value = SourceBuildOwnership.from_json(payload)
+    wire = _decode_receipt(payload)
+    from design_graph.model.graph.source_syntax_context import _read_admitted as read_syntax
+    syntax = read_syntax(connection, wire.syntax.snapshot, wire.syntax.sha256)
+    if syntax is None:
+        raise ValueError('missing qualified source syntax snapshot')
+    value = _hydrate_receipt(wire, syntax)
     if value.domain != domain:
         raise ValueError('ownership selected domain mismatch')
-    from design_graph.model.graph.source_syntax_context import _read as read_syntax
-    syntax = read_syntax(connection, value.syntax.scope.snapshot, value.syntax_sha256)
-    if syntax != value.syntax:
-        raise ValueError('qualified and embedded syntax inventories differ')
+
     from design_graph.model.graph.binding_context import _read as read_lexical
     lexical = read_lexical(connection, value.lexical_snapshot, value.lexical_snapshot)
     canonical_captures = lambda captures: _json([c._canonical_data() for c in sorted(captures, key=lambda c: c.ir.units[0].id)])

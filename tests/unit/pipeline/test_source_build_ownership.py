@@ -16,8 +16,8 @@ def test_normal_fresh_build_owned_after_reopen_and_reusable(tmp_path):
     result = build(source, db)
     assert result.returncode == 0, result.stderr
     manifest = json.loads(Path(str(db) + '.binding.json').read_text())
-    assert manifest['contract'] == 'binding-build/4'
-    assert manifest['ownership']['version'] == 'source-build-ownership/2'
+    assert manifest['contract'] == 'binding-build/5'
+    assert manifest['ownership']['version'] == 'source-build-ownership/3'
     from design_graph.model.graph.reader import GraphReader
     from design_graph.model.graph.source_build_ownership import (
         load_source_build_ownership,

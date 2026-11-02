@@ -44,7 +44,7 @@ def read_manifest(path, identity, fingerprint):
     previous = read_completion(path)
     expected = completed_identity(identity)
     additions = {"build_fingerprint", "snapshot", "roots", "general"}
-    if identity.get('contract') == 'binding-build/4':
+    if identity.get('contract') in ('binding-build/4', 'binding-build/5'):
         additions.add('ownership')
     if type(previous) is not dict or set(previous) != set(expected) | additions:
         raise ValueError("incompatible binding completion fields")
