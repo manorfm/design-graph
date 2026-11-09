@@ -61,7 +61,11 @@ def script_resource(entry_id: str, content: bytes, url: str = "") -> Resource:
         return Resource.create(ResourceKind.RUNTIME, "@babel/standalone", _babel_version(text),
                                origin=origin, certainty=certainty, **files)
     name, version = _module_name(head, entry_id)
-    return Resource.create(ResourceKind.MODULE, name, version, origin=origin, certainty=Certainty.INFERRED, **files)
+    return Resource.create(
+        ResourceKind.MODULE, name, version, origin=origin, certainty=Certainty.INFERRED,
+        detail=f"bundle entry: {entry_id}; explicit source file, dependency closure unknown",
+        files=(AssetFile("text/javascript", content),), **files,
+    )
 
 
 def is_script(mime: str) -> bool:
