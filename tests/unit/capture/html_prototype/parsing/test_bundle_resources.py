@@ -66,6 +66,7 @@ def test_everything_it_loads_is_described(tmp_path):
         (ResourceKind.LIBRARY, "react", "18.3.1"),
         (ResourceKind.RUNTIME, "@babel/standalone", "7.29.0"),
         (ResourceKind.MODULE, "views.jsx", "v2.6"),
+        (ResourceKind.MODULE, "prototype stylesheet", ""),
         (ResourceKind.FONT, "IBM Plex Sans", ""),
         (ResourceKind.IMAGE, "favicon", ""),
     }
@@ -85,5 +86,5 @@ def test_every_screen_of_a_single_page_app_loads_every_resource(tmp_path):
     document = PrototypeDocument.read(tmp_path / "proto.html")
     result = asyncio.run(capture_for(document).capture(document, concurrency=1))
     ids = {r.id for r in result.resources}
-    assert len(ids) == 5
+    assert len(ids) == 6
     assert [set(screen.resource_ids) for screen in result.screens] == [ids]

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+from hashlib import sha256
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
@@ -28,7 +29,7 @@ from design_graph.capture.resources import (
     is_script,
     script_resource,
 )
-from design_graph.model.entities import Resource
+from design_graph.model.entities import AssetFile, Certainty, Resource, ResourceKind
 from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,16 @@ def decompose(document: PrototypeDocument) -> RawSources:
         )
     else:
         js, css, inner_html = _extract_plain(document.text, soup)
+
+    if css:
+        content = css.encode("utf-8")
+        resources.append(Resource.create(
+            ResourceKind.MODULE, "prototype stylesheet", origin="embutido no protótipo",
+            certainty=Certainty.STATED,
+            detail="captured CSS in source order; external stylesheets and dependency closure unknown",
+            size=len(content), sha256=sha256(content).hexdigest(),
+            files=(AssetFile("text/css", content),),
+        ))
 
     logger.info(
         "source_loader: loaded %s | format=%s | js=%d css=%d",

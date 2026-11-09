@@ -196,7 +196,7 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "get_asset",
         "description": (
-            "Writes the files of one font family, image or explicit own-code module into the workspace, under "
+            "Writes the files of one font family, image, captured stylesheet or explicit own-code module into the workspace, under "
             "design-graph-assets/<name>/, and returns their paths — use it instead of recreating an icon or "
             "guessing a font file. Names come from get_resources. A module is an explicit whole-file "
             "selection, not proved dependency closure or a runtime member link. Libraries/runtime are not copied. "
