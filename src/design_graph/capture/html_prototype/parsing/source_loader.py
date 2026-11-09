@@ -14,13 +14,17 @@ from __future__ import annotations
 
 import json
 import logging
-from hashlib import sha256
 from dataclasses import dataclass
+from hashlib import sha256
 
 from bs4 import BeautifulSoup
 
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.bundler import BundleEntryError, decode_entry
+from design_graph.capture.html_prototype.parsing.format_detector import (
+    BUNDLED_REACT,
+    detect,
+)
 from design_graph.capture.html_prototype.sources import RawSources
 from design_graph.capture.resources import (
     font_resources,
@@ -30,7 +34,6 @@ from design_graph.capture.resources import (
     script_resource,
 )
 from design_graph.model.entities import AssetFile, Certainty, Resource, ResourceKind
-from design_graph.capture.html_prototype.parsing.format_detector import BUNDLED_REACT, detect
 
 logger = logging.getLogger(__name__)
 

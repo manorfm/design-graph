@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from design_graph.model.entities import ComponentType, TokenCategory
+from design_graph.interface.mcp.binding_context_tool import (
+    TOOL_DEFINITION as BINDING_CONTEXT_TOOL,
+)
 from design_graph.interface.mcp.build_tools import DEFAULT_METRICS_LIMIT
 from design_graph.interface.mcp.component_tools import DEFAULT_LIST_COMPONENTS_LIMIT
-from design_graph.interface.mcp.binding_context_tool import TOOL_DEFINITION as BINDING_CONTEXT_TOOL
 from design_graph.interface.mcp.qualified_source_tool import QUALIFIED_PROPERTIES
+from design_graph.model.entities import ComponentType, TokenCategory
 
 # Wire budget retained independently of the capture-backed validation module.
 # Importing that module here would make graph-only tools/list load a parser.

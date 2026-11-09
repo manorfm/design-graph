@@ -1,6 +1,5 @@
 """Explicit module files preserve helpers without claiming dependency linkage."""
 import hashlib
-from pathlib import Path
 
 import kuzu
 import pytest
@@ -10,7 +9,6 @@ from design_graph.interface.mcp.asset_tool import get_asset
 from design_graph.model.graph.reader import GraphReader
 from design_graph.model.graph.schema import initialize_schema
 from design_graph.model.graph.writer import GraphWriter
-
 
 SOURCE = '/* kit.jsx v1 */\n(() => { const R = {lg: 8}; function close() { return "ação"; } window.K = {R, close}; })();\n'.encode()
 

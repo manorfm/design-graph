@@ -1,6 +1,5 @@
 """Whole captured CSS is an explicit resource, not guessed per-component closure."""
 import hashlib
-from pathlib import Path
 
 from design_graph.capture.base import PrototypeDocument
 from design_graph.capture.html_prototype.parsing.source_loader import decompose
