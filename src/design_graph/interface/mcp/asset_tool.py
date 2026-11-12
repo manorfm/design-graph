@@ -20,6 +20,8 @@ from design_graph.model.graph.reader import GraphReader
 
 ASSETS_DIR = "design-graph-assets"
 _EXTENSIONS = {
+    "text/javascript": ".js",
+    "text/css": ".css",
     "font/woff2": ".woff2", "font/woff": ".woff", "font/ttf": ".ttf", "font/otf": ".otf",
     "image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp",
 }

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from design_graph.model.entities import ComponentType, TokenCategory
+from design_graph.interface.mcp.binding_context_tool import (
+    TOOL_DEFINITION as BINDING_CONTEXT_TOOL,
+)
 from design_graph.interface.mcp.build_tools import DEFAULT_METRICS_LIMIT
 from design_graph.interface.mcp.component_tools import DEFAULT_LIST_COMPONENTS_LIMIT
-from design_graph.interface.mcp.binding_context_tool import TOOL_DEFINITION as BINDING_CONTEXT_TOOL
 from design_graph.interface.mcp.qualified_source_tool import QUALIFIED_PROPERTIES
+from design_graph.model.entities import ComponentType, TokenCategory
 
 # Wire budget retained independently of the capture-backed validation module.
 # Importing that module here would make graph-only tools/list load a parser.
@@ -196,9 +198,11 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "get_asset",
         "description": (
-            "Writes the files of one font family or image the prototype embeds into the workspace, under "
+            "Writes the files of one font family, image, captured stylesheet or explicit own-code module into the workspace, under "
             "design-graph-assets/<name>/, and returns their paths — use it instead of recreating an icon or "
-            "guessing a font file. Names come from get_resources."
+            "guessing a font file. Names come from get_resources. A module is an explicit whole-file "
+            "selection, not proved dependency closure or a runtime member link. Libraries/runtime are not copied. "
+            "Older graphs may have no module files; build a new database to capture them."
         ),
         "inputSchema": {
             "type": "object",
